@@ -1,0 +1,34 @@
+plugin keymaps:
+
+<leader>
+lsp:
+   ll - hover
+   lk - definition
+   lm - code action
+trouble
+   xx - toggle
+   xq - quickfix
+   xl - locallist
+   xr - lsp references
+telescope
+   ff - find files
+   fd - live grep
+none-ls
+   w - format
+buffers
+   bd - buffer delete
+   bc - buffer prev
+   bv - buffer next
+cmp
+   <C-e> - close
+   <C-q> - complete
+neotree
+   rr - file explorer
+   rw - buffers
+   rv - git
+   rq - close
+
+
+<non-leader>
+comment
+   gc - comment

@@ -47,12 +47,6 @@
       "newline": true,
       "segments": [
         {
-          "foreground": "#cd5e42",
-          "style": "plain",
-          "template": "\ue3bf ",
-          "type": "root"
-        },
-        {
           "foreground": "#CD4277",
           "style": "plain",
           "template": ">>",
@@ -62,6 +56,11 @@
       "type": "prompt"
     }
   ],
+  "transient_prompt": {
+    "background": "transparent",
+    "foreground": "#CD4277",
+    "template": ">>"
+  },
   "final_space": true,
   "version": 2
 }

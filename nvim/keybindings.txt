@@ -6,6 +6,8 @@ lsp:
    lk - definition
    lm - code action
 trouble
+   xw - workspace diagnostics
+   xd - document diagnostics
    xx - toggle
    xq - quickfix
    xl - locallist
@@ -13,6 +15,9 @@ trouble
 telescope
    ff - find files
    fd - live grep
+   fm - manpages
+   fq - quickfix
+   ft - treesitter
 none-ls
    w - format
 buffers

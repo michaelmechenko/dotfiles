@@ -1,20 +1,21 @@
 return {
   "folke/trouble.nvim",
   dependencies = { "nvim-tree/nvim-web-devicons" },
-  vim.keymap.set("n", "<leader>xw", function()
-    require("trouble").toggle("workspace_diagnostics")
-  end),
-  vim.keymap.set("n", "<leader>xd", function()
-    require("trouble").toggle("document_diagnostics")
+  vim.keymap.set("n", "<leader>xx", function()
+    require("trouble").toggle("diagnostics")
+    require("trouble").focus({true})
   end),
   vim.keymap.set("n", "<leader>xq", function()
     require("trouble").toggle("quickfix")
+    require("trouble").focus({true})
   end),
   vim.keymap.set("n", "<leader>xl", function()
     require("trouble").toggle("loclist")
+    require("trouble").focus({true})
   end),
   vim.keymap.set("n", "<leader>xr", function()
     require("trouble").toggle("lsp_references")
+    require("trouble").focus({true})
   end),
   opts = {
     modes = {

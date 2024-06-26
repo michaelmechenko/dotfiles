@@ -21,7 +21,7 @@ return {
           "eslint",
           "gopls",
           "html",
-          "biome",
+          -- "biome",
           "java_language_server",
           "markdown_oxide",
           "pyright",
@@ -49,7 +49,7 @@ return {
       lspconfig.eslint.setup({})
       lspconfig.gopls.setup({})
       lspconfig.html.setup({})
-      lspconfig.biome.setup({})
+      -- lspconfig.biome.setup({})
       lspconfig.java_language_server.setup({})
       lspconfig.markdown_oxide.setup({})
       lspconfig.pyright.setup({})

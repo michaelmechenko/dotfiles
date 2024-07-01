@@ -15,9 +15,5 @@ return {
       },
       close_if_last_window = true,
     })
-    		vim.keymap.set("n", "<leader>rr", ":Neotree filesystem reveal left<CR>", {})
-    		vim.keymap.set("n", "<leader>rb", ":Neotree git_status reveal float<CR>", {})
-    		vim.keymap.set("n", "<leader>rw", ":Neotree buffers reveal left<CR>", {})
-    		vim.keymap.set("n", "<leader>rq", ":Neotree close<CR>", {})
   end,
 }

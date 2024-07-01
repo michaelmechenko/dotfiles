@@ -1,16 +1,25 @@
 return {
-  {
-    "zbirenbaum/copilot.lua",
-    cmd = "Copilot",
-    event = "InsertEnter",
-    config = function()
-      require("copilot").setup({ suggestion = { enabled = false }, panel = { enabled = false } })
-    end,
-  },
-  {
-    "zbirenbaum/copilot-cmp",
-    config = function()
-      require("copilot_cmp").setup()
-    end,
-  },
+	-- {
+	-- 	"zbirenbaum/copilot.lua",
+	-- 	cmd = "Copilot",
+	-- 	event = "InsertEnter",
+	-- 	config = function()
+	-- 		require("copilot").setup({
+	-- 			suggestion = { enabled = false },
+	-- 			panel = { enabled = true },
+	-- 		})
+	-- 	end,
+	--
+	-- 	-- vim.keymap.set("n", "<leader>qq", function()
+	-- 	-- 	require("copilot.panel").open({ "bottom", 0.1 })
+	-- 	-- 	require("copilot.panel").refresh()
+	-- 	-- end),
+	-- },
+	--
+	-- {
+	-- 	"zbirenbaum/copilot-cmp",
+	-- 	config = function()
+	-- 		require("copilot_cmp").setup()
+	-- 	end,
+	-- },
 }

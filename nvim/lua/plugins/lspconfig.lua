@@ -22,7 +22,6 @@ return {
           "gopls",
           "html",
           "biome",
-          "java_language_server",
           "markdown_oxide",
           "pyright",
           "svelte",
@@ -50,7 +49,6 @@ return {
       lspconfig.gopls.setup({})
       lspconfig.html.setup({})
       lspconfig.biome.setup({})
-      lspconfig.java_language_server.setup({})
       lspconfig.markdown_oxide.setup({})
       lspconfig.pyright.setup({})
       lspconfig.svelte.setup({})

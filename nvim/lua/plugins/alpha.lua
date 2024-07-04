@@ -19,10 +19,6 @@ return {
 			" ▀█   █▀    ██████████  ▀██████▀   ▀██████▀  █▀    ▀█   ███   █▀  ",
 			"",
 			"",
-			"",
-			"",
-			"",
-			"",
 		}
 		dashboard.section.buttons.val = {
 			dashboard.button("e", " > new file", "<cmd>ene<CR>"),

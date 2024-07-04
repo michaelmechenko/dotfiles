@@ -10,7 +10,7 @@ if not (vim.uv or vim.loop).fs_stat(lazypath) then
 	})
 end
 vim.opt.rtp:prepend(lazypath)
-
+vim.cmd("augroup Shape autocmd! autocmd VimLeave * set guicursor=a:hor100 augroup END")
 vim.opt.termguicolors = true
 require("vim-keymaps")
 require("lazy").setup("plugins")

@@ -2,4 +2,5 @@ StardewValley
 htop
 menus
 neofetch
+nvim/lua/plugins/gpt.lua
 github-copilot

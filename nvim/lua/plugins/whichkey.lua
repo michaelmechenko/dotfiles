@@ -29,9 +29,9 @@ return {
 
 			r = {
 				name = "neotree",
-				r = { "<cmd>Neotree filesystem reveal left<CR>", "filesystem" },
-				w = { "<cmd>Neotree buffers reveal left<CR>", "buffers" },
-				q = { "<cmd>Neotree close<CR>", "git status" },
+				r = { "<cmd>Neotree filesystem reveal right<CR>", "filesystem" },
+				w = { "<cmd>Neotree buffers reveal right<CR>", "buffers" },
+				q = { "<cmd>Neotree close<CR>", "close" },
 				b = { "<cmd>Neotree git_status reveal float<CR>", "git status" },
 			},
 

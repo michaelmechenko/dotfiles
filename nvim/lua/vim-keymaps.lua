@@ -1,7 +1,7 @@
 vim.cmd([[
     augroup RestoreCursorShapeOnExit
         autocmd!
-        autocmd VimLeave * set guicursor=a:ver1
+        autocmd VimLeave * set guicursor=a:hor1
     augroup END
 ]])
 

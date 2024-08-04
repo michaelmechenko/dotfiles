@@ -4,8 +4,8 @@ layout {
           plugin location="file:~/.config/zellij/plugins/zjstatus.wasm" {
               // hide_frame_for_single_pane "true"
 
-              format_left  "{mode}#[fg=#FFFFFF,bg=#181825,bold] {session}#[bg=#181825]"
-              format_center "{tabs}"
+              format_left  "{mode}#[fg=#FFFFFF,bg=#181825,bold] :3#[bg=#181825]"
+              format_center "#[fg=#9399B2,bg=#181825]~{tabs}#[fg=#9399B2,bg=#181825]~"
               format_right "{command_kubectx}#[fg=#424554,bg=#181825]::{command_kubens}{datetime}"
               format_space "#[bg=#181825]"
 
@@ -18,10 +18,10 @@ layout {
               // border_format   "#[fg=#6C7086]"  // format specifier for theming
               // border_position "bottom"            // "top" | "bottom" for the border position relative to the bar
 
-              tab_normal               "#[fg=#6C7086,bg=#181825] {index} {name} {fullscreen_indicator}{sync_indicator}{floating_indicator}"
-              tab_active               "#[fg=#9399B2,bg=#181825,bold,italic] {index} {name} {fullscreen_indicator}{sync_indicator}{floating_indicator}"
+              tab_normal               "#[fg=#6C7086,bg=#181825] {name} {fullscreen_indicator}{sync_indicator}{floating_indicator}"
+              tab_active               "#[fg=#9399B2,bg=#181825,bold,italic] {name} {fullscreen_indicator}{sync_indicator}{floating_indicator}"
               tab_fullscreen_indicator "□ "
-              tab_sync_indicator       "  "
+              tab_sync_indicator       " "
               tab_floating_indicator   "󰉈 "
 
               command_kubectx_command  "kubectx -c"

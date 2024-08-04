@@ -5,6 +5,8 @@ vim.cmd([[
     augroup END
 ]])
 
+vim.cmd("set notermsync")
+
 vim.opt.fillchars = { eob = " " }
 vim.g.mapleader = " "
 

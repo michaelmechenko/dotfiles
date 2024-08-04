@@ -191,21 +191,21 @@ keybinds clear-defaults=true{
 }
 
 plugins {
-  zj-quit location="file:~/.config/zellij/plugins/zj-quit.wasm" {
-    confirm_key "q"
-    cancel_key "Esc"
-  }
-  tab-bar location="zellij:tab-bar"
-  status-bar location="zellij:status-bar"
-  strider location="zellij:strider"
-  compact-bar location="zellij:compact-bar"
-  session-manager location="zellij:session-manager"
-  welcome-screen location="zellij:session-manager" {
-      welcome_screen true
-  }
-  filepicker location="zellij:strider" {
-      cwd "/"
-  }
+  // zj-quit location="file:~/.config/zellij/plugins/zj-quit.wasm" {
+  //   confirm_key "q"
+  //   cancel_key "Esc"
+  // }
+  // tab-bar location="zellij:tab-bar"
+  // status-bar location="zellij:status-bar"
+  // strider location="zellij:strider"
+  // compact-bar location="zellij:compact-bar"
+  // session-manager location="zellij:session-manager"
+  // welcome-screen location="zellij:session-manager" {
+      // welcome_screen true
+  // }
+  // filepicker location="zellij:strider" {
+  //     cwd "/"
+  // }
 }
 
 // Choose what to do when zellij receives SIGTERM, SIGINT, SIGQUIT or SIGHUP
@@ -237,14 +237,14 @@ plugins {
 //   - true (default)
 //   - false
 //
-pane_frames false
+// pane_frames false
 
 // Toggle between having Zellij lay out panes according to a predefined set of layouts whenever possible
 // Options:
 //   - true (default)
 //   - false
 //
-// auto_layout true
+auto_layout false
 
 // Whether sessions should be serialized to the cache folder (including their tabs/panes, cwds and running commands) so that they can later be resurrected
 // Options:

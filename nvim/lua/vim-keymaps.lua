@@ -5,8 +5,6 @@ vim.cmd([[
     augroup END
 ]])
 
-vim.cmd("set guicursor=a:blinkon0")
-
 vim.opt.fillchars = { eob = " " }
 vim.g.mapleader = " "
 

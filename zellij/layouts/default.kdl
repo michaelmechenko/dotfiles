@@ -9,8 +9,8 @@ layout {
               format_right "{command_kubectx}#[fg=#424554,bg=#181825]::{command_kubens}{datetime}"
               format_space "#[bg=#181825]"
 
-              mode_normal          "#[bg=#a6e3a1] "
-              mode_tmux            "#[bg=#ffc387] "
+              mode_normal          "#[bg=#31748f] "
+              mode_tmux            "#[bg=#fe640b] "
               mode_default_to_mode "tmux"
 
               // border_enabled  "true"           // "true" | "false" for activating the bar

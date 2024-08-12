@@ -329,7 +329,7 @@ themes {
     }
 }
 
-theme "catppuccin-mocha"
+theme "rose-pine"
 
 // The name of the default layout to load on startup
 // Default: "default"

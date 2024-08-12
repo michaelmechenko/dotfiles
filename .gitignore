@@ -7,4 +7,4 @@ neofetch
 nvim/lua/plugins/gpt.lua
 github-copilot
 btop/btop.conf
-raycast
+raycast/

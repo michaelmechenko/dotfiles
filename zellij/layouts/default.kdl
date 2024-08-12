@@ -4,10 +4,10 @@ layout {
           plugin location="file:~/.config/zellij/plugins/zjstatus.wasm" {
               // hide_frame_for_single_pane "true"
 
-              format_left  "{mode}#[fg=#FFFFFF,bg=#181825,bold] :3#[bg=#181825]"
-              format_center "#[fg=#9399B2,bg=#181825]~{tabs}#[fg=#9399B2,bg=#181825]~"
-              format_right "{command_kubectx}#[fg=#424554,bg=#181825]::{command_kubens}{datetime}"
-              format_space "#[bg=#181825]"
+              format_left  "{mode}#[fg=#FFFFFF,bg=#292737,bold] :3#[bg=#292737]"
+              format_center "#[fg=#9399B2,bg=#292737]~{tabs}#[fg=#9399B2,bg=#292737]~"
+              format_right "{command_kubectx}#[fg=#424554,bg=#292737]::{command_kubens}{datetime}"
+              format_space "#[bg=#292737]"
 
               mode_normal          "#[bg=#31748f] "
               mode_tmux            "#[bg=#fe640b] "
@@ -18,21 +18,21 @@ layout {
               // border_format   "#[fg=#6C7086]"  // format specifier for theming
               // border_position "bottom"            // "top" | "bottom" for the border position relative to the bar
 
-              tab_normal               "#[fg=#6C7086,bg=#181825] {name} {fullscreen_indicator}{sync_indicator}{floating_indicator}"
-              tab_active               "#[fg=#9399B2,bg=#181825,bold,italic] {name} {fullscreen_indicator}{sync_indicator}{floating_indicator}"
+              tab_normal               "#[fg=#6C7086,bg=#292737] {name} {fullscreen_indicator}{sync_indicator}{floating_indicator}"
+              tab_active               "#[fg=#9399B2,bg=#292737,bold,italic] {name} {fullscreen_indicator}{sync_indicator}{floating_indicator}"
               tab_fullscreen_indicator "□ "
               tab_sync_indicator       " "
               tab_floating_indicator   "󰉈 "
 
               command_kubectx_command  "kubectx -c"
-              command_kubectx_format   "#[fg=#6C7086,bg=#181825,italic] {stdout}"
+              command_kubectx_format   "#[fg=#6C7086,bg=#292737,italic] {stdout}"
               command_kubectx_interval "2"
 
               command_kubens_command  "kubens -c"
-              command_kubens_format   "#[fg=#6C7086,bg=#181825]{stdout} "
+              command_kubens_format   "#[fg=#6C7086,bg=#292737]{stdout} "
               command_kubens_interval "2"
 
-              datetime          "#[fg=#9399B2,bg=#181825] {format} "
+              datetime          "#[fg=#9399B2,bg=#292737] {format} "
               datetime_format   "%A, %d %b %Y %H:%M"
               datetime_timezone "America/New_York"
           }

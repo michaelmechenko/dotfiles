@@ -301,6 +301,19 @@ themes {
 		black "#26233a"
 		white "#e0def4"
 	}
+  rose-pine-moon {
+		bg "#44415a"
+		fg "#e0def4"
+		red "#eb6f92"
+		green "#3e8fb0"
+		blue "#9ccfd8"
+		yellow "#f6c177"
+		magenta "#c4a7e7"
+		orange "#fe640b"
+		cyan "#ea9a97"
+		black "#393552"
+		white "#e0def4"
+	}
     gruvbox-light {
         fg 124 111 100
         bg 251 82 75
@@ -329,7 +342,7 @@ themes {
     }
 }
 
-theme "rose-pine"
+theme "rose-pine-moon"
 
 // The name of the default layout to load on startup
 // Default: "default"

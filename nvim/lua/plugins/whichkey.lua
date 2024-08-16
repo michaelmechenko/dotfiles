@@ -87,34 +87,50 @@ return {
       {
         "<leader>xx",
         function()
-          require("trouble").toggle("diagnostics")
-          require("trouble").focus({ true })
+          if require("trouble").is_open() then
+            require("trouble").focus({ true })
+          end
         end,
-        desc = "diagnostics",
-      },
-      {
-        "<leader>xq",
-        function()
-          require("trouble").toggle("quickfix")
-          require("trouble").focus({ true })
-        end,
-        desc = "quickfix",
-      },
-      {
-        "<leader>xl",
-        function()
-          require("trouble").toggle("loclist")
-          require("trouble").focus({ true })
-        end,
-        desc = "loclist",
+        desc = "focus",
       },
       {
         "<leader>xr",
         function()
-          require("trouble").toggle("lsp_references")
-          require("trouble").focus({ true })
+            require("trouble").refresh({ true })
         end,
-        desc = "lsp references",
+        desc = "focus",
+      },
+      {
+        "<leader>xq",
+        function()
+          if require("trouble").is_open() then
+            require("trouble").close({})
+          end
+        end,
+        desc = "close",
+      },
+      {
+        "<leader>xd",
+        function()
+          require("trouble").toggle("diagnostics")
+        end,
+        desc = "diagnostics",
+      },
+      {
+        "<leader>xs",
+        "<cmd>Trouble toggle symbols win.size=0.3<CR>",
+        -- function()
+        --   require("trouble").toggle("symbols")
+        -- end,
+        desc = "symbols",
+      },
+      {
+        "<leader>xl",
+        "<cmd>Trouble toggle lsp win.size=0.3<CR>",
+        -- function()
+        --   require("trouble").toggle("lsp")
+        -- end,
+        desc = "lsp",
       },
 
       -- lsp

@@ -14,8 +14,8 @@ config.window_decorations = "RESIZE"
 -- config.font = wezterm.font 'mononoki'
 config.font = wezterm.font("JetBrainsMono Nerd Font")
 config.font_size = 13.0
-config.initial_rows = 40
-config.initial_cols = 100
+config.initial_rows = 100
+config.initial_cols = 125
 
 config.window_frame = {
 	-- The font used in the tab bar.

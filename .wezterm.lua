@@ -52,7 +52,7 @@ config.colors = {
 			-- The color of the background area for the tab
 			bg_color = "#191724",
 			-- The color of the text for the tab
-			fg_color = "#f0f0f0",
+			fg_color = "#d6d6d6",
 
 			-- Specify whether you want "Half", "Normal" or "Bold" intensity for the
 			-- label shown for this tab.

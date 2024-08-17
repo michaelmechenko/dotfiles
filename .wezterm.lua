@@ -5,13 +5,17 @@ local wezterm = require("wezterm")
 local config = wezterm.config_builder()
 
 -- This is where you actually apply your config choices
+config.default_cursor_style = "SteadyUnderline"
 
 -- For example, changing the color scheme:
 config.color_scheme = "rose-pine"
 -- config.use_fancy_tab_bar = false
 config.window_decorations = "RESIZE"
 -- config.font = wezterm.font 'mononoki'
-config.font = wezterm.font 'JetBrainsMono Nerd Font'
+config.font = wezterm.font("JetBrainsMono Nerd Font")
+config.font_size = 13.0
+config.initial_rows = 40
+config.initial_cols = 100
 
 config.window_frame = {
 	-- The font used in the tab bar.
@@ -20,7 +24,7 @@ config.window_frame = {
 	-- Whatever font is selected here, it will have the
 	-- main font setting appended to it to pick up any
 	-- fallback fonts you may have used there.
-	font = wezterm.font({ family = "JetBrains Mono", weight = "DemiBold" }),
+	font = wezterm.font({ family = "Futura", weight = "Light" }),
 
 	-- The size of the font in the tab bar.
 	-- Default to 10.0 on Windows but 12.0 on other systems
@@ -36,10 +40,10 @@ config.window_frame = {
 }
 
 config.window_padding = {
-  left = '1cell',
-  right = '1cell',
-  top = '0.3cell',
-  bottom = '0cell',
+	left = "1cell",
+	right = "1cell",
+	top = "0.3cell",
+	bottom = "0cell",
 }
 
 config.colors = {

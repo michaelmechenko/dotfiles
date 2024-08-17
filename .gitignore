@@ -1,11 +1,7 @@
-iterm2
 .DS_Store
 StardewValley
-htop
 menus
-neofetch
 nvim/lua/plugins/gpt.lua
 github-copilot
-btop/btop.conf
+btop/
 raycast/
-raycast

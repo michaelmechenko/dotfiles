@@ -59,7 +59,7 @@
   "transient_prompt": {
     "background": "transparent",
     "foreground": "#CD4277",
-    "template": "»"
+    "template": "» "
   },
   "final_space": true,
   "version": 2

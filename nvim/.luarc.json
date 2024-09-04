@@ -3,6 +3,7 @@
         "vim"
     ],
     "diagnostics.disable": [
-        "undefined-doc-name"
+        "undefined-doc-name",
+        "unused-local"
     ]
 }

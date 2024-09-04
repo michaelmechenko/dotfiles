@@ -60,6 +60,23 @@ return {
           AvanteConflictIncoming = { bg = "highlight_low", bold = true },
           AvanteConflictIncomingLabel = { fg = "text", bg = "#b4637a", bold = true },
           Keyword = { fg = "love" },
+
+          Identifier = { fg = "iris" },
+          Type = { fg = "iris" },
+          StorageClass = { fg = "iris" },
+          Structure = { fg = "iris" },
+          Typedef = { fg = "iris" },
+          Tag = { fg = "iris" },
+          Label = { fg = "iris" },
+          Special = { fg = "iris" },
+          SpecialKey = { fg = "iris" },
+          SpecialChar = { fg = "iris" },
+          Title = { fg = "iris" },
+          Directory = { fg = "iris" },
+          PmenuKind = { fg = "iris" },
+          FloatTitle = { fg = "iris" },
+          FloatFooter = { fg = "iris" },
+
         },
 
         before_highlight = function(highlight)

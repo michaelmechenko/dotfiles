@@ -1,12 +1,14 @@
 return {
 	{
 		"williamboman/mason.nvim",
+		event = "VeryLazy",
 		config = function()
 			require("mason").setup()
 		end,
 	},
 	{
 		"williamboman/mason-lspconfig.nvim",
+		event = "VeryLazy",
 		config = function()
 			require("mason-lspconfig").setup({
 				ensure_installed = {
@@ -34,6 +36,7 @@ return {
 	},
 	{
 		"neovim/nvim-lspconfig",
+		event = "VeryLazy",
 		config = function()
 			local lspconfig = require("lspconfig")
 			lspconfig.tsserver.setup({})

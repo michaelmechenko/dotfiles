@@ -1,17 +1,10 @@
 return {
-	-- "akinsho/bufferline.nvim",
-	-- version = "*",
-	-- dependencies = "nvim-tree/nvim-web-devicons",
-	-- config = function()
-	-- 	local bufferline = require("bufferline")
-	-- 	bufferline.setup({
-	-- 		options = {
-	-- 			highlights = {
-	-- 				fill = {
-	-- 				  bg = '#1B1B1B',
- --          },
-	-- 			},
-	-- 		},
-	-- 	})
-	-- end,
+	-- {
+	-- 	"akinsho/bufferline.nvim",
+	-- 	event = "ColorScheme",
+	-- 	config = function()
+	-- 		local highlights = require("rose-pine.plugins.bufferline")
+	-- 		require("bufferline").setup({ highlights = highlights })
+	-- 	end,
+	-- },
 }

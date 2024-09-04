@@ -15,7 +15,7 @@ config.window_decorations = "RESIZE"
 -- font settings
 -- config.font = wezterm.font("JetBrainsMono Nerd Font")
 config.font = wezterm.font("ComicShannsMono Nerd Font")
-config.font_size = 14.0
+config.font_size = 15.0
 config.initial_rows = 100
 config.initial_cols = 125
 config.underline_thickness = 2

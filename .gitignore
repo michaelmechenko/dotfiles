@@ -3,6 +3,7 @@ StardewValley
 menus
 nvim/lua/plugins/gpt.lua
 nvim/lua/plugins/avante.lua
+nvim/lua/plugins/copilot.lua
 github-copilot
 btop/
 raycast/

@@ -1,11 +1,12 @@
 return {
 	"folke/which-key.nvim",
-	qevent = "VeryLazy",
+	event = "VeryLazy",
 	init = function()
 		local wk = require("which-key")
 		wk.add({
-      -- avante
-      {"<leader>a", group="avante"},
+			-- avante
+			{ "<leader>a", group = "avante" },
+
 			-- chad gpt
 			{ "<leader>q", group = "ai" },
 			{ "<leader>qq", "<cmd>ChatGPT<CR>", desc = "chatgpt" },
@@ -178,6 +179,37 @@ return {
 					require("telescope.builtin").treesitter()
 				end,
 				desc = "treesitter",
+			},
+
+			-- hover
+			{ "<leader>h", group = "hover" },
+			{
+				"<leader>hh",
+				function()
+					require("hover").hover()
+				end,
+				desc = "hover",
+			},
+			{
+				"<leader>hs",
+				function()
+					require("hover").hover_select()
+				end,
+				desc = "hover select",
+			},
+			{
+				"<leader>hq",
+				function()
+					require("hover").hover_switch("previous")
+				end,
+				desc = "previous source",
+			},
+			{
+				"<leader>he",
+				function()
+					require("hover").hover_switch("next")
+				end,
+				desc = "next source source",
 			},
 		})
 	end,

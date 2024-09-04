@@ -4,6 +4,8 @@ return {
 	init = function()
 		local wk = require("which-key")
 		wk.add({
+      -- avante
+      {"<leader>a", group="avante"},
 			-- chad gpt
 			{ "<leader>q", group = "ai" },
 			{ "<leader>qq", "<cmd>ChatGPT<CR>", desc = "chatgpt" },
@@ -144,40 +146,35 @@ return {
 			{
 				"<leader>ff",
 				function()
-					local builtin = require("telescope.builtin")
-					vim.keymap.set("n", "<leader>ff", builtin.find_files, {})
+					require("telescope.builtin").find_files()
 				end,
 				desc = "find files",
 			},
 			{
 				"<leader>fd",
 				function()
-					local builtin = require("telescope.builtin")
-					vim.keymap.set("n", "<leader>fd", builtin.live_grep, {})
+					require("telescope.builtin").live_grep()
 				end,
 				desc = "live grep",
 			},
 			{
 				"<leader>fm",
 				function()
-					local builtin = require("telescope.builtin")
-					vim.keymap.set("n", "<leader>fm", builtin.man_pages, {})
+					require("telescope.builtin").man_pages()
 				end,
 				desc = "man pages",
 			},
 			{
 				"<leader>fq",
 				function()
-					local builtin = require("telescope.builtin")
-					vim.keymap.set("n", "<leader>fq", builtin.quickfix, {})
+					require("telescope.builtin").quickfix()
 				end,
 				desc = "quickfix",
 			},
 			{
 				"<leader>ft",
 				function()
-					local builtin = require("telescope.builtin")
-					vim.keymap.set("n", "<leader>ft", builtin.treesitter, {})
+					require("telescope.builtin").treesitter()
 				end,
 				desc = "treesitter",
 			},

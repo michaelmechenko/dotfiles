@@ -55,19 +55,24 @@ return {
         highlight_groups = {
           -- Comment = { fg = "foam" },
           -- VertSplit = { fg = "muted", bg = "muted" },
+          AvanteConflictCurrent = { bg = "highlight_low", bold = true },
+          AvanteConflictCurrentLabel = { fg = "text", bg = "#907aa9", bold = true },
+          AvanteConflictIncoming = { bg = "highlight_low", bold = true },
+          AvanteConflictIncomingLabel = { fg = "text", bg = "#b4637a", bold = true },
+          Keyword = { fg = "love" },
         },
 
-        before_highlight = function(group, highlight, palette)
-          -- Disable all undercurls
-          -- if highlight.undercurl then
-          --     highlight.undercurl = false
-          -- end
-          --
-          -- Change palette colour
-          -- if highlight.fg == palette.pine then
-          --     highlight.fg = palette.foam
-          -- end
-        end,
+        -- before_highlight = function(group, highlight, palette)
+        --   -- Disable all undercurls
+        --   -- if highlight.undercurl then
+        --   --     highlight.undercurl = false
+        --   -- end
+        --   --
+        --   -- Change palette colour
+        --   -- if highlight.fg == palette.pine then
+        --   --     highlight.fg = palette.foam
+        --   -- end
+        -- end,
       })
 
       vim.cmd("colorscheme rose-pine")

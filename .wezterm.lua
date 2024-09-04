@@ -20,7 +20,7 @@ config.initial_rows = 100
 config.initial_cols = 125
 config.underline_thickness = 2
 config.underline_position = -2
--- config.cursor_thickness = 1
+config.cursor_thickness = 1
 
 -- window settings
 config.window_frame = {
@@ -37,10 +37,11 @@ config.window_frame = {
 	-- the window is not focused
 	inactive_titlebar_bg = "#14121c",
 }
+
 config.window_padding = {
-	left = "1cell",
-	right = "1cell",
-	top = "0.3cell",
+	left = "0.5cell",
+	right = "0.5cell",
+	top = "0.2cell",
 	bottom = "0cell",
 }
 

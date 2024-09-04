@@ -11,7 +11,7 @@ return {
       -- OPTIONAL:
       --   `nvim-notify` is only needed, if you want to use the notification view.
       --   If not available, we use `mini` as the fallback
-      -- "rcarriga/nvim-notify",
+      "rcarriga/nvim-notify",
     },
 
     config = function()
@@ -28,7 +28,7 @@ return {
             -- opts: any options passed to the view
             -- icon_hl_group: optional hl_group for the icon
             -- title: set to anything or empty string to hide
-            cmdline = { pattern = "^:", icon = "", lang = "vim" },
+            cmdline = { pattern = "^:", icon = "»", lang = "vim" },
             search_down = { kind = "search", pattern = "^/", icon = " ", lang = "regex" },
             search_up = { kind = "search", pattern = "^%?", icon = " ", lang = "regex" },
             filter = { pattern = "^:%s*!", icon = "$", lang = "bash" },

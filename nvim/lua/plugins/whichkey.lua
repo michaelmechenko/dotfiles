@@ -138,6 +138,7 @@ return {
 			-- lsp
 			{ "<leader>l", group = "lsp" },
 			{ "<leader>ll", vim.lsp.buf.hover, desc = "hover" },
+			{ "<leader>lo", vim.diagnostic.open_float, desc = "open diagnostic float" },
 			{ "<leader>lk", vim.lsp.buf.definition, desc = "definition" },
 			{ "<leader>lm", vim.lsp.buf.code_action, desc = "code action" },
 

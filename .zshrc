@@ -118,9 +118,16 @@ alias main="cd ~/_main"
 alias config="cd ~/.config"
 alias projects="cd ~/_main/projects"
 alias general="cd ~/_main/vault-general/"
-alias classwork="cd ~/_main/vault-classwork/"
+alias classes="cd ~/_main/vault-classwork/"
 
 # todos
-alias todo="nvim ~/_main/vault-general/todos/main.md"
+alias todo="cat ~/_main/vault-general/todos/main.md"
+alias todos="nvim ~/_main/vault-general/todos/main.md"
+
+#classwork
+alias classwork="cat ~/_main/vault-general/todos/classwork.md"
+alias classedit="nvim ~/_main/vault-general/todos/classwork.md"
 
 export JAVA_HOME=`/usr/libexec/java_home -v 22`
+source /opt/homebrew/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+source /Users/mishka/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh

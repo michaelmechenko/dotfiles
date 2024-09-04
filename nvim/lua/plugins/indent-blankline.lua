@@ -3,16 +3,15 @@ return {
 	main = "ibl",
 	opts = {},
 	config = function()
-    require("ibl").setup({
-			indent = {
-				char = "┊",
-        highlight = "IblIndent"
-			},
-      scope = {
+		require("ibl").setup({
+			-- indent = {
+			-- 	char = "┊",
+			--      -- highlight = "IblIndent"
+			-- },
+			scope = {
 				char = "▏",
-        enabled = true,
-        highlight = {"IblScope"}
-      }
+				-- highlight = "IblScope"
+			},
 		})
 	end,
 }

@@ -36,13 +36,8 @@ return {
 		"neovim/nvim-lspconfig",
 		config = function()
 			local lspconfig = require("lspconfig")
-			local navic = require("nvim-navic")
 			lspconfig.tsserver.setup({})
-			lspconfig.lua_ls.setup({
-				on_attach = function(client, bufnr)
-					navic.attach(client, bufnr)
-				end,
-			})
+			lspconfig.lua_ls.setup({})
 			lspconfig.rust_analyzer.setup({})
 			-- lspconfig.typos_lsp.setup({})
 			lspconfig.arduino_language_server.setup({})

@@ -112,7 +112,15 @@ eval "$(fzf --zsh)"
 alias ls="eza -1 -T -L 1"
 alias lsl="eza"
 alias cat="bat"
+
+# folders
 alias main="cd ~/_main"
 alias config="cd ~/.config"
 alias projects="cd ~/_main/projects"
+alias general="cd ~/_main/vault-general/"
+alias classwork="cd ~/_main/vault-classwork/"
+
+# todos
+alias todo="nvim ~/_main/vault-general/todos/main.md"
+
 export JAVA_HOME=`/usr/libexec/java_home -v 22`

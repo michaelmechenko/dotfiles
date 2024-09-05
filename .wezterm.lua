@@ -18,9 +18,9 @@ config.font = wezterm.font("ComicShannsMono Nerd Font")
 config.font_size = 15.0
 config.initial_rows = 100
 config.initial_cols = 125
-config.underline_thickness = 2
+config.underline_thickness = 3
 config.underline_position = -4
-config.cursor_thickness = 1
+config.cursor_thickness = 2
 
 -- window settings
 config.window_frame = {
@@ -42,7 +42,7 @@ config.window_padding = {
 	left = "0.5cell",
 	right = "0.5cell",
 	top = "0.2cell",
-	bottom = "0cell",
+	bottom = "0",
 }
 
 -- colors

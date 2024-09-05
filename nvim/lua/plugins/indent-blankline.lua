@@ -10,7 +10,7 @@ return {
       --      -- highlight = "IblIndent"
       -- },
       scope = {
-        	char = "▏",
+        char = "▏",
         -- highlight = "IblScope"
       },
     })

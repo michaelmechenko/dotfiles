@@ -21,10 +21,8 @@ return {
         -- require("none-ls.code_actions.eslint_d"),
         -- rust
         require("none-ls.formatting.rustfmt"),
-        --        null_ls.builtins.completion.spell,
+        -- null_ls.builtins.completion.spell,
       },
     })
-
-    vim.keymap.set("n", "<leader>w", vim.lsp.buf.format, {})
   end,
 }

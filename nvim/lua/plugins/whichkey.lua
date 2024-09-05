@@ -4,6 +4,9 @@ return {
   init = function()
     local wk = require("which-key")
     wk.add({
+      -- format
+      {"<leader>w", vim.lsp.buf.format , desc="format"},
+
       -- avante
       { "<leader>a",  group = "avante" },
 

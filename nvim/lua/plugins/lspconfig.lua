@@ -14,13 +14,10 @@ return {
 				ensure_installed = {
 					"lua_ls",
 					"rust_analyzer",
-					-- "typos_lsp",
-					-- "arduino_language_server",
 					"clangd",
 					"cmake",
 					"cssls",
 					"dockerls",
-					-- "eslint",
 					"gopls",
 					"html",
 					"biome",
@@ -29,7 +26,6 @@ return {
 					"svelte",
 					"tailwindcss",
 					"lemminx",
-					"tsserver",
 				},
 			})
 		end,
@@ -39,20 +35,10 @@ return {
 		event = "VeryLazy",
 		config = function()
 			local lspconfig = require("lspconfig")
-			lspconfig.tsserver.setup({})
 			lspconfig.lua_ls.setup({})
 			lspconfig.rust_analyzer.setup({})
-			-- lspconfig.typos_lsp.setup({})
-			lspconfig.arduino_language_server.setup({})
 			lspconfig.clangd.setup({})
 			lspconfig.cmake.setup({})
-			lspconfig.cssls.setup({
-				init_options = {
-					cache = {
-						directory = ".ccls-cache",
-					},
-				},
-			})
 			lspconfig.dockerls.setup({})
 			-- lspconfig.eslint.setup({})
 			lspconfig.gopls.setup({})

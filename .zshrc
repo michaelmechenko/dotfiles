@@ -129,10 +129,3 @@ alias classwork="cat ~/_main/vault-general/todos/classwork.md"
 alias classedit="nvim ~/_main/vault-general/todos/classwork.md"
 
 export JAVA_HOME=`/usr/libexec/java_home -v 22`
-
-source /opt/homebrew/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
-source /Users/mishka/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
-
-(( ${+ZSH_HIGHLIGHT_STYLES} )) || typeset -A ZSH_HIGHLIGHT_STYLES
-ZSH_HIGHLIGHT_STYLES[path]=none
-ZSH_HIGHLIGHT_STYLES[path_prefix]=none

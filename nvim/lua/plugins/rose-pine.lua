@@ -60,8 +60,9 @@ return {
           AvanteConflictCurrentLabel = { fg = "text", bg = "#907aa9", bold = true },
           AvanteConflictIncoming = { bg = "highlight_low", bold = true },
           AvanteConflictIncomingLabel = { fg = "text", bg = "#b4637a", bold = true },
+          -- IblIndent = {fg = "iris"},
+          IblScope = { fg = "#907aa9" },
           Type = { fg = "love", bold = true },
-
           ["@property"] = { fg = "#caaded" },
           -- ["@keyword"] = { fg = "#61abb8" },
           -- ["@keyword.type"] = { fg = "#61abb8" },

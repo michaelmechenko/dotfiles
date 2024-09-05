@@ -59,24 +59,20 @@ return {
 					AvanteConflictCurrentLabel = { fg = "text", bg = "#907aa9", bold = true },
 					AvanteConflictIncoming = { bg = "highlight_low", bold = true },
 					AvanteConflictIncomingLabel = { fg = "text", bg = "#b4637a", bold = true },
-          
+
 					["@keyword"] = { fg = "#61abb8" },
 					["@keyword.type"] = { fg = "#61abb8" },
 					["@keyword.import"] = { fg = "#61abb8" },
-					["@keyword.operator"] = { fg = "#e37897" },
-
+					-- ["@keyword.operator"] = { fg = "#e37897" },
 					["@property"] = { fg = "#caaded" },
-
-					["@variable"] = { fg = "#ede1d5" },
-
-					["@number"] = { fg = "#ede1d5" },
-					["@string"] = { fg = "#f2a48d" },
+					["@variable"] = { fg = "#f0d9d1" },
+					["@number"] = { fg = "#f0d9d1" },
+					-- ["@string"] = { fg = "#f2a48d" },
 					-- ["@constant"] = { fg = "#f0d0c0" },
-					["@boolean"] = { fg = "#ede1d5" },
-
-					["@function"] = { fg = "#e37897" },
+					["@boolean"] = { fg = "#f0d9d1" },
+					["@function"] = { fg = "#f59dab" },
 					["@function.builtin"] = { fg = "love" },
-					["@function.call"] = { fg = "#e37897" },
+					["@function.call"] = { fg = "#f59dab" },
 				},
 			})
 

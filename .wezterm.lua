@@ -30,10 +30,11 @@ config.default_cursor_style = "SteadyUnderline"
 -- window settings
 config.window_frame = {
 	font = wezterm.font({
-		family = "Roboto Nerd Font",
-    weight = "DemiBold"
+		-- family = "RobotoMono Nerd Font",
+		family = "ComicMono Nerd Font",
+		weight = "Medium",
 	}),
-	font_size = 13.5,
+	font_size = 15.0,
 	active_titlebar_bg = "#191724",
 	inactive_titlebar_bg = "#14121c",
 }
@@ -41,8 +42,8 @@ config.window_frame = {
 config.window_padding = {
 	left = "0.5cell",
 	right = "0.5cell",
-	top = "0.25cell",
-	bottom = "0",
+	top = "0.20cell",
+	bottom = "0cell",
 }
 
 -- colors
@@ -76,7 +77,6 @@ config.colors = {
 		new_tab_hover = {
 			bg_color = "#232136",
 			fg_color = "#909090",
-			italic = true,
 		},
 	},
 }

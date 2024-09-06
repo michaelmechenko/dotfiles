@@ -8,18 +8,20 @@ config.window_close_confirmation = "AlwaysPrompt"
 config.color_scheme = "rose-pine"
 -- config.use_fancy_tab_bar = false
 
--- remove window bar, keep tab bar
+-- remove if not on nightly
+config.show_close_tab_button_in_tabs = false
+
+-- tab bar
 config.window_decorations = "RESIZE"
+config.tab_max_width = 24
+-- config.enable_tab_bar = false
+config.hide_tab_bar_if_only_one_tab = true
 
 -- font settings
 -- config.font = wezterm.font("JetBrainsMono Nerd Font")
 config.font = wezterm.font("ComicShannsMono Nerd Font")
 config.font_size = 15.0
-config.cell_width = 0.9
-
--- window size
-config.initial_rows = 100
-config.initial_cols = 125
+-- config.cell_width = 0.95
 
 -- cursor
 config.underline_thickness = 3
@@ -34,15 +36,18 @@ config.window_frame = {
 		family = "ComicMono Nerd Font",
 		weight = "Medium",
 	}),
-	font_size = 15.0,
+	font_size = 17.0,
 	active_titlebar_bg = "#191724",
 	inactive_titlebar_bg = "#14121c",
 }
 
+-- window size
+config.initial_rows = 100
+config.initial_cols = 125
 config.window_padding = {
 	left = "0.5cell",
 	right = "0.5cell",
-	top = "0.20cell",
+	top = "0.5cell",
 	bottom = "0cell",
 }
 

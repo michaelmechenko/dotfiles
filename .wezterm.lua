@@ -3,6 +3,26 @@ local wezterm = require("wezterm")
 local config = wezterm.config_builder()
 local act = wezterm.action
 
+function num_tabs(window, pane)
+	local tab_arr = window:mux_window():tabs()
+
+	return #tab_arr
+end
+
+function tabs_greater_than_1(window, pane)
+	return num_tabs(window, pane) > 1
+end
+
+local default_top_padding = "0.8cell"
+local default_bottom_padding = "0.0cell"
+local default_left_padding = "0.8cell"
+local default_right_padding = "0.8cell"
+
+local tabs_top_padding = "0.2cell"
+local tabs_bottom_padding = "0.0cell"
+local tabs_left_padding = "0.5cell"
+local tabs_right_padding = "0.5cell"
+
 -- general terminal settings
 config.window_close_confirmation = "AlwaysPrompt"
 config.color_scheme = "rose-pine"
@@ -14,42 +34,36 @@ config.show_close_tab_button_in_tabs = false
 -- tab bar
 config.window_decorations = "RESIZE"
 config.tab_max_width = 24
--- config.enable_tab_bar = false
-config.hide_tab_bar_if_only_one_tab = true
+config.enable_tab_bar = false
+-- config.hide_tab_bar_if_only_one_tab = true
 
 -- font settings
 -- config.font = wezterm.font("JetBrainsMono Nerd Font")
 config.font = wezterm.font("ComicShannsMono Nerd Font")
-config.font_size = 15.0
--- config.cell_width = 0.95
+config.font_size = 18.0
+config.cell_width = 0.95
 
 -- cursor
 config.underline_thickness = 3
-config.underline_position = -4
+config.underline_position = -3
 config.cursor_thickness = 2
 config.default_cursor_style = "SteadyUnderline"
 
 -- window settings
 config.window_frame = {
 	font = wezterm.font({
-		-- family = "RobotoMono Nerd Font",
-		family = "ComicMono Nerd Font",
+		-- family = "Inconsolata Nerd Font",
+		family = "mononoki",
 		weight = "Medium",
 	}),
-	font_size = 17.0,
+	font_size = 18.0,
 	active_titlebar_bg = "#191724",
-	inactive_titlebar_bg = "#14121c",
+	inactive_titlebar_bg = "#191724",
 }
 
 -- window size
 config.initial_rows = 100
-config.initial_cols = 125
-config.window_padding = {
-	left = "0.5cell",
-	right = "0.5cell",
-	top = "0.5cell",
-	bottom = "0cell",
-}
+config.initial_cols = 100
 
 -- colors
 config.colors = {
@@ -62,6 +76,8 @@ config.colors = {
 			italic = false,
 			strikethrough = false,
 		},
+
+		inactive_tab_edge = "#191724",
 
 		inactive_tab = {
 			bg_color = "#191724",
@@ -92,14 +108,6 @@ config.keys = {
 		key = "w",
 		mods = "CMD|SHIFT",
 		action = wezterm.action.CloseCurrentTab({ confirm = true }),
-		-- action = act.PromptInputLine({
-		--   description = "Are you sure you want to close the window?",
-		--   action = wezterm.action_callback(function(window, line)
-		--     if line == "y" then
-		--       window:perform_action(act.CloseCurrentTab({ confirm = true }), window)
-		--     end
-		--   end),
-		-- }),
 	},
 
 	{
@@ -183,5 +191,29 @@ config.keys = {
 		}),
 	},
 }
+
+wezterm.on("update-right-status", function(window, pane)
+	local overrides = window:get_config_overrides() or {}
+	local tabs_gt_1 = tabs_greater_than_1(window, pane)
+
+	overrides.enable_tab_bar = tabs_gt_1
+	if tabs_gt_1 then
+		overrides.window_padding = {
+			top = tabs_top_padding,
+			bottom = tabs_bottom_padding,
+			left = tabs_left_padding,
+			right = tabs_bottom_padding,
+		}
+	else
+		overrides.window_padding = {
+			top = default_top_padding,
+			bottom = default_bottom_padding,
+			left = default_left_padding,
+			right = default_bottom_padding,
+		}
+	end
+
+	window:set_config_overrides(overrides)
+end)
 
 return config

@@ -21,7 +21,6 @@ return {
 					"gopls",
 					"html",
 					"biome",
-					"markdown_oxide",
 					"pyright",
 					"svelte",
 					"tailwindcss",
@@ -40,11 +39,9 @@ return {
 			lspconfig.clangd.setup({})
 			lspconfig.cmake.setup({})
 			lspconfig.dockerls.setup({})
-			-- lspconfig.eslint.setup({})
 			lspconfig.gopls.setup({})
 			lspconfig.html.setup({})
 			lspconfig.biome.setup({})
-			lspconfig.markdown_oxide.setup({})
 			lspconfig.pyright.setup({})
 			lspconfig.svelte.setup({})
 			lspconfig.tailwindcss.setup({})

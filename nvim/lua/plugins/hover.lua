@@ -12,7 +12,7 @@ return {
         -- require('hover.providers.fold_preview')
         require("hover.providers.diagnostic")
         require("hover.providers.man")
-        require("hover.providers.dictionary")
+        -- require("hover.providers.dictionary")
       end,
       preview_opts = {
         border = "single",
@@ -22,7 +22,7 @@ return {
       preview_window = false,
       title = true,
       mouse_providers = {
-        "LSP",
+        -- "LSP",
       },
       mouse_delay = 1000,
     })

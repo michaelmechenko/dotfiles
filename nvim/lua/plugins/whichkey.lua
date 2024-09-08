@@ -5,81 +5,81 @@ return {
     local wk = require("which-key")
     wk.add({
       -- format
-      {"<leader>w", vim.lsp.buf.format , desc="format"},
+      { "<leader>w",  vim.lsp.buf.format,                         desc = "format" },
 
       -- avante
       { "<leader>a",  group = "avante" },
 
-      -- chad gpt
-      { "<leader>q",  group = "ai" },
-      { "<leader>qq", "<cmd>ChatGPT<CR>",                    desc = "chatgpt" },
-      { "<leader>qe", "<cmd>ChatGPTEditWithInstruction<CR>", desc = "edit w instruction", mode = { "n", "v" } },
-      {
-        "<leader>qg",
-        "<cmd>ChatGPTRun grammar_correction<CR>",
-        desc = "grammar Correction",
-        mode = { "n", "v" },
-      },
-      {
-        "<leader>qt",
-        "<cmd>ChatGPTRun translate<CR>",
-        desc = "translate",
-        mode = { "n", "v" },
-      },
-      {
-        "<leader>qk",
-        "<cmd>ChatGPTRun keywords<CR>",
-        desc = "keywords",
-        mode = { "n", "v" },
-      },
-      {
-        "<leader>qd",
-        "<cmd>ChatGPTRun docstring<CR>",
-        desc = "docstring",
-        mode = { "n", "v" },
-      },
-      {
-        "<leader>qa",
-        "<cmd>ChatGPTRun add_tests<CR>",
-        desc = "add tests",
-        mode = { "n", "v" },
-      },
-      {
-        "<leader>qo",
-        "<cmd>ChatGPTRun optimize_code<CR>",
-        desc = "optimize code",
-        mode = { "n", "v" },
-      },
-      {
-        "<leader>qs",
-        "<cmd>ChatGPTRun summarize<CR>",
-        desc = "summarize",
-        mode = { "n", "v" },
-      },
-      {
-        "<leader>qf",
-        "<cmd>ChatGPTRun fix_bugs<CR>",
-        desc = "fix bugs",
-        mode = { "n", "v" },
-      },
-      {
-        "<leader>qx",
-        "<cmd>ChatGPTRun explain_code<CR>",
-        desc = "explain code",
-        mode = { "n", "v" },
-      },
-      {
-        "<leader>qr",
-        "<cmd>ChatGPTRun roxygen_edit<CR>",
-        desc = "roxygen edit",
-        mode = { "n", "v" },
-      },
-      {
-        "<leader>ql",
-        "<cmd>ChatGPTRun code_readability_analysis<CR>",
-        desc = "code readibility analytics",
-        mode = { "n", "v" },
-      },
+      -- -- chad gpt
+      -- { "<leader>q",  group = "ai" },
+      -- { "<leader>qq", "<cmd>ChatGPT<CR>",                    desc = "chatgpt" },
+      -- { "<leader>qe", "<cmd>ChatGPTEditWithInstruction<CR>", desc = "edit w instruction", mode = { "n", "v" } },
+      -- {
+      --   "<leader>qg",
+      --   "<cmd>ChatGPTRun grammar_correction<CR>",
+      --   desc = "grammar Correction",
+      --   mode = { "n", "v" },
+      -- },
+      -- {
+      --   "<leader>qt",
+      --   "<cmd>ChatGPTRun translate<CR>",
+      --   desc = "translate",
+      --   mode = { "n", "v" },
+      -- },
+      -- {
+      --   "<leader>qk",
+      --   "<cmd>ChatGPTRun keywords<CR>",
+      --   desc = "keywords",
+      --   mode = { "n", "v" },
+      -- },
+      -- {
+      --   "<leader>qd",
+      --   "<cmd>ChatGPTRun docstring<CR>",
+      --   desc = "docstring",
+      --   mode = { "n", "v" },
+      -- },
+      -- {
+      --   "<leader>qa",
+      --   "<cmd>ChatGPTRun add_tests<CR>",
+      --   desc = "add tests",
+      --   mode = { "n", "v" },
+      -- },
+      -- {
+      --   "<leader>qo",
+      --   "<cmd>ChatGPTRun optimize_code<CR>",
+      --   desc = "optimize code",
+      --   mode = { "n", "v" },
+      -- },
+      -- {
+      --   "<leader>qs",
+      --   "<cmd>ChatGPTRun summarize<CR>",
+      --   desc = "summarize",
+      --   mode = { "n", "v" },
+      -- },
+      -- {
+      --   "<leader>qf",
+      --   "<cmd>ChatGPTRun fix_bugs<CR>",
+      --   desc = "fix bugs",
+      --   mode = { "n", "v" },
+      -- },
+      -- {
+      --   "<leader>qx",
+      --   "<cmd>ChatGPTRun explain_code<CR>",
+      --   desc = "explain code",
+      --   mode = { "n", "v" },
+      -- },
+      -- {
+      --   "<leader>qr",
+      --   "<cmd>ChatGPTRun roxygen_edit<CR>",
+      --   desc = "roxygen edit",
+      --   mode = { "n", "v" },
+      -- },
+      -- {
+      --   "<leader>ql",
+      --   "<cmd>ChatGPTRun code_readability_analysis<CR>",
+      --   desc = "code readibility analytics",
+      --   mode = { "n", "v" },
+      -- },
 
       -- neotree
       { "<leader>r",  group = "noeotree" },

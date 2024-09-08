@@ -5,13 +5,13 @@
       "alignment": "left",
       "segments": [
         {
-          "foreground": "#FFE082",
+          "foreground": "#c4a7e7",
           "style": "plain",
           "template": "@{{ .UserName }} \u279c",
           "type": "session"
         },
         {
-          "foreground": "#9e7eff",
+          "foreground": "#b4637a",
           "properties": {
             "style": "agnoster_short"
           },
@@ -20,7 +20,7 @@
           "type": "path"
         },
         {
-          "foreground": "#CD4277",
+          "foreground": "#907aa9",
           "properties": {
             "branch_icon": ""
           },
@@ -47,7 +47,7 @@
       "newline": true,
       "segments": [
         {
-          "foreground": "#CD4277",
+          "foreground": "#b4637a",
           "style": "plain",
           "template": "»",
           "type": "text"

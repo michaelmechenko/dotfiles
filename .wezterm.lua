@@ -13,15 +13,15 @@ function tabs_greater_than_1(window, pane)
 	return num_tabs(window, pane) > 1
 end
 
-local default_top_padding = "0.8cell"
+local default_top_padding = "0.3cell"
 local default_bottom_padding = "0.0cell"
-local default_left_padding = "0.8cell"
-local default_right_padding = "0.8cell"
+local default_left_padding = "0.6cell"
+local default_right_padding = "0.6cell"
 
-local tabs_top_padding = "0.2cell"
+local tabs_top_padding = "0.1cell"
 local tabs_bottom_padding = "0.0cell"
-local tabs_left_padding = "0.5cell"
-local tabs_right_padding = "0.5cell"
+local tabs_left_padding = "0.6cell"
+local tabs_right_padding = "0.6cell"
 
 -- general terminal settings
 config.window_close_confirmation = "AlwaysPrompt"

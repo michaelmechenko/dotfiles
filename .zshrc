@@ -121,11 +121,11 @@ alias general="cd ~/_main/vault-general/"
 alias classes="cd ~/_main/vault-classwork/"
 
 # todos
-alias todo="cat ~/_main/vault-general/todos/main.md"
-alias todos="nvim ~/_main/vault-general/todos/main.md"
+alias todo="cat ~/_main/vault-general/todos/main.md && cat ~/_main/vault-general/todos/classwork.md"
+alias todos="cd ~/_main/vault-general/todos"
 
 #classwork
-alias classwork="cat ~/_main/vault-general/todos/classwork.md"
-alias classedit="nvim ~/_main/vault-general/todos/classwork.md"
+# alias classwork="cat ~/_main/vault-general/todos/classwork.md"
+# alias classedit="nvim ~/_main/vault-general/todos/classwork.md"
 
 export JAVA_HOME=`/usr/libexec/java_home -v 22`

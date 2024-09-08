@@ -5,3 +5,7 @@ including:
 - zellij
 - wezterm
 - zsh
+
+todo:
+add plugins
+add screenshots

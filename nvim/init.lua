@@ -12,5 +12,6 @@ end
 
 vim.opt.rtp:prepend(lazypath)
 vim.opt.termguicolors = true
+vim.opt.conceallevel = 1
 require("vim-keymaps")
 require("lazy").setup("plugins")

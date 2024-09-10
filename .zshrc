@@ -118,7 +118,7 @@ alias main="cd ~/_main"
 alias config="cd ~/.config"
 alias projects="cd ~/_main/projects"
 alias general="cd ~/_main/vault-general/"
-alias classes="cd ~/_main/vault-classwork/"
+alias classwork="cd ~/_main/vault-classwork/"
 
 # todos
 alias todo="cat ~/_main/vault-general/todos/main.md && cat ~/_main/vault-general/todos/classwork.md"

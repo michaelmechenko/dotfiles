@@ -67,7 +67,7 @@ return {
           -- ["@keyword"] = { fg = "#61abb8" },
           -- ["@keyword.type"] = { fg = "#61abb8" },
           -- ["@keyword.import"] = { fg = "#61abb8" },
-          -- ["@variable"] = { fg = "#dfdad9" },
+          ["@variable"] = { fg = "#faf4ed" },
           -- ["@number"] = { fg = "#dfdad9" },
           -- ["@boolean"] = { fg = "#dfdad9" },
           -- ["@function"] = { fg = "#f59dab" },

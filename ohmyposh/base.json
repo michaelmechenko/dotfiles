@@ -58,7 +58,7 @@
   ],
   "transient_prompt": {
     "background": "transparent",
-    "foreground": "#CD4277",
+    "foreground": "#b4637a",
     "template": "» "
   },
   "final_space": true,

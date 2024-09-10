@@ -3,6 +3,9 @@ local wezterm = require("wezterm")
 local config = wezterm.config_builder()
 local act = wezterm.action
 
+local wezterm = require("wezterm")
+local resurrect = wezterm.plugin.require("https://github.com/MLFlexer/resurrect.wezterm")
+
 function num_tabs(window, pane)
 	local tab_arr = window:mux_window():tabs()
 
@@ -107,7 +110,21 @@ config.keys = {
 	{
 		key = "w",
 		mods = "CMD|SHIFT",
-		action = wezterm.action.CloseCurrentTab({ confirm = true }),
+		action = act.Multiple({
+			wezterm.action_callback(function(win, pane)
+				resurrect.save_state(resurrect.workspace_state.get_workspace_state())
+			end),
+			act.CloseCurrentTab({ confirm = true }),
+		}),
+	},
+
+	{
+		key = "s",
+		mods = "CMD|SHIFT",
+		action = wezterm.action_callback(function(win, pane)
+			resurrect.save_state(resurrect.workspace_state.get_workspace_state())
+      resurrect.window_state.save_window_action()
+		end),
 	},
 
 	{
@@ -173,6 +190,36 @@ config.keys = {
 		key = "DownArrow",
 		mods = "CMD|SHIFT|ALT",
 		action = wezterm.action.AdjustPaneSize({ "Down", 3 }),
+	},
+
+	{
+		key = "O",
+		mods = "CMD|SHIFT",
+		action = wezterm.action_callback(function(win, pane)
+			resurrect.fuzzy_load(win, pane, function(id, label)
+				local type = string.match(id, "^([^/]+)") -- match before '/'
+				id = string.match(id, "([^/]+)$") -- match after '/'
+				id = string.match(id, "(.+)%..+$") -- remove file extension
+				local state
+				if type == "workspace" then
+					state = resurrect.load_state(id, "workspace")
+					resurrect.workspace_state.restore_workspace(state, {
+						relative = true,
+						restore_text = true,
+						on_pane_restore = resurrect.tab_state.default_on_pane_restore,
+					})
+				elseif type == "window" then
+					state = resurrect.load_state(id, "window")
+					resurrect.window_state.restore_window(pane:window(), state, {
+						relative = true,
+						restore_text = true,
+						on_pane_restore = resurrect.tab_state.default_on_pane_restore,
+						-- uncomment this line to use active tab when restoring
+						-- tab = win:active_tab(),
+					})
+				end
+			end)
+		end),
 	},
 
 	{

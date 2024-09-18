@@ -8,3 +8,4 @@ nvim/lua/plugins/obsidian.lua
 github-copilot
 btop/
 raycast/
+bat/

@@ -10,6 +10,8 @@ if not (vim.uv or vim.loop).fs_stat(lazypath) then
   })
 end
 
+vim.g.vimtex_quickfix_enabled = 0
+
 vim.opt.rtp:prepend(lazypath)
 vim.opt.termguicolors = true
 vim.opt.conceallevel = 1

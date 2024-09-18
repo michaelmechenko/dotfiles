@@ -9,6 +9,8 @@ return {
     null_ls.setup({
       sources = {
         -- formatting
+        null_ls.builtins.formatting.asmfmt,
+        -- null_ls.builtins.formatting.latexindent,
         null_ls.builtins.formatting.stylua,
         null_ls.builtins.formatting.prettier,
         require("none-ls.formatting.rustfmt"),

@@ -32,7 +32,8 @@ local tabs_right_padding = "0.6cell"
 
 -- general terminal settings
 config.window_close_confirmation = "AlwaysPrompt"
-config.color_scheme = "rose-pine"
+-- config.color_scheme = "rose-pine"
+config.color_scheme = "Kanagawa (Gogh)"
 config.show_tab_index_in_tab_bar = false
 config.show_new_tab_button_in_tab_bar = false
 -- config.tab_bar_at_bottom = true
@@ -66,8 +67,8 @@ config.window_frame = {
 		weight = "Medium",
 	}),
 	font_size = 18.0,
-	active_titlebar_bg = "#191724",
-	inactive_titlebar_bg = "#191724",
+	active_titlebar_bg = "#1F1F28",
+	inactive_titlebar_bg = "#1F1F28",
 }
 
 -- window size
@@ -78,7 +79,7 @@ config.initial_cols = 100
 config.colors = {
 	tab_bar = {
 		active_tab = {
-			bg_color = "#191724",
+			bg_color = "#1F1F28",
 			fg_color = "#d6d6d6",
 			intensity = "Normal",
 			underline = "None",
@@ -89,18 +90,18 @@ config.colors = {
 		inactive_tab_edge = "#191724",
 
 		inactive_tab = {
-			bg_color = "#191724",
+			bg_color = "#1F1F28",
 			fg_color = "#808080",
 		},
 
 		inactive_tab_hover = {
-			bg_color = "#191724",
+			bg_color = "#1F1F28",
 			fg_color = "#909090",
 			italic = true,
 		},
 
 		new_tab = {
-			bg_color = "#191724",
+			bg_color = "#1F1F28",
 			fg_color = "#808080",
 		},
 
@@ -213,6 +214,17 @@ config.keys = {
 	},
 
 	{
+		key = "t",
+		mods = "CMD|SHIFT",
+		action = act.PromptInputLine({
+			description = "Enter new name for tab",
+			action = wezterm.action_callback(function(window, line)
+					window:active_tab():set_title(line)
+			end),
+		}),
+	},
+
+	{
 		key = "O",
 		mods = "CMD|SHIFT",
 		action = wezterm.action_callback(function(win, pane)
@@ -242,21 +254,6 @@ config.keys = {
 		end),
 	},
 
-	{
-		key = "t",
-		mods = "CMD|SHIFT",
-		action = act.PromptInputLine({
-			description = "Enter new name for tab",
-			action = wezterm.action_callback(function(window, line)
-				-- line will be `nil` if they hit escape without entering anything
-				-- An empty string if they just hit enter
-				-- Or the actual line of text they wrote
-				if line then
-					window:active_tab():set_title(line)
-				end
-			end),
-		}),
-	},
 }
 
 wezterm.on("update-right-status", function(window)

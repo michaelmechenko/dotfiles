@@ -88,9 +88,9 @@ eval "$(oh-my-posh init zsh --config ~/.config/ohmyposh/base.json)"
 
 # Preferred editor for local and remote sessions
 if [[ -n $SSH_CONNECTION ]]; then
-  export EDITOR='vim'
+  export EDITOR='nvim'
 else
-  export EDITOR='mvim'
+  export EDITOR='vim'
 fi
 
 # Compilation flags
@@ -119,13 +119,27 @@ alias config="cd ~/.config"
 alias projects="cd ~/_main/projects"
 alias general="cd ~/_main/vault-general/"
 alias classwork="cd ~/_main/vault-classwork/"
+alias algo="cd ~/_main/vault-classwork/algo/"
+alias systems="cd ~/_main/vault-classwork/systems/"
 
 # todos
-alias todo="cat ~/_main/vault-general/todos/main.md && cat ~/_main/vault-general/todos/classwork.md"
+alias todo="echo '\n**~~~~~**' &&
+cat -r 7:99 -p ~/_main/vault-general/todos/main.md &&
+echo '**~~~~~**\n'"
+alias ctodo="echo '\n**~~~~~**' &&
+cat -r 7:99 -p ~/_main/vault-general/todos/classwork.md &&
+echo '**~~~~~**\n'" # class todo
+alias btodo="echo '\n**~~~~~~~~~~~**' &&
+cat -r 7:99 -p ~/_main/vault-general/todos/main.md &&
+echo '\n**~~~~~~~~~~~**' && 
+cat -r 7:99 -p ~/_main/vault-general/todos/classwork.md &&
+echo '**~~~~~~~~~~~**\n'" # both todo
 alias todos="cd ~/_main/vault-general/todos"
 
-#classwork
+# classwork
 # alias classwork="cat ~/_main/vault-general/todos/classwork.md"
 # alias classedit="nvim ~/_main/vault-general/todos/classwork.md"
 
 export JAVA_HOME=`/usr/libexec/java_home -v 22`
+
+export STM32CubeMX_PATH=/Applications/STMicroelectronics/STM32CubeMX.app/Contents/Resources

@@ -8,7 +8,10 @@ return {
     local dashboard = require("alpha.themes.dashboard")
     dashboard.section.header.val = {
       "",
-      "code editor",
+      "",
+      "notepad",
+      "",
+      "",
       "",
       "",
     }
@@ -17,7 +20,6 @@ return {
       dashboard.button("<leader> ff", "󰱼 > find files", "<cmd>Telescope find_files<CR>"),
       dashboard.button("<leader> fd", "󰊄 > live grep"),
       dashboard.button("<leader> fr", " > recent files", "<cmd>Telescope oldfiles<CR>"),
-      --			dashboard.button("c", " > config", "<cmd>cd ~/.config/nvim/ <CR>"),
       dashboard.button("u", " > update plugins", "<cmd>Lazy sync<CR>"),
       dashboard.button("q", "󰅚 > quit", "<cmd>qa<CR>"),
     }

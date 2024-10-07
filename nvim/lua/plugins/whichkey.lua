@@ -104,7 +104,7 @@ return {
 
 			-- neotree
 			{ "<leader>r", group = "noeotree" },
-			{ "<leader>rr", "<cmd>Neotree filesystem reveal right<CR>", desc = "filesystem" },
+			{ "<leader>re", "<cmd>Neotree filesystem reveal right<CR>", desc = "filesystem" },
 			{ "<leader>rw", "<cmd>Neotree buffers reveal right<CR>", desc = "buffers" },
 			{ "<leader>rq", "<cmd>Neotree close<CR>", desc = "close" },
 			{ "<leader>rb", "<cmd>Neotree git_status reveal float<CR>", desc = "git status" },
@@ -203,6 +203,13 @@ return {
 					require("telescope.builtin").treesitter()
 				end,
 				desc = "treesitter",
+			},
+			{
+				"<leader>fr",
+				function()
+					require("telescope.builtin").oldfiles()
+				end,
+				desc = "recent files",
 			},
 
 			-- hover

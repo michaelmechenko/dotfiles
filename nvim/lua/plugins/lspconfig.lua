@@ -10,7 +10,6 @@ return {
 		config = function()
 			require("mason-lspconfig").setup({
 				ensure_installed = {
-					"asm_lsp",
 					"lua_ls",
 					"rust_analyzer",
 					"clangd",
@@ -34,10 +33,6 @@ return {
 			local lspconfig = require("lspconfig")
 			lspconfig.lua_ls.setup({})
 			lspconfig.texlab.setup({})
-			lspconfig.asm_lsp.setup({
-				filetypes = { "asm", "s", "S" },
-				command = "asm-lsp",
-			})
 			lspconfig.rust_analyzer.setup({})
 			lspconfig.clangd.setup({})
 			lspconfig.cmake.setup({})

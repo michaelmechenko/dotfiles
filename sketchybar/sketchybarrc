@@ -12,7 +12,7 @@ PLUGIN_DIR="$CONFIG_DIR/plugins"
 # If you are looking for other colors, see the color picker:
 # https://felixkratz.github.io/SketchyBar/config/tricks#color-picker
 
-sketchybar --bar position=top height=32 blur_radius=20 color=0x40000000 y_offset=2 border_color=0x80DCD7BA border_width=2 corner_radius=6 margin=4 padding_left=6 padding_right=6
+sketchybar --bar position=top height=32 blur_radius=20 color=0x40000000 y_offset=2 border_color=0x60DCD7BA border_width=2 corner_radius=6 margin=4 padding_left=6 padding_right=6
 
 ##### Changing Defaults #####
 # We now change some default values, which are applied to all further items.
@@ -21,7 +21,7 @@ sketchybar --bar position=top height=32 blur_radius=20 color=0x40000000 y_offset
 
 default=(
   icon.font="JetBrainsMono Nerd Font:Normal:14.0"
-  label.font="JetBrainsMono Nerd Font:Normal:13.0"
+  label.font="JetBrainsMono Nerd Font:Normal:14.0"
   icon.color=0xffDCD7BA
   border_color=0xffDCD7BA
   label.color=0xffDCD7BA
@@ -46,9 +46,6 @@ do
     icon="${SPACE_ICONS[i]}"
     icon.padding_left=4
     icon.padding_right=4
-    background.color=0x20DCD7BA
-    background.corner_radius=5
-    background.height=25
     label.drawing=off
     script="$PLUGIN_DIR/space.sh"
     click_script="yabai -m space --focus $sid"
@@ -60,9 +57,9 @@ done
 # We add some regular items to the left side of the bar, where
 # only the properties deviating from the current defaults need to be set
 
-sketchybar --add item front_app left \
-           --set front_app icon.drawing=off script="$PLUGIN_DIR/front_app.sh" \
-           --subscribe front_app front_app_switched
+# sketchybar --add item front_app center \
+#            --set front_app icon.drawing=off script="$PLUGIN_DIR/front_app.sh" \
+#            --subscribe front_app front_app_switched
 
 ##### Adding Right Items #####
 # In the same way as the left items we can add items to the right side.
@@ -75,14 +72,34 @@ sketchybar --add item front_app left \
 # volume is registered. More info about the event system can be found here:
 # https://felixkratz.github.io/SketchyBar/config/events
 
-sketchybar --add item clock right \
-           --set clock update_freq=10 icon=  script="$PLUGIN_DIR/clock.sh" \
+sketchybar \
+           --add item clock right \
+           --set clock update_freq=10 icon="time ~" script="$PLUGIN_DIR/clock.sh" \
+           --add item sep3 right \
+           --set sep3 icon="|" icon.font.style="Normal" icon.padding_left=10 icon.color=0x95DCD7BA \
            --add item volume right \
            --set volume script="$PLUGIN_DIR/volume.sh" \
            --subscribe volume volume_change \
+           --add item sep2 right \
+           --set sep2 icon="|" icon.font.style="Normal" icon.padding_left=10  icon.color=0x95DCD7BA \
            --add item battery right \
            --set battery update_freq=120 script="$PLUGIN_DIR/battery.sh" \
-           --subscribe battery system_woke power_source_change
+           --subscribe battery system_woke power_source_change \
+           --add item sep1 right \
+           --set sep1 icon="|" icon.font.style="Normal" icon.padding_left=10 icon.color=0x95DCD7BA \
+           --add item cpu right \
+           --set cpu  update_freq=2 \
+                      icon="cpu ~"  \
+                      script="$PLUGIN_DIR/cpu.sh" \
+           --add item media center \
+           --set media label.max_chars=70 \
+                       icon.padding_left=0 \
+                       scroll_texts=on \
+                       icon=""             \
+                       label.font.style="Normal" \
+                       background.drawing=off \
+                       script="$PLUGIN_DIR/media.sh" \
+           --subscribe media media_change \
 
 ##### Force all scripts to run the first time (never do this in a script) #####
 sketchybar --update

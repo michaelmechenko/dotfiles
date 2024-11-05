@@ -17,7 +17,7 @@ end
 return {
 	"folke/which-key.nvim",
 	event = "VeryLazy",
-	init = function()
+	config = function()
 		local wk = require("which-key")
 		wk.add({
 			-- format

@@ -14,11 +14,14 @@ end
 --   return num_tabs(window) > 1
 -- end
 
+config.window_background_opacity = 0.98
+
 wezterm.on("gui-startup", function(cmd)
   local tab = mux.spawn_window(cmd or {})
   local tab_id = tab:tab_id()
   tab:set_title(tab_id + 1)
 end)
+config.audible_bell="Disabled"
 
 -- local default_top_padding = "0.4cell"
 -- local default_bottom_padding = "0.0cell"
@@ -49,7 +52,7 @@ config.window_decorations = "RESIZE"
 -- font settings
 -- config.font = wezterm.font("JetBrainsMono Nerd Font")
 config.font = wezterm.font("ComicShannsMono Nerd Font")
-config.font_size = 17.8
+config.font_size = 17.0
 config.cell_width = 0.95
 
 -- cursor
@@ -65,7 +68,7 @@ config.window_frame = {
     family = "mononoki",
     weight = "Medium",
   }),
-  font_size = 18.0,
+  font_size = 16.0,
   active_titlebar_bg = "#1F1F28",
   inactive_titlebar_bg = "#1F1F28",
 }

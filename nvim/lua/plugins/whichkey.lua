@@ -205,6 +205,13 @@ return {
 				desc = "treesitter",
 			},
 			{
+				"<leader>fs",
+				function()
+					require("telescope.builtin").lsp_document_symbols()
+				end,
+				desc = "doc symbols",
+			},
+			{
 				"<leader>fr",
 				function()
 					require("telescope.builtin").oldfiles()

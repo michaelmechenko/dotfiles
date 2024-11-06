@@ -33,5 +33,8 @@ yabai -m mouse_drop_action swap
 yabai -m rule --add app="^System Settings$" manage=off
 yabai -m rule --add app="^Messages$" manage=off
 yabai -m rule --add app="^Finder$" manage=off
+yabai -m rule --add app="^Preview$" manage=off
+yabai -m rule --add app="^Music$" manage=off
 yabai -m rule --add app="^Jagex Launcher$" manage=off
+yabai -m rule --add app="^Discord$" manage=off
 yabai -m config external_bar all:36:0

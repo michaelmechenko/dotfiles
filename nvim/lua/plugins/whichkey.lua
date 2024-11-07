@@ -21,98 +21,46 @@ return {
 		local wk = require("which-key")
 		wk.add({
 			-- format
-			{ "<leader>w", vim.lsp.buf.format, desc = "format" },
+			{ "<leader>q", vim.lsp.buf.format, desc = "format" },
+
+			-- window
+			{ "<leader>w", "<c-w>", desc = "window" },
 
 			-- diagnostics
 			{ "<leader>d", group = "diagnostics" },
 			{ "<leader>dh", hide_diagnostics, desc = "hide diagnostics" },
 			{ "<leader>ds", show_diagnostics, desc = "show diagnostics" },
 
+			-- buffers
+			{ "<leader>b", group = "buffers" },
+			{ "<leader>bc", desc = "prev buf" },
+			{ "<leader>bv", desc = "next buf" },
+
 			-- avante
 			{ "<leader>a", group = "avante" },
 
-			-- -- chad gpt
-			-- { "<leader>q",  group = "ai" },
-			-- { "<leader>qq", "<cmd>ChatGPT<CR>",                    desc = "chatgpt" },
-			-- { "<leader>qe", "<cmd>ChatGPTEditWithInstruction<CR>", desc = "edit w instruction", mode = { "n", "v" } },
-			-- {
-			--   "<leader>qg",
-			--   "<cmd>ChatGPTRun grammar_correction<CR>",
-			--   desc = "grammar Correction",
-			--   mode = { "n", "v" },
-			-- },
-			-- {
-			--   "<leader>qt",
-			--   "<cmd>ChatGPTRun translate<CR>",
-			--   desc = "translate",
-			--   mode = { "n", "v" },
-			-- },
-			-- {
-			--   "<leader>qk",
-			--   "<cmd>ChatGPTRun keywords<CR>",
-			--   desc = "keywords",
-			--   mode = { "n", "v" },
-			-- },
-			-- {
-			--   "<leader>qd",
-			--   "<cmd>ChatGPTRun docstring<CR>",
-			--   desc = "docstring",
-			--   mode = { "n", "v" },
-			-- },
-			-- {
-			--   "<leader>qa",
-			--   "<cmd>ChatGPTRun add_tests<CR>",
-			--   desc = "add tests",
-			--   mode = { "n", "v" },
-			-- },
-			-- {
-			--   "<leader>qo",
-			--   "<cmd>ChatGPTRun optimize_code<CR>",
-			--   desc = "optimize code",
-			--   mode = { "n", "v" },
-			-- },
-			-- {
-			--   "<leader>qs",
-			--   "<cmd>ChatGPTRun summarize<CR>",
-			--   desc = "summarize",
-			--   mode = { "n", "v" },
-			-- },
-			-- {
-			--   "<leader>qf",
-			--   "<cmd>ChatGPTRun fix_bugs<CR>",
-			--   desc = "fix bugs",
-			--   mode = { "n", "v" },
-			-- },
-			-- {
-			--   "<leader>qx",
-			--   "<cmd>ChatGPTRun explain_code<CR>",
-			--   desc = "explain code",
-			--   mode = { "n", "v" },
-			-- },
-			-- {
-			--   "<leader>qr",
-			--   "<cmd>ChatGPTRun roxygen_edit<CR>",
-			--   desc = "roxygen edit",
-			--   mode = { "n", "v" },
-			-- },
-			-- {
-			--   "<leader>ql",
-			--   "<cmd>ChatGPTRun code_readability_analysis<CR>",
-			--   desc = "code readibility analytics",
-			--   mode = { "n", "v" },
-			-- },
+			-- harpoon
+			{ "<leader>m", group = "harpoon" },
+			{ "<leader>ma", desc = "add file" },
+			{ "<leader>mm", desc = "menu" },
+			{ "<leader>m1", desc = "select 1" },
+			{ "<leader>m2", desc = "select 2" },
+			{ "<leader>m3", desc = "select 3" },
+			{ "<leader>m4", desc = "select 4" },
+			{ "<leader>mc", desc = "prev" },
+			{ "<leader>mv", desc = "next" },
 
 			-- neotree
 			{ "<leader>r", group = "noeotree" },
 			{ "<leader>re", "<cmd>Neotree filesystem reveal right<CR>", desc = "filesystem" },
-			{ "<leader>rw", "<cmd>Neotree buffers reveal right<CR>", desc = "buffers" },
+			{ "<leader>rw", "<cmd>Neotree buffers reveal float<CR>", desc = "buffers" },
 			{ "<leader>rq", "<cmd>Neotree close<CR>", desc = "close" },
 			{ "<leader>rb", "<cmd>Neotree git_status reveal float<CR>", desc = "git status" },
 
 			-- trouble
 			{ "<leader>x", group = "trouble" },
 			{
-				"<leader>xx",
+				"<leader>xz",
 				function()
 					if require("trouble").is_open() then
 						require("trouble").focus({ true })
@@ -123,9 +71,9 @@ return {
 			{
 				"<leader>xr",
 				function()
-					require("trouble").refresh({ true })
+					require("trouble").toggle({ mode = "lsp_references" })
 				end,
-				desc = "refresh",
+				desc = "lsp references",
 			},
 			{
 				"<leader>xq",
@@ -144,19 +92,24 @@ return {
 				desc = "diagnostics",
 			},
 			{
+				"<leader>xf",
+				function()
+					require("trouble").toggle("functions_main")
+				end,
+				desc = "functions",
+			},
+			{
 				"<leader>xs",
-				"<cmd>Trouble toggle symbols win.size=0.3<CR>",
-				-- function()
-				--   require("trouble").toggle("symbols")
-				-- end,
+				function()
+					require("trouble").toggle("symbols_main")
+				end,
 				desc = "symbols",
 			},
 			{
 				"<leader>xl",
-				"<cmd>Trouble toggle lsp win.size=0.3<CR>",
-				-- function()
-				--   require("trouble").toggle("lsp")
-				-- end,
+				function()
+					require("trouble").toggle("lsp_main")
+				end,
 				desc = "lsp",
 			},
 
@@ -172,16 +125,23 @@ return {
 			{
 				"<leader>ff",
 				function()
-					require("telescope.builtin").find_files()
+					require("telescope.builtin").find_files({})
 				end,
 				desc = "find files",
 			},
 			{
 				"<leader>fd",
 				function()
-					require("telescope.builtin").live_grep()
+					require("telescope.builtin").lsp_references({})
 				end,
-				desc = "live grep",
+				desc = "lsp references",
+			},
+			{
+				"<leader>fh",
+				function()
+					require("telescope.builtin").help_tags()
+				end,
+				desc = "help_tags",
 			},
 			{
 				"<leader>fm",
@@ -198,6 +158,13 @@ return {
 				desc = "quickfix",
 			},
 			{
+				"<leader>fw",
+				function()
+					require("telescope.builtin").buffers({ show_all_buffers = true })
+				end,
+				desc = "buffers",
+			},
+			{
 				"<leader>ft",
 				function()
 					require("telescope.builtin").treesitter()
@@ -207,7 +174,7 @@ return {
 			{
 				"<leader>fs",
 				function()
-					require("telescope.builtin").lsp_document_symbols()
+					require("telescope.builtin").lsp_document_symbols({ show_line = true })
 				end,
 				desc = "doc symbols",
 			},
@@ -217,6 +184,13 @@ return {
 					require("telescope.builtin").oldfiles()
 				end,
 				desc = "recent files",
+			},
+			{
+				"<leader>fg",
+				function()
+					require("telescope.builtin").live_grep()
+				end,
+				desc = "live grep",
 			},
 
 			-- hover

@@ -14,7 +14,8 @@ end
 --   return num_tabs(window) > 1
 -- end
 
-config.window_background_opacity = 0.98
+-- config.window_background_opacity = 0.95
+-- config.macos_window_background_blur = 45
 
 wezterm.on("gui-startup", function(cmd)
 	local tab = mux.spawn_window(cmd or {})

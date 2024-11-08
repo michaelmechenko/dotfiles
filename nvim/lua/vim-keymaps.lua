@@ -21,8 +21,10 @@ vim.keymap.set("n", "<leader>bc", ":bprev<CR>", {})
 vim.keymap.set("n", "<leader>bv", ":bnext<CR>", {})
 
 -- vertical navigation
-vim.keymap.set("n", "{", "<C-u>zz", {})
-vim.keymap.set("n", "}", "<C-d>zz", {})
+-- vim.keymap.set("n", "{", "<C-u>zz", {})
+-- vim.keymap.set("n", "}", "<C-d>zz", {})
+vim.keymap.set("n", "{", "10kzz", {})
+vim.keymap.set("n", "}", "10jzz", {})
 vim.keymap.set("n", "=", "}", {})
 vim.keymap.set("n", "-", "{", {})
 

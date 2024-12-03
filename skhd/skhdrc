@@ -78,16 +78,12 @@
 
 # change window focus within space
 cmd - j : yabai -m window --focus south
-cmd - down : yabai -m window --focus south
 
 cmd - k : yabai -m window --focus north
-cmd - up : yabai -m window --focus north
 
 cmd - h : yabai -m window --focus west
-cmd - left : yabai -m window --focus west
 
 cmd - l : yabai -m window --focus east
-cmd - right : yabai -m window --focus east
 
 #change focus between external displays (left and right)
 # cmd - s: yabai -m display --focus west
@@ -95,10 +91,6 @@ cmd - right : yabai -m window --focus east
 
 # swap managed window
 # swap windows
-shift + alt - down : yabai -m window --swap south
-shift + alt - up : yabai -m window --swap north
-shift + alt - left : yabai -m window --swap west
-shift + alt - right : yabai -m window --swap east
 shift + alt - j : yabai -m window --swap south
 shift + alt - k : yabai -m window --swap north
 shift + alt - h : yabai -m window --swap west

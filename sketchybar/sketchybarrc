@@ -12,7 +12,7 @@ PLUGIN_DIR="$CONFIG_DIR/plugins"
 # If you are looking for other colors, see the color picker:
 # https://felixkratz.github.io/SketchyBar/config/tricks#color-picker
 
-sketchybar --bar position=top height=32 blur_radius=20 color=0x40000000 y_offset=2 border_color=0x60DCD7BA border_width=2 corner_radius=6 margin=4 padding_left=6 padding_right=6
+sketchybar --bar position=top height=32 blur_radius=20 color=0x40000000 y_offset=2 border_color=0x60DCD7BA border_width=1 corner_radius=5 margin=4 padding_left=8 padding_right=8
 
 ##### Changing Defaults #####
 # We now change some default values, which are applied to all further items.
@@ -86,13 +86,13 @@ sketchybar \
            --set battery update_freq=120 script="$PLUGIN_DIR/battery.sh" \
            --subscribe battery system_woke power_source_change \
            --add item sep1 right \
-           --set sep1 icon="|" icon.font.style="Normal" icon.padding_left=10 icon.color=0x95DCD7BA \
-           --add item cpu right \
-           --set cpu  update_freq=2 \
-                      icon="cpu ~"  \
-                      script="$PLUGIN_DIR/cpu.sh" \
+           # --set sep1 icon="|" icon.font.style="Normal" icon.padding_left=10 icon.color=0x95DCD7BA \
+           # --add item cpu right \
+           # --set cpu  update_freq=2 \
+           #            icon="cpu ~"  \
+           #            script="$PLUGIN_DIR/cpu.sh" \
            --add item media center \
-           --set media label.max_chars=70 \
+           --set media label.max_chars=35 \
                        icon.padding_left=0 \
                        scroll_texts=on \
                        icon=""             \

@@ -57,6 +57,24 @@ return {
 			{ "<leader>rq", "<cmd>Neotree close<CR>", desc = "close" },
 			{ "<leader>rb", "<cmd>Neotree git_status reveal float<CR>", desc = "git status" },
 
+			-- snacks
+			-- terminal
+			{ "<leader>t", group = "snacks" },
+			{
+				"<leader>te",
+				function()
+					require("snacks").terminal.open()
+				end,
+				desc = "new terminal window",
+			},
+			{
+				"<leader>tt",
+				function()
+					require("snacks").terminal.toggle()
+				end,
+				desc = "toggle terminal window",
+			},
+
 			-- trouble
 			{ "<leader>x", group = "trouble" },
 			{

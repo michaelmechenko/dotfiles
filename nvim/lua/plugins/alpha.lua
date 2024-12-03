@@ -25,7 +25,6 @@ return {
       buttonhl("g", "     ‹ live grep ›", "<cmd>Telescope live_grep<CR>", "Conceal", "center"),
       buttonhl("r", "     ‹ recent files ›", "<cmd>Telescope oldfiles<CR>", "Conceal", "center"),
       buttonhl("u", "     ‹ update lazy ›", "<cmd>Lazy sync<CR>", "Conceal", "center"),
-      buttonhl("l", "     ‹ update mason ›", "<cmd>MasonUpdate<CR>", "Conceal", "center"),
       buttonhl("q", "     ‹ quit ›", "<cmd>qa<CR>", "Conceal", "center"),
     }
 

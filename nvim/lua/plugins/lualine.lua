@@ -5,7 +5,7 @@ return {
 		local theme = require("kanagawa.colors").setup().theme
 		local kanagawa = {}
 
-		theme.syn.fun = "#957FB8"
+		theme.syn.fun = "#938AA9"
 		theme.ui.fg_dim = "#57576b"
 
 		kanagawa.normal = {
@@ -100,6 +100,11 @@ return {
 							-- inactive = { bg = theme.ui.bg_p1, fg = theme.ui.fg_dim },
 							active = { bg = "#1F1F28", fg = theme.syn.fun, gui = "italic,bold" },
 							inactive = { bg = "#1F1F28", fg = theme.ui.fg_dim },
+						},
+						filetype_names = {
+							TelescopePrompt = "file explorer",
+							fzf = "fuzzy",
+							alpha = "home screen",
 						},
 					},
 				},

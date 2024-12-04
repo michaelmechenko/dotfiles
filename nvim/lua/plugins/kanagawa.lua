@@ -15,14 +15,15 @@ return {
 			colors = {
 				palette = {
 					-- normal
-					crystalBlue = "#957FB8",
+					-- 938AA9
+					-- 957FB8
+					crystalBlue = "#938AA9",
 					-- insert
 					springGreen = "#76946A",
 					-- visual
 					oniViolet = "#9CABCA",
 					-- replace
 					-- surimiOrange = "#FF5D62",
-
 					-- comments
 					fujiGray = "#57576b",
 				},

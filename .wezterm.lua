@@ -143,7 +143,7 @@ config.keys = {
 		action = act.CloseCurrentPane({ confirm = true }),
 	},
 
-  -- create new panes
+	-- create new panes
 	{
 		key = "RightArrow",
 		mods = "CMD|CTRL",
@@ -168,7 +168,7 @@ config.keys = {
 		action = act.SplitVertical({ domain = "CurrentPaneDomain" }),
 	},
 
-  -- switch focused pane
+	-- switch focused pane
 	{
 		key = "LeftArrow",
 		mods = "CMD|SHIFT",
@@ -217,7 +217,7 @@ config.keys = {
 		action = act.ActivatePaneDirection("Down"),
 	},
 
-  -- resize panes
+	-- resize panes
 	{
 		key = "LeftArrow",
 		mods = "CMD|SHIFT|ALT",
@@ -266,7 +266,7 @@ config.keys = {
 		action = act.AdjustPaneSize({ "Down", 3 }),
 	},
 
-  -- new tab
+	-- new tab
 	{
 		key = "t",
 		mods = "CMD",

@@ -25,6 +25,8 @@ vim.keymap.set("n", "<leader>bv", ":bnext<CR>", {})
 -- vim.keymap.set("n", "}", "<C-d>zz", {})
 vim.keymap.set("n", "{", "10kzz", {})
 vim.keymap.set("n", "}", "10jzz", {})
+vim.keymap.set("v", "{", "10kzz", {})
+vim.keymap.set("v", "}", "10jzz", {})
 vim.keymap.set("n", "=", "}", {})
 vim.keymap.set("n", "-", "{", {})
 

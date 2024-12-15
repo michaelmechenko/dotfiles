@@ -48,7 +48,7 @@ return {
           ["<C-x>"] = cmp.mapping.scroll_docs(4),
           ["<C-e>"] = cmp.mapping.confirm({ select = true }),
           ["<C-q>"] = cmp.mapping.abort(),
-          ["<Tab>"] = cmp.mapping(function(fallback)
+          ["<C-s>"] = cmp.mapping(function(fallback)
             if cmp.visible() then
               cmp.select_next_item()
             elseif require("luasnip").locally_jumpable(1) then
@@ -58,7 +58,7 @@ return {
             end
           end, { "i", "s" }),
 
-          ["<S-Tab>"] = cmp.mapping(function(fallback)
+          ["<C-w>"] = cmp.mapping(function(fallback)
             if cmp.visible() then
               cmp.select_prev_item()
             elseif require("luasnip").locally_jumpable(-1) then

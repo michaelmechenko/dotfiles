@@ -6,7 +6,6 @@ vim.cmd([[
 ]])
 
 vim.cmd("set notermsync")
-
 vim.opt.fillchars = { eob = " " }
 vim.g.mapleader = " "
 
@@ -39,6 +38,12 @@ vim.keymap.set("n", "O", "o<C-[>k", {})
 
 -- delete line below
 vim.keymap.set("n", "Z", "jddk", {})
+
+-- remap escape
+vim.keymap.set("i", "<Tab>", "<Esc>", {})
+vim.keymap.set("v", "<Tab>", "<Esc>", {})
+vim.keymap.set("i", "<C-s>", "<Esc>", {})
+vim.keymap.set("v", "<C-s>", "<Esc>", {})
 
 vim.opt.number = true
 vim.opt.relativenumber = true

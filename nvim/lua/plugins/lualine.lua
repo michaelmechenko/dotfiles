@@ -1,72 +1,60 @@
+local function kanagawa_theme()
+	local theme = require("kanagawa.colors").setup().theme
+	local kanagawa = {}
+
+	kanagawa.normal = {
+		a = { bg = theme.syn.fun, fg = theme.ui.bg_m3 },
+		b = { bg = nil, fg = theme.syn.fun },
+		c = { bg = nil, theme.ui.bg, fg = theme.ui.fg },
+	}
+
+	kanagawa.insert = {
+		a = { bg = theme.diag.ok, fg = theme.ui.bg },
+		b = { bg = theme.ui.bg, fg = theme.diag.ok },
+	}
+
+	kanagawa.command = {
+		a = { bg = theme.syn.operator, fg = theme.ui.bg },
+		b = { bg = theme.ui.bg, fg = theme.syn.operator },
+	}
+
+	kanagawa.visual = {
+		a = { bg = theme.syn.keyword, fg = theme.ui.bg },
+		b = { bg = theme.ui.bg, fg = theme.syn.keyword },
+	}
+
+	kanagawa.replace = {
+		a = { bg = theme.syn.constant, fg = theme.ui.bg },
+		b = { bg = theme.ui.bg, fg = theme.syn.constant },
+	}
+
+	kanagawa.inactive = {
+		a = { bg = theme.ui.bg_m3, fg = theme.ui.fg_dim },
+		b = { bg = theme.ui.bg_m3, fg = theme.ui.fg_dim, gui = "bold" },
+		c = { bg = theme.ui.bg_p1, fg = theme.ui.fg_dim },
+	}
+
+	if vim.g.kanagawa_lualine_bold then
+		for _, mode in pairs(kanagawa) do
+			mode.a.gui = "bold"
+		end
+	end
+
+	return kanagawa
+end
+
 return {
 	"nvim-lualine/lualine.nvim",
 	dependencies = { "nvim-tree/nvim-web-devicons" },
 	config = function()
-		local theme = require("kanagawa.colors").setup().theme
-		local kanagawa = {}
-
-		theme.syn.fun = "#938AA9"
-		theme.ui.fg_dim = "#57576b"
-
-		kanagawa.normal = {
-			a = {
-				bg = "#957FB8",
-				fg = theme.ui.bg_m3,
-			},
-			b = { bg = theme.ui.bg_p1, fg = theme.syn.fun },
-			c = { bg = theme.ui.bg_p1, fg = theme.ui.fg },
-		}
-
-		kanagawa.insert = {
-			a = { bg = theme.diag.fun, fg = theme.ui.bg },
-			b = { bg = theme.ui.bg_p1, fg = theme.diag.fun },
-		}
-
-		kanagawa.command = {
-			a = { bg = theme.syn.operator, fg = theme.ui.bg },
-			b = { bg = theme.ui.bg_p1, fg = theme.syn.operator },
-		}
-
-		kanagawa.visual = {
-			a = { bg = theme.syn.keyword, fg = theme.ui.bg },
-			b = { bg = theme.ui.bg_p1, fg = theme.syn.keyword },
-		}
-
-		kanagawa.replace = {
-			a = { bg = theme.syn.constant, fg = theme.ui.bg },
-			b = { bg = theme.ui.bg_p1, fg = theme.syn.constant },
-		}
-
-		kanagawa.inactive = {
-			a = { bg = theme.ui.bg_p1, fg = theme.ui.fg_dim },
-			b = { bg = theme.ui.bg_p1, fg = theme.ui.fg_dim, gui = "bold" },
-			c = { bg = theme.ui.bg_p1, fg = theme.ui.fg_dim },
-		}
-
-		if vim.g.kanagawa_lualine_bold then
-			for _, mode in pairs(kanagawa) do
-				mode.a.gui = "bold"
-			end
-		end
-
-		-- dumb solution
-		-- long empty string w/ same color for both fg/bg
-		local function null()
-			return [[                                                                                                                                                                                                                                                                     ]]
-		end
-
 		require("lualine").setup({
 			options = {
 				icons_enabled = true,
-				theme = "kanagawa",
+				theme = kanagawa_theme,
 				component_separators = { left = "", right = "" },
 				section_separators = { left = "", right = "" },
-				disabled_filetypes = {
-					statusline = {},
-					winbar = {},
-				},
 				ignore_focus = {},
-				always_divide_middle = false,
+				always_divide_middle = true,
 				globalstatus = true,
 				refresh = {
 					statusline = 100,
@@ -77,13 +65,16 @@ return {
 			sections = {
 				lualine_a = { { "mode" } },
 				lualine_b = { { "filename" } },
-				lualine_c = { { "diagnostics" }, { "diff" } },
-				lualine_x = {},
+				lualine_c = {
+					{ "diagnostics" },
+				},
+				lualine_x = {
+					{ "diff" },
+				},
 				lualine_y = { { "progress" } },
 				lualine_z = { { "location" } },
 			},
 			tabline = {
-				lualine_a = {},
 				lualine_b = {
 					{
 						"buffers",
@@ -96,31 +87,23 @@ return {
 							directory = " ", -- Text to show when the buffer is a directory
 						},
 						buffers_color = {
-							-- active = { bg = theme.ui.bg_p1, fg = theme.syn.fun, gui = "italic,bold" },
-							-- inactive = { bg = theme.ui.bg_p1, fg = theme.ui.fg_dim },
-							active = { bg = "#1F1F28", fg = theme.syn.fun, gui = "italic,bold" },
-							inactive = { bg = "#1F1F28", fg = theme.ui.fg_dim },
+							active = { bg = "None", fg = "#9CABCA", gui = "italic,bold" },
+							inactive = { bg = "None", fg = "#57576b" },
 						},
 						filetype_names = {
 							TelescopePrompt = "file explorer",
 							fzf = "fuzzy",
-							alpha = "home screen",
+							alpha = "home",
 						},
 					},
 				},
-				lualine_c = { { null, color = { bg = "#1F1F28", fg = "#1F1F28" } } },
-				lualine_x = {},
 				lualine_y = {
-					-- { "diff", color = { bg = theme.ui.bg_p1 } },
-					-- { "branch", color = { fg = theme.syn.fun, bg = theme.ui.bg_p1 } },
 					{
 						"branch",
-						color = { bg = "#1F1F28", fg = theme.ui.fg_dim },
+						color = { bg = "None", fg = "#57576b" },
 						icons_enabled = false,
-						-- padding = 2,
 					},
 				},
-				lualine_z = {},
 			},
 			extensions = {
 				-- "neo-tree"

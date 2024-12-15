@@ -1,8 +1,7 @@
 return {
-	{
-		"lervag/vimtex",
-		lazy = false,
-		init = function()
-		end,
-	},
+  {
+    "lervag/vimtex",
+    lazy = false,
+    init = function() end,
+  },
 }

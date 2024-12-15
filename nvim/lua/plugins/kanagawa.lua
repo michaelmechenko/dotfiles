@@ -25,7 +25,7 @@ return {
 					-- replace
 					-- surimiOrange = "#FF5D62",
 					-- comments
-					fujiGray = "#57576b",
+					-- fujiGray = "#57576b",
 				},
 				theme = {
 					wave = {},
@@ -42,10 +42,11 @@ return {
 				local theme = colors.theme
 
 				return {
-					LineNr = { fg = colors.palette.fujiGray },
-					LineNrAbove = { fg = colors.palette.fujiGray },
-					LineNrBelow = { fg = colors.palette.fujiGray },
-					CursorLineNr = { fg = colors.palette.fujiWhite },
+					LineNr = { fg = "#57576b"},
+					LineNrAbove = { fg = "#57576b"},
+					LineNrBelow = { fg = "#57576b"},
+					CursorLineNr = { fg = "#938AA9"},
+					NonText = { fg = theme.ui.bg_p1, bg = "none" },
 
 					NormalFloat = { bg = "none" },
 					FloatBorder = { bg = "none" },
@@ -73,6 +74,7 @@ return {
 					PmenuSel = { fg = "NONE", bg = theme.ui.bg_p2 },
 					PmenuSbar = { bg = theme.ui.bg_m1 },
 					PmenuThumb = { bg = theme.ui.bg_p2 },
+					Visual = { bg = "#54546D" },
 				}
 			end,
 			theme = "wave", -- Load "wave" theme when 'background' option is not set

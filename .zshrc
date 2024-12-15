@@ -112,6 +112,7 @@ eval "$(fzf --zsh)"
 alias ls="eza -1 -T -L 1"
 alias lsl="eza"
 alias cat="bat"
+alias e="nvim"
 
 # folders
 alias main="cd ~/_main"
@@ -119,27 +120,14 @@ alias config="cd ~/.config"
 alias projects="cd ~/_main/projects"
 alias general="cd ~/_main/vault-general/"
 alias classwork="cd ~/_main/vault-classwork/"
-alias algo="cd ~/_main/vault-classwork/algo/"
-alias systems="cd ~/_main/vault-classwork/systems/"
-
-# todos
-alias todo="echo '\n**~~~~~**' &&
-cat -r 7:99 -p ~/_main/vault-general/todos/main.md &&
-echo '**~~~~~**\n'"
-alias ctodo="echo '\n**~~~~~**' &&
-cat -r 7:99 -p ~/_main/vault-general/todos/classwork.md &&
-echo '**~~~~~**\n'" # class todo
-alias btodo="echo '\n**~~~~~~~~~~~**' &&
-cat -r 7:99 -p ~/_main/vault-general/todos/main.md &&
-echo '\n**~~~~~~~~~~~**' && 
-cat -r 7:99 -p ~/_main/vault-general/todos/classwork.md &&
-echo '**~~~~~~~~~~~**\n'" # both todo
-alias todos="cd ~/_main/vault-general/todos"
-
-# classwork
-# alias classwork="cat ~/_main/vault-general/todos/classwork.md"
-# alias classedit="nvim ~/_main/vault-general/todos/classwork.md"
 
 export JAVA_HOME=`/usr/libexec/java_home -v 22`
 
-export STM32CubeMX_PATH=/Applications/STMicroelectronics/STM32CubeMX.app/Contents/Resources
+function y() {
+	local tmp="$(mktemp -t "yazi-cwd.XXXXXX")"
+	yazi "$@" --cwd-file="$tmp"
+	if cwd="$(command cat -- "$tmp")" && [ -n "$cwd" ] && [ "$cwd" != "$PWD" ]; then
+		builtin cd -- "$cwd"
+	fi
+	rm -f -- "$tmp"
+}

@@ -11,14 +11,11 @@ if not (vim.uv or vim.loop).fs_stat(lazypath) then
 end
 
 vim.g.vimtex_quickfix_enabled = 0
+vim.g.vimtex_syntax_conceal_disable = true
 
 vim.opt.rtp:prepend(lazypath)
 vim.opt.termguicolors = true
-vim.opt.conceallevel = 1
--- views can only be fully collapsed with the global statusline
-vim.opt.laststatus = 3
--- Default splitting will cause your main splits to jump when opening an edgebar.
--- To prevent this, set `splitkeep` to either `screen` or `topline`.
-vim.opt.splitkeep = "screen"
+vim.opt.conceallevel = 2
+
 require("vim-keymaps")
 require("lazy").setup("plugins")

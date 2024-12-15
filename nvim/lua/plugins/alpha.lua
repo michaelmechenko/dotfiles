@@ -21,9 +21,9 @@ return {
 
     dashboard.section.buttons.val = {
       buttonhl("e", "     ‹ new file ›", "<cmd>ene<CR>", "Conceal", "center"),
-      buttonhl("f", "     ‹ find files ›", "<cmd>Telescope find_files<CR>", "Conceal", "center"),
-      buttonhl("g", "     ‹ live grep ›", "<cmd>Telescope live_grep<CR>", "Conceal", "center"),
-      buttonhl("r", "     ‹ recent files ›", "<cmd>Telescope oldfiles<CR>", "Conceal", "center"),
+      buttonhl("<leader>fe", "     ‹ find files ›", "<cmd>Telescope find_files<CR>", "Conceal", "center"),
+      buttonhl("<leader>fg", "     ‹ live grep ›", "<cmd>Telescope live_grep<CR>", "Conceal", "center"),
+      buttonhl("<leader>fr", "     ‹ recent files ›", "<cmd>Telescope oldfiles<CR>", "Conceal", "center"),
       buttonhl("u", "     ‹ update lazy ›", "<cmd>Lazy sync<CR>", "Conceal", "center"),
       buttonhl("q", "     ‹ quit ›", "<cmd>qa<CR>", "Conceal", "center"),
     }

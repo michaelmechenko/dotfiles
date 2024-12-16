@@ -12,7 +12,7 @@ PLUGIN_DIR="$CONFIG_DIR/plugins"
 # If you are looking for other colors, see the color picker:
 # https://felixkratz.github.io/SketchyBar/config/tricks#color-picker
 
-sketchybar --bar position=top height=36 blur_radius=20 color=0x40000000 y_offset=1 border_color=0x90DCD7BA border_width=1 corner_radius=6 margin=8 padding_left=8 padding_right=8
+sketchybar --bar position=top height=36 blur_radius=20 color=0x40000000 y_offset=2 border_color=0x90DCD7BA border_width=1 corner_radius=6 margin=8 padding_left=6 padding_right=6
 
 ##### Changing Defaults #####
 # We now change some default values, which are applied to all further items.
@@ -20,8 +20,10 @@ sketchybar --bar position=top height=36 blur_radius=20 color=0x40000000 y_offset
 # https://felixkratz.github.io/SketchyBar/config/items
 
 default=(
-  icon.font="JetBrainsMono Nerd Font:Normal:14.0"
-  label.font="JetBrainsMono Nerd Font:Normal:14.0"
+  # icon.font="JetBrainsMono Nerd Font:Normal:13.5"
+  # label.font="JetBrainsMono Nerd Font:Normal:13.5"
+  icon.font="JetBrainsMono Nerd Font Propo:Normal:13.5"
+  label.font="JetBrainsMono Nerd Font Propo:Normal:13.5"
   icon.color=0xffDCD7BA
   border_color=0xffDCD7BA
   label.color=0xffDCD7BA
@@ -44,8 +46,8 @@ do
   space=(
     space="$sid"
     icon="${SPACE_ICONS[i]}"
-    icon.padding_left=4
-    icon.padding_right=4
+    # icon.padding_left=4
+    # icon.padding_right=4
     label.drawing=off
     script="$PLUGIN_DIR/space.sh"
     click_script="yabai -m space --focus $sid"
@@ -76,12 +78,12 @@ sketchybar \
            --add item clock right \
            --set clock update_freq=10 icon="time ~" script="$PLUGIN_DIR/clock.sh" \
            --add item sep3 right \
-           --set sep3 icon="|" icon.font.style="Normal" icon.padding_left=10 icon.color=0x95DCD7BA \
+           --set sep3 icon="|" icon.font.style="Normal" icon.padding_left=6 icon.color=0x95DCD7BA \
            --add item volume right \
            --set volume script="$PLUGIN_DIR/volume.sh" \
            --subscribe volume volume_change \
            --add item sep2 right \
-           --set sep2 icon="|" icon.font.style="Normal" icon.padding_left=10  icon.color=0x95DCD7BA \
+           --set sep2 icon="|" icon.font.style="Normal" icon.padding_left=6  icon.color=0x95DCD7BA \
            --add item battery right \
            --set battery update_freq=120 script="$PLUGIN_DIR/battery.sh" \
            --subscribe battery system_woke power_source_change \

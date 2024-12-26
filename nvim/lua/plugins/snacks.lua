@@ -52,7 +52,7 @@ return {
 				},
 				animate = {
 					-- enabled = vim.fn.has("nvim-0.10") == 1,
-					enabled = true,
+					enabled = false,
 					style = "up_down",
 					easing = "linear",
 					duration = {

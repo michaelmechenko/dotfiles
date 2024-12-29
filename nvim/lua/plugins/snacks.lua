@@ -67,7 +67,7 @@ return {
 					char = "▎",
 					underline = false, -- underline the start of the scope
 					only_current = false, -- only show scope in the current window
-					hl = "FloatTitle",
+					hl = "MoreMsg",
 				},
 				chunk = {
 					-- when enabled, scopes will be rendered as chunks, except for the

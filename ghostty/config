@@ -1,0 +1,46 @@
+# theme = rose-pine
+theme = Kanagawa Wave
+# theme = kanagawabones
+
+shell-integration = none
+
+cursor-style = underline
+cursor-style-blink = false
+
+background-opacity = 0.96
+background-blur-radius = 40
+
+window-theme = auto
+window-padding-x = 4
+window-padding-y = 4
+
+macos-titlebar-style = tabs
+macos-titlebar-proxy-icon = hidden
+macos-icon = custom-style
+macos-icon-frame = plastic
+
+resize-overlay = never
+
+font-size = 14
+# font-family = "JetBrainsMono Nerd Font"
+font-family = "RobotoMono Nerd Font"
+
+keybind = cmd+ctrl+j=new_split:down
+keybind = cmd+ctrl+l=new_split:right
+
+keybind = cmd+shift+h=goto_split:left
+keybind = cmd+shift+j=goto_split:bottom
+keybind = cmd+shift+k=goto_split:top
+keybind = cmd+shift+l=goto_split:right
+
+keybind = cmd+shift+opt+h=resize_split:left,20
+keybind = cmd+shift+opt+j=resize_split:down,20
+keybind = cmd+shift+opt+k=resize_split:up,20
+keybind = cmd+shift+opt+l=resize_split:right,20
+
+keybind = cmd+shift+x=close_surface
+keybind = cmd+w=close_window
+keybind = cmd+q=quit
+keybind = cmd+shift+s=reload_config
+
+# keybind = global:cmd+`=toggle_quick_terminal

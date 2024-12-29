@@ -15,6 +15,7 @@ vim.g.vimtex_syntax_conceal_disable = true
 
 vim.opt.rtp:prepend(lazypath)
 vim.opt.termguicolors = true
+vim.opt.cursorline = true
 vim.opt.conceallevel = 2
 
 require("vim-keymaps")

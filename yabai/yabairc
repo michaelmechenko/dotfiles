@@ -39,3 +39,6 @@ yabai -m rule --add app="^Jagex Launcher$" manage=off
 yabai -m rule --add app="^Discord$" manage=off
 yabai -m rule --add app="^RuneLite$" manage=off
 yabai -m config external_bar all:28:0
+
+yabai -m signal --add app='^Ghostty$' event=window_created action='yabai -m space --layout bsp'
+yabai -m signal --add app='^Ghostty$' event=window_destroyed action='yabai -m space --layout bsp'

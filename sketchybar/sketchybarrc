@@ -88,18 +88,18 @@ sketchybar \
            --set battery update_freq=120 script="$PLUGIN_DIR/battery.sh" \
            --subscribe battery system_woke power_source_change \
            --add item sep1 right \
-           # --set sep1 icon="|" icon.font.style="Normal" icon.padding_left=10 icon.color=0x95DCD7BA \
-           # --add item cpu right \
-           # --set cpu  update_freq=2 \
-           #            icon="cpu ~"  \
-           #            script="$PLUGIN_DIR/cpu.sh" \
+           --set sep1 icon="|" icon.font.style="Normal" icon.padding_left=10 icon.color=0x95DCD7BA \
+           --add item cpu right \
+           --set cpu  update_freq=2 \
+                      icon="cpu ~"  \
+                      script="$PLUGIN_DIR/cpu.sh" \
            --add item media center \
            --set media label.max_chars=35 \
                        icon.padding_left=0 \
                        scroll_texts=on \
                        icon=""             \
                        label.font.style="Normal" \
-                       background.drawing=off \
+                       background.drawing=true \
                        script="$PLUGIN_DIR/media.sh" \
            --subscribe media media_change \
 

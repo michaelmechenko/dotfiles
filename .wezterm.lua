@@ -14,8 +14,10 @@ end
 --   return num_tabs(window) > 1
 -- end
 
-config.window_background_opacity = 0.98
+config.window_background_opacity = 0.95
 config.macos_window_background_blur = 30
+
+config.max_fps = 120
 
 wezterm.on("gui-startup", function(cmd)
 	local tab = mux.spawn_window(cmd or {})
@@ -36,7 +38,8 @@ local tabs_right_padding = "0.4cell"
 
 -- general terminal settings
 config.window_close_confirmation = "AlwaysPrompt"
-config.color_scheme = "Kanagawa (Gogh)"
+-- config.color_scheme = "Kanagawa (Gogh)"
+config.color_scheme = "rose-pine-moon"
 config.show_tab_index_in_tab_bar = false
 config.show_new_tab_button_in_tab_bar = false
 -- config.tab_bar_at_bottom = true
@@ -51,10 +54,10 @@ config.window_decorations = "RESIZE"
 -- config.hide_tab_bar_if_only_one_tab = true
 
 -- font settings
--- config.font = wezterm.font("JetBrainsMono Nerd Font")
-config.font = wezterm.font("ComicShannsMono Nerd Font")
-config.font_size = 17.0
-config.cell_width = 0.95
+config.font = wezterm.font("JetBrainsMono Nerd Font")
+-- config.font = wezterm.font("ComicShannsMono Nerd Font")
+config.font_size = 14.0
+-- config.cell_width = 0.95
 
 -- cursor
 config.underline_thickness = 3
@@ -86,7 +89,7 @@ config.colors = {
 			fg_color = "#d6d6d6",
 			intensity = "Normal",
 			underline = "None",
-			italic = false,
+			italic = true,
 			strikethrough = false,
 		},
 

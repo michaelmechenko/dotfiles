@@ -12,7 +12,8 @@ PLUGIN_DIR="$CONFIG_DIR/plugins"
 # If you are looking for other colors, see the color picker:
 # https://felixkratz.github.io/SketchyBar/config/tricks#color-picker
 
-sketchybar --bar position=top height=28 blur_radius=20 color=0x40000000 y_offset=2 border_color=0x50DCD7BA border_width=1 corner_radius=4 margin=4 padding_left=4 padding_right=4
+# sketchybar --bar position=top height=28 blur_radius=20 color=0x40000000 y_offset=2 border_color=0x50DCD7BA border_width=1 corner_radius=4 margin=4 padding_left=4 padding_right=4
+sketchybar --bar position=top height=26 blur_radius=35 color=0x40000000 y_offset=-2 border_color=0x50DCD7BA border_width=0 corner_radius=0 margin=0 padding_left=4 padding_right=4
 
 ##### Changing Defaults #####
 # We now change some default values, which are applied to all further items.
@@ -20,10 +21,8 @@ sketchybar --bar position=top height=28 blur_radius=20 color=0x40000000 y_offset
 # https://felixkratz.github.io/SketchyBar/config/items
 
 default=(
-  # icon.font="JetBrainsMono Nerd Font:Normal:13.5"
-  # label.font="JetBrainsMono Nerd Font:Normal:13.5"
-  icon.font="JetBrainsMono Nerd Font Propo:Normal:13"
-  label.font="JetBrainsMono Nerd Font Propo:Normal:13"
+  icon.font="JetBrainsMono Nerd Font:Normal:12"
+  label.font="JetBrainsMono Nerd Font:Normal:12"
   icon.color=0xffDCD7BA
   border_color=0xffDCD7BA
   label.color=0xffDCD7BA
@@ -87,14 +86,8 @@ sketchybar \
            --add item battery right \
            --set battery update_freq=120 script="$PLUGIN_DIR/battery.sh" \
            --subscribe battery system_woke power_source_change \
-           --add item sep1 right \
-           --set sep1 icon="|" icon.font.style="Normal" icon.padding_left=10 icon.color=0x95DCD7BA \
-           --add item cpu right \
-           --set cpu  update_freq=2 \
-                      icon="cpu ~"  \
-                      script="$PLUGIN_DIR/cpu.sh" \
            --add item media center \
-           --set media label.max_chars=35 \
+           --set media label.max_chars=58 \
                        icon.padding_left=0 \
                        scroll_texts=on \
                        icon=""             \
@@ -102,6 +95,13 @@ sketchybar \
                        background.drawing=true \
                        script="$PLUGIN_DIR/media.sh" \
            --subscribe media media_change \
+
+           # --add item sep1 right \
+           # --set sep1 icon="|" icon.font.style="Normal" icon.padding_left=10 icon.color=0x95DCD7BA \
+           # --add item cpu right \
+           # --set cpu  update_freq=2 \
+           #            icon="cpu ~"  \
+           #            script="$PLUGIN_DIR/cpu.sh" \
 
 ##### Force all scripts to run the first time (never do this in a script) #####
 sketchybar --update

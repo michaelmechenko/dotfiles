@@ -6,7 +6,7 @@ shell-integration = none
 cursor-style = underline
 # cursor-style-blink = false
 
-# background-opacity = 0.95
+background-opacity = 0.95
 background-blur-radius = 40
 custom-shader = bloom.glsl
 
@@ -22,7 +22,8 @@ macos-titlebar-style = tabs
 macos-titlebar-proxy-icon = hidden
 macos-icon = custom-style
 macos-icon-frame = plastic
-macos-icon-ghost-color = FF79C6
+macos-icon-ghost-color = #eb6f92
+macos-icon-screen-color = #9893a5
 
 resize-overlay = never
 
@@ -48,4 +49,4 @@ keybind = cmd+w=close_window
 keybind = cmd+q=quit
 keybind = cmd+shift+s=reload_config
 
-# keybind = global:cmd+`=toggle_quick_terminal
+keybind = global:cmd+shift+e=toggle_quick_terminal

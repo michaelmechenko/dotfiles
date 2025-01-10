@@ -6,7 +6,7 @@ shell-integration = none
 cursor-style = underline
 # cursor-style-blink = false
 
-background-opacity = 0.95
+# background-opacity = 0.95
 background-blur-radius = 40
 custom-shader = bloom.glsl
 

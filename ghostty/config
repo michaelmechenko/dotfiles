@@ -7,7 +7,7 @@ cursor-style = underline
 # cursor-style-blink = false
 
 # background-opacity = 0.95
-background-blur-radius = 40
+# background-blur-radius = 40
 custom-shader = bloom.glsl
 
 window-theme = auto
@@ -27,9 +27,11 @@ macos-icon-screen-color = #9893a5
 
 resize-overlay = never
 
-font-size = 14
-font-family = "JetBrainsMono Nerd Font"
-# font-family = "RobotoMono Nerd Font"
+font-size = 14.5
+adjust-cell-width = -5%
+adjust-cell-height = 10%
+# font-family = "JetBrainsMono Nerd Font"
+font-family = "ComicShannsMono Nerd Font Mono"
 
 keybind = cmd+ctrl+j=new_split:down
 keybind = cmd+ctrl+l=new_split:right

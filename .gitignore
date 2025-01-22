@@ -12,3 +12,4 @@ bat/
 .DS_Store
 nvim/lazy-lock.json
 .DS_Store
+wireshark

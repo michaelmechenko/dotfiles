@@ -55,7 +55,11 @@ return {
 
       -- git signs
       { "<leader>g",  group = "git" },
-      { "<leader>gs", "<cmd>Gitsigns toggle_signs<CR>",                                  desc = "gitsigns toggle" },
+      {
+        "<leader>gs",
+        "<cmd>Gitsigns toggle_signs<CR>",
+        desc = "gitsigns toggle",
+      },
 
       -- harpoon
       { "<leader>m",  group = "harpoon" },
@@ -72,12 +76,16 @@ return {
       { "<leader>5",  "<cmd>BufferLineGoToBuffer 5<CR>",                                 hidden = true },
       { "<leader>6",  "<cmd>BufferLineGoToBuffer 6<CR>",                                 hidden = true },
       { "<leader>7",  "<cmd>BufferLineGoToBuffer 7<CR>",                                 hidden = true },
+
       -- neotree
       { "<leader>r",  group = "noeotree" },
       { "<leader>re", "<cmd>Neotree filesystem reveal right<CR>:set relativenumber<CR>", desc = "filesystem" },
       { "<leader>rw", "<cmd>Neotree buffers reveal float<CR>:set relativenumber<CR>",    desc = "buffers" },
       { "<leader>rq", "<cmd>Neotree close<CR>",                                          desc = "close" },
       { "<leader>rb", "<cmd>Neotree git_status reveal float<CR>:set relativenumber<CR>", desc = "git status" },
+
+      -- mini
+      { "<leader>e",  "<cmd>lua MiniFiles.open()<CR>",                                   desc = "filetree" },
 
       -- dim
       { "<leader>z",  group = "dim" },

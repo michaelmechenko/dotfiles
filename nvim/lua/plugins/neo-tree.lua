@@ -15,6 +15,11 @@ return {
         statusline = false,
       },
       close_if_last_window = true,
+      window = {
+        mappings = {
+          ["e"] = "open",
+        },
+      },
       -- default_component_configs = {
       -- 	indent = {
       -- 		indent_marker = "│",

@@ -17,19 +17,15 @@ return {
 				windows = {
 					preview = false,
 					-- Width of focused window
-					width_focus = 50,
+					width_focus = 35,
 					-- Width of non-focused window
-					width_nofocus = 50,
+					width_nofocus = 35,
 					-- Width of preview window
-					width_preview = 25,
+					width_preview = 35,
 				},
 			})
 			vim.api.nvim_create_autocmd("User", {
-				pattern = "MiniFilesBufferUpdate",
-				command = [[set relativenumber]],
-			})
-			vim.api.nvim_create_autocmd("User", {
-				pattern = "MiniFilesExplorerOpen",
+				pattern = "MiniFilesWindowUpdate",
 				command = [[set relativenumber]],
 			})
 			vim.api.nvim_create_autocmd("User", {

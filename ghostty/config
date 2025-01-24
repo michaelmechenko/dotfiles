@@ -7,7 +7,7 @@ cursor-style = underline
 # cursor-style-blink = false
 
 background-opacity = 0.97
-background-blur-radius = 40
+background-blur-radius = 15
 # custom-shader = bloom.glsl
 
 window-theme = auto

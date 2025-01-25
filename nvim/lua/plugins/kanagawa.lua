@@ -71,6 +71,11 @@ return {
 						TelescopePreviewNormal = { bg = theme.ui.bg_dim },
 						TelescopePreviewBorder = { bg = theme.ui.bg_dim, fg = theme.ui.bg_dim },
 
+						MiniFilesTitleFocused = { fg = "#938AA9", bg = "none" },
+						MiniFilesTitle = { fg = "#57576b", bg = "none" },
+						-- MiniFilesTitleFocused = { fg = "#938AA9", bg = theme.ui.bg_p1 },
+						-- MiniFilesTitle = { fg = "#57576b", bg = theme.ui.bg_p1 },
+
 						Pmenu = { fg = theme.ui.shade0, bg = theme.ui.bg_p1 },
 						PmenuSel = { fg = "NONE", bg = theme.ui.bg_p2 },
 						PmenuSbar = { bg = theme.ui.bg_m1 },

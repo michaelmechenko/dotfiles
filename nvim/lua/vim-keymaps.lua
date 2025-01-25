@@ -21,9 +21,9 @@ vim.keymap.set("v", "P", "\"+p", {})
 vim.keymap.set("v", "Y", "\"+y", {})
 
 -- buffer remaps
-vim.keymap.set("n", "<leader>bd", ":bd<CR>", {})
-vim.keymap.set("n", "<leader>bc", ":bprev<CR>", {})
-vim.keymap.set("n", "<leader>bv", ":bnext<CR>", {})
+vim.keymap.set("n", "<leader>bd", ":w<CR>:bd<CR>", {})
+vim.keymap.set("n", "<leader>bc", ":w<CR>:bprev<CR>", {})
+vim.keymap.set("n", "<leader>bv", ":w<CR>:bnext<CR>", {})
 
 -- vertical navigation
 -- vim.keymap.set("n", "{", "<C-u>zz", {})

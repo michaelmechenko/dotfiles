@@ -18,15 +18,37 @@ return {
 			},
 			sections = {
 				lualine_a = { { "mode" } },
-				lualine_b = { { "filename" } },
-				lualine_c = {
-					{ "diagnostics" },
+				lualine_b = {
+					{
+						"buffers",
+						component_separators = { left = "", right = "" },
+						mode = 2,
+						icons_enabled = false,
+						symbols = {
+							modified = " *", -- Text to show when the buffer is modified
+							alternate_file = "", -- Text to show to identify the alternate file
+							directory = " ", -- Text to show when the buffer is a directory
+						},
+						buffers_color = {
+							active = {
+								bg = "None", --[[ fg = "#9CABCA", ]]
+								gui = "italic,bold",
+							},
+							inactive = { bg = "None", fg = "#57576b" },
+						},
+						filetype_names = {
+							TelescopePrompt = "file explorer",
+							fzf = "fuzzy",
+							alpha = "home",
+						},
+					},
 				},
+				lualine_c = {},
 				lualine_x = {
-					{ "diff" },
+					{ "diagnostics", "diff" },
 				},
-				lualine_y = { { "progress" } },
-				lualine_z = { { "location" } },
+				lualine_y = { { "location" } },
+				lualine_z = { { "progress" } },
 			},
 			-- tabline = {
 			-- 	lualine_b = {

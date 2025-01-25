@@ -68,14 +68,23 @@ return {
 			{ "<leader>mc", desc = "prev" },
 			{ "<leader>mv", desc = "next" },
 
-			-- bufferline
-			{ "<leader>1", "<cmd>BufferLineGoToBuffer 1<CR>", hidden = true },
-			{ "<leader>2", "<cmd>BufferLineGoToBuffer 2<CR>", hidden = true },
-			{ "<leader>3", "<cmd>BufferLineGoToBuffer 3<CR>", hidden = true },
-			{ "<leader>4", "<cmd>BufferLineGoToBuffer 4<CR>", hidden = true },
-			{ "<leader>5", "<cmd>BufferLineGoToBuffer 5<CR>", hidden = true },
-			{ "<leader>6", "<cmd>BufferLineGoToBuffer 6<CR>", hidden = true },
-			{ "<leader>7", "<cmd>BufferLineGoToBuffer 7<CR>", hidden = true },
+			-- -- bufferline
+			-- { "<leader>1", "<cmd>BufferLineGoToBuffer 1<CR>", hidden = true },
+			-- { "<leader>2", "<cmd>BufferLineGoToBuffer 2<CR>", hidden = true },
+			-- { "<leader>3", "<cmd>BufferLineGoToBuffer 3<CR>", hidden = true },
+			-- { "<leader>4", "<cmd>BufferLineGoToBuffer 4<CR>", hidden = true },
+			-- { "<leader>5", "<cmd>BufferLineGoToBuffer 5<CR>", hidden = true },
+			-- { "<leader>6", "<cmd>BufferLineGoToBuffer 6<CR>", hidden = true },
+			-- { "<leader>7", "<cmd>BufferLineGoToBuffer 7<CR>", hidden = true },
+
+			-- lualine
+			{ "<leader>1", "<cmd>LualineBuffersJump 1<CR>", hidden = true },
+			{ "<leader>2", "<cmd>LualineBuffersJump 2<CR>", hidden = true },
+			{ "<leader>3", "<cmd>LualineBuffersJump 3<CR>", hidden = true },
+			{ "<leader>4", "<cmd>LualineBuffersJump 4<CR>", hidden = true },
+			{ "<leader>5", "<cmd>LualineBuffersJump 5<CR>", hidden = true },
+			{ "<leader>6", "<cmd>LualineBuffersJump 6<CR>", hidden = true },
+			{ "<leader>7", "<cmd>LualineBuffersJump 7<CR>", hidden = true },
 
 			-- neotree
 			{ "<leader>r", group = "noeotree" },
@@ -102,6 +111,19 @@ return {
 					require("snacks").dim.disable()
 				end,
 				desc = "disable dim",
+			},
+
+			-- sessions
+			{ "<leader>n", group = "sessions" },
+			{
+				"<leader>ne",
+				"<cmd>SessionSearch<CR>",
+				desc = "session manager",
+			},
+			{
+				"<leader>ns",
+				"<cmd>SessionSave<CR>",
+				desc = "session save",
 			},
 
 			-- snacks

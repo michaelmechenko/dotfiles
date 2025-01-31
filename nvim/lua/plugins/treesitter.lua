@@ -40,6 +40,8 @@ return {
 				"typespec",
 				"typoscript",
         "markdown",
+        "markdown_inline",
+        "latex",
 				"xml",
 				"yaml",
 			},

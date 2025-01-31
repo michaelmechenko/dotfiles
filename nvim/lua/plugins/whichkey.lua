@@ -38,6 +38,7 @@ return {
 				show_diagnostics,
 				desc = "show diagnostics",
 			},
+
 			-- remove highlight
 			{
 				"<leader>df",
@@ -50,8 +51,12 @@ return {
 			{ "<leader>bc", desc = "prev buf" },
 			{ "<leader>bv", desc = "next buf" },
 
-			-- avante
-			{ "<leader>a", group = "avante" },
+			-- codecomp
+			{ "<leader>a", group = "codecomp" },
+			{ "<leader>ae", mode = { "v" }, ":CodeCompanion ", desc = "inline vertical" },
+			{ "<leader>ae", mode = { "n" }, "<Cmd>CodeCompanion<CR>", desc = "open" },
+			{ "<leader>as", mode = { "n", "v" }, "<Cmd>CodeCompanionChat<CR>", desc = "cc chat buffer" },
+			{ "<leader>ad", mode = { "n", "v" }, "<Cmd>CodeCompanionActions<CR>", desc = "cc actions" },
 
 			-- git signs
 			{ "<leader>g", group = "git" },
@@ -158,7 +163,7 @@ return {
 			{
 				"<leader>xr",
 				function()
-					require("trouble").toggle({ mode = "lsp_references" })
+					require("trouble").toggle({ mode = "lsp_references" }).focus({ true })
 				end,
 				desc = "lsp references",
 			},
@@ -181,21 +186,21 @@ return {
 			{
 				"<leader>xf",
 				function()
-					require("trouble").toggle("functions_main")
+					require("trouble").toggle("functions_main").focus({ true })
 				end,
 				desc = "functions",
 			},
 			{
 				"<leader>xs",
 				function()
-					require("trouble").toggle("symbols_main")
+					require("trouble").toggle("symbols_main").focus({ true })
 				end,
 				desc = "symbols",
 			},
 			{
 				"<leader>xl",
 				function()
-					require("trouble").toggle("lsp_main")
+					require("trouble").toggle("lsp_main").focus({ true })
 				end,
 				desc = "lsp",
 			},

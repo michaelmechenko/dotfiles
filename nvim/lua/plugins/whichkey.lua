@@ -163,7 +163,7 @@ return {
 			{
 				"<leader>xr",
 				function()
-					require("trouble").toggle({ mode = "lsp_references" }).focus({ true })
+					require("trouble").toggle({ mode = "lsp_references" })
 				end,
 				desc = "lsp references",
 			},
@@ -179,28 +179,28 @@ return {
 			{
 				"<leader>xd",
 				function()
-					require("trouble").toggle("diagnostics").focus({ true })
+					require("trouble").toggle("diagnostics")
 				end,
 				desc = "diagnostics",
 			},
 			{
 				"<leader>xf",
 				function()
-					require("trouble").toggle("functions_main").focus({ true })
+					require("trouble").toggle("functions_main")
 				end,
 				desc = "functions",
 			},
 			{
 				"<leader>xs",
 				function()
-					require("trouble").toggle("symbols_main").focus({ true })
+					require("trouble").toggle("symbols_main")
 				end,
 				desc = "symbols",
 			},
 			{
 				"<leader>xl",
 				function()
-					require("trouble").toggle("lsp_main").focus({ true })
+					require("trouble").toggle("lsp_main")
 				end,
 				desc = "lsp",
 			},
@@ -283,6 +283,13 @@ return {
 					require("telescope.builtin").live_grep()
 				end,
 				desc = "live grep",
+			},
+
+			-- undotree
+			{
+				"<leader>u",
+				"<cmd>UndotreeToggle<CR>",
+				desc = "undotree window",
 			},
 
 			-- hover

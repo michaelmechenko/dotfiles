@@ -131,15 +131,14 @@ return {
 				desc = "session save",
 			},
 
-			-- snacks
 			-- terminal
-			{ "<leader>t", group = "snacks" },
+			{ "<leader>t", group = "terminal" },
 			{
 				"<leader>te",
 				function()
 					require("snacks").terminal.open()
 				end,
-				desc = "new terminal window",
+				desc = "open floating terminal",
 			},
 			{
 				"<leader>tt",

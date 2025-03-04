@@ -105,7 +105,7 @@ return {
 					"cmake",
 					"cssls",
 					"dockerls",
-					"gopls",
+					-- "gopls",
 					"html",
 					"biome",
 					"pyright",
@@ -141,7 +141,7 @@ return {
 			lspconfig.clangd.setup({})
 			lspconfig.cmake.setup({})
 			lspconfig.dockerls.setup({})
-			lspconfig.gopls.setup({})
+			-- lspconfig.gopls.setup({})
 			lspconfig.html.setup({})
 			lspconfig.biome.setup({})
 			lspconfig.pyright.setup({})

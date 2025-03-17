@@ -44,11 +44,16 @@ return {
 					},
 				},
 				lualine_c = {},
+				lualine_y = {},
 				lualine_x = {
 					{ "diagnostics", "diff" },
 				},
-				lualine_y = { { "location" } },
-				lualine_z = { { "progress" } },
+				lualine_z = {},
+				-- lualine_x = {
+				-- 	{ "diagnostics", "diff" },
+				-- },
+				-- lualine_y = { { "location" } },
+				-- lualine_z = { { "progress" } },
 			},
 			-- tabline = {
 			-- 	lualine_b = {

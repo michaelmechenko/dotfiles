@@ -8,8 +8,8 @@ cursor-style = underline
 
 # background-opacity = 0.96
 background-blur-radius = 20
-unfocused-split-opacity = 0.7
-custom-shader = bloom.glsl
+unfocused-split-opacity = 0.75
+# custom-shader = bloom.glsl
 
 window-theme = auto
 # window-vsync = false

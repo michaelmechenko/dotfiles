@@ -20,7 +20,7 @@ return {
         win = {
           type = "split",
           relative = "win",
-          position = "right",
+          position = "bottom",
           size = 0.4,
         },
       },

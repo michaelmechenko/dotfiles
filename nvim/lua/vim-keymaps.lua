@@ -22,8 +22,8 @@ vim.keymap.set("v", "Y", '"+y', {})
 
 -- buffer remaps
 vim.keymap.set("n", "<leader>bd", ":w<CR>:bd<CR>", {})
-vim.keymap.set("n", "<leader>bc", ":w<CR>:bprev<CR>", {})
-vim.keymap.set("n", "<leader>bv", ":w<CR>:bnext<CR>", {})
+vim.keymap.set("n", "<leader>bc", "<CR>:bprev<CR>", {})
+vim.keymap.set("n", "<leader>bv", "<CR>:bnext<CR>", {})
 
 -- window management
 vim.keymap.set("n", "<leader>we", "<C-w>=", {})

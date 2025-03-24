@@ -4,10 +4,10 @@ theme = Kanagawa Wave
 shell-integration = none
 
 cursor-style = underline
-# cursor-style-blink = false
+cursor-style-blink = false
 
-# background-opacity = 0.96
-background-blur-radius = 20
+background-opacity = 0.98
+background-blur-radius = 15
 unfocused-split-opacity = 0.75
 # custom-shader = bloom.glsl
 
@@ -29,8 +29,9 @@ macos-icon-screen-color = #9893a5
 resize-overlay = never
 
 font-size = 16
-adjust-cell-width = -5%
-adjust-cell-height = 15%
+adjust-cell-width = 0%
+adjust-cell-height = 16%
+font-feature = -calt
 # font-family = "JetBrainsMono Nerd Font"
 # font-family = "ComicShannsMono Nerd Font Mono"
 font-family = "0xProto"

@@ -27,7 +27,7 @@ return {
       { "<leader>w", "<c-w>",              desc = "window" },
 
       -- diagnostics
-      { "<leader>d", group = "diagnostics" },
+      { "<leader>d", group = "diagnostics/DAP" },
       {
         "<leader>dh",
         hide_diagnostics,
@@ -45,6 +45,14 @@ return {
         "<cmd>noh<CR>",
         desc = "remove highlights",
       },
+
+      -- dap
+      { "<leader>db", "<Cmd>DapToggleBreakpoint<CR>", desc = "toggle breakpoint" },
+      { "<leader>dsi", "<Cmd>DapStepInto<CR>", desc = "step into" },
+      { "<leader>dso", "<Cmd>DapStepOut<CR>", desc = "step out" },
+      { "<leader>dsr", "<Cmd>DapStepOver<CR>", desc = "step over" },
+      { "<leader>dr", "<Cmd>DapContinue<CR>",         desc = "continue dap" },
+      { "<leader>dq", "<Cmd>DapTerminate<CR>",         desc = "terminate dap" },
 
       -- buffers
       { "<leader>b",  group = "buffers" },
@@ -131,23 +139,6 @@ return {
         desc = "session save",
       },
 
-      -- terminal
-      { "<leader>t", group = "terminal" },
-      {
-        "<leader>te",
-        function()
-          require("snacks").terminal.open()
-        end,
-        desc = "open floating terminal",
-      },
-      {
-        "<leader>tt",
-        function()
-          require("snacks").terminal.toggle()
-        end,
-        desc = "toggle terminal window",
-      },
-
       -- trouble
       { "<leader>x",  group = "trouble" },
       {
@@ -180,6 +171,7 @@ return {
         "<leader>xd",
         function()
           require("trouble").toggle("diagnostics")
+          require("trouble").focus()
         end,
         desc = "diagnostics",
       },
@@ -326,9 +318,6 @@ return {
       -- surround
       { "<leader>s",  group = "surround" },
 
-      -- dap
-      { "<leader>db", "<Cmd>DapToggleBreakpoint<CR>", desc = "add breakpoint" },
-      { "<leader>dr", "<Cmd>DapContinue<CR>",         desc = "toggle dap" },
     })
   end,
   opts = {},

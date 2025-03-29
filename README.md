@@ -18,11 +18,9 @@ keybindings: skhd
 
 colorscheme: kanagawa
 
-font: jetbrains mono
+font: 0xproto
 
-runescape: playing
-
-![screenshot](https://github.com/user-attachments/assets/5e62be9a-87dd-447d-ad41-f49362621eff)
+![dotfiles](https://github.com/user-attachments/assets/1ebfd7b5-29e4-4937-8120-78a7a5f52cae)
 
 configs to add:
 - nixos

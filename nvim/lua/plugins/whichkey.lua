@@ -75,11 +75,11 @@ return {
       },
 
       -- harpoon
-      { "<leader>m",  group = "harpoon" },
-      { "<leader>ma", desc = "add file" },
-      { "<leader>me", desc = "menu" },
-      { "<leader>mc", desc = "prev" },
-      { "<leader>mv", desc = "next" },
+      -- { "<leader>m",  group = "harpoon" },
+      -- { "<leader>ma", desc = "add file" },
+      -- { "<leader>me", desc = "menu" },
+      -- { "<leader>mc", desc = "prev" },
+      -- { "<leader>mv", desc = "next" },
 
       -- -- bufferline
       -- { "<leader>1", "<cmd>BufferLineGoToBuffer 1<CR>", hidden = true },

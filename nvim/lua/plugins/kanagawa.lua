@@ -18,15 +18,18 @@ return {
             -- normal
             -- 938AA9
             -- 957FB8
-            crystalBlue = "#938AA9",
+            -- 8f80b2
+            crystalBlue = "#8F80B2",
             -- insert
             -- springGreen = "#76946A",
             -- visual
-            oniViolet = "#9CABCA",
+            -- 8092b2
+            -- 9cabca
+            oniViolet = "#8092B2",
             -- replace
             -- surimiOrange = "#cf8c8e",
             -- comments
-            fujiGray = "#63637b",
+            -- fujiGray = "#63637b",
           },
           theme = {
             wave = {},
@@ -43,10 +46,11 @@ return {
           local theme = colors.theme
 
           return {
-            -- LineNr = { fg = "#57576b" },
-            -- LineNrAbove = { fg = "#57576b" },
-            -- LineNrBelow = { fg = "#57576b" },
-            CursorLineNr = { fg = "#938AA9" },
+            LineNr = { fg = "#57576b" },
+            LineNrAbove = { fg = "#57576b" },
+            LineNrBelow = { fg = "#57576b" },
+            CursorLineNr = { fg = "#938AA9", bold = true },
+            -- CursorLineNr = { bold = true },
             NonText = { fg = theme.ui.bg_p1, bg = "none" },
 
             NormalFloat = { bg = "none" },
@@ -86,12 +90,12 @@ return {
         theme = "wave", -- Load "wave" theme when 'background' option is not set
         background = { -- map the value of 'background' option to a theme
           dark = "wave", -- try "dragon" !
+          -- dark = "dragon", -- try "dragon" !
           light = "lotus",
         },
       })
 
       vim.cmd("colorscheme kanagawa")
-      vim.opt.cursorline = true
     end,
   },
 }

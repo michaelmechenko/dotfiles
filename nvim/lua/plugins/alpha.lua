@@ -20,20 +20,20 @@ return {
 		end
 
 		dashboard.section.buttons.val = {
-			buttonhl("n", "     ‹ new file ›", "<cmd>ene<CR>", "Conceal", "center"),
+			buttonhl("n", "     ‹ new file ›", "<cmd>ene<CR>", "Constant", "center"),
 			buttonhl(
 				"re",
 				"     ‹ filetree ›",
 				"<cmd>Neotree filesystem reveal right<CR>:set relativenumber<CR>",
-				"Conceal",
+				"Constant",
 				"center"
 			),
-			buttonhl("fe", "     ‹ find files ›", "<cmd>Telescope find_files<CR>", "Conceal", "center"),
-			buttonhl("fg", "     ‹ live grep ›", "<cmd>Telescope live_grep<CR>", "Conceal", "center"),
-			buttonhl("fr", "     ‹ recent files ›", "<cmd>Telescope oldfiles<CR>", "Conceal", "center"),
-			buttonhl("l", "     ‹ lazy ›", "<cmd>Lazy<CR>", "Conceal", "center"),
-			buttonhl("m", "     ‹ mason ›", "<cmd>Mason<CR>", "Conceal", "center"),
-			buttonhl("q", "     ‹ quit ›", "<cmd>qa<CR>", "Conceal", "center"),
+			buttonhl("fe", "     ‹ find files ›", "<cmd>Telescope find_files<CR>", "Constant", "center"),
+			buttonhl("fg", "     ‹ live grep ›", "<cmd>Telescope live_grep<CR>", "Constant", "center"),
+			buttonhl("fr", "     ‹ recent files ›", "<cmd>Telescope oldfiles<CR>", "Constant", "center"),
+			buttonhl("l", "     ‹ lazy ›", "<cmd>Lazy<CR>", "Constant", "center"),
+			buttonhl("m", "     ‹ mason ›", "<cmd>Mason<CR>", "Constant", "center"),
+			buttonhl("q", "     ‹ quit ›", "<cmd>qa<CR>", "Constant", "center"),
 		}
 
 		vim.api.nvim_create_autocmd("User", {

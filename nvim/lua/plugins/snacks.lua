@@ -1,4 +1,4 @@
-require("kanagawa").load("wave")
+-- require("kanagawa").load("wave")
 
 return {
 	{
@@ -46,8 +46,29 @@ return {
 				end,
 			},
 			indent = {
-				chunk = {
+				indent = {
 					enabled = false,
+				},
+				chunk = {
+					enabled = true,
+					-- only show chunk scopes in the current window
+					only_current = false,
+					priority = 200,
+					hl = "Statement", ---@type string|string[] hl group for chunk scopes
+					char = {
+						-- corner_top = "┌",
+						-- corner_bottom = "└",
+						-- -- corner_top = "╭",
+						-- -- corner_bottom = "╰",
+						-- horizontal = "─",
+						-- vertical = "│",
+						-- arrow = ">",
+						corner_top = "╭",
+						corner_bottom = "╰",
+						horizontal = " ",
+						vertical = "┊",
+						arrow = " ",
+					},
 				},
 				animate = {
 					enabled = false,

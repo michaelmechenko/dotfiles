@@ -21,53 +21,53 @@ return {
     local wk = require("which-key")
     wk.add({
       -- format
-      { "<leader>q", vim.lsp.buf.format,   desc = "format" },
+      { "<leader>q", vim.lsp.buf.format,       desc = "format" },
 
       -- window
-      { "<leader>w", "<c-w>",              desc = "window" },
+      { "<leader>w", "<c-w>",                  desc = "window" },
 
       -- diagnostics
       { "<leader>d", group = "diagnostics/DAP" },
       {
-        "<leader>dh",
+        "<leader>ddh",
         hide_diagnostics,
         desc = "hide diagnostics",
       },
       {
-        "<leader>ds",
+        "<leader>dds",
         show_diagnostics,
         desc = "show diagnostics",
       },
 
       -- remove highlight
       {
-        "<leader>df",
+        "<leader>da",
         "<cmd>noh<CR>",
         desc = "remove highlights",
       },
 
       -- dap
-      { "<leader>db", "<Cmd>DapToggleBreakpoint<CR>", desc = "toggle breakpoint" },
-      { "<leader>dsi", "<Cmd>DapStepInto<CR>", desc = "step into" },
-      { "<leader>dso", "<Cmd>DapStepOut<CR>", desc = "step out" },
-      { "<leader>dsr", "<Cmd>DapStepOver<CR>", desc = "step over" },
-      { "<leader>dr", "<Cmd>DapContinue<CR>",         desc = "continue dap" },
-      { "<leader>dq", "<Cmd>DapTerminate<CR>",         desc = "terminate dap" },
+      { "<leader>db",  "<Cmd>DapToggleBreakpoint<CR>", desc = "toggle breakpoint" },
+      { "<leader>dsi", "<Cmd>DapStepInto<CR>",         desc = "step into" },
+      { "<leader>dso", "<Cmd>DapStepOut<CR>",          desc = "step out" },
+      { "<leader>dsr", "<Cmd>DapStepOver<CR>",         desc = "step over" },
+      { "<leader>dr",  "<Cmd>DapContinue<CR>",         desc = "continue dap" },
+      { "<leader>dq",  "<Cmd>DapTerminate<CR>",        desc = "terminate dap" },
 
       -- buffers
-      { "<leader>b",  group = "buffers" },
-      { "<leader>bc", desc = "prev buf" },
-      { "<leader>bv", desc = "next buf" },
+      { "<leader>b",   group = "buffers" },
+      { "<leader>bc",  desc = "prev buf" },
+      { "<leader>bv",  desc = "next buf" },
 
       -- codecomp
-      { "<leader>a",  group = "codecomp" },
-      { "<leader>ae", mode = { "v" },      ":CodeCompanion ",               desc = "inline vertical" },
-      { "<leader>ae", mode = { "n" },      "<Cmd>CodeCompanion<CR>",        desc = "open" },
-      { "<leader>as", mode = { "n", "v" }, "<Cmd>CodeCompanionChat<CR>",    desc = "cc chat buffer" },
-      { "<leader>ad", mode = { "n", "v" }, "<Cmd>CodeCompanionActions<CR>", desc = "cc actions" },
+      { "<leader>a",   group = "codecomp" },
+      { "<leader>ae",  mode = { "v" },                 ":CodeCompanion ",               desc = "inline vertical" },
+      { "<leader>ae",  mode = { "n" },                 "<Cmd>CodeCompanion<CR>",        desc = "open" },
+      { "<leader>as",  mode = { "n", "v" },            "<Cmd>CodeCompanionChat<CR>",    desc = "cc chat buffer" },
+      { "<leader>ad",  mode = { "n", "v" },            "<Cmd>CodeCompanionActions<CR>", desc = "cc actions" },
 
       -- git signs
-      { "<leader>g",  group = "git" },
+      { "<leader>g",   group = "git" },
       {
         "<leader>gs",
         "<cmd>Gitsigns toggle_signs<CR>",
@@ -140,7 +140,7 @@ return {
       },
 
       -- trouble
-      { "<leader>x",  group = "trouble" },
+      { "<leader>x", group = "trouble" },
       {
         "<leader>xz",
         function()
@@ -285,7 +285,7 @@ return {
       },
 
       -- hover
-      { "<leader>h",  group = "hover" },
+      { "<leader>h", group = "hover" },
       {
         "<leader>hh",
         function()
@@ -316,8 +316,7 @@ return {
       },
 
       -- surround
-      { "<leader>s",  group = "surround" },
-
+      { "<leader>s", group = "surround" },
     })
   end,
   opts = {},

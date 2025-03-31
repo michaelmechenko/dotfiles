@@ -20,11 +20,11 @@ return {
             -- 957FB8
             crystalBlue = "#938AA9",
             -- insert
-            springGreen = "#76946A",
+            -- springGreen = "#76946A",
             -- visual
             oniViolet = "#9CABCA",
             -- replace
-            surimiOrange = "#cf8c8e",
+            -- surimiOrange = "#cf8c8e",
             -- comments
             fujiGray = "#63637b",
           },
@@ -43,9 +43,9 @@ return {
           local theme = colors.theme
 
           return {
-            LineNr = { fg = "#57576b" },
-            LineNrAbove = { fg = "#57576b" },
-            LineNrBelow = { fg = "#57576b" },
+            -- LineNr = { fg = "#57576b" },
+            -- LineNrAbove = { fg = "#57576b" },
+            -- LineNrBelow = { fg = "#57576b" },
             CursorLineNr = { fg = "#938AA9" },
             NonText = { fg = theme.ui.bg_p1, bg = "none" },
 

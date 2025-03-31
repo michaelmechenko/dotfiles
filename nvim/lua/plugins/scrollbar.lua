@@ -3,7 +3,7 @@ return {
 		"petertriho/nvim-scrollbar",
 		config = function()
 			require("scrollbar").setup({
-				show = true,
+				show = false,
 				show_in_active_only = true,
 				set_highlights = true,
 				folds = false, -- handle folds, set to number to disable folds if no. of lines in buffer exceeds this
@@ -12,7 +12,7 @@ return {
 				throttle_ms = 100,
 				handle = {
 					text = " ",
-					blend = 25, -- Integer between 0 and 100. 0 for fully opaque and 100 to full transparent. Defaults to 30.
+					blend = 75, -- Integer between 0 and 100. 0 for fully opaque and 100 to full transparent. Defaults to 30.
 					-- color = "NormalFloat",
 					color_nr = nil, -- cterm
 					highlight = nil,

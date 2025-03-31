@@ -47,14 +47,15 @@ return {
 			},
 			indent = {
 				indent = {
-					enabled = false,
+					enabled = true,
+					char = "┊",
 				},
 				chunk = {
 					enabled = true,
 					-- only show chunk scopes in the current window
 					only_current = false,
 					priority = 200,
-					hl = "Statement", ---@type string|string[] hl group for chunk scopes
+					hl = "Function", ---@type string|string[] hl group for chunk scopes
 					char = {
 						-- corner_top = "┌",
 						-- corner_bottom = "└",
@@ -103,7 +104,7 @@ return {
 					only_current = false,
 					-- hl = "SnacksIndentScope",
 					-- hl = "Special",
-					hl = "Statement",
+					hl = "Function",
 					-- hl = "CursorLineNr",
 				},
 				picker = {

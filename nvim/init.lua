@@ -18,5 +18,11 @@ vim.opt.termguicolors = true
 vim.opt.cursorline = true
 vim.opt.conceallevel = 0
 
+	vim.diagnostic.config({
+		virtual_text = true,
+		signs = true,
+		underline = true,
+	})
+
 require("vim-keymaps")
 require("lazy").setup("plugins")

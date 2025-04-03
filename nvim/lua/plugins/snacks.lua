@@ -15,14 +15,12 @@ return {
 			scroll = {
 				animate = {
 					duration = { step = 12, total = 175 },
-					fps = 120,
 					easing = "linear",
 				},
 				animate_repeat = {
 					delay = 100, -- delay in ms before using the repeat animation
-					fps = 120,
-					duration = { step = 4, total = 75 },
-					easing = "linear",
+					duration = { step = 5, total = 100 },
+					easing = "outQuad",
 				},
 			},
 			dim = {

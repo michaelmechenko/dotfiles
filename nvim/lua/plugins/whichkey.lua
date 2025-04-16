@@ -68,7 +68,7 @@ return {
 				desc = "inline vertical",
 			},
 			{ "<leader>ae", mode = { "n" }, "<Cmd>CodeCompanion<CR>", desc = "open" },
-			{ "<leader>as", mode = { "n", "v" }, "<Cmd>CodeCompanionChat<CR>", desc = "cc chat buffer" },
+			{ "<leader>as", mode = { "n", "v" }, "<Cmd>CodeCompanionChat Toggle<CR>", desc = "cc chat buffer" },
 			{ "<leader>ad", mode = { "n", "v" }, "<Cmd>CodeCompanionActions<CR>", desc = "cc actions" },
 
 			-- git signs

@@ -102,7 +102,7 @@ return {
 					only_current = false,
 					-- hl = "SnacksIndentScope",
 					-- hl = "Special",
-					hl = "Function",
+					-- hl = "Function",
 					-- hl = "CursorLineNr",
 				},
 				picker = {

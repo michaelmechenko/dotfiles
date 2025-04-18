@@ -4,9 +4,9 @@ return {
     config = function()
       require("cuddlefish").setup({
         theme = {
-          accent = "cherry",
+          -- accent = "cherry",
           -- accent = "violet",
-          -- accent = "orange",
+          accent = "orange",
         },
         editor = {
           transparent_background = true,
@@ -20,7 +20,18 @@ return {
           comment = { "italic" },
         },
         overrides = function(colors)
-          return {}
+          return {
+            Search = { fg = "#242424", bg = "#bababa" },
+            NormalFloat = { bg = "none" },
+            FloatBorder = { bg = "none" },
+            FloatTitle = { bg = "none" },
+            -- CurSearch = { bg = "#1d1d1d" },
+            -- CursorColumn = { bg = "#1d1d1d" },
+            -- CursorLine = { bg = "#1d1d1d" },
+            CurSearch = { bg = "#252525" },
+            CursorColumn = { bg = "#252525" },
+            CursorLine = { bg = "#252525" },
+          }
         end,
       })
 

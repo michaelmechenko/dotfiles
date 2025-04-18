@@ -31,7 +31,7 @@ return {
 						-- 3: Shows buffer number
 						-- 4: Shows buffer name + buffer number
 
-						max_length = vim.o.columns * 2 / 3, -- Maximum width of buffers component,
+						max_length = vim.o.columns * 8 / 3, -- Maximum width of buffers component,
 						-- it can also be a function that returns
 						-- the value of `max_length` dynamically.
 

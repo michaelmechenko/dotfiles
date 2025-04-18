@@ -11,7 +11,7 @@ return {
         statementStyle = { bold = true },
         typeStyle = {},
         transparent = true,
-        dimInactive = true,
+        dimInactive = false,
         terminalColors = true,
         colors = {
           palette = {

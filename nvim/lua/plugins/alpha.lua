@@ -21,16 +21,18 @@ return {
 
 		dashboard.section.buttons.val = {
 			buttonhl("n", "     ‹ new file ›", "<cmd>ene<CR>", "Constant", "center"),
-			buttonhl(
-				"re",
-				"     ‹ filetree ›",
-				"<cmd>Neotree filesystem reveal right<CR>:set relativenumber<CR>",
-				"Constant",
-				"center"
-			),
-			buttonhl("fe", "     ‹ find files ›", "<cmd>Telescope find_files<CR>", "Constant", "center"),
-			buttonhl("fg", "     ‹ live grep ›", "<cmd>Telescope live_grep<CR>", "Constant", "center"),
-			buttonhl("fr", "     ‹ recent files ›", "<cmd>Telescope oldfiles<CR>", "Constant", "center"),
+			buttonhl("re", "     ‹ filetree ›", function()
+				require("snacks").explorer()
+			end, "Constant", "center"),
+			buttonhl("fe", "     ‹ find files ›", function()
+				require("snacks").picker.files()
+			end, "Constant", "center"),
+			buttonhl("fg", "     ‹ live grep ›", function()
+				require("snacks").picker.grep()
+			end, "Constant", "center"),
+			buttonhl("fr", "     ‹ recent files ›", function()
+				require("snacks").picker.recent()
+			end, "Constant", "center"),
 			buttonhl("l", "     ‹ lazy ›", "<cmd>Lazy<CR>", "Constant", "center"),
 			buttonhl("m", "     ‹ mason ›", "<cmd>Mason<CR>", "Constant", "center"),
 			buttonhl("q", "     ‹ quit ›", "<cmd>qa<CR>", "Constant", "center"),

@@ -50,8 +50,11 @@ return {
             LineNrAbove = { fg = "#57576b" },
             LineNrBelow = { fg = "#57576b" },
             CursorLineNr = { fg = "#938AA9", bold = true },
+            -- CurSearch = { bg = "#252525" },
+            -- CursorColumn = { bg = "#252525" },
+            -- CursorLine = { bg = "#252525" },
             -- CursorLineNr = { bold = true },
-            NonText = { fg = theme.ui.bg_p1, bg = "none" },
+            -- NonText = { fg = theme.ui.bg_p1, bg = "none" },
 
             NormalFloat = { bg = "none" },
             FloatBorder = { bg = "none" },
@@ -66,14 +69,6 @@ return {
             -- set their background accordingly if you wish to keep them dark and borderless
             LazyNormal = { bg = theme.ui.bg_m3, fg = theme.ui.fg_dim },
             MasonNormal = { bg = theme.ui.bg_m3, fg = theme.ui.fg_dim },
-
-            TelescopeTitle = { fg = theme.ui.special, bold = true },
-            TelescopePromptNormal = { bg = theme.ui.bg_p1 },
-            TelescopePromptBorder = { fg = theme.ui.bg_p1, bg = theme.ui.bg_p1 },
-            TelescopeResultsNormal = { fg = theme.ui.fg_dim, bg = theme.ui.bg_m1 },
-            TelescopeResultsBorder = { fg = theme.ui.bg_m1, bg = theme.ui.bg_m1 },
-            TelescopePreviewNormal = { bg = theme.ui.bg_dim },
-            TelescopePreviewBorder = { bg = theme.ui.bg_dim, fg = theme.ui.bg_dim },
 
             MiniFilesTitleFocused = { fg = "#938AA9", bg = "none" },
             MiniFilesTitle = { fg = "#57576b", bg = "none" },

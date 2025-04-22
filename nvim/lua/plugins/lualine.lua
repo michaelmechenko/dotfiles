@@ -37,6 +37,7 @@ return {
 
 						component_separators = { left = "", right = "" },
 						icons_enabled = false,
+						draw_empty = false,
 						symbols = {
 							modified = " *", -- Text to show when the buffer is modified
 							alternate_file = "", -- Text to show to identify the alternate file
@@ -47,7 +48,6 @@ return {
 								bg = "None", --[[ fg = "#9CABCA", ]]
 								gui = "italic,bold",
 							},
-							inactive = { bg = "None", fg = "#57576b" },
 						},
 						filetype_names = {
 							TelescopePrompt = "file explorer",
@@ -56,16 +56,23 @@ return {
 						},
 					},
 				},
-				lualine_c = {},
-				lualine_y = {},
-				lualine_x = {
-					{ "diagnostics", "diff" },
+				lualine_c = {
+					{
+						color = { bg = "None" },
+					},
 				},
-				-- lualine_z = {},
-				-- lualine_x = {
-				-- 	{ "diagnostics", "diff" },
-				-- },
-				-- lualine_y = { { "location" } },
+				lualine_y = {
+					{
+						color = { bg = "None" },
+						"diff",
+					},
+				},
+				lualine_x = {
+					{
+						color = { bg = "None" },
+						"diagnostics",
+					},
+				},
 				lualine_z = { { "progress" } },
 			},
 			-- tabline = {

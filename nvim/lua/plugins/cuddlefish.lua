@@ -4,9 +4,9 @@ return {
     config = function()
       require("cuddlefish").setup({
         theme = {
-          -- accent = "cherry",
+          accent = "cherry",
           -- accent = "violet",
-          accent = "orange",
+          -- accent = "orange",
         },
         editor = {
           transparent_background = true,
@@ -35,7 +35,7 @@ return {
         end,
       })
 
-      vim.cmd.colorscheme([[cuddlefish]])
+      -- vim.cmd.colorscheme([[cuddlefish]])
     end,
   },
 }

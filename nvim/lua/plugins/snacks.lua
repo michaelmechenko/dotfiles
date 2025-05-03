@@ -149,17 +149,17 @@ return {
 
 			-- terminal = {},
 
-			scroll = {
-				animate = {
-					duration = { step = 12, total = 175 },
-					easing = "linear",
-				},
-				animate_repeat = {
-					delay = 100, -- delay in ms before using the repeat animation
-					duration = { step = 5, total = 100 },
-					easing = "outQuad",
-				},
-			},
+			-- scroll = {
+			-- 	animate = {
+			-- 		duration = { step = 15, total = 200 },
+			-- 		easing = "linear",
+			-- 	},
+			-- 	animate_repeat = {
+			-- 		delay = 100, -- delay in ms before using the repeat animation
+			-- 		duration = { step = 6, total = 60 },
+			-- 		easing = "outQuad",
+			-- 	},
+			-- },
 
 			dim = {
 				scope = {

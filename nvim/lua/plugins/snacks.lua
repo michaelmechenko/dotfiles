@@ -16,7 +16,7 @@ return {
 
 			-- words = { enabled = true },
 
-			explorer = {},
+			-- explorer = {},
 
 			picker = {
 				win = {
@@ -95,8 +95,8 @@ return {
 						git_untracked = true,
 						follow_file = true,
 						focus = "list",
-						auto_close = false,
-						jump = { close = false },
+						auto_close = true,
+						jump = { close = true },
 						-- layout = { preset = "sidebar", preview = false },
 						-- to show the explorer to the right, add the below to
 						-- your config under `opts.picker.sources.explorer`

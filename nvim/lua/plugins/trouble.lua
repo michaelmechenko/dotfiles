@@ -5,6 +5,7 @@ return {
     keys = {
       j = "next",
       k = "prev",
+      e = "jump",
     },
     modes = {
       diagnostics = {

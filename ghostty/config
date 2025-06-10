@@ -1,8 +1,7 @@
 # theme = rose-pine
 # theme = catppuccin-mocha
 # theme = Kanagawa Wave
-# theme = Kanagawa Dragon
-# theme = carbonfox
+# theme = kanagawabones
 theme = Oxocarbon
 
 shell-integration = none

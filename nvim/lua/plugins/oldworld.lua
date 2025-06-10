@@ -6,7 +6,7 @@ return {
     config = function()
       require("oldworld").setup({
         terminal_colors = true,    -- enable terminal colors
-        variant = "default",       -- default, oled, cooler
+        variant = "cooler",       -- default, oled, cooler
         styles = {                 -- You can pass the style using the format: style = true
           comments = { italic = true }, -- style for comments
           keywords = { bold = true }, -- style for keywords

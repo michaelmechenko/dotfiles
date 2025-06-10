@@ -48,6 +48,10 @@ return {
 								bg = "None", --[[ fg = "#9CABCA", ]]
 								gui = "italic,bold",
 							},
+							inactive = {
+								bg = "None", --[[ fg = "#9CABCA", ]]
+								-- gui = "italic",
+							},
 						},
 						filetype_names = {
 							TelescopePrompt = "file explorer",

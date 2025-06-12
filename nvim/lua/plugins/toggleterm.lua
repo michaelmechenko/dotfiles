@@ -4,7 +4,7 @@ return {
     version = "*",
     config = function()
       require("toggleterm").setup({
-        open_mapping = [[<c-,>]], -- or { [[<c-\>]], [[<c-¥>]] } if you also use a Japanese keyboard.
+        open_mapping = [[<C-,>]], -- or { [[<c-\>]], [[<c-¥>]] } if you also use a Japanese keyboard.
         shade_filetypes = {},
         autochdir = false,    -- when neovim changes it current directory the terminal will change it's own when next it's opened
         shade_terminals = false, -- NOTE: this option takes priority over highlights specified so if you specify Normal highlights you should set this to false

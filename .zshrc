@@ -69,7 +69,7 @@ export ZSH="$HOME/.oh-my-zsh"
 # Custom plugins may be added to $ZSH_CUSTOM/plugins/
 # Example format: plugins=(rails git textmate ruby lighthouse)
 # Add wisely, as too many plugins slow down shell startup.
-plugins=(git web-search macos)
+plugins=(git macos tmux)
 
 source $ZSH/oh-my-zsh.sh
 
@@ -113,8 +113,9 @@ alias ls="eza -1 -T -L 1"
 alias lsl="eza"
 alias cat="bat"
 alias e="nvim"
+alias t="tmux"
+alias tx="tmux kill-session"
 alias c="clear"
-alias tdf="~/_main/tdf/target/release/tdf"
 
 # folders
 alias main="cd ~/_main"
@@ -122,7 +123,6 @@ alias config="cd ~/.config"
 alias projects="cd ~/_main/projects"
 alias resources="cd ~/_main/resources"
 alias general="cd ~/_main/vault-general/"
-alias classwork="cd ~/_main/vault-classwork/"
 alias books="cd /Users/mishka/_main/vault-general/books:resources"
 
 export JAVA_HOME=`/usr/libexec/java_home -v 22`

@@ -40,18 +40,18 @@ font-feature = -calt
 # font-family = "ComicShannsMono Nerd Font Mono"
 font-family = "0xProto"
 
-keybind = cmd+ctrl+j=new_split:down
-keybind = cmd+ctrl+l=new_split:right
-
-keybind = cmd+shift+h=goto_split:left
-keybind = cmd+shift+j=goto_split:bottom
-keybind = cmd+shift+k=goto_split:top
-keybind = cmd+shift+l=goto_split:right
-
-keybind = cmd+shift+opt+h=resize_split:left,20
-keybind = cmd+shift+opt+j=resize_split:down,20
-keybind = cmd+shift+opt+k=resize_split:up,20
-keybind = cmd+shift+opt+l=resize_split:right,20
+# keybind = cmd+ctrl+j=new_split:down
+# keybind = cmd+ctrl+l=new_split:right
+# 
+# keybind = cmd+shift+h=goto_split:left
+# keybind = cmd+shift+j=goto_split:bottom
+# keybind = cmd+shift+k=goto_split:top
+# keybind = cmd+shift+l=goto_split:right
+# 
+# keybind = cmd+shift+opt+h=resize_split:left,20
+# keybind = cmd+shift+opt+j=resize_split:down,20
+# keybind = cmd+shift+opt+k=resize_split:up,20
+# keybind = cmd+shift+opt+l=resize_split:right,20
 
 keybind = cmd+shift+x=close_surface
 keybind = cmd+w=close_window

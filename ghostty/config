@@ -8,6 +8,7 @@ shell-integration = none
 
 cursor-style = underline
 cursor-style-blink = false
+command = ~/.config/ghostty/tmux.sh
 
 # background-opacity = 0.98
 # background-blur-radius = 15
@@ -17,12 +18,12 @@ cursor-style-blink = false
 window-theme = auto
 # window-vsync = false
 window-padding-x = 4
-window-padding-y = 2
+window-padding-y = 4,2
 
 bold-is-bright = true
 
-macos-titlebar-style = tabs
-# macos-titlebar-style = hidden
+# macos-titlebar-style = tabs
+macos-titlebar-style = hidden
 macos-titlebar-proxy-icon = hidden
 macos-icon = custom-style
 macos-icon-frame = plastic
@@ -31,7 +32,7 @@ macos-icon-screen-color = #9893a5
 
 resize-overlay = never
 
-font-size = 14.5
+font-size = 15
 adjust-cell-width = 0%
 adjust-cell-height = 8%
 font-feature = -calt
@@ -55,6 +56,7 @@ keybind = cmd+shift+opt+l=resize_split:right,20
 keybind = cmd+shift+x=close_surface
 keybind = cmd+w=close_window
 keybind = cmd+q=quit
+keybind = cmd+shift+f=toggle_fullscreen
 keybind = cmd+shift+s=reload_config
 
 keybind = global:cmd+shift+e=toggle_quick_terminal

@@ -53,6 +53,7 @@ return {
             -- CurSearch = { bg = "#252525" },
             -- CursorColumn = { bg = "#252525" },
             -- CursorLine = { bg = "#252525" },
+            CursorLine = { bg = "#2a2e40" },
             -- CursorLineNr = { bold = true },
             -- NonText = { fg = theme.ui.bg_p1, bg = "none" },
 

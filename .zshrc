@@ -109,7 +109,7 @@ source $(brew --prefix)/share/zsh-autosuggestions/zsh-autosuggestions.zsh
 
 eval "$(fzf --zsh)"
 
-alias ls="eza -1 -T -L 1"
+alias ls="eza -1"
 alias lsl="eza"
 alias cat="bat"
 alias e="nvim"

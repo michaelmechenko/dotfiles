@@ -137,3 +137,8 @@ function y() {
 }
 
 export PATH="$PATH:/Users/mishka/.local/bin"
+
+# docker completions
+fpath=(/Users/mishka/.docker/completions $fpath)
+autoload -Uz compinit
+compinit

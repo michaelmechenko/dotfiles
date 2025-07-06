@@ -144,3 +144,5 @@ export PATH="$PATH:/Users/mishka/.local/bin"
 fpath=(/Users/mishka/.docker/completions $fpath)
 autoload -Uz compinit
 compinit
+
+if [ "$TMUX" = "" ]; then tmux; fi

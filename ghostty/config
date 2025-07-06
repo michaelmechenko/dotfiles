@@ -9,6 +9,7 @@ shell-integration = none
 cursor-style = underline
 cursor-style-blink = false
 # command = ~/.config/ghostty/tmux.sh
+command = /opt/homebrew/bin/tmux
 
 # background-opacity = 0.98
 # background-blur-radius = 15

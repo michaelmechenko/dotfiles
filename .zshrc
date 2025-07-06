@@ -114,7 +114,9 @@ alias lsl="eza"
 alias cat="bat"
 alias e="nvim"
 alias t="tmux"
-alias tx="tmux kill-session"
+alias ts="tmux kill-session"
+alias tx="tmux kill-server"
+alias td="tmux detach-client"
 alias c="clear"
 
 # folders

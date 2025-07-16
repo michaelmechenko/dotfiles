@@ -30,7 +30,7 @@ return {
       handlers = {},
       ensure_installed = {
         -- "clangd",
-        "codelldb",
+        -- "codelldb",
       },
     },
   },

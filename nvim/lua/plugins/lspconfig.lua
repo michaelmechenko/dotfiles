@@ -120,25 +120,12 @@ return {
   {
     "neovim/nvim-lspconfig",
     config = function()
-      -- local bundles = {
-      --   vim.fn.glob(
-      --     "/Users/mishka/_main/resources/java-debug/com.microsoft.java.debug.plugin/target/com.microsoft.java.debug.plugin-*.jar",
-      --     1
-      --   ),
-      -- }
-      --
-      -- -- This is the new part
-      -- vim.list_extend(
-      --   bundles,
-      --   vim.split(vim.fn.glob("/Users/mishka/_main/resources/vscode-java-test/server/*.jar", 1), "\n")
-      -- )
-
       local lspconfig = require("lspconfig")
       lspconfig.lua_ls.setup({})
       lspconfig.texlab.setup({})
       lspconfig.rust_analyzer.setup({})
-      -- lspconfig.clangd.setup({})
-      lspconfig.cmake.setup({})
+      lspconfig.clangd.setup({})
+      -- lspconfig.cmake.setup({})
       lspconfig.dockerls.setup({})
       -- lspconfig.gopls.setup({})
       lspconfig.html.setup({})

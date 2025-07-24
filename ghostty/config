@@ -2,7 +2,8 @@
 # theme = catppuccin-mocha
 # theme = Kanagawa Wave
 # theme = kanagawabones
-theme = Oxocarbon
+# theme = Oxocarbon
+theme = oldworld
 
 shell-integration = none
 
@@ -10,7 +11,7 @@ cursor-style = underline
 cursor-style-blink = false
 # command = ~/.config/ghostty/tmux.sh
 
-# background-opacity = 0.98
+# background-opacity = 0.95
 # background-blur-radius = 15
 # unfocused-split-opacity = 0.75
 # custom-shader = bloom.glsl
@@ -18,7 +19,7 @@ cursor-style-blink = false
 window-theme = auto
 # window-vsync = false
 window-padding-x = 4
-window-padding-y = 4,2
+window-padding-y = 8,2
 
 bold-is-bright = true
 
@@ -34,7 +35,7 @@ resize-overlay = never
 
 font-size = 15
 adjust-cell-width = 0%
-adjust-cell-height = 8%
+adjust-cell-height = 10%
 font-feature = -calt
 # font-family = "JetBrainsMono Nerd Font"
 # font-family = "ComicShannsMono Nerd Font Mono"

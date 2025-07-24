@@ -115,9 +115,9 @@ alias cat="bat"
 alias e="nvim"
 alias a="aichat"
 alias oc="opencode"
-alias t="tmux"
 alias lg="lazygit"
 alias ld="lazydocker"
+alias t="tmux"
 alias ts="tmux kill-session"
 alias tx="tmux kill-server"
 alias td="tmux detach-client"
@@ -129,8 +129,6 @@ alias config="cd ~/.config"
 alias projects="cd ~/_main/projects"
 alias resources="cd ~/_main/resources"
 alias general="cd ~/_main/vault-general/"
-
-export JAVA_HOME=`/usr/libexec/java_home -v 22`
 
 function y() {
 	local tmp="$(mktemp -t "yazi-cwd.XXXXXX")"
@@ -148,4 +146,4 @@ fpath=(/Users/mishka/.docker/completions $fpath)
 autoload -Uz compinit
 compinit
 
-if [ "$TMUX" = "" ]; then tmux; fi
+if [ "$TMUX" = "" ]; then tmux new -s "*"; fi

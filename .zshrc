@@ -146,4 +146,4 @@ fpath=(/Users/mishka/.docker/completions $fpath)
 autoload -Uz compinit
 compinit
 
-if [ "$TMUX" = "" ]; then tmux new -s "*"; fi
+if [ "$TMUX" = "" ]; then tmux; fi

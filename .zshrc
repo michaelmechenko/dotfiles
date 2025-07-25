@@ -117,7 +117,7 @@ alias a="aichat"
 alias oc="opencode"
 alias lg="lazygit"
 alias ld="lazydocker"
-alias t="tmux"
+alias t="tmux new -A -s '*'"
 alias ts="tmux kill-session"
 alias tx="tmux kill-server"
 alias td="tmux detach-client"
@@ -146,4 +146,4 @@ fpath=(/Users/mishka/.docker/completions $fpath)
 autoload -Uz compinit
 compinit
 
-if [ "$TMUX" = "" ]; then tmux; fi
+if [ "$TMUX" = "" ]; then tmux new -A -s "*"; fi

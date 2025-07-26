@@ -27,7 +27,7 @@ return {
           markdown = true,
           mason = true,
           navic = false,
-          neo_tree = false,
+          neo_tree = true,
           neogit = false,
           neorg = false,
           noice = true,

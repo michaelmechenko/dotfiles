@@ -1,4 +1,79 @@
 return {
+  {
+    "williamboman/mason.nvim",
+    opts = {
+      ui = {
+        icons = {
+          package_installed = "✓",
+          package_pending = "➜",
+          package_uninstalled = "✗",
+        },
+      },
+    },
+  },
+  {
+    "williamboman/mason-lspconfig.nvim",
+    config = function()
+      require("mason-lspconfig").setup({
+        ensure_installed = {
+          "lua_ls",
+          -- "rust_analyzer",
+          "clangd",
+          -- "cmake",
+          "cssls",
+          "dockerls",
+          -- "gopls",
+          "html",
+          "biome",
+          "pyright",
+          "svelte",
+          "tailwindcss",
+          "lemminx",
+          -- "jdtls",
+        },
+        automatic_enable = false
+      })
+    end,
+  },
+  {
+    "neovim/nvim-lspconfig",
+    config = function()
+      local lspconfig = require("lspconfig")
+      lspconfig.lua_ls.setup({})
+      -- lspconfig.rust_analyzer.setup({})
+      lspconfig.clangd.setup({})
+      -- lspconfig.cmake.setup({})
+      lspconfig.dockerls.setup({})
+      -- lspconfig.gopls.setup({})
+      lspconfig.html.setup({})
+      lspconfig.biome.setup({})
+      lspconfig.pyright.setup({})
+      lspconfig.svelte.setup({})
+      lspconfig.tailwindcss.setup({})
+      lspconfig.lemminx.setup({})
+      -- lspconfig.jdtls.setup({
+      --   init_options = {
+      --     bundles = bundles,
+      --   },
+      --   handlers = {
+      --     -- By assigning an empty function, you can remove the notifications
+      --     -- printed to the cmd
+      --     ["$/progress"] = function(_, result, ctx) end,
+      --   },
+      -- })
+      -- lspconfig.ccls.setup({
+      -- 	init_options = {
+      -- 		compilationDatabaseDirectory = "build",
+      -- 		index = {
+      -- 			threads = 0,
+      -- 		},
+      -- 		clang = {
+      -- 			excludeArgs = { "-frounding-math" },
+      -- 		},
+      -- 	},
+      -- })
+    end,
+  },
   -- {
   -- 	"nvim-java/nvim-java",
   -- 	config = function()
@@ -82,79 +157,4 @@ return {
   -- 		})
   -- 	end,
   -- },
-  {
-    "williamboman/mason.nvim",
-    opts = {
-      ui = {
-        icons = {
-          package_installed = "✓",
-          package_pending = "➜",
-          package_uninstalled = "✗",
-        },
-      },
-    },
-  },
-  {
-    "williamboman/mason-lspconfig.nvim",
-    config = function()
-      require("mason-lspconfig").setup({
-        ensure_installed = {
-          "lua_ls",
-          "rust_analyzer",
-          "clangd",
-          "cmake",
-          "cssls",
-          "dockerls",
-          -- "gopls",
-          "html",
-          "biome",
-          "pyright",
-          "svelte",
-          "tailwindcss",
-          "lemminx",
-          -- "jdtls",
-        },
-      })
-    end,
-  },
-  {
-    "neovim/nvim-lspconfig",
-    config = function()
-      local lspconfig = require("lspconfig")
-      lspconfig.lua_ls.setup({})
-      lspconfig.texlab.setup({})
-      lspconfig.rust_analyzer.setup({})
-      lspconfig.clangd.setup({})
-      -- lspconfig.cmake.setup({})
-      lspconfig.dockerls.setup({})
-      -- lspconfig.gopls.setup({})
-      lspconfig.html.setup({})
-      lspconfig.biome.setup({})
-      lspconfig.pyright.setup({})
-      lspconfig.svelte.setup({})
-      lspconfig.tailwindcss.setup({})
-      lspconfig.lemminx.setup({})
-      -- lspconfig.jdtls.setup({
-      --   init_options = {
-      --     bundles = bundles,
-      --   },
-      --   handlers = {
-      --     -- By assigning an empty function, you can remove the notifications
-      --     -- printed to the cmd
-      --     ["$/progress"] = function(_, result, ctx) end,
-      --   },
-      -- })
-      -- lspconfig.ccls.setup({
-      -- 	init_options = {
-      -- 		compilationDatabaseDirectory = "build",
-      -- 		index = {
-      -- 			threads = 0,
-      -- 		},
-      -- 		clang = {
-      -- 			excludeArgs = { "-frounding-math" },
-      -- 		},
-      -- 	},
-      -- })
-    end,
-  },
 }

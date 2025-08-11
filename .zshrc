@@ -111,7 +111,7 @@ eval "$(fzf --zsh)"
 
 alias ls="eza -1"
 alias lsl="eza"
-alias cat="bat"
+# alias cat="bat"
 alias e="nvim"
 alias a="aichat"
 alias oc="opencode"
@@ -129,15 +129,6 @@ alias config="cd ~/.config"
 alias projects="cd ~/_main/projects"
 alias resources="cd ~/_main/resources"
 alias general="cd ~/_main/vault-general/"
-
-function y() {
-	local tmp="$(mktemp -t "yazi-cwd.XXXXXX")"
-	yazi "$@" --cwd-file="$tmp"
-	if cwd="$(command cat -- "$tmp")" && [ -n "$cwd" ] && [ "$cwd" != "$PWD" ]; then
-		builtin cd -- "$cwd"
-	fi
-	rm -f -- "$tmp"
-}
 
 export PATH="$PATH:/Users/mishka/.local/bin"
 

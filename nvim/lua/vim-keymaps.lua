@@ -5,7 +5,13 @@ vim.cmd([[
     augroup END
 ]])
 
+vim.cmd([[
+  aunmenu PopUp
+  autocmd! nvim.popupmenu
+]])
+
 vim.cmd("set notermsync")
+vim.cmd("set noswapfile")
 vim.opt.fillchars = { eob = " " }
 vim.g.mapleader = " "
 

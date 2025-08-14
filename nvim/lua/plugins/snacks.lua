@@ -32,7 +32,7 @@ return {
               ["<Down>"] = { "list_down", mode = { "i", "n" } },
               ["<Esc>"] = "cancel",
               -- ["<c-s>"] = { { "pick_win", "jump" }, mode = { "n", "i" } },
-              ["<S-CR>"] = { "select_and_next", mode = { "i", "n" } },
+              ["<c-e>"] = { "select_and_next", mode = { "i", "n" } },
               ["<S-Tab>"] = { "list_up", mode = { "i", "n" } },
               ["<Tab>"] = { "list_down", mode = { "i", "n" } },
               -- ["<S-Tab>"] = { "select_and_prev", mode = { "i", "n" } },

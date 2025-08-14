@@ -1,8 +1,8 @@
 return {
-  { "nvzone/volt", lazy = true },
+  { "nvzone/volt", lazy = false },
   {
     "nvzone/menu",
-    lazy = true,
+    lazy = false,
     config = function()
       -- Keyboard users
       vim.keymap.set("n", "<C-t>", function()

@@ -150,19 +150,6 @@ return {
 				desc = "disable dim",
 			},
 
-			-- sessions
-			{ "<leader>n", group = "sessions" },
-			{
-				"<leader>ne",
-				"<cmd>SessionSearch<CR>",
-				desc = "session manager",
-			},
-			{
-				"<leader>ns",
-				"<cmd>SessionSave<CR>",
-				desc = "session save",
-			},
-
 			-- trouble
 			{ "<leader>x", group = "trouble" },
 			{

@@ -14,6 +14,8 @@ local oldworld_override = {
     b = { fg = "#c9c7cd" },
     c = { fg = "#c9c7cd" },
   }
+  -- add visual
+  -- add replace
 }
 
 return {
@@ -65,7 +67,7 @@ return {
             },
             buffers_color = {
               active = {
-                -- bg = "None", --[[ fg = "#9CABCA", ]]
+                bg = "None", --[[ fg = "#9CABCA", ]]
                 -- fg = "#afc3ed",
                 -- fg = "#e6b99d",
                 -- fg = "#f5919b",
@@ -78,10 +80,8 @@ return {
               },
             },
             filetype_names = {
-              TelescopePrompt = "file explorer",
               fzf = "fuzzy",
               alpha = "home",
-              -- fix noname
             },
           },
         },

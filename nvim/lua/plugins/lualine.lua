@@ -1,10 +1,28 @@
+local oldworld_override = {
+  normal = {
+    a = { bg = "#bb9af7", fg = "#1b1b1c", gui = "bold" },
+    b = { bg = "#27282a", fg = "#bb9af7" },
+    c = { fg = "#bb9af7" },
+  },
+  insert = {
+    a = { bg = "#f5919b", fg = "1b1b1c", gui = "bold" },
+    b = { fg = "#f5919b" },
+    c = { fg = "#f5919b" },
+  },
+  inactive = {
+    a = { bg = "#c9c7cd", fg = "1b1b1c" },
+    b = { fg = "#c9c7cd" },
+    c = { fg = "#c9c7cd" },
+  }
+}
+
 return {
   "nvim-lualine/lualine.nvim",
   dependencies = { "nvim-tree/nvim-web-devicons" },
   config = function()
     require("lualine").setup({
       options = {
-        icons_enabled = true,
+        theme = oldworld_override,
         component_separators = { left = "", right = "" },
         section_separators = { left = "", right = "" },
         ignore_focus = {},
@@ -24,8 +42,10 @@ return {
             show_filename_only = true,       -- Shows shortened relative path when set to false.
             hide_filename_extension = false, -- Hide filename extension when set to true.
             show_modified_status = true,     -- Shows indicator when the buffer is modified.
+            -- use_mode_colors=true,
 
-            mode = 2,                        -- 0: Shows buffer name
+            mode = 2,
+            -- 0: Shows buffer name
             -- 1: Shows buffer index
             -- 2: Shows buffer name + buffer index
             -- 3: Shows buffer number
@@ -45,13 +65,15 @@ return {
             },
             buffers_color = {
               active = {
-                bg = "None", --[[ fg = "#9CABCA", ]]
+                -- bg = "None", --[[ fg = "#9CABCA", ]]
                 -- fg = "#afc3ed",
-                fg = "#b9c3f0",
-                gui = "italic,bold",
+                -- fg = "#e6b99d",
+                -- fg = "#f5919b",
+                -- gui = "bold",
               },
               inactive = {
                 bg = "None", --[[ fg = "#9CABCA", ]]
+                fg = "c9c7cd",
                 -- gui = "italic",
               },
             },
@@ -59,6 +81,7 @@ return {
               TelescopePrompt = "file explorer",
               fzf = "fuzzy",
               alpha = "home",
+              -- fix noname
             },
           },
         },
@@ -67,17 +90,20 @@ return {
             color = { bg = "None" },
           },
         },
+        lualine_x = {
+          {
+            -- "location",
+            color = { bg = "None" },
+          },
+        },
         lualine_y = {
           {
             color = { bg = "None" },
             "diff",
           },
-        },
-        lualine_x = {
           {
-            color = { bg = "None" },
             "diagnostics",
-          },
+          }
         },
         lualine_z = { { "progress" } },
       },

@@ -26,7 +26,7 @@
             "style": "agnoster_short"
           },
           "template": "\udb84\udf76 '{{ .Path }}' ",
-          "foreground": "#b4637a",
+          "foreground": "#f5919b",
           "type": "path",
           "style": "plain"
         },

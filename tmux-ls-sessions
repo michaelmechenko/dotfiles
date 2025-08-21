@@ -2,6 +2,11 @@
 
 set -e
 
+if pgrep -f "tmux.*display-menu" > /dev/null 2>&1; then
+    pkill -f "tmux.*display-menu"
+    exit 0
+fi
+
 tmux list-sessions -F '#S' \
 | awk 'BEGIN {ORS=" "} {print $1, NR, "\"switch-client -t", $1 "\""}' \
 | xargs tmux display-menu -T "choose session" -b "rounded"

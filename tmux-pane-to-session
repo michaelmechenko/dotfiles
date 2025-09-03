@@ -1,0 +1,9 @@
+#!/bin/sh
+
+set -e
+
+CURRENT_PANE="$(tmux display-message -p '#{pane_id}')"
+
+tmux list-sessions -F '#S' \
+| awk -v pane="$CURRENT_PANE" 'BEGIN {ORS=" "} {print $1, NR, "\"break-pane -s", pane, "-t", $1 ":99; move-window -t", $1 ":99\""}' \
+| xargs tmux display-menu -T "move pane to session" -b "rounded"

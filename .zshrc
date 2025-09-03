@@ -130,11 +130,25 @@ alias projects="cd ~/_main/projects"
 alias resources="cd ~/_main/resources"
 alias general="cd ~/_main/vault-general/"
 
+# servers
+alias mcp="cd ~/mcp"
+alias docs-mcp="docker run --rm \
+  -e OPENAI_API_KEY=$OPENAI_API_KEY \
+  -v docs-mcp-data:/data \
+  -p 6280:6280 \
+  docs-mcp \
+  --protocol http --port 6280"
+alias hub="mcp-hub --port 37373 --config ~/.config/mcphub/servers.json"
+
 export PATH="$PATH:/Users/mishka/.local/bin"
 
 # docker completions
-fpath=(/Users/mishka/.docker/completions $fpath)
-autoload -Uz compinit
-compinit
+# fpath=(/Users/mishka/.docker/completions $fpath)
+# autoload -Uz compinit
+# compinit
 
 if [ "$TMUX" = "" ]; then tmux new -A -s "m*"; fi
+
+# export NVM_DIR="$HOME/.nvm"
+# [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+# [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion

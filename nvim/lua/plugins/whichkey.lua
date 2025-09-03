@@ -76,8 +76,23 @@ return {
       { "<leader>g",  group = "git" },
       {
         "<leader>gs",
-        "<cmd>Gitsigns toggle_signs<CR>",
-        desc = "gitsigns toggle",
+        "<cmd>Gitsigns toggle_linehl<CR><cmd>Gitsigns toggle_numhl<CR><cmd>Gitsigns toggle_word_diff<CR>",
+        desc = "gitsigns toggle all",
+      },
+      {
+        "<leader>go",
+        "<cmd>Gitsigns preview_hunk_inline<CR>",
+        desc = "gitsigns preview hunk inline",
+      },
+      {
+        "<leader>gl",
+        "<cmd>Gitsigns toggle_linehl<CR>",
+        desc = "gitsigns toggle line hl",
+      },
+      {
+        "<leader>gw",
+        "<cmd>Gitsigns toggle_word_diff<CR>",
+        desc = "gitsigns toggle word diff",
       },
 
       -- harpoon

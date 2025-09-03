@@ -72,55 +72,57 @@ return {
           },
         },
         adapters = {
-          openai = function()
-            return require("codecompanion.adapters").extend("openai", {
-              env = {
-                api_key = "OPENAI_API_KEY"
-              },
-              schema = {
-                model = {
-                  default = "gpt-4o",
-                  -- default = "gpt-4o-mini",
-                  choices = {
-                    ["o3-mini-2025-01-31"] = { opts = { can_reason = true } },
-                    -- ["o3-mini"] = { opts = { can_reason = true } },
-                    ["o3-mini"] = { opts = { can_reason = false } },
-                    ["o1-mini"] = { opts = { stream = false } },
-                    "gpt-4o",
-                    "gpt-4o-mini",
-                    "gpt-4-turbo-preview",
-                    "gpt-4",
-                    "gpt-3.5-turbo",
+          http = {
+            openai = function()
+              return require("codecompanion.adapters").extend("openai", {
+                env = {
+                  api_key = "OPENAI_API_KEY"
+                },
+                schema = {
+                  model = {
+                    default = "gpt-4o",
+                    -- default = "gpt-4o-mini",
+                    choices = {
+                      ["o3-mini-2025-01-31"] = { opts = { can_reason = true } },
+                      -- ["o3-mini"] = { opts = { can_reason = true } },
+                      ["o3-mini"] = { opts = { can_reason = false } },
+                      ["o1-mini"] = { opts = { stream = false } },
+                      "gpt-4o",
+                      "gpt-4o-mini",
+                      "gpt-4-turbo-preview",
+                      "gpt-4",
+                      "gpt-3.5-turbo",
+                    },
+                  },
+                  temperature = {
+                    -- default = 0.5,
                   },
                 },
-                temperature = {
-                  -- default = 0.5,
+              })
+            end,
+            anthropic = function()
+              return require("codecompanion.adapters").extend("anthropic", {
+                env = {
+                  api_key = "ANTHROPIC_API_KEY"
                 },
-              },
-            })
-          end,
-          anthropic = function()
-            return require("codecompanion.adapters").extend("anthropic", {
-              env = {
-                api_key = "ANTHROPIC_API_KEY"
-              },
-            })
-          end,
-          ollama = function()
-            return require("codecompanion.adapters").extend("ollama", {
-              env = {
-                url = "http://0.0.0.0:11434",
-                api_key = "OLLAMA_API_KEY",
-              },
-              headers = {
-                ["Content-Type"] = "application/json",
-                ["Authorization"] = "Bearer ${api_key}",
-              },
-              parameters = {
-                sync = true,
-              },
-            })
-          end,
+              })
+            end,
+            ollama = function()
+              return require("codecompanion.adapters").extend("ollama", {
+                env = {
+                  url = "http://0.0.0.0:11434",
+                  api_key = "OLLAMA_API_KEY",
+                },
+                headers = {
+                  ["Content-Type"] = "application/json",
+                  ["Authorization"] = "Bearer ${api_key}",
+                },
+                parameters = {
+                  sync = true,
+                },
+              })
+            end,
+          },
         },
         extensions = {
           mcphub = {

@@ -8,7 +8,7 @@ return {
     config = function()
       require("mcphub").setup({
         --- `mcp-hub` binary related options-------------------
-        config = vim.fn.expand("~/.config/mcphub/servers.json"),                          -- Absolute path to MCP Servers config file (will create if not exists)
+        config = vim.fn.expand("~/.config/mcphub/servers.json"),                         -- Absolute path to MCP Servers config file (will create if not exists)
         port = 37373,                                                                    -- The port `mcp-hub` server listens to
         shutdown_delay = 5 * 60 * 000,                                                   -- Delay in ms before shutting down the server when last instance closes (default: 5 minutes)
         use_bundled_binary = false,                                                      -- Use local `mcp-hub` binary (set this to true when using build = "bundled_build.lua")

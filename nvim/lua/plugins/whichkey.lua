@@ -219,6 +219,13 @@ return {
         desc = "symbols",
       },
       {
+        "<leader>xr",
+        function()
+          require("trouble").toggle("qflist")
+        end,
+        desc = "quickfix",
+      },
+      {
         "<leader>xl",
         function()
           require("trouble").toggle("lsp_main")

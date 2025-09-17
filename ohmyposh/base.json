@@ -35,7 +35,7 @@
             "branch_icon": "",
             "cache_duration": "none"
           },
-          "template": "\udb84\udf75 <#E8CC97>git(</>{{ .HEAD }}<#E8CC97>) </>",
+          "template": "<#E8CC97>\udb84\udf75 (</>{{ .HEAD }}<#E8CC97>) </>",
           "foreground": "#907aa9",
           "type": "git",
           "style": "plain"
@@ -45,7 +45,7 @@
             "always_enabled": false,
             "cache_duration": "none",
             "style": "austin",
-            "threshold": 150
+            "threshold": 300000
           },
           "template": "{{ .FormattedMs }}",
           "foreground": "#FFAB91",

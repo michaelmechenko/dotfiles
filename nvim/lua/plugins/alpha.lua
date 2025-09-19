@@ -36,6 +36,7 @@ return {
       end, "Constant", "center"),
       buttonhl("l", "     ‹ lazy ›", "<cmd>Lazy<CR>", "Constant", "center"),
       buttonhl("m", "     ‹ mason ›", "<cmd>Mason<CR>", "Constant", "center"),
+      buttonhl("h", "     ‹ mcp hub ›", "<cmd>MCPHub<CR>", "Constant", "center"),
       buttonhl("q", "     ‹ quit ›", "<cmd>qa<CR>", "Constant", "center"),
     }
 

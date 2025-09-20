@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/schema.json",
   "transient_prompt": {
     "template": "\udb85\udd45 ",
-    "foreground": "#c4a7e7",
+    "foreground": "#f5919b",
     "background": "transparent"
   },
   "blocks": [
@@ -14,7 +14,7 @@
           "properties": {
             "cache_duration": "none"
           },
-          "template": "@{{ .UserName }} ",
+          "template": "\udb85\udf42 {{ .UserName }} ",
           "foreground": "#c4a7e7",
           "type": "session",
           "style": "plain"
@@ -62,7 +62,7 @@
           "properties": {
             "cache_duration": "none"
           },
-          "template": "\udb85\udf42",
+          "template": "\udb83\udd72",
           "type": "text",
           "style": "plain"
         }

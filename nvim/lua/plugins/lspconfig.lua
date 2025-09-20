@@ -38,40 +38,18 @@ return {
   {
     "neovim/nvim-lspconfig",
     config = function()
-      local lspconfig = require("lspconfig")
-      lspconfig.lua_ls.setup({})
-      -- lspconfig.rust_analyzer.setup({})
-      lspconfig.clangd.setup({})
-      -- lspconfig.cmake.setup({})
-      lspconfig.dockerls.setup({})
-      -- lspconfig.gopls.setup({})
-      lspconfig.html.setup({})
-      lspconfig.biome.setup({})
-      lspconfig.pyright.setup({})
-      lspconfig.svelte.setup({})
-      lspconfig.tailwindcss.setup({})
-      lspconfig.lemminx.setup({})
-      -- lspconfig.jdtls.setup({
-      --   init_options = {
-      --     bundles = bundles,
-      --   },
-      --   handlers = {
-      --     -- By assigning an empty function, you can remove the notifications
-      --     -- printed to the cmd
-      --     ["$/progress"] = function(_, result, ctx) end,
-      --   },
-      -- })
-      -- lspconfig.ccls.setup({
-      -- 	init_options = {
-      -- 		compilationDatabaseDirectory = "build",
-      -- 		index = {
-      -- 			threads = 0,
-      -- 		},
-      -- 		clang = {
-      -- 			excludeArgs = { "-frounding-math" },
-      -- 		},
-      -- 	},
-      -- })
+      vim.lsp.enable('lua_ls')
+      vim.lsp.enable('clangd')
+      vim.lsp.enable('dockerls')
+      vim.lsp.enable('html')
+      vim.lsp.enable('biome')
+      vim.lsp.enable('pyright')
+      vim.lsp.enable('svelte')
+      vim.lsp.enable('tailwindcss')
+      vim.lsp.enable('lemminx')
+      -- vim.lsp.enable('cmake')
+      -- vim.lsp.enable('gopls')
+      -- vim.lsp.enable('rust_analyzer')
     end,
   },
   -- {

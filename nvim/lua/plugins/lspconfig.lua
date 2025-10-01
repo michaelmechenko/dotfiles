@@ -16,6 +16,7 @@ return {
     config = function()
       require("mason-lspconfig").setup({
         ensure_installed = {
+          "terraformls",
           "lua_ls",
           -- "rust_analyzer",
           "clangd",
@@ -39,6 +40,7 @@ return {
     "neovim/nvim-lspconfig",
     config = function()
       vim.lsp.enable('lua_ls')
+      vim.lsp.enable('terraformls')
       vim.lsp.enable('clangd')
       vim.lsp.enable('dockerls')
       vim.lsp.enable('html')

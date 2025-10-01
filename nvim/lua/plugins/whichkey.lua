@@ -68,9 +68,11 @@ return {
         ":CodeCompanion ",
         desc = "inline vertical",
       },
-      { "<leader>ae", mode = { "n" },      "<Cmd>CodeCompanion<CR>",            desc = "open" },
-      { "<leader>as", mode = { "n", "v" }, "<Cmd>CodeCompanionChat Toggle<CR>", desc = "cc chat buffer" },
-      { "<leader>ad", mode = { "n", "v" }, "<Cmd>CodeCompanionActions<CR>",     desc = "cc actions" },
+      { "<leader>ae", mode = { "n" },      "<Cmd>CodeCompanion<CR>",                                                                                                    desc = "open float" },
+      { "<leader>ab", mode = { "n" },      function() require("codecompanion").toggle({ window_opts = { layout = "buffer" } }) end,                                     desc = "open buffer" },
+      { "<leader>ar", mode = { "n" },      function() require("codecompanion").toggle({ window_opts = { layout = "vertical", position = "right", width = 0.45 } }) end, desc = "open right" },
+      { "<leader>as", mode = { "n", "v" }, "<Cmd>CodeCompanionChat Toggle<CR>",                                                                                         desc = "cc chat buffer" },
+      { "<leader>ad", mode = { "n", "v" }, "<Cmd>CodeCompanionActions<CR>",                                                                                             desc = "cc actions" },
 
       -- git signs
       { "<leader>g",  group = "git" },
@@ -93,6 +95,13 @@ return {
         "<leader>gw",
         "<cmd>Gitsigns toggle_word_diff<CR>",
         desc = "gitsigns toggle word diff",
+      },
+      {
+        "<leader>gd",
+        function()
+          require("gitsigns").diffthis()
+        end,
+        desc = "gitsigns diff",
       },
 
       -- harpoon
@@ -183,7 +192,6 @@ return {
         "<leader>xr",
         function()
           require("trouble").toggle({ mode = "lsp_references" })
-          require("trouble").focus()
         end,
         desc = "lsp references",
       },
@@ -200,7 +208,6 @@ return {
         "<leader>xd",
         function()
           require("trouble").toggle("diagnostics")
-          require("trouble").focus()
         end,
         desc = "diagnostics",
       },
@@ -312,6 +319,9 @@ return {
       -- 	end,
       -- 	desc = "live grep",
       -- },
+
+      -- scrollbar
+      { "<leader>sd", "<Cmd>ScrollbarToggle<CR>",    desc = "toggle scrollbar" },
 
       --snacks picker
       { "<leader>f",  group = "snacks picker" },

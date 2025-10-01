@@ -1,6 +1,5 @@
 # If you come from bash you might have to change your $PATH.
 export PATH=$HOME/bin:/usr/local/bin:$PATH
-export PATH="$PATH:/Users/mishka/.local/bin"
 
 # Path to your oh-my-zsh installation.
 export ZSH="$HOME/.oh-my-zsh"
@@ -44,7 +43,6 @@ fi
 # Compilation flags
 # export ARCHFLAGS="-arch x86_64"
 
-source $(brew --prefix)/share/zsh-autosuggestions/zsh-autosuggestions.zsh
 eval "$(fzf --zsh)"
 
 alias ls="eza -1"
@@ -84,6 +82,8 @@ alias hub="mcp-hub --port 37373 --config ~/.config/mcphub/servers.json"
 # fpath=(/Users/mishka/.docker/completions $fpath)
 # autoload -Uz compinit
 # compinit
+#
+source $(brew --prefix)/share/zsh-autosuggestions/zsh-autosuggestions.zsh
 
 if [ "$TMUX" = "" ]; then tmux new -A -s "m*"; fi
 

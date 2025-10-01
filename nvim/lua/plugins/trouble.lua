@@ -2,6 +2,7 @@ return {
   "folke/trouble.nvim",
   dependencies = { "nvim-tree/nvim-web-devicons" },
   opts = {
+    multiline = false,
     keys = {
       j = "next",
       k = "prev",
@@ -12,16 +13,18 @@ return {
         filter = { buf = 0 }, -- filter diagnostics to the current buffer
         win = {
           type = "split",
+        focus = true,
           relative = "win",
           position = "bottom",
-          size = 0.5,
+          size = 0.4,
         },
       },
       lsp_references = {
         win = {
           type = "split",
+        focus = true,
           relative = "win",
-          position = "bottom",
+          position = "right",
           size = 0.4,
         },
       },
@@ -31,7 +34,7 @@ return {
         win = {
           type = "split",
           position = "bottom",
-          size = 0.6,
+          size = 0.4,
         },
       },
       functions_main = {
@@ -56,7 +59,7 @@ return {
         win = {
           type = "split",
           relative = "win",
-          position = "bottom",
+          position = "right",
           size = 0.4,
         },
       },

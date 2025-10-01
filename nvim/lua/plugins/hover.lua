@@ -5,7 +5,7 @@ return {
       init = function()
         -- Require providers
         require("hover.providers.lsp")
-        require('hover.providers.gh')
+        -- require('hover.providers.gh')
         -- require('hover.providers.gh_user')
         -- require('hover.providers.jira')
         require('hover.providers.dap')
@@ -28,6 +28,10 @@ return {
 
     -- Setup keymaps
     vim.keymap.set("n", "K", require("hover").hover, { desc = "hover.nvim" })
+
+    vim.keymap.set('n', 'gK', function()
+      require('hover').enter()
+    end, { desc = 'hover.nvim (enter)' })
 
     -- Mouse support
     vim.keymap.set("n", "<MouseMove>", require("hover").hover_mouse, { desc = "hover.nvim (mouse)" })

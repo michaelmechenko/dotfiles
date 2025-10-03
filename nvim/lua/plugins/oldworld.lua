@@ -41,7 +41,7 @@ return {
           Variable = { fg = "#938AA9" },
         },
       })
-      vim.cmd("colorscheme oldworld")
+      -- vim.cmd("colorscheme oldworld")
     end,
   },
 }

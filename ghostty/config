@@ -34,12 +34,12 @@ macos-icon-screen-color = #9893a5
 resize-overlay = never
 
 font-size = 16
-adjust-cell-width = 0%
-adjust-cell-height = 6%
-font-feature = -calt
+# adjust-cell-width = 0%
+# adjust-cell-height = 6%
+# font-feature = -calt
 # font-family = "JetBrainsMono Nerd Font"
-# font-family = "ComicShannsMono Nerd Font Mono"
-font-family = "0xProto"
+font-family = "Lilex Medium"
+# font-family = "0xProto"
 
 # keybind = cmd+ctrl+j=new_split:down
 # keybind = cmd+ctrl+l=new_split:right

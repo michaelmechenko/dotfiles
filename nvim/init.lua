@@ -15,6 +15,9 @@ vim.opt.termguicolors = true
 vim.opt.cursorline = true
 vim.opt.conceallevel = 0
 
+vim.opt.wrap = true
+vim.opt.linebreak = true
+
 vim.opt.autoread = true
 vim.api.nvim_create_autocmd({ "BufEnter", "CursorHold", "CursorHoldI", "FocusGained" }, {
   command = "if mode() != 'c' | checktime | endif",

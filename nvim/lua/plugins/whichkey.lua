@@ -78,7 +78,7 @@ return {
       { "<leader>g",  group = "git" },
       {
         "<leader>gs",
-        "<cmd>Gitsigns toggle_linehl<CR><cmd>Gitsigns toggle_numhl<CR><cmd>Gitsigns toggle_word_diff<CR>",
+        "<cmd>Gitsigns toggle_linehl<CR><cmd>Gitsigns toggle_numhl<CR>",
         desc = "gitsigns toggle all",
       },
       {
@@ -189,13 +189,6 @@ return {
         desc = "focus",
       },
       {
-        "<leader>xr",
-        function()
-          require("trouble").toggle({ mode = "lsp_references" })
-        end,
-        desc = "lsp references",
-      },
-      {
         "<leader>xq",
         function()
           if require("trouble").is_open() then
@@ -212,6 +205,35 @@ return {
         desc = "diagnostics",
       },
       {
+        "<leader>xl",
+        function()
+          require("trouble").toggle("lsp_main")
+        end,
+        desc = "lsp main",
+      },
+      {
+
+        "<leader>xD",
+        function()
+          require("trouble").toggle("lsp_declarations")
+        end,
+        desc = "lsp declarations",
+      },
+      {
+        "<leader>xr",
+        function()
+          require("trouble").toggle("lsp_references")
+        end,
+        desc = "lsp references",
+      },
+      {
+        "<leader>xR",
+        function()
+          require("trouble").toggle("lsp_type_definitions")
+        end,
+        desc = "lsp type definitions",
+      },
+      {
         "<leader>xf",
         function()
           require("trouble").toggle("functions_main")
@@ -226,26 +248,20 @@ return {
         desc = "symbols",
       },
       {
-        "<leader>xr",
+        "<leader>xQ",
         function()
           require("trouble").toggle("qflist")
         end,
         desc = "quickfix",
       },
-      {
-        "<leader>xl",
-        function()
-          require("trouble").toggle("lsp_main")
-        end,
-        desc = "lsp",
-      },
 
       -- lsp
       { "<leader>l",  group = "lsp" },
-      { "<leader>ll", vim.lsp.buf.hover,         desc = "hover" },
-      { "<leader>lo", vim.diagnostic.open_float, desc = "open diagnostic float" },
-      { "<leader>lk", vim.lsp.buf.definition,    desc = "definition" },
-      { "<leader>lm", vim.lsp.buf.code_action,   desc = "code action" },
+      { "<leader>ll", vim.lsp.buf.hover,          desc = "hover" },
+      { "<leader>ls", vim.lsp.buf.signature_help, desc = "signature help" },
+      { "<leader>lo", vim.diagnostic.open_float,  desc = "open diagnostic float" },
+      { "<leader>lk", vim.lsp.buf.definition,     desc = "definition" },
+      { "<leader>lm", vim.lsp.buf.code_action,    desc = "code action" },
 
       -- telescope
       -- { "<leader>f", group = "telescope" },
@@ -321,7 +337,7 @@ return {
       -- },
 
       -- scrollbar
-      { "<leader>sd", "<Cmd>ScrollbarToggle<CR>",    desc = "toggle scrollbar" },
+      { "<leader>sd", "<Cmd>ScrollbarToggle<CR>", desc = "toggle scrollbar" },
 
       --snacks picker
       { "<leader>f",  group = "snacks picker" },

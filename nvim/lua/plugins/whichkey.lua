@@ -134,10 +134,10 @@ return {
 
       -- neotree
       { "<leader>r",  group = "noeotree" },
-      { "<leader>re", "<cmd>Neotree filesystem reveal right<CR>:set relativenumber<CR>", desc = "filesystem" },
-      { "<leader>rw", "<cmd>Neotree buffers reveal float<CR>:set relativenumber<CR>",    desc = "buffers" },
+      { "<leader>re", "<cmd>Neotree filesystem reveal right<CR><cmd>set relativenumber<CR>", desc = "filesystem" },
+      { "<leader>rw", "<cmd>Neotree buffers reveal float<CR><cmd>set relativenumber<CR>",    desc = "buffers" },
       { "<leader>rq", "<cmd>Neotree close<CR>",                                          desc = "close" },
-      { "<leader>rb", "<cmd>Neotree git_status reveal float<CR>:set relativenumber<CR>", desc = "git status" },
+      { "<leader>rb", "<cmd>Neotree git_status reveal float<CR><cmd>set relativenumber<CR>", desc = "git status" },
 
       -- { "<leader>r", group = "explorer" },
       -- {

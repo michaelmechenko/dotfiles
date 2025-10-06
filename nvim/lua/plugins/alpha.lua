@@ -7,8 +7,7 @@ return {
   config = function()
     local dashboard = require("alpha.themes.dashboard")
     dashboard.section.header.val = {
-      "",
-      " notepad   ",
+      "notepad",
       "",
     }
 
@@ -22,9 +21,6 @@ return {
     dashboard.section.buttons.val = {
       buttonhl("n", "     ‹ new file ›", "<cmd>ene<CR>", "Constant", "center"),
       buttonhl("re", "     ‹ filetree ›", "<cmd>Neotree filesystem right<CR>", "Constant", "center"),
-      -- buttonhl("re", "     ‹ filetree ›", function()
-      --   require("snacks").explorer()
-      -- end, "Constant", "center"),
       buttonhl("fe", "     ‹ find files ›", function()
         require("snacks").picker.files()
       end, "Constant", "center"),
@@ -39,11 +35,6 @@ return {
       buttonhl("h", "     ‹ mcp hub ›", "<cmd>MCPHub<CR>", "Constant", "center"),
       buttonhl("q", "     ‹ quit ›", "<cmd>qa<CR>", "Constant", "center"),
     }
-
-    vim.api.nvim_create_autocmd("User", {
-      pattern = "AlphaReady",
-      command = [[set relativenumber]],
-    })
 
     require("alpha").setup(dashboard.opts)
   end,

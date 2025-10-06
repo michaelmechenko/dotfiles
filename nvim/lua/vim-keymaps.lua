@@ -20,6 +20,16 @@ vim.cmd("set tabstop=2")
 vim.cmd("set softtabstop=2")
 vim.cmd("set shiftwidth=2")
 
+
+vim.keymap.set("n", '<C-k>', function() vim.lsp.buf.signature_help() end, {})
+vim.keymap.set("i", '<C-l>', function() vim.lsp.buf.signature_help() end, {})
+vim.lsp.handlers['textDocument/signatureHelp'] = vim.lsp.with(
+  vim.lsp.handlers['signature_help'], {
+    border = 'single',
+    close_events = { "CursorMoved", "BufHidden", "InsertCharPre" },
+  }
+)
+
 -- yanking/pasting to global register
 vim.keymap.set("n", "P", '"+p', {})
 vim.keymap.set("n", "Y", '"+y', {})
@@ -65,8 +75,8 @@ vim.keymap.set("n", "Z", "jddk", {})
 -- remap escape
 vim.keymap.set("i", "<Tab>", "<Esc>", {})
 vim.keymap.set("v", "<Tab>", "<Esc>", {})
-vim.keymap.set("i", "<C-s>", "<Esc>", {})
-vim.keymap.set("v", "<C-s>", "<Esc>", {})
+-- vim.keymap.set("i", "<C-s>", "<Esc>", {})
+-- vim.keymap.set("v", "<C-s>", "<Esc>", {})
 
 vim.opt.number = true
 vim.opt.relativenumber = true

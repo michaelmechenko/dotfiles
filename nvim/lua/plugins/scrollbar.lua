@@ -3,7 +3,7 @@ return {
     "petertriho/nvim-scrollbar",
     config = function()
       require("scrollbar").setup({
-        show = true,
+        show = false,
         show_in_active_only = true,
         set_highlights = true,
         folds = true,           -- handle folds, set to number to disable folds if no. of lines in buffer exceeds this

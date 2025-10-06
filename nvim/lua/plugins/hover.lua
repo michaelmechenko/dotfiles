@@ -26,7 +26,7 @@ return {
   config = function()
     vim.keymap.set("n", "K", require("hover").hover, { desc = "hover" })
 
-    vim.keymap.set('n', 'gK',
+    vim.keymap.set('n', '<leader>k',
       function()
         require('hover').enter()
       end, { desc = 'hover (enter)' })

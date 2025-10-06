@@ -8,7 +8,7 @@ return {
         'hover.providers.dap',
         'hover.providers.man',
         'hover.providers.fold_preview',
-        -- 'hover.providers.highlight',
+        'hover.providers.highlight',
         -- 'hover.providers.dictionary',
         'hover.providers.gh',
         -- 'hover.providers.gh_user',
@@ -20,7 +20,7 @@ return {
       -- Whether the contents of a currently open hover window should be moved
       -- to a :h preview-window when pressing the hover keymap.
       preview_window = false,
-      title = true,
+      title = false,
     })
   end,
   config = function()

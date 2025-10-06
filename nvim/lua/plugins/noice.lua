@@ -32,12 +32,12 @@ return {
           },
         },
         lsp = {
-          override = {
+          -- override = {
             ["vim.lsp.util.convert_input_to_markdown_lines"] = true,
             ["vim.lsp.util.stylize_markdown"] = true,
-          },
+          -- },
           hover = {
-            enabled = true,
+            enabled = false,
             silent = true, -- set to true to not show a message if hover is not available
             view = nil,    -- when nil, use defaults from documentation
             ---@type NoiceViewOptions
@@ -47,11 +47,11 @@ return {
             enabled = false,
             auto_open = {
               enabled = false,
-              trigger = true,
-              luasnip = true,
+              trigger = false,
+              luasnip = false,
               throttle = 50,
             },
-            view = "cmdline_popup", -- when nil, use defaults from documentation
+            view = "hover", -- when nil, use defaults from documentation
             opts = {},              -- merged with defaults from documentation
           },
           message = {

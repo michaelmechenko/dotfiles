@@ -3,6 +3,7 @@ return {
   dependencies = { "nvim-tree/nvim-web-devicons" },
   opts = {
     multiline = false,
+    focus = true,
     keys = {
       j = "next",
       k = "prev",
@@ -13,7 +14,7 @@ return {
         filter = { buf = 0 }, -- filter diagnostics to the current buffer
         win = {
           type = "split",
-        focus = true,
+          focus = true,
           relative = "win",
           position = "bottom",
           size = 0.4,
@@ -22,7 +23,7 @@ return {
       lsp_references = {
         win = {
           type = "split",
-        focus = true,
+          focus = true,
           relative = "win",
           position = "right",
           size = 0.4,
@@ -59,7 +60,7 @@ return {
         win = {
           type = "split",
           relative = "win",
-          position = "right",
+          position = "bottom",
           size = 0.4,
         },
       },

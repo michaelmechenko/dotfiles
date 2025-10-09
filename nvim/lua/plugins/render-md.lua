@@ -15,7 +15,7 @@ return {
           icons = { "- ", "- ", "- ", "- ", "- ", "- " },
           position = "inline",
           width = "block",
-          min_width = 35
+          -- min_width = 35
         },
         indent = {
           enabled = false

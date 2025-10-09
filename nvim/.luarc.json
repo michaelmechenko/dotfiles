@@ -1,5 +1,6 @@
 {
   "diagnostics.globals": ["vim"],
   "diagnostics.disable": ["undefined-doc-name", "unused-local",
-        "inject-field"]
+        "inject-field",
+        "undefined-field"]
 }

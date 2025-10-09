@@ -53,7 +53,7 @@ return {
             -- 3: Shows buffer number
             -- 4: Shows buffer name + buffer number
 
-            max_length = vim.o.columns * 8 / 3, -- Maximum width of buffers component,
+            max_length = vim.o.columns * 3 / 4, -- Maximum width of buffers component,
             -- it can also be a function that returns
             -- the value of `max_length` dynamically.
 
@@ -91,8 +91,23 @@ return {
           },
         },
         lualine_x = {
+          -- {
+          --   'lsp_status',
+          --   icon = '', -- f013
+          --   symbols = {
+          --     -- Standard unicode symbols to cycle through for LSP progress:
+          --     spinner = { '⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏' },
+          --     -- Standard unicode symbol for when LSP is done:
+          --     done = '✓',
+          --     -- Delimiter inserted between LSP names:
+          --     separator = ' ',
+          --   },
+          --   -- List of LSP names to ignore (e.g., `null-ls`):
+          --   ignore_lsp = { "null-ls" },
+          -- },
           {
-            -- "location",
+            "branch",
+            icon = "",
             color = { bg = "None" },
           },
         },

@@ -29,6 +29,7 @@ return {
           "pyright",
           "svelte",
           "tailwindcss",
+          "copilot",
           "lemminx",
           -- "jdtls",
         },
@@ -49,6 +50,7 @@ return {
       vim.lsp.enable('svelte')
       vim.lsp.enable('tailwindcss')
       vim.lsp.enable('lemminx')
+      vim.lsp.enable('copilot')
       -- vim.lsp.enable('cmake')
       -- vim.lsp.enable('gopls')
       -- vim.lsp.enable('rust_analyzer')

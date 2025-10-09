@@ -21,7 +21,7 @@ return {
           floats = "transparent", -- style for floating windows
         },
         day_brightness = 0.3,     -- Adjusts the brightness of the colors of the **Day** style. Number between 0 and 1, from dull to vibrant colors
-        dim_inactive = true,      -- dims inactive windows
+        dim_inactive = false,      -- dims inactive windows
         lualine_bold = false,     -- When `true`, section headers in the lualine theme will be bold
 
         --- You can override specific color groups to use other groups or a hex color

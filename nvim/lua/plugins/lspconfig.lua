@@ -32,6 +32,7 @@ return {
           "copilot",
           "lemminx",
           -- "jdtls",
+          "bashls"
         },
         automatic_enable = false
       })
@@ -50,7 +51,8 @@ return {
       vim.lsp.enable('svelte')
       vim.lsp.enable('tailwindcss')
       vim.lsp.enable('lemminx')
-      vim.lsp.enable('copilot')
+      vim.lsp.enable('bashls')
+      -- vim.lsp.enable('copilot')
       -- vim.lsp.enable('cmake')
       -- vim.lsp.enable('gopls')
       -- vim.lsp.enable('rust_analyzer')

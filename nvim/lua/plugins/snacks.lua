@@ -16,6 +16,64 @@ return {
 
       -- explorer = {},
 
+      dashboard = {
+        width = 60,
+        row = nil,    -- dashboard position. nil for center
+        col = nil,    -- dashboard position. nil for center
+        pane_gap = 4, -- empty columns between vertical panes
+        formats = {
+          key = function(item)
+            return { { "[", hl = "key" }, { item.key, hl = "key" }, { "]", hl = "key" } }
+          end,
+        },
+        preset = {
+          pick = nil,
+          keys = {
+            { icon = "-", key = "n", desc = "new file", action = ":ene | startinsert" },
+            { icon = "-", key = "re", desc = "filetree", action = "<cmd>Neotree filesystem right<CR>" },
+            {
+              icon = "-",
+              key = "fe",
+              desc = "find files",
+              action = function()
+                require("snacks").picker.files()
+              end
+            },
+            {
+              icon = "-",
+              key = "fg",
+              desc = "live grep",
+              action = function()
+                require("snacks").picker.grep()
+              end
+            },
+            {
+              icon = "-",
+              key = "fr",
+              desc = "recent files",
+              action = function()
+                require("snacks").picker.recent()
+              end
+            },
+            { icon = "-", key = "c", desc = "config",  action = ":lua Snacks.dashboard.pick('files', {cwd = vim.fn.stdpath('config')})" },
+            { icon = "-", key = "l", desc = "lazy",    action = ":Lazy",                                                                enabled = package.loaded.lazy ~= nil },
+            { icon = "-", key = "m", desc = "mason",   action = ":Mason",                                                               enabled = package.loaded.lazy ~= nil },
+            { icon = "-", key = "M", desc = "mcp hub", action = ":MCPHub",                                                              enabled = package.loaded.lazy ~= nil },
+            { icon = "-", key = "q", desc = "quit",    action = ":qa" },
+          },
+          header = [[notepad--]],
+        },
+        sections = {
+          { section = "header" },
+          { section = "keys",         gap = 1,    indent = 0, padding = 2 },
+          { title = "recents",        padding = 1 },
+          { section = "recent_files", indent = 2, limit = 5,  padding = 1 },
+          { title = "recents [cwd]",  padding = 1 },
+          { section = "recent_files", cwd = true, indent = 2, limit = 5,  padding = 1 },
+          { section = "startup" },
+        },
+      },
+
       picker = {
         win = {
           input = {
@@ -42,27 +100,27 @@ return {
               ["<a-f>"] = { "toggle_follow", mode = { "i", "n" } },
               ["<c-h>"] = { "toggle_hidden", mode = { "i", "n" } },
               ["<c-i>"] = { "toggle_ignored", mode = { "i", "n" } },
-              ["<a-m>"] = { "toggle_maximize", mode = { "i", "n" } },
-              ["<a-p>"] = { "toggle_preview", mode = { "i", "n" } },
-              ["<a-w>"] = { "cycle_win", mode = { "i", "n" } },
+              ["<c-m>"] = { "toggle_maximize", mode = { "i", "n" } },
+              ["<c-p>"] = { "toggle_preview", mode = { "i", "n" } },
+              ["<c-w>"] = { "cycle_win", mode = { "i", "n" } },
               ["<c-a>"] = { "select_all", mode = { "n", "i" } },
               ["<c-b>"] = { "preview_scroll_up", mode = { "i", "n" } },
               ["<c-d>"] = { "list_scroll_down", mode = { "i", "n" } },
               ["<c-f>"] = { "preview_scroll_down", mode = { "i", "n" } },
               ["<c-g>"] = { "toggle_live", mode = { "i", "n" } },
-              ["<c-j>"] = { "list_down", mode = { "i", "n" } },
-              ["<c-k>"] = { "list_up", mode = { "i", "n" } },
-              ["<c-n>"] = { "list_down", mode = { "i", "n" } },
-              ["<c-p>"] = { "list_up", mode = { "i", "n" } },
+              -- ["<c-j>"] = { "list_down", mode = { "i", "n" } },
+              -- ["<c-k>"] = { "list_up", mode = { "i", "n" } },
+              -- ["<c-n>"] = { "list_down", mode = { "i", "n" } },
+              -- ["<c-p>"] = { "list_up", mode = { "i", "n" } },
               ["<c-q>"] = { "qflist", mode = { "i", "n" } },
               -- ["<c-s>"] = { "edit_split", mode = { "i", "n" } },
               ["<c-t>"] = { "tab", mode = { "n", "i" } },
               ["<c-u>"] = { "list_scroll_up", mode = { "i", "n" } },
               ["<c-v>"] = { "edit_vsplit", mode = { "i", "n" } },
-              ["<c-w>H"] = "layout_left",
-              ["<c-w>J"] = "layout_bottom",
-              ["<c-w>K"] = "layout_top",
-              ["<c-w>L"] = "layout_right",
+              -- ["<c-w>H"] = "layout_left",
+              -- ["<c-w>J"] = "layout_bottom",
+              -- ["<c-w>K"] = "layout_top",
+              -- ["<c-w>L"] = "layout_right",
               ["?"] = "toggle_help_input",
               ["G"] = "list_bottom",
               ["gg"] = "list_top",
@@ -173,7 +231,7 @@ return {
           enabled = true,
           easing = "outQuad",
           duration = {
-            step = 10, -- ms per step
+            step = 10,   -- ms per step
             total = 200, -- maximum duration
           },
         },
@@ -191,7 +249,7 @@ return {
         chunk = {
           enabled = true,
           -- only show chunk scopes in the current window
-          only_current = false,
+          only_current = true,
           priority = 200,
           hl = "Function", ---@type string|string[] hl group for chunk scopes
           char = {

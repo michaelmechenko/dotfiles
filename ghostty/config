@@ -33,7 +33,7 @@ macos-icon-screen-color = #9893a5
 
 resize-overlay = never
 
-font-size = 16
+font-size = 15
 # adjust-cell-width = 0%
 # adjust-cell-height = 6%
 font-feature = -calt

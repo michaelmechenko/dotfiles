@@ -13,9 +13,9 @@ return {
         -- null_ls.builtins.formatting.latexindent,
         -- null_ls.builtins.formatting.stylua,
         -- null_ls.builtins.formatting.prettier,
-        -- require("none-ls.formatting.rustfmt"),
         null_ls.builtins.formatting.clang_format,
         null_ls.builtins.formatting.biome,
+        null_ls.builtins.formatting.shfmt,
 
         -- diagnostics
         -- null_ls.builtins.diagnostics.markdownlint,
@@ -25,9 +25,17 @@ return {
         -- code actions
         null_ls.builtins.code_actions.refactoring,
         null_ls.builtins.code_actions.gitsigns,
+        null_ls.builtins.code_actions.impl,
 
         -- completions
-        null_ls.builtins.completion.luasnip
+        null_ls.builtins.completion.luasnip,
+
+        -- linters
+        null_ls.builtins.diagnostics.yamllint,
+        null_ls.builtins.diagnostics.zsh,
+
+        -- hover
+        null_ls.builtins.hover.printenv
       },
     })
   end,

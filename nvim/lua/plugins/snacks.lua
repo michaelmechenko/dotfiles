@@ -29,7 +29,7 @@ return {
         preset = {
           pick = nil,
           keys = {
-            { icon = "-", key = "n", desc = "new file", action = ":ene | startinsert" },
+            { icon = "-", key = "n",  desc = "new file", action = ":ene | startinsert" },
             { icon = "-", key = "re", desc = "filetree", action = "<cmd>Neotree filesystem right<CR>" },
             {
               icon = "-",
@@ -64,13 +64,12 @@ return {
           header = [[notepad--]],
         },
         sections = {
-          { section = "header" },
-          { section = "keys",         gap = 1,    indent = 0, padding = 2 },
+          { section = "header",       padding = 2 },
+          { section = "keys",         gap = 1,    indent = 0, padding = 1 },
           { title = "recents",        padding = 1 },
           { section = "recent_files", indent = 2, limit = 5,  padding = 1 },
           { title = "recents [cwd]",  padding = 1 },
           { section = "recent_files", cwd = true, indent = 2, limit = 5,  padding = 1 },
-          { section = "startup" },
         },
       },
 

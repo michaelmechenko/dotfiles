@@ -21,7 +21,7 @@ return {
           floats = "transparent", -- style for floating windows
         },
         day_brightness = 0.3,     -- Adjusts the brightness of the colors of the **Day** style. Number between 0 and 1, from dull to vibrant colors
-        dim_inactive = false,      -- dims inactive windows
+        dim_inactive = false,     -- dims inactive windows
         lualine_bold = false,     -- When `true`, section headers in the lualine theme will be bold
 
         --- You can override specific color groups to use other groups or a hex color
@@ -42,6 +42,7 @@ return {
         on_highlights = function(highlights, colors)
           highlights["@markup.strong"].fg = colors.magenta
           highlights["@markup.italic"].fg = colors.magenta2
+          highlights.SnacksIndentScope.fg = colors.purple
           highlights["@markup.raw.markdown_inline"].bg = "None"
         end,
 
@@ -55,10 +56,6 @@ return {
           -- uses your plugin manager to automatically enable needed plugins
           -- currently only lazy.nvim is supported
           auto = true,
-          -- add any plugins here that you want to enable
-          -- for all possible plugins, see:
-          --   * https://github.com/folke/tokyonight.nvim/tree/main/lua/tokyonight/groups
-          -- telescope = true,
         },
       })
       vim.cmd([[colorscheme tokyonight]])

@@ -257,11 +257,11 @@ return {
 
       -- lsp
       { "<leader>l",  group = "lsp" },
-      { "<leader>ll", vim.lsp.buf.hover,          desc = "hover" },
-      { "<leader>ls", vim.lsp.buf.signature_help, desc = "signature help" },
-      { "<leader>lo", vim.diagnostic.open_float,  desc = "open diagnostic float" },
-      { "<leader>lk", vim.lsp.buf.definition,     desc = "definition" },
-      { "<leader>lm", vim.lsp.buf.code_action,    desc = "code action" },
+      { "K",          function() vim.lsp.buf.hover() end,          desc = "hover" },
+      { "<leader>ls", function() vim.lsp.buf.signature_help() end, desc = "signature help" },
+      { "<leader>lo", function() vim.diagnostic.open_float() end,  desc = "open diagnostic float" },
+      { "<leader>ld", function() vim.lsp.buf.definition() end,     desc = "definition" },
+      { "<leader>lm", function() vim.lsp.buf.code_action() end,    desc = "code action" },
 
       -- telescope
       -- { "<leader>f", group = "telescope" },
@@ -337,7 +337,7 @@ return {
       -- },
 
       -- scrollbar
-      { "<leader>sd", "<Cmd>ScrollbarToggle<CR>", desc = "toggle scrollbar" },
+      { "<leader>sd", "<Cmd>ScrollbarToggle<CR>",                  desc = "toggle scrollbar" },
 
       --snacks picker
       { "<leader>f",  group = "snacks picker" },

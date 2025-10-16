@@ -113,7 +113,7 @@ return {
             symbols = {
               modified = '[+]',  -- Text to show when the file is modified.
               readonly = '[-]',  -- Text to show when the file is non-modifiable or readonly.
-              unnamed = '[-]',   -- Text to show for unnamed buffers.
+              unnamed = '',      -- Text to show for unnamed buffers.
               newfile = '[new]', -- Text to show for newly created file before first write
             },
             color = { bg = "None" },

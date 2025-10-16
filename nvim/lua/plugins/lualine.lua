@@ -28,7 +28,7 @@ return {
         component_separators = { left = "", right = "" },
         section_separators = { left = "", right = "" },
         ignore_focus = {},
-        always_divide_middle = true,
+        always_divide_middle = false,
         globalstatus = true,
         refresh = {
           statusline = 100,
@@ -40,30 +40,35 @@ return {
         lualine_a = { { "mode" } },
         lualine_b = {
           {
+            "branch",
+            icon = "",
+            color = { bg = "None" },
+          },
+          {
             "buffers",
             show_filename_only = true,       -- Shows shortened relative path when set to false.
             hide_filename_extension = false, -- Hide filename extension when set to true.
             show_modified_status = true,     -- Shows indicator when the buffer is modified.
             -- use_mode_colors=true,
 
-            mode = 2,
+            mode = 1,
             -- 0: Shows buffer name
             -- 1: Shows buffer index
             -- 2: Shows buffer name + buffer index
             -- 3: Shows buffer number
             -- 4: Shows buffer name + buffer number
 
-            max_length = vim.o.columns * 3 / 4, -- Maximum width of buffers component,
+            -- max_length = vim.o.columns * 3 / 4, -- Maximum width of buffers component,
             -- it can also be a function that returns
             -- the value of `max_length` dynamically.
 
-            component_separators = { left = "", right = "" },
+            -- component_separators = { left = "[", right = "]" },
             icons_enabled = false,
-            draw_empty = false,
+            draw_empty = true,
             symbols = {
-              modified = " *", -- Text to show when the buffer is modified
+              modified = "*", -- Text to show when the buffer is modified
               alternate_file = "", -- Text to show to identify the alternate file
-              directory = " ", -- Text to show when the buffer is a directory
+              directory = "", -- Text to show when the buffer is a directory
             },
             buffers_color = {
               active = {
@@ -81,33 +86,27 @@ return {
             },
             filetype_names = {
               fzf = "fuzzy",
-              alpha = "home",
             },
           },
         },
         lualine_c = {
-          {
-            color = { bg = "None" },
-          },
+          -- {
+          --   "filename",
+          --   color = { bg = "None" },
+          -- },
         },
         lualine_x = {
-          -- {
-          --   'lsp_status',
-          --   icon = '', -- f013
-          --   symbols = {
-          --     -- Standard unicode symbols to cycle through for LSP progress:
-          --     spinner = { '⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏' },
-          --     -- Standard unicode symbol for when LSP is done:
-          --     done = '✓',
-          --     -- Delimiter inserted between LSP names:
-          --     separator = ' ',
-          --   },
-          --   -- List of LSP names to ignore (e.g., `null-ls`):
-          --   ignore_lsp = { "null-ls" },
-          -- },
           {
-            "branch",
-            icon = "",
+            "filename",
+            path = 4,
+            shorting_target = 40, -- Shortens path to leave 40 spaces in the window
+            -- for other components. (terrible name, any suggestions?)
+            symbols = {
+              modified = '[+]',      -- Text to show when the file is modified.
+              readonly = '[-]',      -- Text to show when the file is non-modifiable or readonly.
+              unnamed = '[unnamed]', -- Text to show for unnamed buffers.
+              newfile = '[new]',     -- Text to show for newly created file before first write
+            },
             color = { bg = "None" },
           },
         },

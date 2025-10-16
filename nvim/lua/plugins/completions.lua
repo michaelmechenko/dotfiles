@@ -52,7 +52,7 @@ return {
         },
         window = {
           border = 'single',
-          scrollbar = true,
+          scrollbar = false,
           treesitter_highlighting = true,
           show_documentation = false,
         },
@@ -78,12 +78,12 @@ return {
             return { 's', 'n' }
           end,
           border = 'single',
-          scrollbar = true,
+          scrollbar = false,
         },
         documentation = {
           auto_show = true,
           auto_show_delay_ms = 800,
-          window = { border = 'single', scrollbar = true, }
+          window = { border = 'single', scrollbar = false, }
         },
         ghost_text = {
           enabled = true

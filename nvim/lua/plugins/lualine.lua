@@ -96,19 +96,6 @@ return {
           -- },
         },
         lualine_x = {
-          {
-            "filename",
-            path = 4,
-            shorting_target = 40, -- Shortens path to leave 40 spaces in the window
-            -- for other components. (terrible name, any suggestions?)
-            symbols = {
-              modified = '[+]',      -- Text to show when the file is modified.
-              readonly = '[-]',      -- Text to show when the file is non-modifiable or readonly.
-              unnamed = '[unnamed]', -- Text to show for unnamed buffers.
-              newfile = '[new]',     -- Text to show for newly created file before first write
-            },
-            color = { bg = "None" },
-          },
         },
         lualine_y = {
           {
@@ -117,7 +104,20 @@ return {
           },
           {
             "diagnostics",
-          }
+          },
+          {
+            "filename",
+            path = 4,
+            shorting_target = 40, -- Shortens path to leave 40 spaces in the window
+            -- for other components. (terrible name, any suggestions?)
+            symbols = {
+              modified = '[+]',  -- Text to show when the file is modified.
+              readonly = '[-]',  -- Text to show when the file is non-modifiable or readonly.
+              unnamed = '[-]',   -- Text to show for unnamed buffers.
+              newfile = '[new]', -- Text to show for newly created file before first write
+            },
+            color = { bg = "None" },
+          },
         },
         lualine_z = { { "progress" } },
       },

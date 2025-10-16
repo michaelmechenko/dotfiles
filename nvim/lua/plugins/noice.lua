@@ -32,27 +32,27 @@ return {
           },
         },
         lsp = {
-          -- override = {
+          override = {
             ["vim.lsp.util.convert_input_to_markdown_lines"] = true,
             ["vim.lsp.util.stylize_markdown"] = true,
-          -- },
+          },
           hover = {
-            enabled = false,
+            enabled = true,
             silent = true, -- set to true to not show a message if hover is not available
             view = nil,    -- when nil, use defaults from documentation
             ---@type NoiceViewOptions
             opts = {},     -- merged with defaults from documentation
           },
           signature = {
-            enabled = false,
+            enabled = true,
             auto_open = {
               enabled = false,
               trigger = false,
               luasnip = false,
               throttle = 50,
             },
-            view = "hover", -- when nil, use defaults from documentation
-            opts = {},              -- merged with defaults from documentation
+            -- view = "hover", -- when nil, use defaults from documentation
+            opts = {}, -- merged with defaults from documentation
           },
           message = {
             enabled = true,
@@ -63,10 +63,10 @@ return {
             view = "hover",
             opts = {
               lang = "markdown",
-              replace = false,
+              replace = true,
               render = "plain",
               format = { "{message}" },
-              win_options = { concealcursor = "n", conceallevel = 3 },
+              win_options = { concealcursor = "n", conceallevel = 0 },
             },
           },
         },

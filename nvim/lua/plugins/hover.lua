@@ -4,9 +4,9 @@ return {
     require('hover').config({
       providers = {
         'hover.providers.diagnostic',
-        'hover.providers.lsp',
-        'hover.providers.dap',
-        'hover.providers.man',
+        -- 'hover.providers.lsp',
+        -- 'hover.providers.dap',
+        -- 'hover.providers.man',
         'hover.providers.fold_preview',
         'hover.providers.highlight',
         -- 'hover.providers.dictionary',
@@ -24,9 +24,10 @@ return {
     })
   end,
   config = function()
-    vim.keymap.set("n", "K", require("hover").hover, { desc = "hover" })
+    -- move to whichkey
+    vim.keymap.set("n", "<leader>k", require("hover").hover, { desc = "hover" })
 
-    vim.keymap.set('n', '<leader>k',
+    vim.keymap.set('n', '<leader>K',
       function()
         require('hover').enter()
       end, { desc = 'hover (enter)' })

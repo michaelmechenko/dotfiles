@@ -8,15 +8,32 @@ return {
     "MunifTanjim/nui.nvim",
     -- "3rd/image.nvim", -- Optional image support in preview window: See `# Preview Mode` for more information
   },
+  lazy = false,
   config = function()
     require("neo-tree").setup({
       source_selector = {
-        winbar = false,
+        winbar = true,
         statusline = false,
+      },
+      popup_border_style = "single",
+      sources = {
+        "filesystem",
+        "buffers",
+        "git_status",
+        "document_symbols",
       },
       close_if_last_window = true,
       window = {
         mappings = {
+          ["P"] = {
+            "toggle_preview",
+            config = {
+              use_float = true,
+              use_snacks_image = false,
+              use_image_nvim = false,
+              title = "preview window",
+            }
+          },
           ["e"] = "open",
         },
       },

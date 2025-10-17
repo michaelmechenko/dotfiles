@@ -18,6 +18,8 @@ return {
   "folke/which-key.nvim",
   event = "VeryLazy",
   priority = 1000,
+  opts = {
+  },
   config = function()
     local wk = require("which-key")
     wk.add({
@@ -134,10 +136,10 @@ return {
 
       -- neotree
       { "<leader>r",  group = "noeotree" },
-      { "<leader>re", "<cmd>Neotree filesystem reveal right<CR><cmd>set relativenumber<CR>", desc = "filesystem" },
-      { "<leader>rw", "<cmd>Neotree buffers reveal float<CR><cmd>set relativenumber<CR>",    desc = "buffers" },
+      { "<leader>re", "<cmd>Neotree filesystem reveal right<CR>", desc = "filesystem" },
+      { "<leader>rw", "<cmd>Neotree buffers reveal float<CR>",    desc = "buffers" },
       { "<leader>rq", "<cmd>Neotree close<CR>",                                              desc = "close" },
-      { "<leader>rb", "<cmd>Neotree git_status reveal float<CR><cmd>set relativenumber<CR>", desc = "git status" },
+      { "<leader>rb", "<cmd>Neotree git_status reveal float<CR>", desc = "git status" },
 
       -- { "<leader>r", group = "explorer" },
       -- {
@@ -454,5 +456,4 @@ return {
       { "<leader>s", group = "surround" },
     })
   end,
-  opts = {},
 }

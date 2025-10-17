@@ -33,7 +33,6 @@ return {
         nerd_font_variant = 'normal' -- default = mono
       },
 
-
       signature = {
         enabled = true,
         trigger = {
@@ -78,6 +77,9 @@ return {
             return { 's', 'n' }
           end,
           border = 'single',
+          draw = {
+            align_to = "cursor"
+          },
           scrollbar = false,
         },
         documentation = {

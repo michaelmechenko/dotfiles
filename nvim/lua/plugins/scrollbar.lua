@@ -150,7 +150,7 @@ return {
           },
         },
         handlers = {
-          cursor = false,
+          cursor = true,
           diagnostic = true,
           gitsigns = true, -- Requires gitsigns
           handle = true,

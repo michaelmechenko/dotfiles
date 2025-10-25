@@ -70,8 +70,8 @@ return {
         ":CodeCompanion ",
         desc = "inline vertical",
       },
-      { "<leader>ae", mode = { "n" },      "<Cmd>CodeCompanion<CR>",                                                                                                    desc = "open float" },
-      { "<leader>ab", mode = { "n" },      function() require("codecompanion").toggle({ window_opts = { layout = "buffer" } }) end,                                     desc = "open buffer" },
+      -- { "<leader>ae", mode = { "n" },      "<Cmd>CodeCompanion<CR>",                                                                                                    desc = "open float" },
+      -- { "<leader>ab", mode = { "n" },      function() require("codecompanion").toggle({ window_opts = { layout = "buffer" } }) end,                                     desc = "open buffer" },
       { "<leader>ar", mode = { "n" },      function() require("codecompanion").toggle({ window_opts = { layout = "vertical", position = "right", width = 0.45 } }) end, desc = "open right" },
       { "<leader>as", mode = { "n", "v" }, function() require("codecompanion").toggle({ window_opts = { layout = "float" } }) end,                                      desc = "cc chat buffer" },
       { "<leader>ad", mode = { "n", "v" }, "<Cmd>CodeCompanionActions<CR>",                                                                                             desc = "cc actions" },
@@ -123,23 +123,23 @@ return {
       -- { "<leader>7", "<cmd>BufferLineGoToBuffer 7<CR>", hidden = true },
 
       -- lualine
-      { "<leader>1",  "<cmd>LualineBuffersJump 1<CR>",                                       hidden = true },
-      { "<leader>2",  "<cmd>LualineBuffersJump 2<CR>",                                       hidden = true },
-      { "<leader>3",  "<cmd>LualineBuffersJump 3<CR>",                                       hidden = true },
-      { "<leader>4",  "<cmd>LualineBuffersJump 4<CR>",                                       hidden = true },
-      { "<leader>5",  "<cmd>LualineBuffersJump 5<CR>",                                       hidden = true },
-      { "<leader>6",  "<cmd>LualineBuffersJump 6<CR>",                                       hidden = true },
-      { "<leader>7",  "<cmd>LualineBuffersJump 7<CR>",                                       hidden = true },
+      { "<leader>1",  "<cmd>LualineBuffersJump 1<CR>",                        hidden = true },
+      { "<leader>2",  "<cmd>LualineBuffersJump 2<CR>",                        hidden = true },
+      { "<leader>3",  "<cmd>LualineBuffersJump 3<CR>",                        hidden = true },
+      { "<leader>4",  "<cmd>LualineBuffersJump 4<CR>",                        hidden = true },
+      { "<leader>5",  "<cmd>LualineBuffersJump 5<CR>",                        hidden = true },
+      { "<leader>6",  "<cmd>LualineBuffersJump 6<CR>",                        hidden = true },
+      { "<leader>7",  "<cmd>LualineBuffersJump 7<CR>",                        hidden = true },
 
       -- word wrap
-      { "<leader>dw", "<cmd>set wrap!<CR>",                                                  desc = "word wrap" },
+      { "<leader>dw", "<cmd>set wrap!<CR>",                                   desc = "word wrap" },
 
       -- neotree
       { "<leader>r",  group = "noeotree" },
-      { "<leader>re", "<cmd>Neotree filesystem reveal right<CR>", desc = "filesystem" },
-      { "<leader>rw", "<cmd>Neotree buffers reveal float<CR>",    desc = "buffers" },
-      { "<leader>rq", "<cmd>Neotree close<CR>",                                              desc = "close" },
-      { "<leader>rb", "<cmd>Neotree git_status reveal float<CR>", desc = "git status" },
+      { "<leader>re", "<cmd>Neotree filesystem reveal right<CR>",             desc = "filesystem" },
+      { "<leader>rw", "<cmd>Neotree buffers reveal float<CR>",                desc = "buffers" },
+      { "<leader>rq", "<cmd>Neotree close<CR>",                               desc = "close" },
+      { "<leader>rb", "<cmd>Neotree git_status reveal float<CR>",             desc = "git status" },
 
       -- { "<leader>r", group = "explorer" },
       -- {
@@ -160,7 +160,7 @@ return {
       -- },
 
       -- mini
-      { "<leader>e",  "<cmd>lua MiniFiles.open()<CR>:set relativenumber<CR>",                desc = "filetree" },
+      { "<leader>e",  "<cmd>lua MiniFiles.open()<CR>:set relativenumber<CR>", desc = "filetree" },
 
       -- dim
       { "<leader>z",  group = "dim" },

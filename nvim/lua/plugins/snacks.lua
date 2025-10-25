@@ -240,13 +240,17 @@ return {
         end,
       },
 
+      statusline = {},
+
+      scope = {},
+
       indent = {
         indent = {
           enabled = true,
           char = "┊",
         },
         chunk = {
-          enabled = true,
+          enabled = false,
           -- only show chunk scopes in the current window
           only_current = true,
           priority = 200,
@@ -296,13 +300,26 @@ return {
           -- char = "│",
           char = "┊",
           underline = false,
-          only_current = false,
+          only_current = true,
           -- hl = "SnacksIndentScope",
           -- hl = "Special",
           -- hl = "Function",
           -- hl = "CursorLineNr",
         },
       },
+      statuscolumn = {
+        left = { "mark", "sign" }, -- priority of signs on the left (high to low)
+        right = { "fold", "git" }, -- priority of signs on the right (high to low)
+        folds = {
+          open = false,            -- show open fold icons
+          git_hl = false,          -- use Git Signs hl for fold icons
+        },
+        git = {
+          -- patterns to match Git signs
+          patterns = { "GitSign", "MiniDiffSign" },
+        },
+        refresh = 50, -- refresh at most every 50ms
+      }
     },
   },
 }

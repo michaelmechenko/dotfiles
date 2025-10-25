@@ -35,9 +35,9 @@ source $ZSH/oh-my-zsh.sh
 
 # Preferred editor for local and remote sessions
 if [[ -n $SSH_CONNECTION ]]; then
-  export EDITOR='nvim'
-else
   export EDITOR='vim'
+else
+  export EDITOR='neovim'
 fi
 
 # Compilation flags
@@ -70,20 +70,10 @@ alias general="cd ~/_main/vault-general/"
 
 # servers
 alias mcp="cd ~/mcp"
-alias docs-mcp="docker run --rm \
-  -e OPENAI_API_KEY=$OPENAI_API_KEY \
-  -v docs-mcp-data:/data \
-  -p 6280:6280 \
-  docs-mcp \
-  --protocol http --port 6280"
-alias hub="mcp-hub --port 37373 --config ~/.config/mcphub/servers.json"
 
-# docker completions
 # fpath=(/Users/mishka/.docker/completions $fpath)
 # autoload -Uz compinit
 # compinit
-#
-source $(brew --prefix)/share/zsh-autosuggestions/zsh-autosuggestions.zsh
 
 if [ "$TMUX" = "" ]; then tmux new -A -s "m*"; fi
 
@@ -96,3 +86,4 @@ if [ "$TERM_PROGRAM" != "Apple_Terminal" ]; then
 fi
 
 eval "$(oh-my-posh init zsh --config ~/.config/ohmyposh/base.json)"
+source $(brew --prefix)/share/zsh-autosuggestions/zsh-autosuggestions.zsh

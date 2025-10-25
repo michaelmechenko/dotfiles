@@ -8,8 +8,8 @@ export ZSH="$HOME/.oh-my-zsh"
 # HYPHEN_INSENSITIVE="true"
 
 # zstyle ':omz:update' mode disabled
-zstyle ':omz:update' mode auto
-# zstyle ':omz:update' mode reminder
+# zstyle ':omz:update' mode auto
+zstyle ':omz:update' mode reminder
 
 # Uncomment the following line if pasting URLs and other text is messed up.
 # DISABLE_MAGIC_FUNCTIONS="true"
@@ -29,7 +29,7 @@ zstyle ':omz:update' mode auto
 
 # HIST_STAMPS="mm/dd/yyyy"
 
-plugins=(git macos zsh-syntax-highlighting)
+plugins=(git macos zsh-syntax-highlighting zsh-autosuggestions)
 
 source $ZSH/oh-my-zsh.sh
 
@@ -37,7 +37,7 @@ source $ZSH/oh-my-zsh.sh
 if [[ -n $SSH_CONNECTION ]]; then
   export EDITOR='vim'
 else
-  export EDITOR='neovim'
+  export EDITOR='nvim'
 fi
 
 # Compilation flags
@@ -86,4 +86,3 @@ if [ "$TERM_PROGRAM" != "Apple_Terminal" ]; then
 fi
 
 eval "$(oh-my-posh init zsh --config ~/.config/ohmyposh/base.json)"
-source $(brew --prefix)/share/zsh-autosuggestions/zsh-autosuggestions.zsh

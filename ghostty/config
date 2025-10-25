@@ -16,9 +16,10 @@ cursor-style-blink = false
 # unfocused-split-opacity = 0.75
 # custom-shader = bloom.glsl
 
-window-theme = auto
+# window-theme = auto
 # window-vsync = false
-window-padding-x = 4
+
+window-padding-x = 3
 window-padding-y = 6,2
 
 bold-is-bright = true
@@ -33,7 +34,7 @@ macos-icon-screen-color = #9893a5
 
 resize-overlay = never
 
-font-size = 15.5
+font-size = 15
 # adjust-cell-width = 0%
 # adjust-cell-height = 6%
 font-feature = -calt

@@ -14,8 +14,62 @@ local oldworld_override = {
     b = { fg = "#c9c7cd" },
     c = { fg = "#c9c7cd" },
   }
-  -- add visual
-  -- add replace
+}
+
+local filetype_spacing = {
+  sections = {
+    lualine_a = {
+      { "mode" },
+    },
+    lualine_b = {
+      {
+        "buffers",
+        show_filename_only = true,       -- Shows shortened relative path when set to false.
+        hide_filename_extension = false, -- Hide filename extension when set to true.
+        show_modified_status = true,     -- Shows indicator when the buffer is modified.
+        padding = { left = 1, right = 1 },
+        -- use_mode_colors=true,
+
+        mode = 1,
+        -- 0: Shows buffer name
+        -- 1: Shows buffer index
+        -- 2: Shows buffer name + buffer index
+        -- 3: Shows buffer number
+        -- 4: Shows buffer name + buffer number
+
+        icons_enabled = false,
+        draw_empty = false,
+        symbols = {
+          modified = "*", -- Text to show when the buffer is modified
+          alternate_file = "", -- Text to show to identify the alternate file
+          directory = "", -- Text to show when the buffer is a directory
+        },
+        buffers_color = {
+          active = {
+            bg = "None", --[[ fg = "#9CABCA", ]]
+            gui = "bold"
+          },
+          inactive = {
+            bg = "None", --[[ fg = "#9CABCA", ]]
+            fg = "c9c7cd",
+          },
+        },
+      },
+    },
+    lualine_z = {
+      {
+        "filename",
+        path = 3,
+        shorting_target = 40, -- Shortens path to leave 40 spaces in the window
+        padding = { left = 0 },
+        color = { fg = oldworld_override.normal.b.fg, bg = "None" },
+        fmt = function(str)
+          return string.match(str, "([^%s]+)"):gsub("neo%-tree$", "")
+        end
+      },
+    }
+  },
+  filetypes = { 'neo-tree', 'lazygit', 'CodeCompanion' }
 }
 
 return {
@@ -25,8 +79,8 @@ return {
     require("lualine").setup({
       options = {
         theme = oldworld_override,
-        component_separators = { left = "", right = "" },
-        section_separators = { left = "", right = "" },
+        component_separators = '',
+        section_separators = '',
         ignore_focus = {},
         always_divide_middle = false,
         globalstatus = true,
@@ -37,18 +91,18 @@ return {
         },
       },
       sections = {
-        lualine_a = { { "mode" } },
-        lualine_b = {
+        lualine_a = {
           {
-            "branch",
-            icon = "",
-            color = { bg = "None" },
+            "mode",
           },
+        },
+        lualine_b = {
           {
             "buffers",
             show_filename_only = true,       -- Shows shortened relative path when set to false.
             hide_filename_extension = false, -- Hide filename extension when set to true.
             show_modified_status = true,     -- Shows indicator when the buffer is modified.
+            padding = { left = 1, right = 1 },
             -- use_mode_colors=true,
 
             mode = 1,
@@ -58,13 +112,8 @@ return {
             -- 3: Shows buffer number
             -- 4: Shows buffer name + buffer number
 
-            -- max_length = vim.o.columns * 3 / 4, -- Maximum width of buffers component,
-            -- it can also be a function that returns
-            -- the value of `max_length` dynamically.
-
-            -- component_separators = { left = "[", right = "]" },
             icons_enabled = false,
-            draw_empty = true,
+            draw_empty = false,
             symbols = {
               modified = "*", -- Text to show when the buffer is modified
               alternate_file = "", -- Text to show to identify the alternate file
@@ -73,100 +122,57 @@ return {
             buffers_color = {
               active = {
                 bg = "None", --[[ fg = "#9CABCA", ]]
-                -- fg = "#afc3ed",
-                -- fg = "#e6b99d",
-                -- fg = "#f5919b",
-                -- gui = "bold",
               },
               inactive = {
                 bg = "None", --[[ fg = "#9CABCA", ]]
                 fg = "c9c7cd",
-                -- gui = "italic",
               },
-            },
-            filetype_names = {
-              fzf = "fuzzy",
             },
           },
         },
         lualine_c = {
-          -- {
-          --   "filename",
-          --   color = { bg = "None" },
-          -- },
-        },
-        lualine_x = {
-        },
-        lualine_y = {
-          {
-            color = { bg = "None" },
-            "diff",
-          },
-          {
-            "diagnostics",
-          },
           {
             "filename",
             path = 4,
-            shorting_target = 40, -- Shortens path to leave 40 spaces in the window
-            -- for other components. (terrible name, any suggestions?)
+            padding = { left = 0 },
             symbols = {
               modified = '[+]',  -- Text to show when the file is modified.
-              readonly = '[-]',  -- Text to show when the file is non-modifiable or readonly.
+              readonly = '',     -- Text to show when the file is non-modifiable or readonly.
               unnamed = '',      -- Text to show for unnamed buffers.
               newfile = '[new]', -- Text to show for newly created file before first write
             },
-            color = { bg = "None" },
+            color = {
+              fg = "c9c7cd"
+            }
+          },
+        },
+        lualine_x = {
+          {
+            "diff",
+          },
+          {
+            "branch",
+            icons_enabled = false,
+          },
+        },
+        lualine_y = {
+          {
+            "diagnostics",
           },
         },
         lualine_z = { { "progress" } },
       },
-      -- tabline = {
-      -- 	lualine_b = {
-      -- 		{
-      -- 			"buffers",
-      -- 			component_separators = { left = "", right = "" },
-      -- 			mode = 2,
-      -- 			icons_enabled = false,
-      -- 			symbols = {
-      -- 				modified = " *", -- Text to show when the buffer is modified
-      -- 				alternate_file = "", -- Text to show to identify the alternate file
-      -- 				directory = " ", -- Text to show when the buffer is a directory
-      -- 			},
-      -- 			buffers_color = {
-      -- 				active = {
-      -- 					bg = "None", --[[ fg = "#9CABCA", ]]
-      -- 					gui = "italic,bold",
-      -- 				},
-      -- 				inactive = { bg = "None", fg = "#57576b" },
-      -- 			},
-      -- 			filetype_names = {
-      -- 				TelescopePrompt = "file explorer",
-      -- 				fzf = "fuzzy",
-      -- 				alpha = "home",
-      -- 			},
-      -- 		},
-      -- 	},
-      -- 	lualine_c = {
-      -- 		{
-      -- 			color = { bg = "None", fg = "#57576b" },
-      -- 		},
-      -- 	},
-      -- 	lualine_x = {
-      -- 		{
-      -- 			color = { bg = "None", fg = "#57576b" },
-      -- 		},
-      -- 	},
-      -- 	lualine_y = {
-      -- 		{
-      -- 			"branch",
-      -- 			color = { bg = "None", fg = "#57576b" },
-      -- 			icons_enabled = false,
-      -- 		},
-      -- 	},
-      -- },
+      inactive_sections = {
+        lualine_a = {},
+        lualine_b = {},
+        lualine_c = { 'filename' },
+        lualine_x = { 'location' },
+        lualine_y = {},
+        lualine_z = {}
+      },
       extensions = {
         -- "neo-tree"
+        filetype_spacing
       },
     })
   end,

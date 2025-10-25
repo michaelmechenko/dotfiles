@@ -23,6 +23,13 @@ local filetype_spacing = {
     },
     lualine_b = {
       {
+        function()
+          return " "
+        end,
+        padding = 0,
+        color = { bg = "None", }
+      },
+      {
         "buffers",
         show_filename_only = true,       -- Shows shortened relative path when set to false.
         hide_filename_extension = false, -- Hide filename extension when set to true.
@@ -69,7 +76,8 @@ local filetype_spacing = {
       },
     }
   },
-  filetypes = { 'neo-tree', 'lazygit', 'CodeCompanion' }
+  -- vim.bo.filetype
+  filetypes = { 'neo-tree', 'lazygit', 'codecompanion' }
 }
 
 return {
@@ -97,6 +105,13 @@ return {
           },
         },
         lualine_b = {
+          {
+            function()
+              return " "
+            end,
+            padding = 0,
+            color = { bg = "None", }
+          },
           {
             "buffers",
             show_filename_only = true,       -- Shows shortened relative path when set to false.
@@ -153,6 +168,7 @@ return {
           {
             "branch",
             icons_enabled = false,
+            padding = { right = 1 }
           },
         },
         lualine_y = {

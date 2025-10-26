@@ -240,9 +240,9 @@ return {
         end,
       },
 
-      statusline = {},
-
-      scope = {},
+      scope = {
+        enabled = true,
+      },
 
       indent = {
         indent = {

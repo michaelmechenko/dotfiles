@@ -19,8 +19,8 @@ cursor-style-blink = false
 # window-theme = auto
 # window-vsync = false
 
-window-padding-x = 3
-window-padding-y = 6,2
+window-padding-x = 6, 3
+window-padding-y = 6
 
 bold-is-bright = true
 

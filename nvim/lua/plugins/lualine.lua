@@ -165,11 +165,11 @@ return {
           {
             "diff",
           },
-          {
-            "branch",
-            icons_enabled = false,
-            padding = { right = 1 }
-          },
+          -- {
+          --   "branch",
+          --   icons_enabled = false,
+          --   padding = { right = 1 }
+          -- },
         },
         lualine_y = {
           {

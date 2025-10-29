@@ -53,7 +53,7 @@ alias ai="aichat"
 alias oc="opencode"
 alias lg="lazygit"
 alias ld="lazydocker"
-alias t="tmux new -A -s 'm*'"
+alias t="tmux"
 alias ts="tmux kill-session"
 alias tx="tmux kill-server"
 alias td="tmux detach-client"
@@ -71,18 +71,27 @@ alias general="cd ~/_main/vault-general/"
 # servers
 alias mcp="cd ~/mcp"
 
-# fpath=(/Users/mishka/.docker/completions $fpath)
-# autoload -Uz compinit
-# compinit
+# mkdir and cd into
+mkcd () {
+  \mkdir -p "$1"
+  cd "$1"
+}
+
+# mk temp dir
+tempe () {
+  cd "$(mktemp -d)"
+  chmod -R 0700 .
+  if [[ $# -eq 1 ]]; then
+    \mkdir -p "$1"
+    cd "$1"
+    chmod -R 0700 .
+  fi
+}
 
 if [ "$TMUX" = "" ]; then tmux new -A -s "m*"; fi
 
-# export NVM_DIR="$HOME/.nvm"
-# [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
-# [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
-
 if [ "$TERM_PROGRAM" != "Apple_Terminal" ]; then
-  eval "$(oh-my-posh init zsh)"
+  eval "$(oh-my-posh init zsh)";
 fi
 
 eval "$(oh-my-posh init zsh --config ~/.config/ohmyposh/base.json)"

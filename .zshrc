@@ -53,7 +53,7 @@ alias ai="aichat"
 alias oc="opencode"
 alias lg="lazygit"
 alias ld="lazydocker"
-alias t="tmux"
+alias t="tmux new -A -s 'm*'"
 alias ts="tmux kill-session"
 alias tx="tmux kill-server"
 alias td="tmux detach-client"
@@ -88,7 +88,7 @@ tempe () {
   fi
 }
 
-if [ "$TMUX" = "" ]; then tmux new -A -s "m*"; fi
+# if [ "$TMUX" = "" ]; then tmux new -A -s "m*"; fi
 
 if [ "$TERM_PROGRAM" != "Apple_Terminal" ]; then
   eval "$(oh-my-posh init zsh)";

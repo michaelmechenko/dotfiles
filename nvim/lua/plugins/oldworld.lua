@@ -5,11 +5,11 @@ return {
     priority = 1000,
     config = function()
       require("oldworld").setup({
-        terminal_colors = true,         -- enable terminal colors
+        terminal_colors = false,         -- enable terminal colors
         variant = "cooler",             -- default, oled, cooler
         styles = {                      -- You can pass the style using the format: style = true
           comments = { italic = true }, -- style for comments
-          keywords = { bold = true },   -- style for keywords
+          keywords = { bold = false },   -- style for keywords
           identifiers = {},             -- style for identifiers
           functions = { bold = true },  -- style for functions
           variables = { bold = false }, -- style for variables
@@ -41,7 +41,7 @@ return {
           Variable = { fg = "#938AA9" },
         },
       })
-      -- vim.cmd("colorscheme oldworld")
+      vim.cmd("colorscheme oldworld")
     end,
   },
 }

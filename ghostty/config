@@ -9,7 +9,6 @@ shell-integration = none
 
 cursor-style = underline
 cursor-style-blink = false
-# command = ~/.config/ghostty/tmux.sh
 
 # background-opacity = 0.95
 # background-blur-radius = 15
@@ -19,8 +18,8 @@ cursor-style-blink = false
 # window-theme = auto
 # window-vsync = false
 
-window-padding-x = 6, 3
-window-padding-y = 6
+window-padding-x = 8
+window-padding-y = 8, 6
 
 bold-is-bright = true
 
@@ -35,11 +34,12 @@ macos-icon-screen-color = #9893a5
 resize-overlay = never
 
 font-size = 15
-# adjust-cell-width = 0%
-# adjust-cell-height = 6%
+# adjust-cell-width = 2%
+adjust-cell-height = 6%
 font-feature = -calt
 # font-family = "JetBrainsMono Nerd Font"
-font-family = "Lilex Medium"
+font-family = "Lilex"
+# font-family = "ComicShanns Nerd Font"
 # font-family = "0xProto"
 
 # keybind = cmd+ctrl+j=new_split:down

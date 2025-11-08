@@ -21,14 +21,14 @@ vim.cmd("set softtabstop=2")
 vim.cmd("set shiftwidth=2")
 
 
-vim.keymap.set("n", '<C-k>', function() vim.lsp.buf.signature_help() end, {})
-vim.keymap.set("i", '<C-l>', function() vim.lsp.buf.signature_help() end, {})
-vim.lsp.handlers['textDocument/signatureHelp'] = vim.lsp.with(
-  vim.lsp.handlers['signature_help'], {
-    border = 'single',
-    close_events = { "CursorMoved", "BufHidden", "InsertCharPre" },
-  }
-)
+-- vim.keymap.set("n", '<C-k>', function() vim.lsp.buf.signature_help() end, {})
+-- vim.keymap.set("i", '<C-l>', function() vim.lsp.buf.signature_help() end, {})
+-- vim.lsp.handlers['textDocument/signatureHelp'] = vim.lsp.with(
+--   vim.lsp.handlers['signature_help'], {
+--     border = 'single',
+--     close_events = { "CursorMoved", "BufHidden", "InsertCharPre" },
+--   }
+-- )
 
 -- yanking/pasting to global register
 vim.keymap.set("n", "P", '"+p', {})

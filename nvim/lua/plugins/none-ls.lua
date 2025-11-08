@@ -31,7 +31,7 @@ return {
         null_ls.builtins.completion.luasnip,
 
         -- linters
-        null_ls.builtins.diagnostics.yamllint,
+        -- null_ls.builtins.diagnostics.yamllint,
         null_ls.builtins.diagnostics.zsh,
 
         -- hover

@@ -11,9 +11,9 @@ return {
           comments = { italic = true }, -- style for comments
           keywords = { bold = false },  -- style for keywords
           identifiers = {},             -- style for identifiers
-          functions = { bold = true },  -- style for functions
+          functions = { bold = false },  -- style for functions
           variables = { bold = false }, -- style for variables
-          booleans = {},                -- style for booleans
+          booleans = {italic = true},                -- style for booleans
         },
         integrations = {                -- You can disable/enable integrations
           alpha = true,
@@ -41,8 +41,8 @@ return {
           -- Variable = { fg = "#938AA9" },
           Normal = { bg = 'none' },
           NormalFloat = { bg = 'none' },
-          FloatBorder = { bg = 'none' },
-          Pmenu = { bg = 'none' },
+          -- FloatBorder = { bg = 'none' },
+          -- Pmenu = { bg = 'none' },
         },
       })
       vim.cmd("colorscheme oldworld")

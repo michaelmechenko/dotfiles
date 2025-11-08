@@ -68,9 +68,6 @@ alias projects="cd ~/_main/projects"
 alias resources="cd ~/_main/resources"
 alias general="cd ~/_main/vault-general/"
 
-# servers
-alias mcp="cd ~/mcp"
-
 # mkdir and cd into
 mkcd () {
   \mkdir -p "$1"
@@ -90,8 +87,8 @@ tempe () {
 
 # if [ "$TMUX" = "" ]; then tmux new -A -s "m*"; fi
 
-if [ "$TERM_PROGRAM" != "Apple_Terminal" ]; then
-  eval "$(oh-my-posh init zsh)";
-fi
+# if [ "$TERM_PROGRAM" != "Apple_Terminal" ]; then
+#   eval "$(oh-my-posh init zsh)";
+# fi
 
 eval "$(oh-my-posh init zsh --config ~/.config/ohmyposh/base.json)"

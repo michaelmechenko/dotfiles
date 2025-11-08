@@ -35,10 +35,13 @@ resize-overlay = never
 
 font-size = 15
 # adjust-cell-width = 2%
-adjust-cell-height = 6%
-font-feature = -calt
+adjust-cell-height = 4%
+# font-feature = -calt
+font-thicken = true
+font-thicken-strength = 0
 # font-family = "JetBrainsMono Nerd Font"
 font-family = "Lilex"
+# font-family = "CommitMono"
 # font-family = "ComicShanns Nerd Font"
 # font-family = "0xProto"
 

@@ -1,107 +1,142 @@
-# This is a demo config to showcase some of the most important commands.
-# It is meant to be changed and configured, as it is intentionally kept sparse.
-# For a (much) more advanced configuration example see my dotfiles:
-# https://github.com/FelixKratz/dotfiles
-
 PLUGIN_DIR="$CONFIG_DIR/plugins"
 
-##### Bar Appearance #####
-# Configuring the general appearance of the bar.
-# These are only some of the options available. For all options see:
-# https://felixkratz.github.io/SketchyBar/config/bar
-# If you are looking for other colors, see the color picker:
-# https://felixkratz.github.io/SketchyBar/config/tricks#color-picker
-
-# sketchybar --bar position=top height=28 blur_radius=20 color=0x40000000 y_offset=2 border_color=0x50DCD7BA border_width=1 corner_radius=4 margin=4 padding_left=4 padding_right=4
-sketchybar --bar position=top height=26 blur_radius=35 color=0x40000000 y_offset=-2 border_color=0x50DCD7BA border_width=0 corner_radius=0 margin=0 padding_left=4 padding_right=4
-
-##### Changing Defaults #####
-# We now change some default values, which are applied to all further items.
-# For a full list of all available item properties see:
-# https://felixkratz.github.io/SketchyBar/config/items
+bar=(
+  height=30
+  blur_radius=90
+  position=top
+  color=0x900f0f0f
+  border_width=0
+  border_color=0x750f0f0f
+  margin=0
+  notch_display_height=38
+  notch_offset=0
+  sticky=true
+  font_smoothing=on
+  topmost=window
+)
+sketchybar --bar "${bar[@]}"
 
 default=(
-  icon.font="JetBrainsMono Nerd Font:Normal:12"
-  label.font="JetBrainsMono Nerd Font:Normal:12"
-  icon.color=0xffDCD7BA
-  border_color=0xffDCD7BA
-  label.color=0xffDCD7BA
-  icon.padding_left=4
-  icon.padding_right=4
-  label.padding_left=4
-  label.padding_right=4
+  icon.font="Lilex:Regular:13"
+  label.font="Lilex:Regular:13"
+  icon.color=0xffEDEDED
+  label.color=0xffEDEDED
+  icon.padding_left=6
+  icon.padding_right=6
 )
 sketchybar --default "${default[@]}"
 
-##### Adding Mission Control Space Indicators #####
-# Let's add some mission control spaces:
-# https://felixkratz.github.io/SketchyBar/config/components#space----associate-mission-control-spaces-with-an-item
-# to indicate active and available mission control spaces.
+sketchybar --add event aerospace_workspace_change
 
-SPACE_ICONS=("1" "2" "3" "4" "5" "6" "7" "8" "9" "10")
-for i in "${!SPACE_ICONS[@]}"
-do
-  sid="$(($i+1))"
-  space=(
-    space="$sid"
-    icon="${SPACE_ICONS[i]}"
-    # icon.padding_left=4
-    # icon.padding_right=4
-    label.drawing=off
-    script="$PLUGIN_DIR/space.sh"
-    click_script="yabai -m space --focus $sid"
-  )
-  sketchybar --add space space."$sid" left --set space."$sid" "${space[@]}"
+# sketchybar --add item sep_left center \
+#            --set sep_left icon="{" icon.y_offset=2 icon.padding_left=2 icon.padding_right=2 icon.color=0x80EDEDED label.drawing=off icon.font.style="Normal"\
+# 
+# for sid in $(aerospace list-workspaces --all); do
+#     sketchybar --add item space.$sid center \
+#         --subscribe space.$sid aerospace_workspace_change \
+#         --set space.$sid \
+#         icon="*" \
+#         label.drawing=off \
+#         icon.y_offset=2 \
+#         click_script="aerospace workspace $sid" \
+#         script="$PLUGIN_DIR/aerospace.sh $sid"
+# done
+# 
+# sketchybar --add item sep_right center \
+#            --set sep_right icon="}" icon.y_offset=2 icon.padding_left=2 icon.padding_right=2 icon.color=0x80EDEDED label.drawing=off icon.font.style="Normal"\
+
+# LEFT BLOCK - Secondary monitor workspaces (1^, 2^)
+
+sketchybar --add item sep_secondary_left center \
+           --set sep_secondary_left \
+                 icon="{" \
+                 icon.y_offset=2 \
+                 icon.padding_left=2 \
+                 icon.padding_right=1 \
+                 icon.color=0x80EDEDED \
+                 label.drawing=off \
+                 icon.font.style="Normal"
+for sid in "1^" "2^"; do
+    sketchybar --add item space.$sid center \
+        --subscribe space.$sid aerospace_workspace_change \
+        --set space.$sid \
+        icon="*" \
+        label.drawing=off \
+        icon.y_offset=2 \
+        click_script="aerospace workspace $sid" \
+        script="$PLUGIN_DIR/aerospace.sh"
 done
+sketchybar --add item sep_secondary_right center \
+           --set sep_secondary_right \
+                 icon="}" \
+                 icon.y_offset=2 \
+                 icon.padding_left=1 \
+                 icon.padding_right=2 \
+                 icon.color=0x80EDEDED \
+                 label.drawing=off \
+                 icon.font.style="Normal"
 
-##### Adding Left Items #####
-# We add some regular items to the left side of the bar, where
-# only the properties deviating from the current defaults need to be set
+# CENTER BLOCK - Main monitor workspaces (1*, 2*, 3*)
 
-# sketchybar --add item front_app center \
-#            --set front_app icon.drawing=off script="$PLUGIN_DIR/front_app.sh" \
-#            --subscribe front_app front_app_switched
+sketchybar --add item sep_main_left center \
+           --set sep_main_left \
+                 icon="[" \
+                 icon.y_offset=2 \
+                 icon.padding_left=8 \
+                 icon.padding_right=1 \
+                 icon.color=0x80EDEDED \
+                 label.drawing=off \
+                 icon.font.style="Normal"
+for sid in "1*" "2*" "3*"; do
+    sketchybar --add item space.$sid center \
+        --subscribe space.$sid aerospace_workspace_change \
+        --set space.$sid \
+        icon="*" \
+        label.drawing=off \
+        icon.y_offset=2 \
+        click_script="aerospace workspace $sid" \
+        script="$PLUGIN_DIR/aerospace.sh"
+done
+sketchybar --add item sep_main_right center \
+           --set sep_main_right \
+                 icon="]" \
+                 icon.y_offset=2 \
+                 icon.padding_left=1 \
+                 icon.padding_right=8 \
+                 icon.color=0x80EDEDED \
+                 label.drawing=off \
+                 icon.font.style="Normal"
 
-##### Adding Right Items #####
-# In the same way as the left items we can add items to the right side.
-# Additional position (e.g. center) are available, see:
-# https://felixkratz.github.io/SketchyBar/config/items#adding-items-to-sketchybar
+# RIGHT BLOCK - Laptop screen workspaces (1~, 2~)
 
-# Some items refresh on a fixed cycle, e.g. the clock runs its script once
-# every 10s. Other items respond to events they subscribe to, e.g. the
-# volume.sh script is only executed once an actual change in system audio
-# volume is registered. More info about the event system can be found here:
-# https://felixkratz.github.io/SketchyBar/config/events
-
-sketchybar \
-           --add item clock right \
-           --set clock update_freq=10 icon="time ~" script="$PLUGIN_DIR/clock.sh" \
-           --add item sep3 right \
-           --set sep3 icon="|" icon.font.style="Normal" icon.padding_left=6 icon.color=0x95DCD7BA \
-           --add item volume right \
-           --set volume script="$PLUGIN_DIR/volume.sh" \
-           --subscribe volume volume_change \
-           --add item sep2 right \
-           --set sep2 icon="|" icon.font.style="Normal" icon.padding_left=6  icon.color=0x95DCD7BA \
-           --add item battery right \
-           --set battery update_freq=120 script="$PLUGIN_DIR/battery.sh" \
-           --subscribe battery system_woke power_source_change \
-           # --add item media center \
-           # --set media label.max_chars=58 \
-           #             icon.padding_left=0 \
-           #             scroll_texts=on \
-           #             icon=""             \
-           #             label.font.style="Normal" \
-           #             background.drawing=true \
-           #             script="$PLUGIN_DIR/media.sh" \
-           # --subscribe media media_change \
-
-           # --add item sep1 right \
-           # --set sep1 icon="|" icon.font.style="Normal" icon.padding_left=10 icon.color=0x95DCD7BA \
-           # --add item cpu right \
-           # --set cpu  update_freq=2 \
-           #            icon="cpu ~"  \
-           #            script="$PLUGIN_DIR/cpu.sh" \
+sketchybar --add item sep_laptop_left center \
+           --set sep_laptop_left \
+                 icon="{" \
+                 icon.y_offset=2 \
+                 icon.padding_left=2 \
+                 icon.padding_right=1 \
+                 icon.color=0x80EDEDED \
+                 label.drawing=off \
+                 icon.font.style="Normal"
+for sid in "1~" "2~"; do
+    sketchybar --add item space.$sid center \
+        --subscribe space.$sid aerospace_workspace_change \
+        --set space.$sid \
+        icon="*" \
+        label.drawing=off \
+        icon.y_offset=2 \
+        click_script="aerospace workspace $sid" \
+        script="$PLUGIN_DIR/aerospace.sh"
+done
+sketchybar --add item sep_laptop_right center \
+           --set sep_laptop_right \
+                 icon="}" \
+                 icon.y_offset=2 \
+                 icon.padding_left=1 \
+                 icon.padding_right=2 \
+                 icon.color=0x80EDEDED \
+                 label.drawing=off \
+                 icon.font.style="Normal"
 
 ##### Force all scripts to run the first time (never do this in a script) #####
 sketchybar --update

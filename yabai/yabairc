@@ -1,18 +1,34 @@
+# yabai -m signal --add event=dock_did_restart action="sudo yabai --load-sa"
+
+yabai -m signal --add app='^Ghostty$' event=window_created action='yabai -m space --layout bsp'
+yabai -m signal --add app='^Ghostty$' event=window_destroyed action='yabai -m space --layout bsp'
+
+yabai -m rule --add app="^System Settings$" manage=off
+yabai -m rule --add app="^Messages$" manage=off
+yabai -m rule --add app="^Finder$" manage=off
+yabai -m rule --add app="^Preview$" manage=off
+yabai -m rule --add app="^Music$" manage=off
+yabai -m rule --add app="^Discord$" manage=off
+yabai -m rule --apply
+
 # bsp or float (default: float)
 yabai -m config layout bsp
 
 # New window spawns to the right if vertical split, or bottom if horizontal split
 yabai -m config window_placement second_child
 
-# Set all padding and gaps to 20pt (default: 0)
-yabai -m config top_padding    6
-yabai -m config bottom_padding 6
-yabai -m config left_padding   6
-yabai -m config right_padding  6
-yabai -m config window_gap     6
+# Set all padding and gaps (default: 0)
+yabai -m config top_padding    18
+yabai -m config bottom_padding 18
+yabai -m config left_padding   18
+yabai -m config right_padding  18
+yabai -m config window_gap     18
+
+# Floating point value between 0 and 1 (default: 0.5)
+yabai -m config split_ratio 0.5
 
 # set mouse interaction modifier key (default: fn)
-yabai -m config mouse_modifier alt
+yabai -m config mouse_modifier cmd
 
 # set modifier + left-click drag to move window (default: move)
 yabai -m config mouse_action1 move
@@ -22,23 +38,12 @@ yabai -m config mouse_action2 resize
 
 # window opacity (default: off)
 # example: render all unfocused windows with 90% opacity
-yabai -m config window_opacity on
-yabai -m config active_window_opacity 1.0
-yabai -m config normal_window_opacity 0.9
+# yabai -m config window_opacity on
+# yabai -m config active_window_opacity 1.0
+# yabai -m config normal_window_opacity 0.9
 
 yabai -m mouse_drop_action swap
 
 # borders &
 
-yabai -m rule --add app="^System Settings$" manage=off
-yabai -m rule --add app="^Messages$" manage=off
-yabai -m rule --add app="^Finder$" manage=off
-yabai -m rule --add app="^Preview$" manage=off
-yabai -m rule --add app="^Music$" manage=off
-yabai -m rule --add app="^Jagex Launcher$" manage=off
-yabai -m rule --add app="^Discord$" manage=off
-yabai -m rule --add app="^RuneLite$" manage=off
-yabai -m config external_bar all:24:0
-
-yabai -m signal --add app='^Ghostty$' event=window_created action='yabai -m space --layout bsp'
-yabai -m signal --add app='^Ghostty$' event=window_destroyed action='yabai -m space --layout bsp'
+# yabai -m config external_bar all:24:0

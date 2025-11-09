@@ -17,22 +17,14 @@ case "${PERCENTAGE}" in
   # [1-2][0-9]) ICON=""
   # ;;
   # *) ICON=""
-  9[0-9]|100) ICON="battery ~"
-  ;;
-  [6-8][0-9]) ICON="battery ~"
-  ;;
-
-  [3-5][0-9]) ICON="battery ~"
-  ;;
-  [1-2][0-9]) ICON="battery ~"
-  ;;
-  *) ICON="battery ~"
 esac
 
+ICON="[battery:"
+
 if [[ "$CHARGING" != "" ]]; then
-  ICON="charging ~"
+  ICON="[charging:"
 fi
 
 # The item invoking this script (name $NAME) will get its icon and label
 # updated with the current battery status
-sketchybar --set "$NAME" icon="$ICON" label="${PERCENTAGE}%"
+sketchybar --set "$NAME" icon="$ICON" label="${PERCENTAGE}%]"

@@ -19,7 +19,7 @@ cursor-style-blink = false
 # window-vsync = false
 
 window-padding-x = 10
-window-padding-y = 10, 6
+window-padding-y = 12
 
 # bold-is-bright = true
 
@@ -35,16 +35,25 @@ resize-overlay = never
 
 font-size = 15
 # adjust-cell-width = 2%
-adjust-cell-height = 4%
+# adjust-cell-height = 4%
 # font-feature = -calt
-font-thicken = true
-font-thicken-strength = 0
+# font-thicken = true
+# font-thicken-strength = 0
 # font-family = "JetBrainsMono Nerd Font"
-font-family = "Lilex"
 # font-family = "Fantasque Sans Mono"
 # font-family = "CommitMono"
 # font-family = "ComicShanns Nerd Font"
 # font-family = "0xProto"
+
+# lilex-specific config
+font-family = "Lilex"
+adjust-cell-height = 4%
+font-thicken = true
+font-thicken-strength = 0
+font-feature = +cv01
+font-feature = +cv02
+font-feature = +cv09
+font-feature = +zero
 
 # keybind = cmd+ctrl+j=new_split:down
 # keybind = cmd+ctrl+l=new_split:right
@@ -60,9 +69,9 @@ font-family = "Lilex"
 # keybind = cmd+shift+opt+l=resize_split:right,20
 
 keybind = cmd+shift+x=close_surface
-keybind = cmd+w=close_window
+# keybind = cmd+w=close_window
 keybind = cmd+q=quit
-keybind = cmd+shift+f=toggle_fullscreen
-keybind = cmd+shift+s=reload_config
+# keybind = cmd+shift+f=toggle_fullscreen
+keybind = cmd+shift+r=reload_config
 
 keybind = global:cmd+shift+e=toggle_quick_terminal

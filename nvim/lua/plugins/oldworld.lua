@@ -6,7 +6,7 @@ return {
     config = function()
       require("oldworld").setup({
         terminal_colors = false,        -- enable terminal colors
-        variant = "default",            -- default, oled, cooler
+        variant = "cooler",            -- default, oled, cooler
         styles = {                      -- You can pass the style using the format: style = true
           comments = { italic = true }, -- style for comments
           keywords = { bold = false },  -- style for keywords
@@ -41,8 +41,9 @@ return {
           -- Variable = { fg = "#938AA9" },
           Normal = { bg = 'none' },
           NormalFloat = { bg = 'none' },
-          -- FloatBorder = { bg = 'none' },
-          -- Pmenu = { bg = 'none' },
+          FloatBorder = { bg = 'none' },
+          Pmenu = { bg = 'none' },
+          NeoTreeFloatTitle = { bg = 'none' }
         },
       })
       vim.cmd("colorscheme oldworld")

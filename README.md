@@ -1,28 +1,42 @@
 ## my dotfiles
-though every application has a pretty minimal config, don't expect it to work on your machine without some tinkering.
 
-### features
-wm: yabai, sway (linux)
+many changes, will update soon
+
+### things
+
+#### macos
+
+wm: aerospace (todo: describe features)
 
 shell: zsh
 
+tmux: yes (todo: describe features)
+
 prompt: ohmyposh
 
-editor: nvim
+editor: nvim (todo: add plugins)
 
-terminal: ghostty (primary), wezterm
+terminal: ghostty
 
 top bar: sketchybar
 
-keybindings: skhd
+borders: jankyborders
 
-colorscheme: kanagawa
+colorscheme: custom oldworld
 
-font: 0xproto
+font: lilex
 
-![dotfiles](https://github.com/user-attachments/assets/1ebfd7b5-29e4-4937-8120-78a7a5f52cae)
+keybindings and app switching: raycast
 
-configs to add:
-- nixos
-- hyprland
-- kitty
+cool tools and things used:
+- opencode
+- k9s
+- orbstack
+- betterdisplay
+- eza
+- lazygit
+- lazydocker
+
+#### nixos
+
+soon

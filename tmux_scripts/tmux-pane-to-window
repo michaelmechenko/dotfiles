@@ -1,0 +1,52 @@
+#!/bin/sh
+
+set -e
+
+# Get current pane ID and session
+CURRENT_PANE="$(tmux display-message -p '#{pane_id}')"
+CURRENT_SESSION="$(tmux display-message -p '#{session_name}')"
+
+# List windows in current session with paths
+tmux list-windows -F '#{window_index} #{pane_current_path}' \
+| awk -v pane="$CURRENT_PANE" -v session="$CURRENT_SESSION" -v HOME="$HOME" 'BEGIN {ORS=" "} {
+    window_index = $1
+    path = $2
+    target = session ":" window_index
+    
+    # Replace home directory with ~
+    if (index(path, HOME) == 1) {
+        path = "~" substr(path, length(HOME) + 1)
+    }
+    
+    # Split path into components
+    split(path, parts, "/")
+    
+    # Count non-empty parts
+    count = 0
+    for (i in parts) {
+        if (parts[i] != "") count++
+    }
+    
+    # Build display path with max 2 directories
+    result = ""
+    if (count <= 2) {
+        # Show full path if 2 or fewer components
+        result = path
+    } else {
+        # Show last 2 components with ".." prefix
+        result = "../"
+        start = count - 1
+        counter = 0
+        for (i = 1; i <= length(parts); i++) {
+            if (parts[i] != "") {
+                counter++
+                if (counter >= start) {
+                    if (result != "../") result = result "/"
+                    result = result parts[i]
+                }
+            }
+        }
+    }
+    
+    print result, window_index, "\"join-pane -s", pane, "-t", target "\""
+}' | xargs tmux display-menu -T "move pane to window" -b "rounded"

@@ -6,7 +6,6 @@ options=(
 	hidpi=true
 	active_color=0xffe0ded5
   inactive_color=0xff1f1f28
-  ax_focus=false
 )
 
 borders "${options[@]}"

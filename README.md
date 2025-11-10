@@ -8,6 +8,8 @@ many changes, will update soon
 
 wm: aerospace (todo: describe features)
 
+floating window management: rectangle pro
+
 shell: zsh
 
 tmux: yes (todo: describe features)

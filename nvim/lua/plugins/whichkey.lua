@@ -4,6 +4,7 @@ local function show_diagnostics()
     signs = true,
     underline = true,
   })
+  vim.cmd("echo 'diagnostics enabled'")
 end
 
 local function hide_diagnostics()
@@ -12,6 +13,7 @@ local function hide_diagnostics()
     signs = false,
     underline = false,
   })
+  vim.cmd("echo 'diagnostics hidden'")
 end
 
 return {
@@ -414,12 +416,12 @@ return {
         desc = "live grep",
       },
 
-      -- undotree
-      {
-        "<leader>u",
-        "<cmd>UndotreeToggle<CR>",
-        desc = "undotree window",
-      },
+      -- -- undotree
+      -- {
+      --   "<leader>u",
+      --   "<cmd>UndotreeToggle<CR>",
+      --   desc = "undotree window",
+      -- },
 
       -- hover
       { "<leader>h", group = "hover" },

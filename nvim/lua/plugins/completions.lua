@@ -85,14 +85,22 @@ return {
         documentation = {
           auto_show = true,
           auto_show_delay_ms = 800,
-          window = { border = 'single', scrollbar = false, }
+          window = { border = 'single', scrollbar = true, }
         },
         ghost_text = {
-          enabled = true
+          enabled = true,
+          -- Show the ghost text when an item has been selected
+          show_with_selection = true,
+          -- Show the ghost text when no item has been selected, defaulting to the first item
+          show_without_selection = false,
+          -- Show the ghost text when the menu is open
+          show_with_menu = true,
+          -- Show the ghost text when the menu is closed
+          show_without_menu = false,
         },
         list = {
           selection = {
-            preselect = true, auto_insert = false
+            preselect = false, auto_insert = false
           }
         }
       },

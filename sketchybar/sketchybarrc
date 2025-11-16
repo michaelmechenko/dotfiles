@@ -45,12 +45,6 @@ sketchybar --add event aerospace_workspace_change
 # sketchybar --add item sep_right center \
 #            --set sep_right icon="}" icon.y_offset=2 icon.padding_left=2 icon.padding_right=2 icon.color=0x80EDEDED label.drawing=off icon.font.style="Normal"\
 
-#
-# CURRENTLY: {*}{***}{*} 
-# left/right blocks represent workspaces 1^ and 2^ respectively
-# uncomment where necessary to revert
-#
-
 # LEFT BLOCK - Secondary monitor workspaces (1^, 2^)
 
 sketchybar --add item sep_secondary_left center \
@@ -62,12 +56,11 @@ sketchybar --add item sep_secondary_left center \
                  icon.color=0x80EDEDED \
                  label.drawing=off \
                  icon.font.style="Normal"
-# for sid in "1^" "2^"; do
-for sid in "1^"; do
+for sid in "1^" "2^"; do
     sketchybar --add item space.$sid center \
         --subscribe space.$sid aerospace_workspace_change \
         --set space.$sid \
-        icon="*" \
+        icon="^" \
         label.drawing=off \
         icon.y_offset=2 \
         click_script="aerospace workspace $sid" \
@@ -125,12 +118,11 @@ sketchybar --add item sep_laptop_left center \
                  icon.color=0x80EDEDED \
                  label.drawing=off \
                  icon.font.style="Normal"
-# for sid in "1~" "2~"; do
-for sid in "2^"; do
+for sid in "1~"; do
     sketchybar --add item space.$sid center \
         --subscribe space.$sid aerospace_workspace_change \
         --set space.$sid \
-        icon="*" \
+        icon="~" \
         label.drawing=off \
         icon.y_offset=2 \
         click_script="aerospace workspace $sid" \

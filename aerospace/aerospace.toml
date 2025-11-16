@@ -135,7 +135,7 @@ automatically-unhide-macos-hidden-apps = false
     cmd-ctrl-1 = 'workspace 1^'
     cmd-ctrl-2 = 'workspace 2^'
 
-    cmd-ctrl-3 = 'workspace 1~'
+    cmd-alt-1 = 'workspace 1~'
     # cmd-alt-2 = 'workspace 2~'
 
     cmd-semicolon = 'workspace prev'
@@ -153,8 +153,8 @@ automatically-unhide-macos-hidden-apps = false
     cmd-shift-ctrl-1 = 'move-node-to-workspace --focus-follows-window 1^'
     cmd-shift-ctrl-2 = 'move-node-to-workspace --focus-follows-window 2^'
 
-    cmd-shift-ctrl-3 = 'move-node-to-workspace --focus-follows-window 1~'
-    # cmd-shift-ctrl-4 = 'move-node-to-workspace --focus-follows-window 2~'
+    cmd-shift-alt-1 = 'move-node-to-workspace --focus-follows-window 1~'
+    # cmd-shift-alt-2 = 'move-node-to-workspace --focus-follows-window 2~'
 
     # See: https://nikitabobko.github.io/AeroSpace/commands#workspace-back-and-forth
     # cmd-tab = 'workspace-back-and-forth'

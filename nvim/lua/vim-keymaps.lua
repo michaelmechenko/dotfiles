@@ -5,10 +5,35 @@ vim.cmd([[
     augroup END
 ]])
 
--- vim.cmd([[
---   aunmenu PopUp
---   autocmd! nvim.popupmenu
--- ]])
+vim.opt.mousemodel = "popup"
+vim.api.nvim_del_augroup_by_name('nvim.popupmenu')
+vim.cmd([[
+  silent! aunmenu PopUp
+
+  anoremenu PopUp.file\ explorer\ (toggle)            <Cmd>Neotree toggle right<CR>
+  vnoremenu PopUp.copy                                "+y
+  anoremenu PopUp.paste                               "+gP
+  vnoremenu PopUp.paste                               "+P
+  anoremenu PopUp.copy\ absolute\ path                <Cmd>let @+=expand('%:p')<CR>
+
+  anoremenu PopUp.-1-                                 <Nop>
+
+  " Buffer operations
+  anoremenu PopUp.buffer:\ create\ new                <Cmd>enew<CR>
+  anoremenu PopUp.buffer:\ goto\ next                 <Cmd>bnext<CR>
+  anoremenu PopUp.buffer:\ goto\ prev                 <Cmd>bprev<CR>
+  anoremenu PopUp.buffer:\ delete                     <Cmd>bdelete<CR>
+
+  anoremenu PopUp.-2-                                 <Nop>
+
+  " LSP operations
+  anoremenu PopUp.lsp:\ format                        <Cmd>lua vim.lsp.buf.format()<CR>
+  anoremenu PopUp.lsp:\ hover                         <Cmd>lua vim.lsp.buf.hover()<CR>
+  anoremenu PopUp.lsp:\ goto\ definition              <Cmd>lua vim.lsp.buf.definition()<CR>
+  anoremenu PopUp.lsp:\ goto\ declaration             <Cmd>lua vim.lsp.buf.declaration()<CR>
+  anoremenu PopUp.lsp:\ goto\ implementation          <Cmd>lua vim.lsp.buf.implementation()<CR>
+  anoremenu PopUp.lsp:\ show\ signature               <Cmd>lua vim.lsp.buf.signature_help()<CR>
+]])
 
 vim.cmd("set notermsync")
 vim.cmd("set noswapfile")
@@ -21,15 +46,6 @@ vim.cmd("set softtabstop=2")
 vim.cmd("set shiftwidth=2")
 
 
--- vim.keymap.set("n", '<C-k>', function() vim.lsp.buf.signature_help() end, {})
--- vim.keymap.set("i", '<C-l>', function() vim.lsp.buf.signature_help() end, {})
--- vim.lsp.handlers['textDocument/signatureHelp'] = vim.lsp.with(
---   vim.lsp.handlers['signature_help'], {
---     border = 'single',
---     close_events = { "CursorMoved", "BufHidden", "InsertCharPre" },
---   }
--- )
-
 -- yanking/pasting to global register
 vim.keymap.set("n", "P", '"+p', {})
 vim.keymap.set("n", "Y", '"+y', {})
@@ -37,9 +53,9 @@ vim.keymap.set("v", "P", '"+p', {})
 vim.keymap.set("v", "Y", '"+y', {})
 
 -- buffer remaps
-vim.keymap.set("n", "<leader>bd", "<CR>:bd<CR>", {})
-vim.keymap.set("n", "<leader>bc", "<CR>:bprev<CR>", {})
-vim.keymap.set("n", "<leader>bv", "<CR>:bnext<CR>", {})
+-- vim.keymap.set("n", "<leader>bd", "<CR>:bd<CR>", {})
+-- vim.keymap.set("n", "<leader>bc", "<CR>:bprev<CR>", {})
+-- vim.keymap.set("n", "<leader>bv", "<CR>:bnext<CR>", {})
 
 -- window management
 vim.keymap.set("n", "<leader>we", "<C-w>=", {})

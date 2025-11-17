@@ -11,7 +11,7 @@ return {
           comments = { italic = true }, -- style for comments
           keywords = { bold = false },  -- style for keywords
           identifiers = {},             -- style for identifiers
-          functions = { bold = false },  -- style for functions
+          functions = { italic = true, bold = false },  -- style for functions
           variables = { bold = false }, -- style for variables
           booleans = {italic = true},                -- style for booleans
         },

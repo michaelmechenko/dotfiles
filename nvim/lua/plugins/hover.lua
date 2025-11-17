@@ -24,7 +24,6 @@ return {
     })
   end,
   config = function()
-    -- move to whichkey
     vim.keymap.set("n", "<leader>k", require("hover").hover, { desc = "hover" })
 
     vim.keymap.set('n', '<leader>K',

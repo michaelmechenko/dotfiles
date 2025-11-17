@@ -63,18 +63,18 @@ local filetype_spacing = {
         },
       },
     },
-    lualine_z = {
-      {
-        "filename",
-        path = 3,
-        shorting_target = 40, -- Shortens path to leave 40 spaces in the window
-        padding = { left = 0 },
-        color = { fg = oldworld_override.normal.b.fg, bg = "None" },
-        fmt = function(str)
-          return string.match(str, "([^%s]+)"):gsub("neo%-tree$", "")
-        end
-      },
-    }
+    -- lualine_z = {
+    --   {
+    --     "filename",
+    --     path = 3,
+    --     shorting_target = 40, -- Shortens path to leave 40 spaces in the window
+    --     padding = { left = 0 },
+    --     color = { fg = oldworld_override.normal.b.fg, bg = "None" },
+    --     fmt = function(str)
+    --       return string.match(str, "([^%s]+)"):gsub("neo%-tree$", "")
+    --     end
+    --   },
+    -- }
   },
   -- vim.bo.filetype
   filetypes = { 'neo-tree', 'lazygit', 'codecompanion' }

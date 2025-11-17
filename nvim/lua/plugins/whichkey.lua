@@ -61,8 +61,9 @@ return {
 
       -- buffers
       { "<leader>b",   group = "buffers" },
-      { "<leader>bc",  desc = "prev buf" },
-      { "<leader>bv",  desc = "next buf" },
+      { "<leader>bd",  "<Cmd>bdelete<CR>", desc = "delete buf" },
+      { "<leader>bc",  "<Cmd>bprev<CR>", desc = "prev buf" },
+      { "<leader>bv",  "<Cmd>bnext<CR>", desc = "next buf" },
 
       -- codecomp
       { "<leader>a",   group = "codecomp" },
@@ -258,6 +259,12 @@ return {
         end,
         desc = "quickfix",
       },
+
+      -- dropbar
+      { "<leader>;",  group = "dropbar" },
+
+      -- hover menu
+      { "<leader>k",  group = "hover" },
 
       -- lsp
       { "<leader>l",  group = "lsp" },

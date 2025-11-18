@@ -203,6 +203,10 @@ automatically-unhide-macos-hidden-apps = false
     run = 'layout floating'
 
 [[on-window-detected]]
+    if.app-id = 'md.obsidian'
+    run = 'layout floating'
+
+[[on-window-detected]]
     if.app-id = 'org.m0k.transmission'
     run = 'layout floating'
 

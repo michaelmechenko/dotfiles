@@ -2,7 +2,11 @@
 
 set -e
 
-tmux list-sessions -F '#S' \
-| grep -v '^float$' \
-| awk 'BEGIN {ORS=" "} {print $1, NR, "\"switch-client -t", $1 "\""}' \
-| xargs tmux display-menu -T "choose session" -b "rounded"
+tmux list-sessions -F '#S #{session_windows}' \
+| grep -v '^float ' \
+| awk 'BEGIN {ORS=" "} {
+    windows = $2
+    window_text = windows == 1 ? "window" : "windows"
+    print "\"" $1, "[" windows, window_text "]\"", NR, "\"switch-client -t", $1 "\""
+}' \
+| xargs tmux display-menu -T "#[align=centre]choose session" -b "rounded"

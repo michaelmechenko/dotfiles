@@ -2,9 +2,9 @@
 
 set -e
 
-tmux list-windows -F '#{window_id} #{window_index} #{pane_current_path}' \
+tmux list-windows -F '#{window_id} #{window_index} #{pane_current_command} #{pane_current_path}' \
 | awk -v HOME="$HOME" 'BEGIN {ORS=" "} {
-    path = $3
+    path = $4
     
     # Replace home directory with ~
     if (index(path, HOME) == 1) {
@@ -41,6 +41,6 @@ tmux list-windows -F '#{window_id} #{window_index} #{pane_current_path}' \
         }
     }
     
-    print result, $2, "\"select-window -t", $1 "\""
+    print "\"" $3, "[" result "]\"", $2, "\"select-window -t", $1 "\""
 }' \
-| xargs tmux display-menu -T "choose window" -b "rounded"
+| xargs tmux display-menu -T "#[align=centre]choose window" -b "rounded"

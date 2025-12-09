@@ -10,15 +10,15 @@ shell-integration = none
 cursor-style = underline
 cursor-style-blink = false
 
-# background-opacity = 0.95
-# background-blur-radius = 15
+# background-opacity = 0.98
+# background-blur-radius = 50
 # unfocused-split-opacity = 0.75
 # custom-shader = bloom.glsl
 
 # window-theme = auto
 # window-vsync = false
 
-window-padding-x = 10
+window-padding-x = 12
 window-padding-y = 8
 
 # bold-is-bright = true
@@ -34,8 +34,8 @@ macos-icon-screen-color = #9893a5
 resize-overlay = never
 
 font-size = 15
-# adjust-cell-width = 2%
-# adjust-cell-height = 4%
+# adjust-cell-width = 4%
+# adjust-cell-height = 2%
 # font-feature = -calt
 # font-thicken = true
 # font-thicken-strength = 0
@@ -50,6 +50,7 @@ font-family = "Lilex"
 font-thicken = true
 adjust-cell-height = 2%
 font-thicken-strength = 0
+font-feature = -calt
 font-feature = +cv01
 font-feature = +cv02
 font-feature = +cv09

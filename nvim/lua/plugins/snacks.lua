@@ -58,7 +58,6 @@ return {
             { icon = "-", key = "c", desc = "config",  action = ":lua Snacks.dashboard.pick('files', {cwd = vim.fn.stdpath('config')})" },
             { icon = "-", key = "l", desc = "lazy",    action = ":Lazy",                                                                enabled = package.loaded.lazy ~= nil },
             { icon = "-", key = "m", desc = "mason",   action = ":Mason",                                                               enabled = package.loaded.lazy ~= nil },
-            { icon = "-", key = "M", desc = "mcp hub", action = ":MCPHub",                                                              enabled = package.loaded.lazy ~= nil },
             { icon = "-", key = "q", desc = "quit",    action = ":qa" },
           },
           header = [[notepad--]],
@@ -66,10 +65,10 @@ return {
         sections = {
           { section = "header",       padding = 2 },
           { section = "keys",         gap = 1,    indent = 0, padding = 1 },
-          { title = "recents",        padding = 1 },
-          { section = "recent_files", indent = 2, limit = 5,  padding = 1 },
           { title = "recents [cwd]",  padding = 1 },
           { section = "recent_files", cwd = true, indent = 2, limit = 5,  padding = 1 },
+          { title = "recents",        padding = 1 },
+          { section = "recent_files", indent = 2, limit = 5,  padding = 1 },
         },
       },
 

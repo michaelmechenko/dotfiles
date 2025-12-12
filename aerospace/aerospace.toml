@@ -188,7 +188,7 @@ automatically-unhide-macos-hidden-apps = false
     # main monitor
     "1*" = 'main'                     
     "2*" = 'main'                     
-    "3*" = 'main'                     
+    # "3*" = 'main'                     
 
     # monitor 2
     "1^" = ['dell', 'built-in']
@@ -196,51 +196,51 @@ automatically-unhide-macos-hidden-apps = false
 
     # laptop screen
     "1~" = 'built-in'
-    "2~" = 'built-in'
+    # "2~" = 'built-in'
 
 [[on-window-detected]]
     if.app-id = 'com.1password.1password'
     run = 'layout floating'
 
-[[on-window-detected]]
-    if.app-id = 'md.obsidian'
-    run = 'layout floating'
+# [[on-window-detected]]
+#     if.app-id = 'md.obsidian'
+#     run = 'layout floating'
 
-[[on-window-detected]]
-    if.app-id = 'org.m0k.transmission'
-    run = 'layout floating'
+# [[on-window-detected]]
+#     if.app-id = 'org.m0k.transmission'
+#     run = 'layout floating'
 
 [[on-window-detected]]
     if.app-id = 'com.vmware.fusion'
     run = 'layout floating'
 
-[[on-window-detected]]
-    if.app-id = 'com.hnc.Discord'
-    run = 'layout floating'
+# [[on-window-detected]]
+#     if.app-id = 'com.hnc.Discord'
+#     run = 'layout floating'
 
 [[on-window-detected]]
     if.app-id = 'com.apple.systempreferences'
     run = 'layout floating'
 
-[[on-window-detected]]
-    if.app-id = 'com.tinyspeck.slackmacgap'
-    run = 'layout floating'
+# [[on-window-detected]]
+#     if.app-id = 'com.tinyspeck.slackmacgap'
+#     run = 'layout floating'
 
 [[on-window-detected]]
     if.app-id = 'com.apple.Notes'
     run = 'layout floating'
 
-[[on-window-detected]]
-    if.app-id = 'com.apple.Music'
-    run = 'layout floating'
+# [[on-window-detected]]
+#     if.app-id = 'com.apple.Music'
+#     run = 'layout floating'
 
 [[on-window-detected]]
     if.app-id = 'com.apple.MobileSMS'
     run = 'layout floating'
 
-[[on-window-detected]]
-    if.app-id = 'com.apple.iCal'
-    run = 'layout floating'
+# [[on-window-detected]]
+#     if.app-id = 'com.apple.iCal'
+#     run = 'layout floating'
 
 [[on-window-detected]]
     if.app-id = 'com.apple.finder'

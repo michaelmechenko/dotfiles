@@ -2,9 +2,10 @@
 # theme = catppuccin-mocha
 # theme = Kanagawa Wave
 # theme = oldworld
-theme = Vague
+theme = vague
 
-shell-integration = none
+shell-integration = detect
+shell-integration-features = no-cursor, sudo, ssh-env, ssh-terminfo
 
 cursor-style = underline
 cursor-style-blink = false
@@ -24,6 +25,7 @@ window-padding-y = 8
 
 # macos-titlebar-style = tabs
 macos-titlebar-style = hidden
+# macos-window-shadow = false
 macos-titlebar-proxy-icon = hidden
 macos-icon = custom-style
 macos-icon-frame = plastic
@@ -34,25 +36,69 @@ resize-overlay = never
 
 font-size = 15
 # adjust-cell-width = 2%
-# adjust-cell-height = 14%
+# adjust-font-baseline = 0
+# adjust-cell-height = 4%
 # font-feature = -calt
 # font-thicken = true
 # font-thicken-strength = 0
 # font-family = "JetBrainsMono Nerd Font"
-# font-family = "Fantasque Sans Mono"
 # font-family = "ComicShanns Nerd Font"
 # font-family = "0xProto"
 
 # lilex-specific config
-font-family = "Lilex"
+# font-family = "Lilex"
+# adjust-cell-height = 2%
+# font-thicken = true
+# font-thicken-strength = 0
+# font-feature = -calt
+# font-feature = +cv01
+# font-feature = +cv02
+# font-feature = +cv09
+# font-feature = +zero
+
+# commitmono-specific config
+font-family = "CommitMono"
 font-thicken = true
-adjust-cell-height = 2%
 font-thicken-strength = 0
-font-feature = -calt
+adjust-cell-height = 22%
+# -----
+# features
+# -----
+# Ligatures <= != === 
+font-feature = +ss01
+# Arrows >-> =>
+font-feature = +ss02
+# Smart case (1:1) 2+3
+font-feature = +ss03
+# Symbol spacing ... <<
+# font-feature = +ss04
+# Smart kerning (immi)
+# font-feature = +ss05
+# -----
+# alternative characters
+# -----
+# Alt. 'a'
 font-feature = +cv01
-font-feature = +cv02
-font-feature = +cv09
-font-feature = +zero
+# Alt. 'g'
+# font-feature = +cv02
+# Square dots .:ij
+# font-feature = +cv03
+# Alt. 'i'
+# font-feature = +cv04
+# Standard @
+# font-feature = +cv05
+# Alt. '6', '9'
+font-feature = +cv06
+# Dotted 0
+# font-feature = +cv07
+# Alt. italic 'aefgy'
+font-feature = +cv08
+# Lifted *
+# font-feature = +cv09
+# Alt. l
+# font-feature = +cv10
+# Alt. 1
+font-feature = +cv11
 
 # keybind = cmd+ctrl+j=new_split:down
 # keybind = cmd+ctrl+l=new_split:right
@@ -73,4 +119,5 @@ keybind = cmd+q=quit
 # keybind = cmd+shift+f=toggle_fullscreen
 keybind = cmd+shift+r=reload_config
 
+quick-terminal-position = bottom
 keybind = global:cmd+shift+e=toggle_quick_terminal

@@ -25,7 +25,9 @@ return {
           "dockerls",
           -- "gopls",
           "html",
-          "biome",
+          -- "biome",
+          "eslint",
+          "ts_ls",
           "pyright",
           "svelte",
           "tailwindcss",
@@ -47,7 +49,9 @@ return {
       vim.lsp.enable('clangd')
       vim.lsp.enable('dockerls')
       vim.lsp.enable('html')
-      vim.lsp.enable('biome')
+      -- vim.lsp.enable('biome')
+      vim.lsp.enable('eslint')
+      vim.lsp.enable('ts_ls')
       vim.lsp.enable('pyright')
       vim.lsp.enable('svelte')
       vim.lsp.enable('tailwindcss')

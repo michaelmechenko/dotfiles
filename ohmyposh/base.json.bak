@@ -1,66 +1,75 @@
 {
   "$schema": "https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/schema.json",
+  "transient_prompt": {
+    "template": "\udb85\udd45 ",
+    "foreground": "#AEAED1",
+    "background": "transparent"
+  },
   "blocks": [
     {
+      "type": "prompt",
       "alignment": "left",
       "segments": [
         {
-          "foreground": "#c4a7e7",
-          "style": "plain",
-          "template": "@{{ .UserName }} ",
-          "type": "session"
+          "properties": {
+            "cache_duration": "none"
+          },
+          "template": "\udb85\udf42 {{ .UserName }} ",
+          "foreground": "#AEAED1",
+          "type": "session",
+          "style": "plain"
         },
         {
-          "foreground": "#b4637a",
           "properties": {
-            "style": "agnoster_short",
-            "max_depth": 3
+            "cache_duration": "none",
+            "max_depth": 3,
+            "style": "agnoster_short"
           },
-          "style": "plain",
           "template": "\udb84\udf76 '{{ .Path }}' ",
-          "type": "path"
+          "foreground": "#DF8297",
+          "type": "path",
+          "style": "plain"
         },
         {
-          "foreground": "#907aa9",
           "properties": {
-            "branch_icon": ""
+            "branch_icon": "",
+            "cache_duration": "none"
           },
-          "style": "plain",
-          "template": "\udb84\udf75 <#E8CC97>git(</>{{ .HEAD }}<#E8CC97>) </>",
-          "type": "git"
+          "template": "<#F5CC96>\udb84\udf75 '</>{{ .HEAD }}<#F5CC96>' </>",
+          "foreground": "#BB9DBD",
+          "type": "git",
+          "style": "plain"
         },
         {
-          "foreground": "#FFAB91",
           "properties": {
             "always_enabled": false,
+            "cache_duration": "none",
             "style": "austin",
-            "threshold": 150
+            "threshold": 30000
           },
-          "style": "powerline",
           "template": "{{ .FormattedMs }}",
-          "type": "executiontime"
+          "foreground": "#8BA9C1",
+          "type": "executiontime",
+          "style": "powerline"
         }
-      ],
-      "type": "prompt"
+      ]
     },
     {
+      "type": "prompt",
       "alignment": "left",
-      "newline": true,
       "segments": [
         {
-          "style": "plain",
-          "template": "\udb85\udf42",
-          "type": "text"
+          "properties": {
+            "cache_duration": "none"
+          },
+          "template": "\udb83\udd72",
+          "type": "text",
+          "style": "plain"
         }
       ],
-      "type": "prompt"
+      "newline": true
     }
   ],
-  "transient_prompt": {
-    "foreground": "#c4a7e7",
-    "background": "transparent",
-    "template": "\udb85\udd45 "
-  },
-  "final_space": true,
-  "version": 2
+  "version": 3,
+  "final_space": true
 }

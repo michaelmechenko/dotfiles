@@ -35,7 +35,7 @@ local filetype_spacing = {
         hide_filename_extension = false, -- Hide filename extension when set to true.
         show_modified_status = true,     -- Shows indicator when the buffer is modified.
         padding = { left = 1, right = 1 },
-        -- use_mode_colors=true,
+        use_mode_colors = false,
 
         mode = 1,
         -- 0: Shows buffer name
@@ -58,7 +58,7 @@ local filetype_spacing = {
           },
           inactive = {
             bg = "None", --[[ fg = "#9CABCA", ]]
-            fg = "c9c7cd",
+            fg = "5A5A70",
           },
         },
       },
@@ -86,7 +86,7 @@ return {
   config = function()
     require("lualine").setup({
       options = {
-        theme = oldworld_override,
+        -- theme = oldworld_override,
         component_separators = '',
         section_separators = '',
         ignore_focus = {},
@@ -137,10 +137,12 @@ return {
             buffers_color = {
               active = {
                 bg = "None", --[[ fg = "#9CABCA", ]]
+                -- gui = "bold"
+                -- bg = "252530"
               },
               inactive = {
                 bg = "None", --[[ fg = "#9CABCA", ]]
-                fg = "c9c7cd",
+                fg = "5A5A70",
               },
             },
           },
@@ -157,7 +159,7 @@ return {
               newfile = '[new]', -- Text to show for newly created file before first write
             },
             color = {
-              fg = "c9c7cd"
+              -- fg = "c9c7cd"
             }
           },
         },

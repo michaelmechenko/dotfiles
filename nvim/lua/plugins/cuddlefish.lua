@@ -1,6 +1,7 @@
 return {
   {
     "comfysage/cuddlefish.nvim",
+    lazy = true,
     config = function()
       require("cuddlefish").setup({
         theme = {

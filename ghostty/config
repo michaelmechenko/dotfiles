@@ -1,9 +1,8 @@
 # theme = rose-pine
 # theme = catppuccin-mocha
 # theme = Kanagawa Wave
-# theme = kanagawabones
-# theme = Oxocarbon
-theme = oldworld
+# theme = oldworld
+theme = Vague
 
 shell-integration = none
 
@@ -34,14 +33,13 @@ macos-icon-screen-color = #9893a5
 resize-overlay = never
 
 font-size = 15
-# adjust-cell-width = 4%
-# adjust-cell-height = 2%
+# adjust-cell-width = 2%
+# adjust-cell-height = 14%
 # font-feature = -calt
 # font-thicken = true
 # font-thicken-strength = 0
 # font-family = "JetBrainsMono Nerd Font"
 # font-family = "Fantasque Sans Mono"
-# font-family = "CommitMono"
 # font-family = "ComicShanns Nerd Font"
 # font-family = "0xProto"
 

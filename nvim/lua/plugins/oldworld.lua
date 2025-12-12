@@ -1,7 +1,7 @@
 return {
   {
     "dgox16/oldworld.nvim",
-    lazy = false,
+    lazy = true,
     priority = 1000,
     config = function()
       require("oldworld").setup({
@@ -46,7 +46,7 @@ return {
           NeoTreeFloatTitle = { bg = 'none' }
         },
       })
-      vim.cmd("colorscheme oldworld")
+      -- vim.cmd("colorscheme oldworld")
     end,
   },
 }

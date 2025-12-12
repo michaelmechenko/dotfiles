@@ -12,9 +12,9 @@ return {
         -- null_ls.builtins.formatting.asmfmt,
         -- null_ls.builtins.formatting.latexindent,
         -- null_ls.builtins.formatting.stylua,
-        -- null_ls.builtins.formatting.prettier,
+        null_ls.builtins.formatting.prettier,
         null_ls.builtins.formatting.clang_format,
-        null_ls.builtins.formatting.biome,
+        -- null_ls.builtins.formatting.biome,
         null_ls.builtins.formatting.shfmt,
 
         -- diagnostics
@@ -35,7 +35,7 @@ return {
         null_ls.builtins.diagnostics.zsh,
 
         -- hover
-        null_ls.builtins.hover.printenv
+        -- null_ls.builtins.hover.printenv
       },
     })
   end,

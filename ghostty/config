@@ -37,13 +37,14 @@ resize-overlay = never
 font-size = 15
 # adjust-cell-width = 2%
 # adjust-font-baseline = 0
-# adjust-cell-height = 4%
-# font-feature = -calt
+adjust-cell-height = 2%
+font-feature = -calt
 # font-thicken = true
 # font-thicken-strength = 0
-# font-family = "JetBrainsMono Nerd Font"
+# font-family = "JetBrainsMono"
 # font-family = "ComicShanns Nerd Font"
 # font-family = "0xProto"
+
 
 # lilex-specific config
 # font-family = "Lilex"
@@ -57,13 +58,14 @@ font-size = 15
 # font-feature = +zero
 
 # commitmono-specific config
-font-family = "CommitMono"
-font-thicken = true
-font-thicken-strength = 0
-adjust-cell-height = 22%
-# -----
-# features
-# -----
+# font-family = "CommitMono"
+# font-thicken = true
+# font-thicken-strength = 0
+# adjust-cell-height = 22%
+font-family = "CommitMono-m1v1"
+# weight: 450, spacing: 0%, line height: 1.2
+# enabled: ss01/02/03/04/05
+# alternate: cv02/04/06/08/10/11
 # Ligatures <= != === 
 font-feature = +ss01
 # Arrows >-> =>
@@ -74,17 +76,14 @@ font-feature = +ss03
 # font-feature = +ss04
 # Smart kerning (immi)
 # font-feature = +ss05
-# -----
-# alternative characters
-# -----
 # Alt. 'a'
-font-feature = +cv01
+# font-feature = +cv01
 # Alt. 'g'
-# font-feature = +cv02
+font-feature = +cv02
 # Square dots .:ij
 # font-feature = +cv03
 # Alt. 'i'
-# font-feature = +cv04
+font-feature = +cv04
 # Standard @
 # font-feature = +cv05
 # Alt. '6', '9'
@@ -96,7 +95,7 @@ font-feature = +cv08
 # Lifted *
 # font-feature = +cv09
 # Alt. l
-# font-feature = +cv10
+font-feature = +cv10
 # Alt. 1
 font-feature = +cv11
 

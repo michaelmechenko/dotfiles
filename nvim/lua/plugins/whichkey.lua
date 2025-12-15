@@ -61,9 +61,9 @@ return {
 
       -- buffers
       { "<leader>b",   group = "buffers" },
-      { "<leader>bd",  "<Cmd>bdelete<CR>", desc = "delete buf" },
-      { "<leader>bc",  "<Cmd>bprev<CR>", desc = "prev buf" },
-      { "<leader>bv",  "<Cmd>bnext<CR>", desc = "next buf" },
+      { "<leader>bd",  "<Cmd>bdelete<CR>",             desc = "delete buf" },
+      { "<leader>bc",  "<Cmd>bprev<CR>",               desc = "prev buf" },
+      { "<leader>bv",  "<Cmd>bnext<CR>",               desc = "next buf" },
 
       -- codecomp
       { "<leader>a",   group = "codecomp" },
@@ -84,7 +84,12 @@ return {
       {
         "<leader>gs",
         "<cmd>Gitsigns toggle_linehl<CR><cmd>Gitsigns toggle_numhl<CR>",
-        desc = "gitsigns toggle all",
+        desc = "gitsigns toggle lines",
+      },
+      {
+        "<leader>gS",
+        "<cmd>Gitsigns toggle_signs<CR>",
+        desc = "gitsigns toggle sign column",
       },
       {
         "<leader>go",

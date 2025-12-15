@@ -11,8 +11,8 @@ if echo "$CURRENT_PANE" | grep -q '^float.*'; then
     tmux detach-client
 else
     if [ "$1" = "single" ]; then
-        tmux popup -d '#{pane_current_path}' -xC -yC -w$width -h$height -S "fg=#fac7cc" -E "tmux attach -t 'float' || tmux new -s 'float-$CURRENT_PANE'" || true
+        tmux popup -d '#{pane_current_path}' -xC -yC -w$width -h$height -S "fg=#f3be7b" -E "tmux attach -t 'float' || tmux new -s 'float-$CURRENT_PANE'" || true
     else
-        tmux popup -E -xC -yC -w$width -h$height -S "fg=#fac7cc" "tmux attach -t float || tmux new -s float" || true
+        tmux popup -E -xC -yC -w$width -h$height -S "fg=#f3be7b" "tmux attach -t float || tmux new -s float" || true
     fi
 fi

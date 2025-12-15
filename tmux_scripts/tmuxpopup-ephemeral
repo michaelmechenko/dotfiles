@@ -11,8 +11,8 @@ if echo "$CURRENT_PANE" | grep -q '^ephemeral.*'; then
     tmux kill-session
 else
     if [ "$1" = "single" ]; then
-        tmux popup -d '#{pane_current_path}' -xC -yC -w$width -h$height -S "fg=#bcc6e5" -E "tmux attach -t 'ephemeral' || tmux new -s 'ephemeral'" || true
+        tmux popup -d '#{pane_current_path}' -xC -yC -w$width -h$height -S "fg=#df8297" -E "tmux attach -t 'ephemeral' || tmux new -s 'ephemeral'" || true
     else
-        tmux popup -d '#{pane_current_path}' -xC -yC -h$width -w$height -S "fg=#bcc6e5" -E "tmux attach -t ephemeral || tmux new -s 'ephemeral'" || true
+        tmux popup -d '#{pane_current_path}' -xC -yC -h$width -w$height -S "fg=#df8297" -E "tmux attach -t ephemeral || tmux new -s 'ephemeral'" || true
     fi
 fi

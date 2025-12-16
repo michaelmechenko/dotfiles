@@ -135,8 +135,8 @@ automatically-unhide-macos-hidden-apps = false
     cmd-ctrl-1 = 'workspace 1^'
     cmd-ctrl-2 = 'workspace 2^'
 
-    cmd-alt-1 = 'workspace 1~'
-    cmd-alt-2 = 'workspace 2~'
+    cmd-alt-1 = 'workspace ~'
+    # cmd-alt-2 = 'workspace 2~'
 
     cmd-semicolon = 'workspace prev'
     cmd-quote = 'workspace next'
@@ -195,7 +195,7 @@ automatically-unhide-macos-hidden-apps = false
     "2^" = ['dell', 'built-in']
 
     # laptop screen
-    "1~" = 'built-in'
+    "~" = 'built-in'
     # "2~" = 'built-in'
 
 [[on-window-detected]]
@@ -206,42 +206,46 @@ automatically-unhide-macos-hidden-apps = false
 #     if.app-id = 'md.obsidian'
 #     run = 'layout floating'
 
-# [[on-window-detected]]
-#     if.app-id = 'org.m0k.transmission'
-#     run = 'layout floating'
+[[on-window-detected]]
+    if.app-id = 'org.m0k.transmission'
+    run = 'layout floating'
 
 [[on-window-detected]]
     if.app-id = 'com.vmware.fusion'
     run = 'layout floating'
 
-# [[on-window-detected]]
-#     if.app-id = 'com.hnc.Discord'
-#     run = 'layout floating'
+[[on-window-detected]]
+    if.app-id = 'com.hnc.Discord'
+    run = 'layout floating'
 
 [[on-window-detected]]
     if.app-id = 'com.apple.systempreferences'
     run = 'layout floating'
 
-# [[on-window-detected]]
-#     if.app-id = 'com.tinyspeck.slackmacgap'
-#     run = 'layout floating'
+[[on-window-detected]]
+    if.app-id = 'com.tinyspeck.slackmacgap'
+    run = 'layout floating'
 
 [[on-window-detected]]
     if.app-id = 'com.apple.Notes'
     run = 'layout floating'
 
-# [[on-window-detected]]
-#     if.app-id = 'com.apple.Music'
-#     run = 'layout floating'
+[[on-window-detected]]
+    if.app-id = 'com.apple.Music'
+    run = 'layout floating'
 
 [[on-window-detected]]
     if.app-id = 'com.apple.MobileSMS'
     run = 'layout floating'
 
-# [[on-window-detected]]
-#     if.app-id = 'com.apple.iCal'
-#     run = 'layout floating'
+[[on-window-detected]]
+    if.app-id = 'com.apple.iCal'
+    run = 'layout floating'
 
 [[on-window-detected]]
     if.app-id = 'com.apple.finder'
+    run = 'layout floating'
+
+[[on-window-detected]]
+    if.app-id = 'com.apple.FontBook'
     run = 'layout floating'

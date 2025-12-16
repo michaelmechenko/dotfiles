@@ -1,7 +1,7 @@
 return {
   "vague-theme/vague.nvim",
   lazy = false,    -- make sure we load this during startup if it is your main colorscheme
-  priority = 1001, -- make sure to load this before all the other plugins
+  priority = 1000, -- make sure to load this before all the other plugins
   config = function()
     require("vague").setup({
       transparent = true, -- don't set background
@@ -60,35 +60,57 @@ return {
           match = "bold",
         },
       },
-      -- -- Override highlights or add new highlights
-      -- on_highlights = function(highlights, colors) end,
-      --
-      -- -- Override colors
-      -- colors = {
-      --   bg = "#141415",
-      --   inactiveBg = "#1c1c24",
-      --   fg = "#cdcdcd",
-      --   floatBorder = "#878787",
-      --   line = "#252530",
-      --   comment = "#606079",
-      --   builtin = "#b4d4cf",
-      --   func = "#c48282",
-      --   string = "#e8b589",
-      --   number = "#e0a363",
-      --   property = "#c3c3d5",
-      --   constant = "#aeaed1",
-      --   parameter = "#bb9dbd",
-      --   visual = "#333738",
-      --   error = "#d8647e",
-      --   warning = "#f3be7c",
-      --   hint = "#7e98e8",
-      --   operator = "#90a0b5",
-      --   keyword = "#6e94b2",
-      --   type = "#9bb4bc",
-      --   search = "#405065",
-      --   plus = "#7fa563",
-      --   delta = "#f3be7c",
-      -- },
+
+      -- Override highlights or add new highlights
+      on_highlights = function(hl, c)
+        hl["Special"]             = hl["@lsp.type.selfParameter"]
+        hl["Typedef"]             = hl["@lsp.type.typeParameter"]
+        hl["Structure"]           = hl["@lsp.type.interface"]
+        hl["Macro"]               = hl["@lsp.type.macro"]
+        hl["Structure"]           = hl["@lsp.type.class"]
+        hl["Comment"]             = hl["@lsp.type.comment"]
+        hl["Structure"]           = hl["@lsp.type.enum"]
+        hl["@constant.builtin"]   = hl["@lsp.type.builtinConstant"]
+        hl["@type.builtin"]       = hl["@lsp.type.builtinType"]
+        hl["@variable.member"]    = hl["@lsp.type.enumMember"]
+        hl["@function.call"]      = hl["@lsp.type.function"]
+        hl["@function.method"]    = hl["@lsp.type.method"]
+        hl["@type"]               = hl["@lsp.type.generic"]
+        hl["@module"]             = hl["@lsp.type.namespace"]
+        hl["@type"]               = hl["@lsp.type.builtinType"]
+        hl["@constant"]           = hl["@lsp.type.variable"]
+        hl["@function.builtin"]   = hl["@lsp.type.function"]
+        hl["@variable"]           = hl["@lsp.type.variable"]
+        hl["@variable.parameter"] = hl["@lsp.type.parameter"]
+        hl["@property"]           = hl["@lsp.type.property"]
+      end,
+
+      -- Override colors
+      colors = {
+        -- bg = "#141415",
+        -- inactiveBg = "#1c1c24",
+        -- fg = "#cdcdcd",
+        -- floatBorder = "#878787",
+        -- line = "#252530",
+        -- comment = "#606079",
+        -- builtin = "#b4d4cf",
+        -- func = "#c48282",
+        -- string = "#e8b589",
+        -- number = "#e0a363",
+        -- property = "#c3c3d5",
+        -- constant = "#aeaed1",
+        -- parameter = "#bb9dbd",
+        -- visual = "#333738",
+        -- error = "#d8647e",
+        -- warning = "#f3be7c",
+        -- hint = "#7e98e8",
+        -- operator = "#90a0b5",
+        -- keyword = "#6e94b2",
+        -- type = "#9bb4bc",
+        -- search = "#405065",
+        -- plus = "#7fa563",
+        -- delta = "#f3be7c",
+      },
     })
     vim.cmd("colorscheme vague")
   end

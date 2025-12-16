@@ -64,8 +64,8 @@ font-feature = -calt
 # adjust-cell-height = 22%
 font-family = "CommitMono-m1v1"
 # weight: 450, spacing: 0%, line height: 1.2
-# enabled: ss01/02/03/04/05
-# alternate: cv02/04/06/08/10/11
+# enabled: ss01/02/03
+# alternate: cv02/04/06/08
 # Ligatures <= != === 
 font-feature = +ss01
 # Arrows >-> =>
@@ -95,9 +95,9 @@ font-feature = +cv08
 # Lifted *
 # font-feature = +cv09
 # Alt. l
-font-feature = +cv10
+# font-feature = +cv10
 # Alt. 1
-font-feature = +cv11
+# font-feature = +cv11
 
 # keybind = cmd+ctrl+j=new_split:down
 # keybind = cmd+ctrl+l=new_split:right

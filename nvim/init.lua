@@ -24,6 +24,9 @@ vim.api.nvim_create_autocmd({ "BufEnter", "CursorHold", "CursorHoldI", "FocusGai
   pattern = { "*" },
 })
 
+-- semantic tokens >> treesitter
+vim.highlight.priorities.semantic_tokens = 95
+
 vim.diagnostic.config({
   virtual_text = true,
   signs = true,

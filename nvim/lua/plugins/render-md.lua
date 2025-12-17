@@ -16,6 +16,17 @@ return {
           position = "inline",
           width = "block",
           -- min_width = 35
+          -- border = true,
+          -- above = '',
+          -- below = '-',
+          backgrounds = {
+            'None',
+            'None',
+            'None',
+            'None',
+            'None',
+            'None',
+          },
         },
         indent = {
           enabled = false

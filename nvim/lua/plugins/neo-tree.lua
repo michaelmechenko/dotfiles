@@ -22,7 +22,7 @@ return {
         "git_status",
         "document_symbols",
       },
-      close_if_last_window = true,
+      close_if_last_window = false,
       window = {
         position = "right",
         mappings = {
@@ -38,6 +38,14 @@ return {
           ["e"] = "open",
         },
       },
+      event_handlers = {
+        {
+          event = "neo_tree_buffer_enter",
+          handler = function()
+            vim.cmd("set relativenumber")
+          end,
+        }
+      }
       -- default_component_configs = {
       -- 	indent = {
       -- 		indent_marker = "│",

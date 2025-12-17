@@ -63,26 +63,32 @@ return {
 
       -- Override highlights or add new highlights
       on_highlights = function(hl, c)
-        hl["Special"]             = hl["@lsp.type.selfParameter"]
-        hl["Typedef"]             = hl["@lsp.type.typeParameter"]
-        hl["Structure"]           = hl["@lsp.type.interface"]
-        hl["Macro"]               = hl["@lsp.type.macro"]
-        hl["Structure"]           = hl["@lsp.type.class"]
-        hl["Comment"]             = hl["@lsp.type.comment"]
-        hl["Structure"]           = hl["@lsp.type.enum"]
-        hl["@constant.builtin"]   = hl["@lsp.type.builtinConstant"]
-        hl["@type.builtin"]       = hl["@lsp.type.builtinType"]
-        hl["@variable.member"]    = hl["@lsp.type.enumMember"]
-        hl["@function.call"]      = hl["@lsp.type.function"]
-        hl["@function.method"]    = hl["@lsp.type.method"]
-        hl["@type"]               = hl["@lsp.type.generic"]
-        hl["@module"]             = hl["@lsp.type.namespace"]
-        hl["@type"]               = hl["@lsp.type.builtinType"]
-        hl["@constant"]           = hl["@lsp.type.variable"]
-        hl["@function.builtin"]   = hl["@lsp.type.function"]
-        hl["@variable"]           = hl["@lsp.type.variable"]
-        hl["@variable.parameter"] = hl["@lsp.type.parameter"]
-        hl["@property"]           = hl["@lsp.type.property"]
+        hl["Special"]                    = hl["@lsp.type.selfParameter"]
+        hl["Typedef"]                    = hl["@lsp.type.typeParameter"]
+        hl["Structure"]                  = hl["@lsp.type.interface"]
+        hl["Macro"]                      = hl["@lsp.type.macro"]
+        hl["Structure"]                  = hl["@lsp.type.class"]
+        hl["Comment"]                    = hl["@lsp.type.comment"]
+        hl["Structure"]                  = hl["@lsp.type.enum"]
+        hl["@constant.builtin"]          = hl["@lsp.type.builtinConstant"]
+        hl["@type.builtin"]              = hl["@lsp.type.builtinType"]
+        hl["@variable.member"]           = hl["@lsp.type.enumMember"]
+        hl["@function.call"]             = hl["@lsp.type.function"]
+        hl["@function.method"]           = hl["@lsp.type.method"]
+        hl["@type"]                      = hl["@lsp.type.generic"]
+        hl["@module"]                    = hl["@lsp.type.namespace"]
+        hl["@type"]                      = hl["@lsp.type.builtinType"]
+        hl["@constant"]                  = hl["@lsp.type.variable"]
+        hl["@function.builtin"]          = hl["@lsp.type.function"]
+        hl["@variable"]                  = hl["@lsp.type.variable"]
+        hl["@variable.parameter"]        = hl["@lsp.type.parameter"]
+        hl["@property"]                  = hl["@lsp.type.property"]
+        hl["@markup.heading.1.markdown"] = { fg = c.func, bg = "None" }
+        hl["@markup.heading.2.markdown"] = { fg = c.parameter, bg = "None" }
+        hl["@markup.heading.3.markdown"] = { fg = c.constant, bg = "None" }
+        hl["@markup.heading.4.markdown"] = { fg = c.property, bg = "None" }
+        hl["@markup.heading.5.markdown"] = { fg = c.visual, bg = "None" }
+        hl["@markup.heading.6.markdown"] = { fg = c.property, bg = "None" }
       end,
 
       -- Override colors

@@ -9,8 +9,8 @@ exec-on-workspace-change = ['/bin/bash', '-c',
 
 start-at-login = true
 
-enable-normalization-flatten-containers = true
-enable-normalization-opposite-orientation-for-nested-containers = true
+enable-normalization-flatten-containers = false
+enable-normalization-opposite-orientation-for-nested-containers = false
 
 # See: https://nikitabobko.github.io/AeroSpace/guide#layouts
 # The 'accordion-padding' specifies the size of accordion padding

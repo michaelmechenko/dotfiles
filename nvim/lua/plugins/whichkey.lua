@@ -436,7 +436,7 @@ return {
       -- },
 
       -- hover
-      { "<leader>h", group = "hover" },
+      { "<leader>h",  group = "hover" },
       {
         "<leader>hh",
         function()
@@ -467,7 +467,10 @@ return {
       },
 
       -- surround
-      { "<leader>s", group = "surround" },
+      { "<leader>s",  group = "surround" },
+
+      -- stay-centered
+      { "<leader>st", function() require('stay-centered').toggle() end, desc = "toggle stay centered" },
     })
   end,
 }

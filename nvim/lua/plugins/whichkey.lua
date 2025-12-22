@@ -146,6 +146,7 @@ return {
       { "<leader>r",  group = "noeotree" },
       { "<leader>re", "<cmd>Neotree filesystem reveal right reveal_force_cwd<CR>", desc = "filesystem" },
       { "<leader>rw", "<cmd>Neotree buffers reveal float reveal_force_cwd<CR>",    desc = "buffers" },
+      { "<leader>rt", "<cmd>Neotree filesystem reveal float reveal_force_cwd<CR>", desc = "buffers" },
       { "<leader>rq", "<cmd>Neotree close<CR>",                                    desc = "close" },
       { "<leader>rb", "<cmd>Neotree git_status reveal float reveal_force_cwd<CR>", desc = "git status" },
 

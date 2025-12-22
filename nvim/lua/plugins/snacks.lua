@@ -66,7 +66,7 @@ return {
           { section = "header",       padding = 2 },
           { section = "keys",         gap = 1,    indent = 0, padding = 1 },
           { title = "recents [cwd]",  padding = 1 },
-          { section = "recent_files", cwd = true, indent = 2, limit = 5,  padding = 1 },
+          { section = "recent_files", cwd = true, indent = 2, limit = 3,  padding = 1 },
           { title = "recents",        padding = 1 },
           { section = "recent_files", indent = 2, limit = 5,  padding = 1 },
         },
@@ -249,10 +249,10 @@ return {
           char = "┊",
         },
         chunk = {
-          enabled = false,
+          enabled = true,
           -- only show chunk scopes in the current window
           only_current = true,
-          priority = 200,
+          priority = 100,
           hl = "Function", ---@type string|string[] hl group for chunk scopes
           char = {
             -- corner_top = "┌",

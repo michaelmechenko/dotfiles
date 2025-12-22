@@ -134,9 +134,10 @@ automatically-unhide-macos-hidden-apps = false
 
     cmd-ctrl-1 = 'workspace 1^'
     cmd-ctrl-2 = 'workspace 2^'
+    cmd-ctrl-2 = 'workspace 3^'
 
     cmd-alt-1 = 'workspace ~'
-    # cmd-alt-2 = 'workspace 2~'
+    # cmd-alt-2 = 'workspace ~'
 
     cmd-semicolon = 'workspace prev'
     cmd-quote = 'workspace next'
@@ -188,11 +189,12 @@ automatically-unhide-macos-hidden-apps = false
     # main monitor
     "1*" = 'main'                     
     "2*" = 'main'                     
-    # "3*" = 'main'                     
+    "3*" = 'main'                     
 
     # monitor 2
     "1^" = ['dell', 'built-in']
     "2^" = ['dell', 'built-in']
+    # "3^" = ['dell', 'built-in']
 
     # laptop screen
     "~" = 'built-in'

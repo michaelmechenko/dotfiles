@@ -55,10 +55,10 @@ return {
                 require("snacks").picker.recent()
               end
             },
-            { icon = "-", key = "c", desc = "config",  action = ":lua Snacks.dashboard.pick('files', {cwd = vim.fn.stdpath('config')})" },
-            { icon = "-", key = "l", desc = "lazy",    action = ":Lazy",                                                                enabled = package.loaded.lazy ~= nil },
-            { icon = "-", key = "m", desc = "mason",   action = ":Mason",                                                               enabled = package.loaded.lazy ~= nil },
-            { icon = "-", key = "q", desc = "quit",    action = ":qa" },
+            { icon = "-", key = "c", desc = "config", action = ":lua Snacks.dashboard.pick('files', {cwd = vim.fn.stdpath('config')})" },
+            { icon = "-", key = "l", desc = "lazy",   action = ":Lazy",                                                                enabled = package.loaded.lazy ~= nil },
+            { icon = "-", key = "m", desc = "mason",  action = ":Mason",                                                               enabled = package.loaded.lazy ~= nil },
+            { icon = "-", key = "q", desc = "quit",   action = ":qa" },
           },
           header = [[notepad--]],
         },

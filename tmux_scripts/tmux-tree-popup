@@ -1,0 +1,121 @@
+#!/bin/sh
+
+# Disable glob expansion to prevent * in session names from expanding
+set -f
+
+# Marker file to track popup state
+marker="/tmp/tmux-tree-popup-marker-$(tmux display-message -p '#{client_pid}')"
+
+# If marker exists, popup is open - just remove marker and let it close naturally
+if [ -f "$marker" ]; then
+    rm -f "$marker"
+    # Send 'q' to close the popup
+    exit 0
+fi
+
+# Create marker to indicate popup is opening
+touch "$marker"
+
+# Get current context for highlighting
+current_session=$(tmux display-message -p '#{session_name}')
+current_window=$(tmux display-message -p '#{window_index}')
+current_pane=$(tmux display-message -p '#{pane_index}')
+
+# Create temp file for tree output
+tmp_file="/tmp/tmux-tree-$$"
+
+# Process float session if it exists
+if tmux has-session -t float 2>/dev/null; then
+    session="float"
+    num_windows=$(tmux list-windows -t "$session" | wc -l | tr -d ' ')
+    
+    if [ "$session" = "$current_session" ]; then
+        printf "\033[38;2;201;177;201m- %s\033[38;2;101;106;128m [%s]\033[0m\n" "$session" "$num_windows" >> "$tmp_file"
+    else
+        printf "\033[38;2;169;177;214m- %s\033[38;2;101;106;128m [%s]\033[0m\n" "$session" "$num_windows" >> "$tmp_file"
+    fi
+    
+    tmux list-windows -t "$session" -F '#{window_index}|#{window_name}|#{window_panes}' | while IFS='|' read -r win_idx win_name num_panes; do
+        if [ "$num_panes" -eq 1 ]; then
+            printf "  \033[38;2;101;106;128m- w-%s\033[0m\n" "$win_idx" >> "$tmp_file"
+        else
+            printf "  \033[38;2;101;106;128m- w-%s [%s]\033[0m\n" "$win_idx" "$num_panes" >> "$tmp_file"
+        fi
+        
+        tmux list-panes -t "$session:$win_idx" -F '#{pane_index}|#{pane_current_command}|#{pane_current_path}' | while IFS='|' read -r pane_idx cmd path; do
+            short_path=$(echo "$path" | sed "s|^$HOME|~|")
+            
+            if [ "$session" = "$current_session" ] && [ "$win_idx" = "$current_window" ] && [ "$pane_idx" = "$current_pane" ]; then
+                printf "    \033[38;2;201;177;201m- %s\033[38;2;101;106;128m (%s)\033[0m\n" "$cmd" "$short_path" >> "$tmp_file"
+            else
+                printf "    \033[38;2;169;177;214m- %s\033[38;2;101;106;128m (%s)\033[0m\n" "$cmd" "$short_path" >> "$tmp_file"
+            fi
+        done
+    done
+    echo "" >> "$tmp_file"
+fi
+
+# Process regular sessions (not float or ephemeral)
+for session in $(tmux list-sessions -F '#{session_name}' | grep -v '^float$' | grep -v '^ephemeral$'); do
+    num_windows=$(tmux list-windows -t "$session" | wc -l | tr -d ' ')
+    
+    if [ "$session" = "$current_session" ]; then
+        printf "\033[38;2;201;177;201m- %s\033[38;2;101;106;128m [%s]\033[0m\n" "$session" "$num_windows" >> "$tmp_file"
+    else
+        printf "\033[38;2;169;177;214m- %s\033[38;2;101;106;128m [%s]\033[0m\n" "$session" "$num_windows" >> "$tmp_file"
+    fi
+    
+    tmux list-windows -t "$session" -F '#{window_index}|#{window_name}|#{window_panes}' | while IFS='|' read -r win_idx win_name num_panes; do
+        if [ "$num_panes" -eq 1 ]; then
+            printf "  \033[38;2;101;106;128m- w-%s\033[0m\n" "$win_idx" >> "$tmp_file"
+        else
+            printf "  \033[38;2;101;106;128m- w-%s [%s]\033[0m\n" "$win_idx" "$num_panes" >> "$tmp_file"
+        fi
+        
+        tmux list-panes -t "$session:$win_idx" -F '#{pane_index}|#{pane_current_command}|#{pane_current_path}' | while IFS='|' read -r pane_idx cmd path; do
+            short_path=$(echo "$path" | sed "s|^$HOME|~|")
+            
+            if [ "$session" = "$current_session" ] && [ "$win_idx" = "$current_window" ] && [ "$pane_idx" = "$current_pane" ]; then
+                printf "    \033[38;2;201;177;201m- %s\033[38;2;101;106;128m (%s)\033[0m\n" "$cmd" "$short_path" >> "$tmp_file"
+            else
+                printf "    \033[38;2;169;177;214m- %s\033[38;2;101;106;128m (%s)\033[0m\n" "$cmd" "$short_path" >> "$tmp_file"
+            fi
+        done
+    done
+    echo "" >> "$tmp_file"
+done
+
+# Process ephemeral session if it exists
+if tmux has-session -t ephemeral 2>/dev/null; then
+    session="ephemeral"
+    num_windows=$(tmux list-windows -t "$session" | wc -l | tr -d ' ')
+    
+    if [ "$session" = "$current_session" ]; then
+        printf "\033[38;2;201;177;201m- %s\033[38;2;101;106;128m [%s]\033[0m\n" "$session" "$num_windows" >> "$tmp_file"
+    else
+        printf "\033[38;2;169;177;214m- %s\033[38;2;101;106;128m [%s]\033[0m\n" "$session" "$num_windows" >> "$tmp_file"
+    fi
+    
+    tmux list-windows -t "$session" -F '#{window_index}|#{window_name}|#{window_panes}' | while IFS='|' read -r win_idx win_name num_panes; do
+        if [ "$num_panes" -eq 1 ]; then
+            printf "  \033[38;2;101;106;128m- w-%s\033[0m\n" "$win_idx" >> "$tmp_file"
+        else
+            printf "  \033[38;2;101;106;128m- w-%s [%s]\033[0m\n" "$win_idx" "$num_panes" >> "$tmp_file"
+        fi
+        
+        tmux list-panes -t "$session:$win_idx" -F '#{pane_index}|#{pane_current_command}|#{pane_current_path}' | while IFS='|' read -r pane_idx cmd path; do
+            short_path=$(echo "$path" | sed "s|^$HOME|~|")
+            
+            if [ "$session" = "$current_session" ] && [ "$win_idx" = "$current_window" ] && [ "$pane_idx" = "$current_pane" ]; then
+                printf "    \033[38;2;201;177;201m- %s\033[38;2;101;106;128m (%s)\033[0m\n" "$cmd" "$short_path" >> "$tmp_file"
+            else
+                printf "    \033[38;2;169;177;214m- %s\033[38;2;101;106;128m (%s)\033[0m\n" "$cmd" "$short_path" >> "$tmp_file"
+            fi
+        done
+    done
+    echo "" >> "$tmp_file"
+fi
+
+# Display in centered popup - close on q, Enter, or Escape
+# Remove marker when popup closes
+tmux popup -E -xC -yC -w40% -h60% -S "fg=#aeaed1" -b "rounded" "cat '$tmp_file' && rm '$tmp_file' && sh -c 'old=\$(stty -g); stty raw -echo; while :; do char=\$(dd bs=1 count=1 2>/dev/null); case \"\$char\" in q) break;; *) case \"\$char\" in \"\$(printf \"\\r\")\") break;; \"\$(printf \"\\n\")\") break;; \"\$(printf \"\\033\")\") break;; esac;; esac; done; stty \$old'; rm -f '$marker'"

@@ -4,15 +4,15 @@ set -e
 
 CURRENT_PANE="$(tmux display-message -p -F "#{session_name}")"
 
-width=${2:-80%}
-height=${2:-80%}
+width=${2:-90%}
+height=${2:-70%}
 
 if echo "$CURRENT_PANE" | grep -q '^float.*'; then
     tmux detach-client
 else
     if [ "$1" = "single" ]; then
-        tmux popup -d '#{pane_current_path}' -xC -yC -w$width -h$height -S "fg=#deb887" -E "tmux attach -t 'float' || tmux new -s 'float-$CURRENT_PANE'" || true
+        tmux popup -d '#{pane_current_path}' -xC -yC -w$width -h$height -S "fg=#8ba9c1" -E "tmux attach -t 'float' || tmux new -s 'float-$CURRENT_PANE'" || true
     else
-        tmux popup -E -xC -yC -w$width -h$height -S "fg=#deb887" "tmux attach -t float || tmux new -s float" || true
+        tmux popup -E -xC -yC -w$width -h$height -S "fg=#8ba9c1" "tmux attach -t float || tmux new -s float" || true
     fi
 fi

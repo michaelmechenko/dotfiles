@@ -4,7 +4,7 @@ return {
   priority = 1000, -- make sure to load this before all the other plugins
   config = function()
     require("vague").setup({
-      transparent = true, -- don't set background
+      transparent = false,
       -- disable bold/italic globally in `style`
       bold = false,
       italic = true,

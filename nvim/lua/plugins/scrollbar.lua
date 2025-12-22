@@ -1,6 +1,7 @@
 return {
   {
     "petertriho/nvim-scrollbar",
+    -- lazy = true,
     config = function()
       require("scrollbar").setup({
         show = false,
@@ -152,7 +153,7 @@ return {
         handlers = {
           cursor = false,
           diagnostic = true,
-          gitsigns = true, -- Requires gitsigns
+          gitsigns = false, -- Requires gitsigns
           handle = true,
           search = false, -- Requires hlslens
           ale = false, -- Requires ALE

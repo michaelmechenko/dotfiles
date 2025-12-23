@@ -56,7 +56,7 @@ sketchybar --add item sep_secondary_left center \
                  icon.color=0x80EDEDED \
                  label.drawing=off \
                  icon.font.style="Normal"
-for sid in "1^" "2^" "3^"; do
+for sid in "1^" "2^"; do
     sketchybar --add item space.$sid center \
         --subscribe space.$sid aerospace_workspace_change \
         --set space.$sid \
@@ -107,7 +107,7 @@ sketchybar --add item sep_main_right center \
                  label.drawing=off \
                  icon.font.style="Normal"
 
-# RIGHT BLOCK - Laptop screen workspaces (1~, 2~)
+# RIGHT BLOCK - Laptop screen workspaces (~)
 
 sketchybar --add item sep_laptop_left center \
            --set sep_laptop_left \
@@ -128,6 +128,12 @@ for sid in "~"; do
         click_script="aerospace workspace $sid" \
         script="$PLUGIN_DIR/aerospace.sh"
 done
+sketchybar --add item space2.$sid center \
+    --set space2.$sid \
+    icon="*" \
+    label.drawing=off \
+    icon.color=0x80EDEDED \
+    icon.y_offset=2 \
 sketchybar --add item sep_laptop_right center \
            --set sep_laptop_right \
                  icon="}" \

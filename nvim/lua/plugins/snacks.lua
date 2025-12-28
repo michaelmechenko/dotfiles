@@ -247,6 +247,7 @@ return {
         indent = {
           enabled = true,
           char = "┊",
+          -- char = "│"
         },
         chunk = {
           enabled = true,

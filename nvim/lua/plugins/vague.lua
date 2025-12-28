@@ -89,6 +89,7 @@ return {
         hl["@markup.heading.4.markdown"] = { fg = c.property, bg = "None" }
         hl["@markup.heading.5.markdown"] = { fg = c.visual, bg = "None" }
         hl["@markup.heading.6.markdown"] = { fg = c.property, bg = "None" }
+        hl["SnacksIndent"].fg = "#383848"
       end,
 
       -- Override colors

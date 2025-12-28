@@ -4,8 +4,8 @@ set -e
 
 CURRENT_PANE="$(tmux display-message -p -F "#{session_name}")"
 
-width=${2:-90%}
-height=${2:-70%}
+width=${2:-80%}
+height=${2:-75%}
 
 if echo "$CURRENT_PANE" | grep -q '^float.*'; then
     tmux detach-client

@@ -10,9 +10,10 @@ return {
     ft = { "markdown", "codecompanion" },
     config = function()
       require("render-markdown").setup({
+        enabled = false,
         heading = {
           sign = true,
-          icons = { "- ", "- ", "- ", "- ", "- ", "- " },
+          icons = { "# ", "## ", "### ", "# ", "## ", "### " },
           position = "inline",
           width = "block",
           -- min_width = 35
@@ -37,22 +38,10 @@ return {
           -- left_pad = 0.2,
           -- right_pad = 0.2,
           sign = false,
+          conceal_delimiters = false,
         },
         quote = {
           enabled = false,
-        },
-        patterns = {
-          -- Highlight patterns to disable for filetypes, i.e. lines concealed around code blocks
-          markdown = {
-            disable = true,
-            directives = {
-              { id = 17, name = 'conceal_lines' },
-              { id = 18, name = 'conceal_lines' },
-            },
-          },
-        },
-        anti_conceal = {
-          enabled = true,
         },
         bullet = {
           enabled = false,
@@ -62,6 +51,7 @@ return {
         },
         link = {
           enabled = false,
+          render_modes = true,
           footnote = {
             enabled = false,
           },

@@ -4,6 +4,7 @@ return {
   opts = {
     multiline = false,
     focus = true,
+    indent_guides = true,
     keys = {
       j = "next",
       k = "prev",
@@ -34,7 +35,7 @@ return {
         focus = true,
         win = {
           type = "split",
-          position = "bottom",
+          position = "right",
           size = 0.4,
         },
       },
@@ -50,7 +51,7 @@ return {
         win = {
           type = "split",
           relative = "win",
-          position = "bottom",
+          position = "right",
           size = 0.4,
         },
       },

@@ -5,19 +5,18 @@ return {
   config = function()
     require("vague").setup({
       transparent = false,
-      -- disable bold/italic globally in `style`
-      bold = false,
+      bold = true,
       italic = true,
       style = {
         -- "none" is the same thing as default. But "italic" and "bold" are also valid options
-        boolean = "bold",
+        boolean = "none",
         number = "none",
         float = "none",
         error = "bold",
         comments = "italic",
         conditionals = "none",
         functions = "none",
-        headings = "bold",
+        headings = "none",
         operators = "none",
         strings = "italic",
         variables = "none",
@@ -30,36 +29,36 @@ return {
         keywords_exception = "none",
 
         -- builtin
-        builtin_constants = "bold",
+        builtin_constants = "none",
         builtin_functions = "none",
-        builtin_types = "bold",
+        builtin_types = "none",
         builtin_variables = "none",
       },
       -- plugin styles where applicable
       -- make an issue/pr if you'd like to see more styling options!
-      plugins = {
-        cmp = {
-          match = "bold",
-          match_fuzzy = "bold",
-        },
-        dashboard = {
-          footer = "italic",
-        },
-        lsp = {
-          diagnostic_error = "bold",
-          diagnostic_hint = "none",
-          diagnostic_info = "italic",
-          diagnostic_ok = "none",
-          diagnostic_warn = "bold",
-        },
-        neotest = {
-          focused = "bold",
-          adapter_name = "bold",
-        },
-        telescope = {
-          match = "bold",
-        },
-      },
+      -- plugins = {
+      --   cmp = {
+      --     match = "bold",
+      --     match_fuzzy = "bold",
+      --   },
+      --   dashboard = {
+      --     footer = "italic",
+      --   },
+      --   lsp = {
+      --     diagnostic_error = "bold",
+      --     diagnostic_hint = "none",
+      --     diagnostic_info = "italic",
+      --     diagnostic_ok = "none",
+      --     diagnostic_warn = "bold",
+      --   },
+      --   neotest = {
+      --     focused = "bold",
+      --     adapter_name = "bold",
+      --   },
+      --   telescope = {
+      --     match = "bold",
+      --   },
+      -- },
 
       -- Override highlights or add new highlights
       on_highlights = function(hl, c)
@@ -86,10 +85,13 @@ return {
         hl["@markup.heading.1.markdown"] = { fg = c.func, bg = "None" }
         hl["@markup.heading.2.markdown"] = { fg = c.parameter, bg = "None" }
         hl["@markup.heading.3.markdown"] = { fg = c.constant, bg = "None" }
-        hl["@markup.heading.4.markdown"] = { fg = c.property, bg = "None" }
+        hl["@markup.heading.4.markdown"] = { fg = c.keyword, bg = "None" }
         hl["@markup.heading.5.markdown"] = { fg = c.visual, bg = "None" }
-        hl["@markup.heading.6.markdown"] = { fg = c.property, bg = "None" }
-        hl["SnacksIndent"].fg = "#383848"
+        hl["@markup.heading.6.markdown"] = { fg = c.keyword, bg = "None" }
+        hl["@markup.italic"]             = { fg = c.parameter, bg = "None" }
+        hl["@markup.strong"]             = { fg = c.constant, bg = "None" }
+        hl["SnacksIndent"].fg            = "#383848"
+        hl["NeoTreeIndentMarker"].fg     = "#383848"
       end,
 
       -- Override colors

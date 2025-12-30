@@ -1,10 +1,9 @@
 return {
   'arnamak/stay-centered.nvim',
   opts = {
-    enabled = true,
+    enabled = false,
     allow_scroll_move = true,
     disable_on_mouse = true,
-    skip_filetypes = {"neo-tree", "trouble"}
+    skip_filetypes = { "neo-tree", "trouble" }
   },
-  lazy = false,
 }

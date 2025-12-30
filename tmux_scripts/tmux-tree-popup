@@ -21,16 +21,25 @@ current_session=$(tmux display-message -p '#{session_name}')
 current_window=$(tmux display-message -p '#{window_index}')
 current_pane=$(tmux display-message -p '#{pane_index}')
 
-# Detect active pane position to align popup to same side
+# Detect pane configuration to determine popup position
 client_width=$(tmux display-message -p '#{client_width}')
-active_pane_info=$(tmux list-panes -F "#{pane_left} #{pane_active}" | awk '$2 == 1')
-active_pane_left=$(echo "$active_pane_info" | awk '{print $1}')
+pane_count=$(tmux list-panes | wc -l | tr -d ' ')
+is_zoomed=$(tmux display-message -p '#{window_zoomed_flag}')
 
-# If active pane is on left half of screen, align popup to left; otherwise align to right
-if [ "$active_pane_left" -lt $((client_width / 2)) ]; then
-    popup_x="0"  # Left-aligned
+# If only 1 pane or zoomed, center the popup; otherwise align to same side as active pane
+if [ "$pane_count" -eq 1 ] || [ "$is_zoomed" = "1" ]; then
+    popup_x="C"  # Centered
 else
-    popup_x="R"  # Right-aligned
+    # Detect active pane position
+    active_pane_info=$(tmux list-panes -F "#{pane_left} #{pane_active}" | awk '$2 == 1')
+    active_pane_left=$(echo "$active_pane_info" | awk '{print $1}')
+    
+    # If active pane is on left half of screen, align popup to left; otherwise align to right
+    if [ "$active_pane_left" -lt $((client_width / 2)) ]; then
+        popup_x="0"  # Left-aligned
+    else
+        popup_x="R"  # Right-aligned
+    fi
 fi
 
 # Create temp file for tree output
@@ -128,7 +137,33 @@ if tmux has-session -t ephemeral 2>/dev/null; then
     echo "" >> "$tmp_file"
 fi
 
+# Vertically center the content within the popup
+# Calculate popup height in rows (98% of client height)
+client_height=$(tmux display-message -p '#{client_height}')
+popup_height_rows=$((client_height * 98 / 100))
+popup_width_cols=$((client_width * 20 / 100))
+
+# Count lines in the tree output
+content_lines=$(wc -l < "$tmp_file" | tr -d ' ')
+
+# Create vertically centered version
+centered_file="/tmp/tmux-tree-centered-$$"
+
+# Calculate top padding to vertically center
+if [ $content_lines -lt $popup_height_rows ]; then
+    top_padding=$(( (popup_height_rows - content_lines) / 2 ))
+    # Add empty lines at the top
+    i=0
+    while [ $i -lt $top_padding ]; do
+        echo "" >> "$centered_file"
+        i=$((i + 1))
+    done
+fi
+
+# Always left-align the text
+cat "$tmp_file" >> "$centered_file"
+
 # Display popup on opposite side of active pane - close on q, Enter, or Escape
 # Remove marker when popup closes
 # Hide cursor with tput civis, restore with tput cnorm
-tmux popup -E -x$popup_x -yC -w20% -h60% -S "fg=#aeaed1" -b "rounded" "tput civis; cat '$tmp_file' && rm '$tmp_file' && sh -c 'old=\$(stty -g); stty raw -echo; while :; do char=\$(dd bs=1 count=1 2>/dev/null); case \"\$char\" in q) break;; *) case \"\$char\" in \"\$(printf \"\\r\")\") break;; \"\$(printf \"\\n\")\") break;; \"\$(printf \"\\033\")\") break;; esac;; esac; done; stty \$old'; tput cnorm; rm -f '$marker'"
+tmux popup -E -x$popup_x -yC -w20% -h98% -S "fg=#aeaed1" -b "rounded" "tput civis; cat '$centered_file' && rm '$centered_file' '$tmp_file' && sh -c 'old=\$(stty -g); stty raw -echo; while :; do char=\$(dd bs=1 count=1 2>/dev/null); case \"\$char\" in q) break;; *) case \"\$char\" in \"\$(printf \"\\r\")\") break;; \"\$(printf \"\\n\")\") break;; \"\$(printf \"\\033\")\") break;; esac;; esac; done; stty \$old'; tput cnorm; rm -f '$marker'"

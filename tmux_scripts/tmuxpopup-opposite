@@ -1,0 +1,53 @@
+#!/bin/zsh
+
+set -e
+
+CURRENT_PANE="$(tmux display-message -p -F "#{session_name}")"
+
+# If already in float session, detach
+if echo "$CURRENT_PANE" | grep -q '^float.*'; then
+    tmux detach-client
+    exit 0
+fi
+
+# Count panes in current window
+pane_count=$(tmux list-panes | wc -l | tr -d ' ')
+
+# Determine position and size based on pane count
+if [ "$pane_count" -eq 2 ]; then
+    # Get the inactive pane's dimensions
+    other_pane_info=$(tmux list-panes -F "#{pane_index} #{pane_active} #{pane_left} #{pane_top} #{pane_width} #{pane_height}" | awk '$2 == 0')
+    
+    if [ -n "$other_pane_info" ]; then
+        # Parse the pane dimensions
+        pane_left=$(echo "$other_pane_info" | awk '{print $3}')
+        pane_width=$(echo "$other_pane_info" | awk '{print $5}')
+        pane_height=$(echo "$other_pane_info" | awk '{print $6}')
+        
+        # Calculate popup size as 90% of opposite pane dimensions
+        popup_width=$((pane_width * 90 / 100))
+        popup_height=$((pane_height * 90 / 100))
+        
+        # Calculate X position to center in opposite pane
+        # Top-left corner should be at: pane_left + (pane_width - popup_width) / 2
+        pos_x=$((pane_left + (pane_width - popup_width) / 2))
+        
+        # Use centered Y position (since absolute Y doesn't seem to work reliably)
+        pos_y="C"
+    else
+        # Fallback if we can't find opposite pane
+        popup_width="80%"
+        popup_height="75%"
+        pos_x="C"
+        pos_y="C"
+    fi
+else
+    # Fall back to center of screen for 1 or 3+ panes
+    popup_width="80%"
+    popup_height="75%"
+    pos_x="C"
+    pos_y="C"
+fi
+
+# Open popup with X positioned over opposite pane, Y centered on screen
+tmux popup -E -x $pos_x -y $pos_y -w $popup_width -h $popup_height -S "fg=#8ba9c1" "tmux attach -t float || tmux new -s float" || true

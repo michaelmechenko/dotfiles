@@ -2,21 +2,20 @@
 
 set -e
 
-# original session list:
-# tmux list-sessions -F '#S' \
-# | awk 'BEGIN {ORS=" "} {print $1, NR, "\"switch-client -t", $1 "\""}' \
-# | xargs tmux display-menu -O -M -T "choose session" -x M -y W
-
 # Disable glob expansion to prevent * in session names from expanding to files
 set -f
+
+# Get absolute bottom-right coordinates of the window
+client_width=$(tmux display-message -p '#{client_width}')
+client_height=$(tmux display-message -p '#{client_height}')
 
 # Build menu items: sessions list + separator + new session/window options
 sessions=$(tmux list-sessions -F '#S' | awk 'BEGIN {ORS=" "} {print $1, NR, "\"switch-client -t", $1 "\""}')
 
 # Use eval to properly handle the command
 # Multiple separator lines (empty name/key/command) create more spacing
-# Removed -O flag to close menu when mouse is released (like window menu)
-eval "tmux display-menu -M -O -T \"#[align=centre]choose session\" -b rounded -x R -y W \
+# Position at absolute bottom right corner of window
+eval "tmux display-menu -M -O -T \"#[align=centre]choose session\" -b rounded -x $client_width -y $((client_height - 1)) \
     $sessions \
     \"\" \"\" \"\" \
     \"\" \"\" \"\" \

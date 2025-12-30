@@ -25,15 +25,18 @@ for session in $(tmux list-sessions -F '#{session_name}'); do
     fi
     
     # Get all windows in this session
-    tmux list-windows -t "$session" -F '#{window_index}|#{window_name}|#{pane_current_command}|#{pane_current_path}' | while IFS='|' read -r win_idx win_name cmd path; do
-        # Shorten path
-        short_path=$(echo "$path" | sed "s|^$HOME|~|")
-        
-        # Format: "session:window [command] (path)"
-        display_name="$session:$win_idx [$cmd] ($short_path)"
-        
-        # Build menu item: name, key (empty), command
-        echo "\"$display_name\" \"\" \"switch-client -t $session:$win_idx\"" >> "$tmp_file"
+    tmux list-windows -t "$session" -F '#{window_index}' | while read -r win_idx; do
+        # Get all panes in this window
+        tmux list-panes -t "$session:$win_idx" -F '#{pane_index}|#{pane_current_command}|#{pane_current_path}' | while IFS='|' read -r pane_idx cmd path; do
+            # Shorten path
+            short_path=$(echo "$path" | sed "s|^$HOME|~|")
+            
+            # Format: "session:window{pane} [command] (path)"
+            display_name="$session:$win_idx{$pane_idx} [$cmd] ($short_path)"
+            
+            # Build menu item: name, key (empty), command
+            echo "\"$display_name\" \"\" \"switch-client -t $session:$win_idx.$pane_idx\"" >> "$tmp_file"
+        done
     done
 done
 
@@ -41,13 +44,13 @@ done
 menu_items=$(cat "$tmp_file" | tr '\n' ' ')
 rm -f "$tmp_file"
 
-# If no windows found, show a message
+# If no panes found, show a message
 if [ -z "$menu_items" ]; then
-    menu_items="\"No other windows\" \"\" \"\""
+    menu_items="\"No other panes\" \"\" \"\""
 fi
 
 # Display menu at bottom-left corner (x=0 for left edge, y at bottom)
-eval "tmux display-menu -M -O -T \"#[align=centre]other windows\" -b rounded -x $client_width -y $((client_height - 1)) \
+eval "tmux display-menu -M -O -T \"#[align=centre]other panes\" -b rounded -x $client_width -y $((client_height - 1)) \
     $menu_items \
     \"\" \"\" \"\" \
     \"\" \"\" \"\" \

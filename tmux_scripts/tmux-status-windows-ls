@@ -1,0 +1,54 @@
+#!/bin/sh
+
+set -e
+
+# Disable glob expansion to prevent * in session names from expanding
+set -f
+
+# Get current session to exclude it
+current_session=$(tmux display-message -p '#{session_name}')
+
+# Get absolute bottom-left coordinates of the window
+client_width=$(tmux display-message -p '#{client_width}')
+client_height=$(tmux display-message -p '#{client_height}')
+
+# Build menu items: list all windows from OTHER sessions
+# Use a temp file to avoid subshell issues
+tmp_file="/tmp/tmux-windows-menu-$$"
+> "$tmp_file"
+
+# Iterate through all sessions except current
+for session in $(tmux list-sessions -F '#{session_name}'); do
+    # Skip current session
+    if [ "$session" = "$current_session" ]; then
+        continue
+    fi
+    
+    # Get all windows in this session
+    tmux list-windows -t "$session" -F '#{window_index}|#{window_name}|#{pane_current_command}|#{pane_current_path}' | while IFS='|' read -r win_idx win_name cmd path; do
+        # Shorten path
+        short_path=$(echo "$path" | sed "s|^$HOME|~|")
+        
+        # Format: "session:window [command] (path)"
+        display_name="$session:$win_idx [$cmd] ($short_path)"
+        
+        # Build menu item: name, key (empty), command
+        echo "\"$display_name\" \"\" \"switch-client -t $session:$win_idx\"" >> "$tmp_file"
+    done
+done
+
+# Read menu items from temp file
+menu_items=$(cat "$tmp_file" | tr '\n' ' ')
+rm -f "$tmp_file"
+
+# If no windows found, show a message
+if [ -z "$menu_items" ]; then
+    menu_items="\"No other windows\" \"\" \"\""
+fi
+
+# Display menu at bottom-left corner (x=0 for left edge, y at bottom)
+eval "tmux display-menu -M -O -T \"#[align=centre]other windows\" -b rounded -x $client_width -y $((client_height - 1)) \
+    $menu_items \
+    \"\" \"\" \"\" \
+    \"\" \"\" \"\" \
+    \"new window\" w \"new-window\""

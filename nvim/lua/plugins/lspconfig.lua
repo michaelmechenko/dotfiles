@@ -53,7 +53,7 @@ return {
       vim.lsp.enable('eslint')
       vim.lsp.enable('ts_ls')
       vim.lsp.enable('pyright')
-      vim.lsp.enable('svelte')
+      -- vim.lsp.enable('svelte')
       vim.lsp.enable('tailwindcss')
       vim.lsp.enable('lemminx')
       vim.lsp.enable('yamlls')

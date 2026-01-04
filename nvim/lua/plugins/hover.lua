@@ -1,5 +1,6 @@
 return {
   "lewis6991/hover.nvim",
+  lazy = true,
   opts = function()
     require('hover').config({
       providers = {

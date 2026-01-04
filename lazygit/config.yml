@@ -23,3 +23,11 @@ gui:
       - "#d8647e"
     defaultFgColor:
       - "#cdcdcd"
+  sidePanelWidth: 0.3333
+  showCommandLog: false
+  showRandomTip: false
+  nerdFontsVersion: "3"
+  showNumstatInFilesView: true
+  expandFocusedSidePanel: true
+  expandedSidePanelWeight: 2
+notARepository: skip

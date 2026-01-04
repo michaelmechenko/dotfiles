@@ -26,13 +26,14 @@ k9s:
   # ClusterInfoView styles.
   info:
     fgColor: *pink
+    bgColor: *background
     sectionColor: *foreground
   # Dialog styles.
   dialog:
     fgColor: *foreground
     bgColor: *background
     buttonFgColor: *foreground
-    buttonBgColor: *purple
+    buttonBgColor: *background
     buttonFocusFgColor: *yellow
     buttonFocusBgColor: *pink
     labelFgColor: *lilac
@@ -50,7 +51,7 @@ k9s:
     # CrumbView attributes for history navigation.
     crumbs:
       fgColor: *foreground
-      bgColor: *current_line
+      bgColor: *background
       activeColor: *current_line
     # Resource status and update styles
     status:
@@ -64,7 +65,7 @@ k9s:
     # Border title styles.
     title:
       fgColor: *foreground
-      bgColor: *current_line
+      bgColor: *background
       highlightColor: *lilac
       counterColor: *purple
       filterColor: *pink
@@ -105,6 +106,6 @@ k9s:
       bgColor: *background
       indicator:
         fgColor: *foreground
-        bgColor: *purple
+        bgColor: *background
         toggleOnColor: *green
         toggleOffColor: *selection

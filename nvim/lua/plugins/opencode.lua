@@ -5,10 +5,12 @@ return {
       { "folke/snacks.nvim", opts = { input = {}, picker = {}, terminal = {} } },
     },
     config = function()
-      provider = {
-        enabled = "tmux",
-        tmux = {
-          options = "-h", -- Open in a horizontal split
+      vim.g.opencode_opts = {
+        provider = {
+          enabled = "tmux",
+          tmux = {
+            options = "-h"
+          }
         }
       }
     end,

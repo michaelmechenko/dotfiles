@@ -11,13 +11,12 @@ raycast/
 bat/
 nvim/lazy-lock.json
 wireshark
-.opencode
 .tmux/plugins
 uv/uv-receipt.json
 biome.json
 mcphub
-opencode/opencode.json
 lazygit/state.yml
 k9s/aliases.yaml
 superfile/theme
 aichat
+chrome

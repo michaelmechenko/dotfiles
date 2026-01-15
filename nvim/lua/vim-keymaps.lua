@@ -45,7 +45,6 @@ vim.cmd("set tabstop=2")
 vim.cmd("set softtabstop=2")
 vim.cmd("set shiftwidth=2")
 
-
 -- yanking/pasting to global register
 vim.keymap.set("n", "P", '"+p', {})
 vim.keymap.set("n", "Y", '"+y', {})

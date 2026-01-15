@@ -57,10 +57,10 @@ alias lsl="eza"
 alias e="nvim"
 alias ai="aichat"
 alias oc="opencode"
+alias ocr="opencode run"
 alias lg="lazygit"
 alias ld="lazydocker"
 alias t="tmux has-session -t float 2>/dev/null || tmux new -d -s float; tmux new -A -s 'm*'"
-alias ts="tmux kill-session"
 alias tx="tmux kill-server"
 alias td="tmux detach-client"
 alias c="clear"
@@ -98,3 +98,10 @@ tempe () {
 # fi
 
 eval "$(oh-my-posh init zsh --config ~/.config/ohmyposh/base.json)"
+
+# bun completions
+[ -s "/Users/mishka/.bun/_bun" ] && source "/Users/mishka/.bun/_bun"
+
+# bun
+export BUN_INSTALL="$HOME/.bun"
+export PATH="$BUN_INSTALL/bin:$PATH"

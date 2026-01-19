@@ -4,7 +4,8 @@
 # theme = oldworld
 theme = vague
 
-shell-integration = detect
+# none/detect/zsh
+shell-integration = zsh 
 shell-integration-features = no-cursor, sudo, ssh-env, ssh-terminfo
 
 cursor-style = underline
@@ -120,3 +121,7 @@ keybind = cmd+shift+r=reload_config
 
 quick-terminal-position = bottom
 keybind = global:cmd+shift+e=toggle_quick_terminal
+
+# update alt/left and alt/right bindings
+keybind = alt+left=csi:1;3D
+keybind = alt+right=csi:1;3C

@@ -40,19 +40,23 @@ ZSH_HIGHLIGHT_STYLES[path]=none
 ZSH_HIGHLIGHT_STYLES[path_prefix]=none
 
 # Preferred editor for local and remote sessions
-if [[ -n $SSH_CONNECTION ]]; then
-  export EDITOR='vim'
-else
-  export EDITOR='nvim'
-fi
+# if [[ -n $SSH_CONNECTION ]]; then
+#   export EDITOR='vim'
+# else
+#   export EDITOR='nvim'
+# fi
+export EDITOR='nvim'
 
 # Compilation flags
 # export ARCHFLAGS="-arch x86_64"
 
 eval "$(fzf --zsh)"
 
+bindkey "^[[1;3C" forward-word      # Alt+Right
+bindkey "^[[1;3D" backward-word     # Alt+Left
+
 alias ls="eza -1"
-alias lsl="eza"
+# alias lsl="eza"
 # alias cat="bat"
 alias e="nvim"
 alias ai="aichat"

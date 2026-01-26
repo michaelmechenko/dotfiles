@@ -4,6 +4,7 @@ mode: subagent
 model: anthropic/claude-sonnet-4-5
 permission:
   "*": allow
+  "bash *": ask
   edit: deny
   write: deny
   todoread: deny

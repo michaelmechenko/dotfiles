@@ -485,8 +485,8 @@ return {
       { "<leader>st", function() require('stay-centered').toggle() end,               desc = "toggle stay centered" },
 
       -- scopes
-      { "[[",         function() require('snacks').scope.jump() end,                  desc = "jump to top of scope" },
-      { "]]",         function() require('snacks').scope.jump({ bottom = true }) end, desc = "jump to bottom of scope" }
+      { "[[",         function() require('snacks').scope.jump() end,                  desc = "jump to top of scope",    mode = { "n", "x" } },
+      { "]]",         function() require('snacks').scope.jump({ bottom = true }) end, desc = "jump to bottom of scope", mode = { "n", "x" } }
     })
   end,
 }

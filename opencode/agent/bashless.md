@@ -1,5 +1,5 @@
 ---
-description: Full development agent without shell access - only edits and writes files
+description: Development agent without shell access
 mode: primary
 tools:
   write: true
@@ -12,6 +12,7 @@ tools:
   todowrite: true
   todoread: true
   webfetch: true
+  websearch: true
   bash: false
 ---
 

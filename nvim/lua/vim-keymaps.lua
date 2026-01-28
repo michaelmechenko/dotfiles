@@ -92,6 +92,8 @@ vim.keymap.set("i", "<Tab>", "<Esc>", {})
 vim.keymap.set("v", "<Tab>", "<Esc>", {})
 -- vim.keymap.set("i", "<C-s>", "<Esc>", {})
 -- vim.keymap.set("v", "<C-s>", "<Esc>", {})
+--
+vim.keymap.set("i", "<C-v>", '<C-r>0', { noremap = true, silent = true, desc = "Paste yank register" })
 
 vim.opt.number = true
 vim.opt.relativenumber = true

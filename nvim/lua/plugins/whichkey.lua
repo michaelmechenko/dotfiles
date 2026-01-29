@@ -52,18 +52,18 @@ return {
       },
 
       -- dap
-      { "<leader>db",  "<Cmd>DapToggleBreakpoint<CR>",                                       desc = "toggle breakpoint" },
-      { "<leader>dsi", "<Cmd>DapStepInto<CR>",                                               desc = "step into" },
-      { "<leader>dso", "<Cmd>DapStepOut<CR>",                                                desc = "step out" },
-      { "<leader>dsr", "<Cmd>DapStepOver<CR>",                                               desc = "step over" },
-      { "<leader>dr",  "<Cmd>DapContinue<CR>",                                               desc = "continue dap" },
-      { "<leader>dq",  "<Cmd>DapTerminate<CR>",                                              desc = "terminate dap" },
+      { "<leader>db",  "<Cmd>DapToggleBreakpoint<CR>",                                         desc = "toggle breakpoint" },
+      { "<leader>dsi", "<Cmd>DapStepInto<CR>",                                                 desc = "step into" },
+      { "<leader>dso", "<Cmd>DapStepOut<CR>",                                                  desc = "step out" },
+      { "<leader>dsr", "<Cmd>DapStepOver<CR>",                                                 desc = "step over" },
+      { "<leader>dr",  "<Cmd>DapContinue<CR>",                                                 desc = "continue dap" },
+      { "<leader>dq",  "<Cmd>DapTerminate<CR>",                                                desc = "terminate dap" },
 
       -- buffers
       { "<leader>b",   group = "buffers" },
-      { "<leader>bd",  "<Cmd>bdelete<CR>",                                                   desc = "delete buf" },
-      { "<leader>bc",  "<Cmd>bprev<CR>",                                                     desc = "prev buf" },
-      { "<leader>bv",  "<Cmd>bnext<CR>",                                                     desc = "next buf" },
+      { "<leader>bd",  "<Cmd>bdelete<CR>",                                                     desc = "delete buf" },
+      { "<leader>bc",  "<Cmd>bprev<CR>",                                                       desc = "prev buf" },
+      { "<leader>bv",  "<Cmd>bnext<CR>",                                                       desc = "next buf" },
 
       -- codecomp
       -- { "<leader>a",   group = "codecomp" },
@@ -81,13 +81,14 @@ return {
 
       -- opencode
       { "<leader>a",   group = "opencode" },
-      { "<leader>as",  function() require("opencode").ask("@this: ", { submit = true }) end, desc = "ask opencode" },
-      { "<leader>ae",  function() require("opencode").select() end,                          desc = "execute opencode action" },
-      { "<leader>ad",  function() require("opencode").toggle() end,                          desc = "toggle opencode" },
-      { "<leader>ar",  function() return require("opencode").operator("@this ") end,         desc = "add range to opencode" },
-      { "<leader>av",  function() return require("opencode").operator("@this ") .. "_" end,  desc = "add line to opencode" },
-      { "<S-C-u>",     function() require("opencode").command("session.half.page.up") end,   desc = "opencode half page up" },
-      { "<S-C-d>",     function() require("opencode").command("session.half.page.down") end, desc = "opencode half page down" },
+      { "<leader>as",  function() require("opencode").ask("@this: ", { submit = true }) end,   desc = "ask opencode" },
+      { "<leader>ab",  function() require("opencode").ask("@buffer: ", { submit = true }) end, desc = "ask with buffer context" },
+      { "<leader>ae",  function() require("opencode").select() end,                            desc = "execute opencode action" },
+      { "<leader>ad",  function() require("opencode").toggle() end,                            desc = "toggle opencode" },
+      { "<leader>ar",  function() return require("opencode").operator("@this ") end,           desc = "add range to opencode",  expr = true, mode = { "n", "x" } },
+      { "<leader>av",  function() return require("opencode").operator("@this ") .. "_" end,    desc = "add line to opencode",   expr = true },
+      { "<S-C-u>",     function() require("opencode").command("session.half.page.up") end,     desc = "opencode half page up" },
+      { "<S-C-d>",     function() require("opencode").command("session.half.page.down") end,   desc = "opencode half page down" },
 
       -- git signs
       { "<leader>g",   group = "git" },
@@ -105,6 +106,11 @@ return {
         "<leader>go",
         "<cmd>Gitsigns preview_hunk_inline<CR>",
         desc = "gitsigns preview hunk inline",
+      },
+      {
+        "<leader>gn",
+        "<cmd>Gitsigns toggle_numhl<CR>",
+        desc = "gitsigns toggle num hl",
       },
       {
         "<leader>gl",

@@ -20,7 +20,7 @@ return {
         "filesystem",
         "buffers",
         "git_status",
-        "document_symbols",
+        -- "document_symbols",
       },
       close_if_last_window = false,
       window = {

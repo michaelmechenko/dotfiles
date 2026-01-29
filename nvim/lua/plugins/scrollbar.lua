@@ -1,7 +1,7 @@
 return {
   {
     "petertriho/nvim-scrollbar",
-    lazy = true,
+    lazy = false,
     config = function()
       require("scrollbar").setup({
         show = false,

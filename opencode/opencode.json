@@ -27,10 +27,8 @@
       "secrets/*": "deny"
     },
     "external_directory": {
-      "~/_main/*": "ask",
       "~/_main/opencode/*": "allow",
-      "~/.config/*": "ask",
-      "~/.config/opencode/*": "allow"
+      "~/.config/*": "allow"
     }
   },
   "agent": {

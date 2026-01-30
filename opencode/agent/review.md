@@ -8,6 +8,8 @@ tools:
 permission:
   edit: deny
   webfetch: allow
+  websearch: allow
+  codesearch: allow
 ---
 
 You are a code reviewer. Provide actionable feedback on code changes.

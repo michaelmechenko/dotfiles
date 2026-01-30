@@ -5,7 +5,8 @@ temperature: 0.3
 tools:
   write: true
   edit: true
-  bash: true
+permission:
+  bash: "ask"
 ---
 
 # Code Simplifier Agent

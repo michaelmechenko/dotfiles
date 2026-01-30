@@ -11,13 +11,17 @@
     }
   },
   "permission": {
+    "task": "allow",
+    "skill": "ask",
     "bash": {
       "*": "ask",
       "git *": "ask",
       "git diff *": "allow",
       "git status *": "allow",
       "rm *": "deny",
-      "grep *": "allow"
+      "grep *": "allow",
+      "blob *": "allow",
+      "ls *": "allow"
     },
     "read": {
       "*": "allow",
@@ -27,13 +31,26 @@
       "secrets/*": "deny"
     },
     "external_directory": {
-      "~/_main/opencode/*": "allow",
-      "~/.config/*": "allow"
+      "~/_main/opencode/**": "allow",
+      "~/.config/**": "allow"
     }
   },
+  "tools": {
+    "chrome-devtools_*": false,
+    "clipboard*": true,
+    "ast*": true
+  },
   "agent": {
+    "plan": {
+      "permission": {
+        "task": "allow",
+        "webfetch": "allow"
+      }
+    },
     "build": {
       "permission": {
+        "task": "allow",
+        "webfetch": "allow",
         "bash": {
           "*": "ask",
           "git push *": "deny",
@@ -47,12 +64,74 @@
   "mcp": {
     "context7": {
       "type": "local",
-      "command": ["docker", "run", "-i", "--rm", "mcp/context7"],
+      "command": ["npx", "-y", "@upstash/context7-mcp"],
+      "enabled": false
+    },
+    "atlassian": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "mcp-remote",
+        "https://mcp.atlassian.com/v1/sse"
+      ],
+      "enabled": false
+    },
+    "n8n-mcp": {
+      "type": "local",
+      "command": ["npx", "n8n-mcp"],
+      "environment": {
+        "MCP_MODE": "stdio",
+        "LOG_LEVEL": "error",
+        "DISABLE_CONSOLE_OUTPUT": "true",
+        "N8N_API_URL": "{env:N8N_API_URL}",
+        "N8N_API_KEY": "{env:N8N_API_KEY}"
+      },
+      "enabled": false
+    },
+    "kubernetes": {
+      "type": "local",
+      "command": ["npx", "-y", "kubernetes-mcp-server@latest"],
+      "enabled": false
+    },
+    "context7": {
+      "type": "local",
+      "command": ["npx", "-y", "@upstash/context7-mcp"],
+      "enabled": false
+    },
+    "sequential-thinking": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "@modelcontextprotocol/server-sequential-thinking"
+      ],
+      "enabled": false
+    },
+    "aws-documentation-mcp-server": {
+      "type": "local",
+      "command": ["uvx", "awslabs.aws-documentation-mcp-server@latest"],
+      "enabled": false
+    },
+    "aws-knowledge-mcp-server": {
+      "type": "remote",
+      "url": "https://knowledge-mcp.global.api.aws",
+      "enabled": false
+    },
+    "slack": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "slack-mcp-server@latest",
+        "--transport",
+        "stdio"
+      ],
       "enabled": false
     },
     "chrome-devtools": {
       "type": "local",
-      "command": ["npx", "chrome-devtools-mcp@latest"],
+      "command": ["npx", "-y", "chrome-devtools-mcp@latest"],
       "enabled": false
     }
   }

@@ -37,10 +37,10 @@ Task to enhance: $ARGUMENTS
    - `<output>` - Exact format expected
    - `<verification>` - How to check correctness
 
-3. **Enhance** with AI optimizations from official guides:
-   - OpenAI GPT-5.1: https://cookbook.openai.com/examples/gpt-5/gpt-5-1_prompting_guide
-   - Claude 4.5: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-4-best-practices
-   - Gemini 3: https://ai.google.dev/gemini-api/docs/gemini-3
+3. **Enhance** with AI optimizations from best practices:
+   - Claude: XML tags for structure, thinking tags for reasoning
+   - GPT: Clear system/user separation, chain-of-thought
+   - Gemini: Explicit formats, examples, grounding with search
 
 4. **Execute** the enhanced prompt immediately.
 

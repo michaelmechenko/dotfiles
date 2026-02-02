@@ -1,12 +1,14 @@
-- In all interaction and commit messages, be extremely concise and sacrifice grammar for the sake of concision. The user will be explicit when they want you to elaborate on specific outputs.
+# Global Instructions
+
+- Be extremely concise; sacrifice grammar for brevity
+- User will request elaboration when needed
 
 ## Code Quality Standards
 
 - Make minimal, surgical changes
-- **Make illegal states unrepresentable**: Model domain with ADTs/discriminated unions; parse inputs at boundaries into typed structures; if state can't exist, code can't mishandle it
 - **Abstractions**: Consciously constrained, pragmatically parameterised, doggedly documented
 
-### **ENTROPY REMINDER**
+### ENTROPY REMINDER
 
 This codebase will outlive you. Every shortcut you take becomes
 someone else's burden. Every hack compounds into technical debt
@@ -18,12 +20,66 @@ you cut will be cut again.
 
 **Fight entropy. Leave the codebase better than you found it.**
 
+---
+
 ## Specialized Subagents
 
-### Jimothy
+Invoke subagents via `@agent-name` mention or let the model choose based on task.
 
-Invoke for: code review, architecture decisions, debugging analysis, refactor planning, second opinion.
+### Advisory & Review
 
-### Librarian
+**jimothy** - Code review, architecture decisions, debugging analysis, refactor planning, second opinion. Uses extended thinking (Opus 4.5).
+**review** - Focused code review for quality, bugs, security. Read-only.
+**code-simplifier** - Simplify recently modified code while preserving behavior.
 
-Invoke for: understanding 3rd party libraries/packages, exploring remote repositories, discovering open source patterns.
+### Research & Exploration
+
+| Agent          | When to Invoke                                                                                                |
+| -------------- | ------------------------------------------------------------------------------------------------------------- |
+| **librarian**  | Understanding 3rd party libraries, exploring GitHub/npm/PyPI, tracing unfamiliar code. Show response in full. |
+| **doc-doctor** | Finding documentation from websites, verifying API/framework usage. Has browser tools.                        |
+| **explore**    | (built-in) Quick codebase searches, file pattern matching.                                                    |
+
+### Specialized Domains
+
+| Agent               | When to Invoke                                                                          |
+| ------------------- | --------------------------------------------------------------------------------------- |
+| **opencode-expert** | OpenCode configuration, features, troubleshooting.                                      |
+| **neovim-expert**   | Neovim configuration, plugins, troubleshooting.                                         |
+| **tmux-expert**     | tmux configuration, keybindings, session management.                                    |
+| **kubectl**         | Read-only Kubernetes debugging (pods, services, deployments).                           |
+| **writeless**       | Read-only infrastructure explorer (K8s, Helm, AWS, Docker, GitHub). Multi-service view. |
+| **browser**         | Web scraping, browser automation, form filling, UI testing.                             |
+
+### Development Modes
+
+| Agent        | When to Invoke                                                              |
+| ------------ | --------------------------------------------------------------------------- |
+| **general**  | (built-in) Multi-step tasks, parallel work units. Full tool access.         |
+| **bashless** | Development without shell access. Use when shell is unavailable/restricted. |
+
+---
+
+## Subagent Selection Guidelines
+
+1. **Default to solving directly** - Only invoke subagent if specialized capability needed
+2. **Jimothy for uncertainty** - When you need a second opinion or deeper analysis
+3. **Librarian for external code** - When exploring code outside the current project, has `gh` CLI access
+4. **Review for final check** - Before committing significant changes
+5. **Browser for live web** - When webfetch insufficient (dynamic content, forms, auth)
+6. **Writeless for infrastructure** - Multi-service debugging (K8s, AWS, Docker) without modification risk
+7. **kubectl for focused K8s** - Kubernetes-only debugging, smaller context window
+
+---
+
+## Skills Available
+
+Load skills with `skill({ name: 'skill-name' })` for specialized workflows:
+
+| Skill             | Purpose                                                   |
+| ----------------- | --------------------------------------------------------- |
+| `commit-work`     | High-quality git commits with proper staging and messages |
+| `build-skill`     | Creating new skills for OpenCode                          |
+| `index-knowledge` | Generating AGENTS.md knowledge bases                      |
+| `session-summary` | Handoff summaries for context preservation                |
+| `improve-prompt`  | Prompt engineering patterns and templates                 |

@@ -24,7 +24,7 @@ Instructions go here.
 EOF
 ```
 
-Place in `.opencode/skills/` (project) or `~/.config/opencode/skills/` (global).
+Place in `.opencode/skill/` (project) or `~/.config/opencode/skill/` (global).
 
 ## Skill Type Decision Tree
 
@@ -110,11 +110,11 @@ Run: `./scripts/validate_skill.sh ./my-skill`
 
 ## Skill Locations
 
-| Priority | Location                                     |
-| -------- | -------------------------------------------- |
-| 1        | `.opencode/skills/<name>/` (project)         |
-| 2        | `~/.config/opencode/skills/<name>/` (global) |
-| 3        | `.claude/skills/<name>/` (Claude-compat)     |
+| Priority | Location                                    |
+| -------- | ------------------------------------------- |
+| 1        | `.opencode/skill/<name>/` (project)         |
+| 2        | `~/.config/opencode/skill/<name>/` (global) |
+| 3        | `.claude/skills/<name>/` (Claude-compat)    |
 
 Discovery walks up from CWD to git root. First-wins for duplicate names.
 

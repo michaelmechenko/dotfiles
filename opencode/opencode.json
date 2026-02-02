@@ -11,17 +11,29 @@
     }
   },
   "permission": {
+    "edit": "ask",
+    "write": "ask",
     "task": "allow",
     "skill": "ask",
     "bash": {
       "*": "ask",
-      "git *": "ask",
       "git diff *": "allow",
       "git status *": "allow",
-      "rm *": "deny",
+      "git log *": "allow",
+      "git show *": "allow",
+      "ls *": "allow",
+      "cat *": "allow",
+      "head *": "allow",
+      "tail *": "allow",
+      "wc *": "allow",
       "grep *": "allow",
-      "blob *": "allow",
-      "ls *": "allow"
+      "rg *": "allow",
+      "fd *": "allow",
+      "npm test*": "allow",
+      "pnpm test*": "allow",
+      "yarn test*": "allow",
+      "rm *": "deny",
+      "blob *": "allow"
     },
     "read": {
       "*": "allow",
@@ -44,12 +56,14 @@
     "plan": {
       "permission": {
         "task": "allow",
+        "skill": "allow",
         "webfetch": "allow"
       }
     },
     "build": {
       "permission": {
         "task": "allow",
+        "skill": "allow",
         "webfetch": "allow",
         "bash": {
           "*": "ask",
@@ -61,6 +75,7 @@
       }
     }
   },
+  "instructions": ["~/.config/opencode/plugin/shell_strategy.md"],
   "mcp": {
     "context7": {
       "type": "local",
@@ -132,7 +147,7 @@
     "chrome-devtools": {
       "type": "local",
       "command": ["npx", "-y", "chrome-devtools-mcp@latest"],
-      "enabled": false
+      "enabled": true
     }
   }
 }

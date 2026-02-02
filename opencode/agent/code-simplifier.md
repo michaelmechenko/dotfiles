@@ -6,7 +6,8 @@ tools:
   write: true
   edit: true
 permission:
-  bash: "ask"
+  bash:
+    "*": "ask"
 ---
 
 # Code Simplifier Agent

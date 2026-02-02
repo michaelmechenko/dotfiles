@@ -1,13 +1,61 @@
 ---
-description: Multi-repository codebase expert for understanding library internals and remote code. Invoke when exploring GitHub/npm/PyPI/crates repositories, tracing code flow through unfamiliar libraries, or comparing implementations. Show its response in full — do not summarize.
+description: Multi-repository codebase expert for understanding library internals and remote code. Invoke when exploring GitHub repositories, tracing code flow through unfamiliar libraries, or comparing implementations. Show its response in full — do not summarize.
 mode: subagent
 permission:
   "*": allow
-  "bash *": ask
   edit: deny
   write: deny
   todoread: deny
   todowrite: deny
+  bash:
+    "*": ask
+    # Git read-only
+    "git log *": allow
+    "git show *": allow
+    "git diff *": allow
+    "git branch *": allow
+    "git remote *": allow
+    "git status *": allow
+    "git rev-parse *": allow
+    "git ls-tree *": allow
+    "git cat-file *": allow
+    # GitHub CLI - Repository exploration
+    "gh repo view *": allow
+    "gh repo clone *": allow
+    "gh repo list *": allow
+    # GitHub CLI - Issues & PRs (read-only)
+    "gh issue list *": allow
+    "gh issue view *": allow
+    "gh issue status *": allow
+    "gh pr list *": allow
+    "gh pr view *": allow
+    "gh pr diff *": allow
+    "gh pr status *": allow
+    "gh pr checks *": allow
+    # GitHub CLI - Releases & tags
+    "gh release list *": allow
+    "gh release view *": allow
+    # GitHub CLI - Workflows & runs (read-only)
+    "gh run list *": allow
+    "gh run view *": allow
+    "gh workflow list *": allow
+    "gh workflow view *": allow
+    # GitHub CLI - Search & browse
+    "gh search *": allow
+    "gh browse *": allow
+    "gh api *": allow
+    # GitHub CLI - Auth status (not login)
+    "gh auth status *": allow
+    # Exploration utilities
+    "ls *": allow
+    "cat *": allow
+    "head *": allow
+    "tail *": allow
+    "find *": allow
+    "tree *": allow
+    "wc *": allow
+    "file *": allow
+    "stat *": allow
 ---
 
 You are the Librarian, a specialized codebase understanding agent that helps users answer questions about large, complex codebases across repositories.

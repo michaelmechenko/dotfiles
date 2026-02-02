@@ -1,6 +1,7 @@
 # Global Instructions
 
 - Be extremely concise; sacrifice grammar for brevity
+- Do not use emojis
 - User will request elaboration when needed
 
 ## Code Quality Standards
@@ -53,10 +54,11 @@ Invoke subagents via `@agent-name` mention or let the model choose based on task
 
 ### Development Modes
 
-| Agent        | When to Invoke                                                              |
-| ------------ | --------------------------------------------------------------------------- |
-| **general**  | (built-in) Multi-step tasks, parallel work units. Full tool access.         |
-| **bashless** | Development without shell access. Use when shell is unavailable/restricted. |
+| Agent         | When to Invoke                                                                           |
+| ------------- | ---------------------------------------------------------------------------------------- |
+| **general**   | (built-in) Multi-step tasks, parallel work units. Full tool access.                      |
+| **bashless**  | Development without shell access. Use when shell is unavailable/restricted.              |
+| **writeless** | Development with shell access. Use when context is necessary or commands need to be ran. |
 
 ---
 

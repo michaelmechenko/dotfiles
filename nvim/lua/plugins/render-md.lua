@@ -1,16 +1,11 @@
 return {
   {
     "MeanderingProgrammer/render-markdown.nvim",
-    -- dependencies = { "nvim-treesitter/nvim-treesitter", "echasnovski/mini.nvim" }, -- if you use the mini.nvim suite
     dependencies = { "nvim-treesitter/nvim-treesitter", "echasnovski/mini.icons" }, -- if you use standalone mini plugins
-    -- dependencies = { 'nvim-treesitter/nvim-treesitter', 'nvim-tree/nvim-web-devicons' }, -- if you prefer nvim-web-devicons
-    ---@module 'render-markdown'
-    ---@type render.md.UserConfig
-    opts = {},
     ft = { "markdown", "codecompanion" },
     config = function()
       require("render-markdown").setup({
-        enabled = false,
+        enabled = true,
         heading = {
           sign = true,
           icons = { "# ", "## ", "### ", "# ", "## ", "### " },
@@ -47,11 +42,11 @@ return {
           enabled = false,
         },
         checkbox = {
-          enabled = false,
+          enabled = true,
         },
         link = {
           enabled = false,
-          render_modes = true,
+          render_modes = false,
           footnote = {
             enabled = false,
           },

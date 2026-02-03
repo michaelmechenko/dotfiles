@@ -17,6 +17,7 @@ return {
       require("mason-lspconfig").setup({
         ensure_installed = {
           "terraformls",
+          "marksman",
           "lua_ls",
           -- "rust_analyzer",
           "clangd",
@@ -29,9 +30,8 @@ return {
           "eslint",
           "ts_ls",
           "pyright",
-          "svelte",
-          "tailwindcss",
-          "copilot",
+          -- "svelte",
+          -- "tailwindcss",
           "lemminx",
           -- "jdtls",
           "bashls",
@@ -46,7 +46,7 @@ return {
     config = function()
       vim.lsp.enable('lua_ls')
       vim.lsp.enable('terraformls')
-      vim.lsp.enable('clangd')
+      -- vim.lsp.enable('clangd')
       vim.lsp.enable('dockerls')
       vim.lsp.enable('html')
       -- vim.lsp.enable('biome')
@@ -54,10 +54,11 @@ return {
       vim.lsp.enable('ts_ls')
       vim.lsp.enable('pyright')
       -- vim.lsp.enable('svelte')
-      vim.lsp.enable('tailwindcss')
+      -- vim.lsp.enable('tailwindcss')
       vim.lsp.enable('lemminx')
       vim.lsp.enable('yamlls')
       vim.lsp.enable('bashls')
+      vim.lsp.enable('marksman')
       -- vim.lsp.enable('copilot')
       -- vim.lsp.enable('cmake')
       -- vim.lsp.enable('gopls')

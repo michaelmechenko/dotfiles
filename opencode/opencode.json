@@ -44,7 +44,8 @@
     },
     "external_directory": {
       "~/_main/opencode/**": "allow",
-      "~/.config/**": "allow"
+      "~/.config/**": "allow",
+      "~/.local/share/**": "allow"
     }
   },
   "tools": {
@@ -75,7 +76,6 @@
       }
     }
   },
-  "instructions": ["~/.config/opencode/plugin/shell_strategy.md"],
   "mcp": {
     "context7": {
       "type": "local",
@@ -147,7 +147,7 @@
     "chrome-devtools": {
       "type": "local",
       "command": ["npx", "-y", "chrome-devtools-mcp@latest"],
-      "enabled": true
+      "enabled": false
     }
   }
 }

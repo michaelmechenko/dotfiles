@@ -65,7 +65,23 @@ alias ocp="opencode --port"
 alias ocr="opencode run"
 alias lg="lazygit"
 alias ld="lazydocker"
-alias t="tmux has-session -t float 2>/dev/null || tmux new -d -s float; tmux new -A -s 'm*'"
+
+t() {
+  # Check tmux version supports -O flag (3.7+)
+  local ver=$(tmux -V | sed 's/[^0-9.]//g' | cut -d. -f1,2)
+  if (( $(echo "$ver < 3.7" | bc -l) )); then
+    echo "your version of tmux doesn't support the \"-O\" flag; session switch keybinds have to be updated. update tmux by running 'brew install tmux --HEAD'"
+    return 1
+  fi
+  # Attach to existing server, or create new with float + m*
+  if tmux list-sessions &>/dev/null; then
+    tmux attach -t float 2>/dev/null || tmux attach
+  else
+    tmux new -d -s float
+    tmux new -A -s 'm*'
+  fi
+}
+
 alias tx="tmux kill-server"
 alias td="tmux detach-client"
 alias c="clear"

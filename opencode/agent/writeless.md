@@ -1,6 +1,6 @@
 ---
 description: Read-only infrastructure explorer for (currently) Kubernetes, Helm, AWS, Docker, and GitHub. Cannot modify resources. Use for debugging, auditing, and understanding system state across services.
-mode: primary
+mode: subagent
 permission:
   "*": deny
   read: allow

@@ -9,10 +9,6 @@ tools:
   write: false
   edit: false
   bash: false
-permission:
-  webfetch: allow
-  websearch: allow
-  codesearch: allow
 ---
 
 You are a browser automation specialist. You control a Chrome browser via DevTools Protocol.

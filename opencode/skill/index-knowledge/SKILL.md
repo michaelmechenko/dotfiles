@@ -18,18 +18,16 @@ Default: Update mode (modify existing + create new where warranted)
 
 ---
 
-## Workflow (High-Level)
+## Workflow
 
 1. **Discovery + Analysis** (concurrent)
-   - Launch parallel explore agents (multiple Task calls in one message)
-   - Main session: bash structure + LSP codemap + read existing AGENTS.md
-2. **Score & Decide** - Determine AGENTS.md locations from merged findings
-3. **Generate** - Root first, then subdirs in parallel
-4. **Review** - Deduplicate, trim, validate
+2. **Score & Decide** locations
+3. **Generate** root first, then subdirs in parallel
+4. **Review** deduplicate, trim, validate
 
 <critical>
 **TodoWrite ALL phases. Mark in_progress → completed in real-time.**
-  
+
 ```
 TodoWrite([
   { id: "discovery", content: "Fire explore agents + LSP codemap + read existing", status: "pending", priority: "high" },
@@ -38,156 +36,26 @@ TodoWrite([
   { id: "review", content: "Deduplicate, validate, trim", status: "pending", priority: "medium" }
 ])
 ```
+
 </critical>
 
 ---
 
-## Phase 1: Discovery + Analysis (Concurrent)
+## Phase 1: Discovery + Analysis
 
 **Mark "discovery" as in_progress.**
 
-### Launch Parallel Explore Agents
+Launch 6 core explore agents in ONE message (parallel). See [discovery-prompts.md](./references/discovery-prompts.md) for exact prompts.
 
-Multiple Task calls in a single message execute in parallel. Results return directly.
+Concurrently in main session:
 
-```
-// All Task calls in ONE message = parallel execution
+1. **Bash structural analysis** -- directory depth, file counts, code concentration
+2. **Read existing AGENTS.md** -- extract insights, store in map
+3. **LSP codemap** (if available) -- symbols, exports, references; fallback to AST-grep
 
-Task(
-  description="project structure",
-  subagent_type="explore",
-  prompt="Project structure: PREDICT standard patterns for detected language → REPORT deviations only"
-)
+See [discovery-prompts.md](./references/discovery-prompts.md) for bash commands, LSP calls, and dynamic agent spawning rules (max 10 additional agents based on project scale).
 
-Task(
-  description="entry points",
-  subagent_type="explore",
-  prompt="Entry points: FIND main files → REPORT non-standard organization"
-)
-
-Task(
-  description="conventions",
-  subagent_type="explore",
-  prompt="Conventions: FIND config files (.eslintrc, pyproject.toml, .editorconfig) → REPORT project-specific rules"
-)
-
-Task(
-  description="anti-patterns",
-  subagent_type="explore",
-  prompt="Anti-patterns: FIND 'DO NOT', 'NEVER', 'ALWAYS', 'DEPRECATED' comments → LIST forbidden patterns"
-)
-
-Task(
-  description="build/ci",
-  subagent_type="explore",
-  prompt="Build/CI: FIND .github/workflows, Makefile → REPORT non-standard patterns"
-)
-
-Task(
-  description="test patterns",
-  subagent_type="explore",
-  prompt="Test patterns: FIND test configs, test structure → REPORT unique conventions"
-)
-```
-
-<dynamic-agents>
-**DYNAMIC AGENT SPAWNING**: After bash analysis, spawn ADDITIONAL explore agents based on project scale:
-
-| Factor                       | Threshold | Additional Agents          |
-| ---------------------------- | --------- | -------------------------- |
-| **Total files**              | >100      | +1 per 100 files           |
-| **Total lines**              | >10k      | +1 per 10k lines           |
-| **Directory depth**          | ≥4        | +2 for deep exploration    |
-| **Large files (>500 lines)** | >10 files | +1 for complexity hotspots |
-| **Monorepo**                 | detected  | +1 per package/workspace   |
-| **Multiple languages**       | >1        | +1 per language            |
-
-```bash
-# Measure project scale first
-total_files=$(find . -type f -not -path '*/node_modules/*' -not -path '*/.git/*' | wc -l)
-total_lines=$(find . -type f \( -name "*.ts" -o -name "*.py" -o -name "*.go" \) -not -path '*/node_modules/*' -exec wc -l {} + 2>/dev/null | tail -1 | awk '{print $1}')
-large_files=$(find . -type f \( -name "*.ts" -o -name "*.py" \) -not -path '*/node_modules/*' -exec wc -l {} + 2>/dev/null | awk '$1 > 500 {count++} END {print count+0}')
-max_depth=$(find . -type d -not -path '*/node_modules/*' -not -path '*/.git/*' | awk -F/ '{print NF}' | sort -rn | head -1)
-```
-
-Example spawning (all in ONE message for parallel execution):
-
-```
-// 500 files, 50k lines, depth 6, 15 large files → spawn additional agents
-Task(
-  description="large files",
-  subagent_type="explore",
-  prompt="Large file analysis: FIND files >500 lines, REPORT complexity hotspots"
-)
-
-Task(
-  description="deep modules",
-  subagent_type="explore",
-  prompt="Deep modules at depth 4+: FIND hidden patterns, internal conventions"
-)
-
-Task(
-  description="cross-cutting",
-  subagent_type="explore",
-  prompt="Cross-cutting concerns: FIND shared utilities across directories"
-)
-// ... more based on calculation
-```
-
-</dynamic-agents>
-
-### Main Session: Concurrent Analysis
-
-**While Task agents execute**, main session does:
-
-#### 1. Bash Structural Analysis
-
-```bash
-# Directory depth + file counts
-find . -type d -not -path '*/\.*' -not -path '*/node_modules/*' -not -path '*/venv/*' -not -path '*/dist/*' -not -path '*/build/*' | awk -F/ '{print NF-1}' | sort -n | uniq -c
-
-# Files per directory (top 30)
-find . -type f -not -path '*/\.*' -not -path '*/node_modules/*' | sed 's|/[^/]*$||' | sort | uniq -c | sort -rn | head -30
-
-# Code concentration by extension
-find . -type f \( -name "*.py" -o -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.go" -o -name "*.rs" \) -not -path '*/node_modules/*' | sed 's|/[^/]*$||' | sort | uniq -c | sort -rn | head -20
-
-# Existing AGENTS.md / CLAUDE.md
-find . -type f \( -name "AGENTS.md" -o -name "CLAUDE.md" \) -not -path '*/node_modules/*' 2>/dev/null
-```
-
-#### 2. Read Existing AGENTS.md
-
-```
-For each existing file found:
-  Read(filePath=file)
-  Extract: key insights, conventions, anti-patterns
-  Store in EXISTING_AGENTS map
-```
-
-If `--create-new`: Read all existing first (preserve context) → then delete all → regenerate.
-
-#### 3. LSP Codemap (if available)
-
-```
-lsp_servers()  # Check availability
-
-# Entry points (parallel)
-lsp_document_symbols(filePath="src/index.ts")
-lsp_document_symbols(filePath="main.py")
-
-# Key symbols (parallel)
-lsp_workspace_symbols(filePath=".", query="class")
-lsp_workspace_symbols(filePath=".", query="interface")
-lsp_workspace_symbols(filePath=".", query="function")
-
-# Centrality for top exports
-lsp_find_references(filePath="...", line=X, character=Y)
-```
-
-**LSP Fallback**: If unavailable, rely on explore agents + AST-grep.
-
-**Merge: bash + LSP + existing + Task agent results. Mark "discovery" as completed.**
+**Merge all results. Mark "discovery" as completed.**
 
 ---
 
@@ -195,134 +63,31 @@ lsp_find_references(filePath="...", line=X, character=Y)
 
 **Mark "scoring" as in_progress.**
 
-### Scoring Matrix
+Score each directory using weighted factors (file count, subdir count, code ratio, module boundaries, symbol density, reference centrality).
 
-| Factor               | Weight | High Threshold           | Source  |
-| -------------------- | ------ | ------------------------ | ------- |
-| File count           | 3x     | >20                      | bash    |
-| Subdir count         | 2x     | >5                       | bash    |
-| Code ratio           | 2x     | >70%                     | bash    |
-| Unique patterns      | 1x     | Has own config           | explore |
-| Module boundary      | 2x     | Has index.ts/**init**.py | bash    |
-| Symbol density       | 2x     | >30 symbols              | LSP     |
-| Export count         | 2x     | >10 exports              | LSP     |
-| Reference centrality | 3x     | >20 refs                 | LSP     |
+See [scoring-matrix.md](./references/scoring-matrix.md) for factor weights, thresholds, and decision rules.
 
-### Decision Rules
-
-| Score        | Action                    |
-| ------------ | ------------------------- |
-| **Root (.)** | ALWAYS create             |
-| **>15**      | Create AGENTS.md          |
-| **8-15**     | Create if distinct domain |
-| **<8**       | Skip (parent covers)      |
-
-### Output
-
-```
-AGENTS_LOCATIONS = [
-  { path: ".", type: "root" },
-  { path: "src/hooks", score: 18, reason: "high complexity" },
-  { path: "src/api", score: 12, reason: "distinct domain" }
-]
-```
+| Score    | Action                    |
+| -------- | ------------------------- |
+| Root (.) | ALWAYS create             |
+| >15      | Create AGENTS.md          |
+| 8-15     | Create if distinct domain |
+| <8       | Skip (parent covers)      |
 
 **Mark "scoring" as completed.**
 
 ---
 
-## Phase 3: Generate AGENTS.md
+## Phase 3: Generate
 
 **Mark "generate" as in_progress.**
 
-### Root AGENTS.md (Full Treatment)
+1. Generate root AGENTS.md (50-150 lines, full treatment)
+2. Launch general agents for each subdir location in ONE message (parallel)
 
-```markdown
-# PROJECT KNOWLEDGE BASE
+See [generation-templates.md](./references/generation-templates.md) for root template, subdir prompt pattern, and quality gates.
 
-**Generated:** {TIMESTAMP}
-**Commit:** {SHORT_SHA}
-**Branch:** {BRANCH}
-
-## OVERVIEW
-
-{1-2 sentences: what + core stack}
-
-## STRUCTURE
-
-\`\`\`
-{root}/
-├── {dir}/ # {non-obvious purpose only}
-└── {entry}
-\`\`\`
-
-## WHERE TO LOOK
-
-| Task | Location | Notes |
-| ---- | -------- | ----- |
-
-## CODE MAP
-
-{From LSP - skip if unavailable or project <10 files}
-
-| Symbol | Type | Location | Refs | Role |
-
-## CONVENTIONS
-
-{ONLY deviations from standard}
-
-## ANTI-PATTERNS (THIS PROJECT)
-
-{Explicitly forbidden here}
-
-## UNIQUE STYLES
-
-{Project-specific}
-
-## COMMANDS
-
-\`\`\`bash
-{dev/test/build}
-\`\`\`
-
-## NOTES
-
-{Gotchas}
-```
-
-**Quality gates**: 50-150 lines, no generic advice, no obvious info.
-
-### Subdirectory AGENTS.md (Parallel)
-
-Launch general agents for each location in ONE message (parallel execution):
-
-```
-// All in single message = parallel
-Task(
-  description="AGENTS.md for src/hooks",
-  subagent_type="general",
-  prompt="Generate AGENTS.md for: src/hooks
-    - Reason: high complexity
-    - 30-80 lines max
-    - NEVER repeat parent content
-    - Sections: OVERVIEW (1 line), STRUCTURE (if >5 subdirs), WHERE TO LOOK, CONVENTIONS (if different), ANTI-PATTERNS
-    - Write directly to src/hooks/AGENTS.md"
-)
-
-Task(
-  description="AGENTS.md for src/api",
-  subagent_type="general",
-  prompt="Generate AGENTS.md for: src/api
-    - Reason: distinct domain
-    - 30-80 lines max
-    - NEVER repeat parent content
-    - Sections: OVERVIEW (1 line), STRUCTURE (if >5 subdirs), WHERE TO LOOK, CONVENTIONS (if different), ANTI-PATTERNS
-    - Write directly to src/api/AGENTS.md"
-)
-// ... one Task per AGENTS_LOCATIONS entry
-```
-
-**Results return directly. Mark "generate" as completed.**
+**Mark "generate" as completed.**
 
 ---
 
@@ -330,36 +95,11 @@ Task(
 
 **Mark "review" as in_progress.**
 
-For each generated file:
+For each generated file: remove generic advice, remove parent duplicates, trim to size limits, verify telegraphic style.
 
-- Remove generic advice
-- Remove parent duplicates
-- Trim to size limits
-- Verify telegraphic style
+See review checklist in [generation-templates.md](./references/generation-templates.md).
 
 **Mark "review" as completed.**
-
----
-
-## Final Report
-
-```
-=== index-knowledge Complete ===
-
-Mode: {update | create-new}
-
-Files:
-  ✓ ./AGENTS.md (root, {N} lines)
-  ✓ ./src/hooks/AGENTS.md ({N} lines)
-
-Dirs Analyzed: {N}
-AGENTS.md Created: {N}
-AGENTS.md Updated: {N}
-
-Hierarchy:
-  ./AGENTS.md
-  └── src/hooks/AGENTS.md
-```
 
 ---
 
@@ -372,3 +112,11 @@ Hierarchy:
 - **Redundancy**: Child never repeats parent
 - **Generic content**: Remove anything that applies to ALL projects
 - **Verbose style**: Telegraphic or die
+
+## In This Reference
+
+| File                                                            | Purpose                                  |
+| --------------------------------------------------------------- | ---------------------------------------- |
+| [discovery-prompts.md](./references/discovery-prompts.md)       | Explore agent prompts, dynamic spawning  |
+| [scoring-matrix.md](./references/scoring-matrix.md)             | Scoring factors, weights, decision rules |
+| [generation-templates.md](./references/generation-templates.md) | Root/subdir templates, review, reporting |

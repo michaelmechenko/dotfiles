@@ -3,6 +3,7 @@
 - Be extremely concise; sacrifice grammar for brevity
 - Do not use emojis
 - User will request elaboration when needed
+- Never use markdown tables -- use bullet lists instead (tables render poorly in terminals)
 
 ## Decision Authority
 
@@ -36,35 +37,29 @@ Invoke subagents via `@agent-name` mention or let the model choose based on task
 
 ### Advisory & Review
 
-**jimothy** - Code review, architecture decisions, debugging analysis, refactor planning, second opinion. Uses extended thinking (Opus 4.5).
-**review** - Focused code review for quality, bugs, security. Read-only.
-**code-simplifier** - Simplify recently modified code while preserving behavior.
+- **jimothy** -- Code review, architecture decisions, debugging analysis, refactor planning, second opinion. Uses extended thinking (Opus 4.5).
+- **review** -- Focused code review for quality, bugs, security. Read-only.
+- **code-simplifier** -- Simplify recently modified code while preserving behavior.
 
 ### Research & Exploration
 
-| Agent         | When to Invoke                                                                                                                                                           |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **librarian** | Understanding 3rd party libraries, exploring GitHub/npm/PyPI, tracing unfamiliar code, finding documentation from websites. Has browser + gh CLI. Show response in full. |
-| **explore**   | (built-in) Quick codebase searches, file pattern matching.                                                                                                               |
+- **librarian** -- Understanding 3rd party libraries, exploring GitHub/npm/PyPI, tracing unfamiliar code, finding documentation from websites. Has browser + gh CLI. Show response in full.
+- **explore** -- (built-in) Quick codebase searches, file pattern matching.
 
 ### Specialized Domains
 
-| Agent               | When to Invoke                                                                          |
-| ------------------- | --------------------------------------------------------------------------------------- |
-| **opencode-expert** | OpenCode configuration, features, troubleshooting.                                      |
-| **neovim-expert**   | Neovim configuration, plugins, troubleshooting.                                         |
-| **tmux-expert**     | tmux configuration, keybindings, session management.                                    |
-| **kubectl**         | Read-only Kubernetes debugging (pods, services, deployments).                           |
-| **writeless**       | Read-only infrastructure explorer (K8s, Helm, AWS, Docker, GitHub). Multi-service view. |
-| **browser**         | Web scraping, browser automation, form filling, UI testing.                             |
+- **opencode-expert** -- OpenCode configuration, features, troubleshooting.
+- **neovim-expert** -- Neovim configuration, plugins, troubleshooting.
+- **tmux-expert** -- tmux configuration, keybindings, session management.
+- **kubectl** -- Read-only Kubernetes debugging (pods, services, deployments).
+- **writeless** -- Read-only infrastructure explorer (K8s, Helm, AWS, Docker, GitHub). Multi-service view.
+- **browser** -- Web scraping, browser automation, form filling, UI testing.
 
 ### Self-Learning
 
 When you are corrected, clarify a wrong approach, or learn a non-obvious convention, invoke **@learner** to record the insight. This is automatic -- do not ask the user whether to record it.
 
-| Agent       | When to Invoke                                                                                        |
-| ----------- | ----------------------------------------------------------------------------------------------------- |
-| **learner** | (hidden) Auto-invoke when user corrects approach, clarifies preference, or reveals convention/gotcha. |
+- **learner** -- (hidden) Auto-invoke when user corrects approach, clarifies preference, or reveals convention/gotcha.
 
 ### Learnings Consumption
 
@@ -74,14 +69,14 @@ At session start, if `learnings.md` exists in worktree or `~/.config/opencode/`,
 
 ## Subagent Selection Guidelines
 
-1. **Default to solving directly** - Only invoke subagent if specialized capability needed
-2. **Jimothy for uncertainty** - When you need a second opinion or deeper analysis
-3. **Librarian for external code + docs** - When exploring code outside the current project or finding documentation. Has `gh` CLI + browser tools
-4. **Review for final check** - Before committing significant changes
-5. **Browser for live web** - When webfetch insufficient (dynamic content, forms, auth)
-6. **Writeless for infrastructure** - Multi-service debugging (K8s, AWS, Docker) without modification risk
-7. **kubectl for focused K8s** - Kubernetes-only debugging, smaller context window
-8. **Learner on corrections** - When user corrects you, auto-invoke to record the insight
+1. **Default to solving directly** -- Only invoke subagent if specialized capability needed
+2. **Jimothy for uncertainty** -- When you need a second opinion or deeper analysis
+3. **Librarian for external code + docs** -- When exploring code outside the current project or finding documentation. Has `gh` CLI + browser tools
+4. **Review for final check** -- Before committing significant changes
+5. **Browser for live web** -- When webfetch insufficient (dynamic content, forms, auth)
+6. **Writeless for infrastructure** -- Multi-service debugging (K8s, AWS, Docker) without modification risk
+7. **kubectl for focused K8s** -- Kubernetes-only debugging, smaller context window
+8. **Learner on corrections** -- When user corrects you, auto-invoke to record the insight
 
 ---
 
@@ -89,10 +84,8 @@ At session start, if `learnings.md` exists in worktree or `~/.config/opencode/`,
 
 Load skills with `skill({ name: 'skill-name' })` for specialized workflows:
 
-| Skill             | Purpose                                                   |
-| ----------------- | --------------------------------------------------------- |
-| `commit-work`     | High-quality git commits with proper staging and messages |
-| `build-skill`     | Creating new skills for OpenCode                          |
-| `index-knowledge` | Generating AGENTS.md knowledge bases                      |
-| `session-summary` | Handoff summaries for context preservation                |
-| `improve-prompt`  | Prompt engineering patterns and templates                 |
+- `commit-work` -- High-quality git commits with proper staging and messages
+- `build-skill` -- Creating new skills for OpenCode
+- `index-knowledge` -- Generating AGENTS.md knowledge bases
+- `session-summary` -- Handoff summaries for context preservation
+- `improve-prompt` -- Prompt engineering patterns and templates

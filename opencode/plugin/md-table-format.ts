@@ -1,230 +1,152 @@
-import type { Plugin, Hooks } from "@opencode-ai/plugin"
+import type { Plugin, Hooks } from "@opencode-ai/plugin";
 
-declare const Bun: any
-
-// Width cache for performance optimization
-const widthCache = new Map<string, number>()
-let cacheOperationCount = 0
-
-export const FormatTables: Plugin = async () => {
+/**
+ * Converts markdown tables in assistant output to bullet lists.
+ * Tables render poorly in terminal environments; bullets are always legible.
+ *
+ * Conversion rules:
+ * - 2-column: `- **col1** -- col2`
+ * - 3-column: `- **col1** -- Header2: val, Header3: val`
+ * - 4+ column: `- **col1**` with nested `  - Header: value` bullets
+ * - 1-column: `- value`
+ * - Tables inside code fences are left untouched.
+ */
+export const TablesToBullets: Plugin = async () => {
   return {
     "experimental.text.complete": async (
       input: { sessionID: string; messageID: string; partID: string },
       output: { text: string },
     ) => {
       try {
-        output.text = formatMarkdownTables(output.text)
+        output.text = convertTables(output.text);
       } catch (error) {
-        // If formatting fails, keep original md text
-        output.text = output.text + "\n\n<!-- table formatting failed: " + (error as Error).message + " -->"
+        output.text =
+          output.text +
+          "\n\n<!-- table conversion failed: " +
+          (error as Error).message +
+          " -->";
       }
     },
-  } as Hooks
-}
+  } as Hooks;
+};
 
-function formatMarkdownTables(text: string): string {
-  const lines = text.split("\n")
-  const result: string[] = []
-  let i = 0
+function convertTables(text: string): string {
+  const lines = text.split("\n");
+  const result: string[] = [];
+  let i = 0;
+  let inCodeFence = false;
 
   while (i < lines.length) {
-    const line = lines[i]
+    const line = lines[i];
 
-    if (isTableRow(line)) {
-      const tableLines: string[] = [line]
-      i++
+    // Track code fences -- skip table detection inside them
+    if (line.trim().startsWith("```")) {
+      inCodeFence = !inCodeFence;
+      result.push(line);
+      i++;
+      continue;
+    }
 
+    if (!inCodeFence && isTableRow(line)) {
+      const tableLines: string[] = [line];
+      i++;
       while (i < lines.length && isTableRow(lines[i])) {
-        tableLines.push(lines[i])
-        i++
+        tableLines.push(lines[i]);
+        i++;
       }
 
       if (isValidTable(tableLines)) {
-        result.push(...formatTable(tableLines))
+        result.push(...tableToBullets(tableLines));
       } else {
-        result.push(...tableLines)
-        result.push("<!-- table not formatted: invalid structure -->")
+        result.push(...tableLines);
       }
     } else {
-      result.push(line)
-      i++
+      result.push(line);
+      i++;
     }
   }
 
-  incrementOperationCount()
-  return result.join("\n")
+  return result.join("\n");
 }
 
+// --- Table detection ---
+
 function isTableRow(line: string): boolean {
-  const trimmed = line.trim()
-  return trimmed.startsWith("|") && trimmed.endsWith("|") && trimmed.split("|").length > 2
+  const trimmed = line.trim();
+  return (
+    trimmed.startsWith("|") &&
+    trimmed.endsWith("|") &&
+    trimmed.split("|").length > 2
+  );
 }
 
 function isSeparatorRow(line: string): boolean {
-  const trimmed = line.trim()
-  if (!trimmed.startsWith("|") || !trimmed.endsWith("|")) return false
-  const cells = trimmed.split("|").slice(1, -1)
-  return cells.length > 0 && cells.every((cell) => /^\s*:?-+:?\s*$/.test(cell))
+  const trimmed = line.trim();
+  if (!trimmed.startsWith("|") || !trimmed.endsWith("|")) return false;
+  const cells = trimmed.split("|").slice(1, -1);
+  return cells.length > 0 && cells.every((cell) => /^\s*:?-+:?\s*$/.test(cell));
 }
 
 function isValidTable(lines: string[]): boolean {
-  if (lines.length < 2) return false
-
-  const rows = lines.map((line) =>
-    line
-      .split("|")
-      .slice(1, -1)
-      .map((cell) => cell.trim()),
-  )
-
-  if (rows.length === 0 || rows[0].length === 0) return false
-
-  const firstRowCellCount = rows[0].length
-  const allSameColumnCount = rows.every((row) => row.length === firstRowCellCount)
-  if (!allSameColumnCount) return false
-
-  const hasSeparator = lines.some((line) => isSeparatorRow(line))
-  return hasSeparator
+  if (lines.length < 2) return false;
+  const rows = lines.map(parseCells);
+  if (rows.length === 0 || rows[0].length === 0) return false;
+  const colCount = rows[0].length;
+  if (!rows.every((row) => row.length === colCount)) return false;
+  return lines.some(isSeparatorRow);
 }
 
-function formatTable(lines: string[]): string[] {
-  const separatorIndices = new Set<number>()
+function parseCells(line: string): string[] {
+  return line
+    .split("|")
+    .slice(1, -1)
+    .map((cell) => cell.trim());
+}
+
+// --- Conversion ---
+
+function tableToBullets(lines: string[]): string[] {
+  const allRows = lines.map(parseCells);
+  const separatorIndices = new Set<number>();
   for (let i = 0; i < lines.length; i++) {
-    if (isSeparatorRow(lines[i])) separatorIndices.add(i)
+    if (isSeparatorRow(lines[i])) separatorIndices.add(i);
   }
 
-  const rows = lines.map((line) =>
-    line
-      .split("|")
-      .slice(1, -1)
-      .map((cell) => cell.trim()),
-  )
+  // Header is the row immediately before the first separator
+  const firstSepIdx = [...separatorIndices][0] ?? 1;
+  const headers =
+    firstSepIdx > 0 && !separatorIndices.has(firstSepIdx - 1)
+      ? allRows[firstSepIdx - 1]
+      : [];
+  const dataRows = allRows.filter(
+    (_, i) => !separatorIndices.has(i) && i !== firstSepIdx - 1,
+  );
 
-  if (rows.length === 0) return lines
+  if (dataRows.length === 0) return [];
 
-  const colCount = Math.max(...rows.map((row) => row.length))
+  const colCount = headers.length || dataRows[0].length;
+  const result: string[] = [];
 
-  const colAlignments: Array<"left" | "center" | "right"> = Array(colCount).fill("left")
-  for (const rowIndex of separatorIndices) {
-    const row = rows[rowIndex]
-    for (let col = 0; col < row.length; col++) {
-      colAlignments[col] = getAlignment(row[col])
-    }
-  }
-
-  const colWidths: number[] = Array(colCount).fill(3)
-  for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
-    if (separatorIndices.has(rowIndex)) continue
-    const row = rows[rowIndex]
-    for (let col = 0; col < row.length; col++) {
-      const displayWidth = calculateDisplayWidth(row[col])
-      colWidths[col] = Math.max(colWidths[col], displayWidth)
-    }
-  }
-
-  return rows.map((row, rowIndex) => {
-    const cells: string[] = []
-    for (let col = 0; col < colCount; col++) {
-      const cell = row[col] ?? ""
-      const align = colAlignments[col]
-
-      if (separatorIndices.has(rowIndex)) {
-        cells.push(formatSeparatorCell(colWidths[col], align))
-      } else {
-        cells.push(padCell(cell, colWidths[col], align))
+  for (const row of dataRows) {
+    if (colCount === 1) {
+      result.push(`- ${row[0]}`);
+    } else if (colCount === 2) {
+      result.push(`- **${row[0]}** -- ${row[1]}`);
+    } else if (colCount === 3) {
+      const parts = headers
+        .slice(1)
+        .map((h, i) => `${h}: ${row[i + 1]}`)
+        .join(", ");
+      result.push(`- **${row[0]}** -- ${parts}`);
+    } else {
+      // 4+ columns: nested bullets
+      result.push(`- **${row[0]}**`);
+      for (let c = 1; c < row.length; c++) {
+        const label = headers[c] || `Col ${c + 1}`;
+        result.push(`  - ${label}: ${row[c]}`);
       }
     }
-    return "| " + cells.join(" | ") + " |"
-  })
-}
-
-function getAlignment(delimiterCell: string): "left" | "center" | "right" {
-  const trimmed = delimiterCell.trim()
-  const hasLeftColon = trimmed.startsWith(":")
-  const hasRightColon = trimmed.endsWith(":")
-
-  if (hasLeftColon && hasRightColon) return "center"
-  if (hasRightColon) return "right"
-  return "left"
-}
-
-function calculateDisplayWidth(text: string): number {
-  if (widthCache.has(text)) {
-    return widthCache.get(text)!
   }
 
-  const width = getStringWidth(text)
-  widthCache.set(text, width)
-  return width
-}
-
-function getStringWidth(text: string): number {
-  // Strip markdown symbols for concealment mode
-  // Users with concealment ON don't see **, *, ~~, ` but DO see markdown inside `code`
-
-  // CRITICAL: Content inside backticks should PRESERVE inner markdown symbols
-  // because concealment treats them as literal text, not markdown
-
-  // Step 1: Extract and protect inline code content
-  const codeBlocks: string[] = []
-  let textWithPlaceholders = text.replace(/`(.+?)`/g, (match, content) => {
-    codeBlocks.push(content)
-    return `\x00CODE${codeBlocks.length - 1}\x00`
-  })
-
-  // Step 2: Strip markdown from non-code parts
-  let visualText = textWithPlaceholders
-  let previousText = ""
-
-  while (visualText !== previousText) {
-    previousText = visualText
-    visualText = visualText
-      .replace(/\*\*\*(.+?)\*\*\*/g, "$1") // ***bold+italic*** -> text
-      .replace(/\*\*(.+?)\*\*/g, "$1") // **bold** -> bold
-      .replace(/\*(.+?)\*/g, "$1") // *italic* -> italic
-      .replace(/~~(.+?)~~/g, "$1") // ~~strike~~ -> strike
-      .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, "$1") // ![alt](url) -> alt (OpenTUI shows only alt text)
-      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1 ($2)") // [text](url) -> text (url)
-  }
-
-  // Step 3: Restore code content (with its original markdown preserved)
-  visualText = visualText.replace(/\x00CODE(\d+)\x00/g, (match, index) => {
-    return codeBlocks[parseInt(index)]
-  })
-
-  return Bun.stringWidth(visualText)
-}
-
-function padCell(text: string, width: number, align: "left" | "center" | "right"): string {
-  const displayWidth = calculateDisplayWidth(text)
-  const totalPadding = Math.max(0, width - displayWidth)
-
-  if (align === "center") {
-    const leftPad = Math.floor(totalPadding / 2)
-    const rightPad = totalPadding - leftPad
-    return " ".repeat(leftPad) + text + " ".repeat(rightPad)
-  } else if (align === "right") {
-    return " ".repeat(totalPadding) + text
-  } else {
-    return text + " ".repeat(totalPadding)
-  }
-}
-
-function formatSeparatorCell(width: number, align: "left" | "center" | "right"): string {
-  if (align === "center") return ":" + "-".repeat(Math.max(1, width - 2)) + ":"
-  if (align === "right") return "-".repeat(Math.max(1, width - 1)) + ":"
-  return "-".repeat(width)
-}
-
-function incrementOperationCount() {
-  cacheOperationCount++
-
-  if (cacheOperationCount > 100 || widthCache.size > 1000) {
-    cleanupCache()
-  }
-}
-
-function cleanupCache() {
-  widthCache.clear()
-  cacheOperationCount = 0
+  return result;
 }

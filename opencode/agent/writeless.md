@@ -202,7 +202,8 @@ permission:
     "wc *": allow
     "ls *": allow
     "tree *": allow
-    "find *": allow
+    "fd *": allow
+    "rg *": allow
     "which *": allow
     "env *": allow
     "printenv *": allow

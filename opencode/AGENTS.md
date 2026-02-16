@@ -57,9 +57,9 @@ Invoke subagents via `@agent-name` mention or let the model choose based on task
 
 ### Self-Learning
 
-When you are corrected, clarify a wrong approach, or learn a non-obvious convention, invoke **@learner** to record the insight. This is automatic -- do not ask the user whether to record it.
+When you are corrected, clarify a wrong approach, learn a non-obvious convention, or the user says "remember this" / "log this for future sessions", invoke **@learner** to record the insight. This is automatic -- do not ask the user whether to record it.
 
-- **learner** -- (hidden) Auto-invoke when user corrects approach, clarifies preference, or reveals convention/gotcha.
+- **learner** -- Auto-invoke when user corrects approach, clarifies preference, reveals convention/gotcha, or asks to remember something.
 
 ### Learnings Consumption
 
@@ -69,14 +69,14 @@ At session start, if `learnings.md` exists in worktree or `~/.config/opencode/`,
 
 ## Subagent Selection Guidelines
 
-1. **Default to solving directly** -- Only invoke subagent if specialized capability needed
-2. **Jimothy for uncertainty** -- When you need a second opinion or deeper analysis
-3. **Librarian for external code + docs** -- When exploring code outside the current project or finding documentation. Has `gh` CLI + browser tools
-4. **Review for final check** -- Before committing significant changes
-5. **Browser for live web** -- When webfetch insufficient (dynamic content, forms, auth)
-6. **Writeless for infrastructure** -- Multi-service debugging (K8s, AWS, Docker) without modification risk
-7. **kubectl for focused K8s** -- Kubernetes-only debugging, smaller context window
-8. **Learner on corrections** -- When user corrects you, auto-invoke to record the insight
+1. **@default to solving directly** -- Only invoke subagent if specialized capability needed
+2. **@jimothy for uncertainty** -- When you need a second opinion or deeper analysis
+3. **@librarian for external code + docs** -- When exploring code outside the current project or finding documentation. Has `gh` CLI + browser tools
+4. **@review for final check** -- Before committing significant changes
+5. **@browser for live web** -- When webfetch insufficient (dynamic content, forms, auth)
+6. **@writeless for infrastructure** -- Multi-service debugging (K8s, AWS, Docker) without modification risk
+7. **@kubectl for focused K8s** -- Kubernetes-only debugging, smaller context window
+8. **@learner on corrections** -- When user corrects you, says "remember this" or "log this for future sessions", auto-invoke to record the insight
 
 ---
 
@@ -89,3 +89,4 @@ Load skills with `skill({ name: 'skill-name' })` for specialized workflows:
 - `index-knowledge` -- Generating AGENTS.md knowledge bases
 - `session-summary` -- Handoff summaries for context preservation
 - `improve-prompt` -- Prompt engineering patterns and templates
+- `grep` -- Search any folder/file using ripgrep (rg) for context

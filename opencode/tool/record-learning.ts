@@ -10,6 +10,17 @@ const GLOBAL_LEARNINGS = path.join(
   "learnings.md",
 );
 
+const ALLOWED_TAGS = [
+  "pattern",
+  "preference",
+  "convention",
+  "gotcha",
+  "correction",
+  "tooling",
+  "api",
+  "performance",
+];
+
 const HEADER = `# Learnings
 
 Captured corrections, insights, and conventions from development sessions.
@@ -74,6 +85,28 @@ Scope: "global" = cross-project insights/preferences, "project" = project-specif
     const now = new Date();
     const timestamp = `${now.toISOString().split("T")[0]} ${now.toTimeString().slice(0, 5)}`;
     const entry = formatEntry(args.learning, args.tags, timestamp);
+
+    // Validate tags
+    const invalidTags = args.tags.filter((t) => !ALLOWED_TAGS.includes(t));
+    if (invalidTags.length > 0) {
+      return `Invalid tags: ${invalidTags.join(", ")}. Allowed: ${ALLOWED_TAGS.join(", ")}`;
+    }
+
+    // Auto-add #correction when learning indicates correction language
+    const correctionIndicators = [
+      "wrong",
+      "correct",
+      "not right",
+      "actually",
+      "instead",
+      "should have",
+    ];
+    const indicatesCorrection = correctionIndicators.some((indicator) =>
+      args.learning.toLowerCase().includes(indicator),
+    );
+    if (indicatesCorrection && !args.tags.includes("correction")) {
+      args.tags.push("correction");
+    }
 
     const targets: string[] = [];
 

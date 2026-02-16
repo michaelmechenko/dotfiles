@@ -2,6 +2,7 @@
 description: Expert on OpenCode configuration, setup, and features - consult for any OpenCode questions
 mode: subagent
 tools:
+  read: true
   write: false
   edit: false
   bash: false

@@ -11,6 +11,7 @@ permission:
   webfetch: allow
   websearch: allow
   codesearch: allow
+  task: allow
   bash:
     "*": ask
     # Git read-only

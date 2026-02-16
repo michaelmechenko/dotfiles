@@ -7,9 +7,16 @@ tools:
   edit: false
 permission:
   edit: deny
+  write: deny
+  read: allow
+  grep: allow
+  glob: allow
   webfetch: allow
   websearch: allow
   codesearch: allow
+  ast-grep_search: allow
+  ast-grep_rewrite: allow
+  clipboard: allow
 ---
 
 You are a code reviewer. Provide actionable feedback on code changes.

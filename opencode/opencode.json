@@ -55,6 +55,7 @@
   },
   "agent": {
     "plan": {
+      "color": "primary",
       "permission": {
         "task": "allow",
         "skill": "allow",
@@ -64,6 +65,7 @@
       }
     },
     "build": {
+      "color": "secondary",
       "permission": {
         "task": "allow",
         "skill": "allow",

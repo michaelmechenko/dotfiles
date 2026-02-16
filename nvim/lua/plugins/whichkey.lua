@@ -94,8 +94,8 @@ return {
       { "<leader>g",   group = "git" },
       {
         "<leader>gs",
-        "<cmd>Gitsigns toggle_linehl<CR><cmd>Gitsigns toggle_numhl<CR>",
-        desc = "gitsigns toggle lines",
+        "<cmd>Gitsigns toggle_linehl<CR><cmd>Gitsigns toggle_signs<CR>",
+        desc = "gitsigns toggle all",
       },
       {
         "<leader>gS",

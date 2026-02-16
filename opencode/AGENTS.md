@@ -52,8 +52,9 @@ Invoke subagents via `@agent-name` mention or let the model choose based on task
 - **neovim-expert** -- Neovim configuration, plugins, troubleshooting.
 - **tmux-expert** -- tmux configuration, keybindings, session management.
 - **kubectl** -- Read-only Kubernetes debugging (pods, services, deployments).
-- **writeless** -- Read-only infrastructure explorer (K8s, Helm, AWS, Docker, GitHub). Multi-service view.
+- **writeless** -- Read-only context explorer (K8s, Helm, AWS, Docker, GitHub, local dev). Multi-service view.
 - **browser** -- Web scraping, browser automation, form filling, UI testing.
+- **bashless** -- Execute shell commands without spawning a persistent shell. Best for single commands.
 
 ### Self-Learning
 
@@ -74,7 +75,7 @@ At session start, if `learnings.md` exists in worktree or `~/.config/opencode/`,
 3. **@librarian for external code + docs** -- When exploring code outside the current project or finding documentation. Has `gh` CLI + browser tools
 4. **@review for final check** -- Before committing significant changes
 5. **@browser for live web** -- When webfetch insufficient (dynamic content, forms, auth)
-6. **@writeless for infrastructure** -- Multi-service debugging (K8s, AWS, Docker) without modification risk
+6. **@writeless for infrastructure and local context** -- Multi-service debugging (K8s, AWS, Docker) and local file/code exploration without modification risk
 7. **@kubectl for focused K8s** -- Kubernetes-only debugging, smaller context window
 8. **@learner on corrections** -- When user corrects you, says "remember this" or "log this for future sessions", auto-invoke to record the insight
 

@@ -6,7 +6,7 @@ permission:
   edit:
     "*": deny
     "*/learnings.md": allow
-    "Users/*/.config/opencode/learnings.md": allow
+    "*/.config/opencode/learnings.md": allow
   record-learning: allow
   read: allow
 ---
@@ -33,15 +33,13 @@ You are a learning recorder. You receive context about a user correction or clar
 
 ## Tag Reference
 
-| Tag            | When                                            |
-| -------------- | ----------------------------------------------- |
-| `#pattern`     | Architectural or code patterns to follow/avoid  |
-| `#preference`  | Stylistic or workflow preferences               |
-| `#convention`  | Naming, structure, or process conventions       |
-| `#gotcha`      | Non-obvious pitfalls, edge cases, footguns      |
-| `#correction`  | Direct correction of a wrong approach           |
-| `#tooling`     | Build tools, CLI, dev environment specifics     |
-| `#api`         | API behavior, library quirks, external services |
-| `#performance` | Performance-related insights                    |
+- `#pattern` -- Architectural or code patterns to follow/avoid
+- `#preference` -- Stylistic or workflow preferences
+- `#convention` -- Naming, structure, or process conventions
+- `#gotcha` -- Non-obvious pitfalls, edge cases, footguns
+- `#correction` -- Direct correction of a wrong approach
+- `#tooling` -- Build tools, CLI, dev environment specifics
+- `#api` -- API behavior, library quirks, external services
+- `#performance` -- Performance-related insights
 
 Use 1-3 tags per entry. Always include `#correction` when the user explicitly corrected you.

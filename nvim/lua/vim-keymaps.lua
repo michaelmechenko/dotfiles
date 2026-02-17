@@ -52,9 +52,9 @@ vim.keymap.set("v", "P", '"+p', {})
 vim.keymap.set("v", "Y", '"+y', {})
 
 vim.api.nvim_set_keymap('n', 'p', '"0p', { noremap = true })
-vim.api.nvim_set_keymap('n', 'P', '"0P', { noremap = true })
+-- vim.api.nvim_set_keymap('n', 'P', '"0P', { noremap = true })
 vim.api.nvim_set_keymap('v', 'p', '"0p', { noremap = true })
-vim.api.nvim_set_keymap('v', 'P', '"0P', { noremap = true })
+-- vim.api.nvim_set_keymap('v', 'P', '"0P', { noremap = true })
 
 -- buffer remaps
 -- vim.keymap.set("n", "<leader>bd", "<CR>:bd<CR>", {})

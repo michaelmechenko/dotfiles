@@ -45,21 +45,13 @@ vim.cmd("set tabstop=2")
 vim.cmd("set softtabstop=2")
 vim.cmd("set shiftwidth=2")
 
--- yanking/pasting to global register
+-- yanking/pasting/cutting to global register
 vim.keymap.set("n", "P", '"+p', {})
-vim.keymap.set("n", "Y", '"+y', {})
 vim.keymap.set("v", "P", '"+p', {})
+vim.keymap.set("n", "Y", '"+y', {})
 vim.keymap.set("v", "Y", '"+y', {})
-
-vim.api.nvim_set_keymap('n', 'p', '"0p', { noremap = true })
--- vim.api.nvim_set_keymap('n', 'P', '"0P', { noremap = true })
-vim.api.nvim_set_keymap('v', 'p', '"0p', { noremap = true })
--- vim.api.nvim_set_keymap('v', 'P', '"0P', { noremap = true })
-
--- buffer remaps
--- vim.keymap.set("n", "<leader>bd", "<CR>:bd<CR>", {})
--- vim.keymap.set("n", "<leader>bc", "<CR>:bprev<CR>", {})
--- vim.keymap.set("n", "<leader>bv", "<CR>:bnext<CR>", {})
+vim.keymap.set("n", "X", '"+x', {})
+vim.keymap.set("v", "X", '"+x', {})
 
 -- window management
 vim.keymap.set("n", "<leader>we", "<C-w>=", {})

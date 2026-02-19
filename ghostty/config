@@ -11,8 +11,8 @@ shell-integration-features = no-cursor, sudo, ssh-env, ssh-terminfo
 cursor-style = underline
 cursor-style-blink = false
 
-# background-opacity = 0.98
-# background-blur-radius = 50
+background-opacity = 0.97
+background-blur-radius = 50
 # unfocused-split-opacity = 0.75
 # custom-shader = bloom.glsl
 
@@ -35,10 +35,10 @@ macos-icon-screen-color = #9893a5
 
 resize-overlay = never
 
-font-size = 15
+font-size = 14.5
 # adjust-cell-width = 2%
 # adjust-font-baseline = 0
-# adjust-cell-height = 2%
+adjust-cell-height = 4%
 font-feature = -calt
 # font-thicken = true
 # font-thicken-strength = 0

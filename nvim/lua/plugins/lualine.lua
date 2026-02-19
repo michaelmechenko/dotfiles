@@ -1,7 +1,7 @@
 local oldworld_override = {
   normal = {
     a = { bg = "#bb9af7", fg = "#1b1b1c", gui = "bold" },
-    b = { bg = "#27282a", fg = "#bb9af7" },
+    b = { bg = "#1c1c24", fg = "#bb9af7" },
     c = { fg = "#bb9af7" },
   },
   insert = {
@@ -27,7 +27,7 @@ local filetype_spacing = {
           return " "
         end,
         padding = 0,
-        color = { bg = "None", }
+        -- color = { bg = "#1c1c24", }
       },
       {
         "buffers",
@@ -35,7 +35,7 @@ local filetype_spacing = {
         hide_filename_extension = false, -- Hide filename extension when set to true.
         show_modified_status = true,     -- Shows indicator when the buffer is modified.
         padding = { left = 1, right = 1 },
-        use_mode_colors = false,
+        use_mode_colors = true,
 
         mode = 1,
         -- 0: Shows buffer name
@@ -53,12 +53,14 @@ local filetype_spacing = {
         },
         buffers_color = {
           active = {
-            bg = "None", --[[ fg = "#9CABCA", ]]
+            -- bg = "None", --[[ fg = "#9CABCA", ]]
+            -- bg = "#1c1c24",
             gui = "bold"
           },
           inactive = {
-            bg = "None", --[[ fg = "#9CABCA", ]]
-            fg = "5A5A70",
+            -- bg = "None", --[[ fg = "#9CABCA", ]]
+            -- bg = "#1c1c24",
+            fg = "#5A5A70",
           },
         },
       },
@@ -90,7 +92,7 @@ return {
         component_separators = '',
         section_separators = '',
         ignore_focus = {},
-        always_divide_middle = false,
+        always_divide_middle = true,
         globalstatus = true,
         refresh = {
           statusline = 100,
@@ -110,7 +112,7 @@ return {
               return " "
             end,
             padding = 0,
-            color = { bg = "None", }
+            -- color = { bg = "None", }
           },
           {
             "buffers",
@@ -136,12 +138,11 @@ return {
             },
             buffers_color = {
               active = {
-                bg = "None", --[[ fg = "#9CABCA", ]]
+                -- bg = "None", --[[ fg = "#9CABCA", ]]
                 -- gui = "bold"
-                -- bg = "252530"
               },
               inactive = {
-                bg = "None", --[[ fg = "#9CABCA", ]]
+                -- bg = "None", --[[ fg = "#9CABCA", ]]
                 fg = "5A5A70",
               },
             },
@@ -158,14 +159,19 @@ return {
               unnamed = '',      -- Text to show for unnamed buffers.
               newfile = '[new]', -- Text to show for newly created file before first write
             },
-            color = {
-              -- fg = "c9c7cd"
-            }
+            -- color = {
+            --   fg = "c9c7cd",
+            --   bg = "None"
+            -- }
           },
         },
         lualine_x = {
           {
             "diff",
+            -- color = {
+            --   fg = "c9c7cd",
+            --   bg = "None"
+            -- }
           },
           -- {
           --   "branch",

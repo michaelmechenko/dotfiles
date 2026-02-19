@@ -4,7 +4,7 @@ return {
   priority = 1000, -- make sure to load this before all the other plugins
   config = function()
     require("vague").setup({
-      transparent = false,
+      transparent = true,
       bold = true,
       italic = true,
       style = {
@@ -101,6 +101,7 @@ return {
         -- fg = "#cdcdcd",
         -- floatBorder = "#878787",
         -- line = "#252530",
+        line = "#1c1c24",
         -- comment = "#606079",
         -- builtin = "#b4d4cf",
         -- func = "#c48282",

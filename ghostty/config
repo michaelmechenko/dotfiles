@@ -11,7 +11,7 @@ shell-integration-features = no-cursor, sudo, ssh-env, ssh-terminfo
 cursor-style = underline
 cursor-style-blink = false
 
-background-opacity = 0.97
+background-opacity = 0.98
 background-blur-radius = 50
 # unfocused-split-opacity = 0.75
 # custom-shader = bloom.glsl
@@ -20,7 +20,7 @@ background-blur-radius = 50
 # window-vsync = false
 
 window-padding-x = 12
-window-padding-y = 8
+window-padding-y = 10, 2
 
 # bold-is-bright = true
 
@@ -38,7 +38,7 @@ resize-overlay = never
 font-size = 14.5
 # adjust-cell-width = 2%
 # adjust-font-baseline = 0
-adjust-cell-height = 4%
+adjust-cell-height = 8%
 font-feature = -calt
 # font-thicken = true
 # font-thicken-strength = 0

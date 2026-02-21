@@ -1,12 +1,6 @@
 ---
 description: Senior engineering advisor for code reviews, architecture decisions, complex debugging, and planning. Invoke when you need deeper analysis before acting — reviews, trade-offs, debugging race conditions, planning refactors. Prompt with precise problem + files. Ask for concrete outcomes.
 mode: subagent
-model: anthropic/claude-opus-4-5
-# Extended thinking - maxed out for deepest reasoning
-options:
-  thinking:
-    type: enabled
-    budgetTokens: 31999
 permission:
   "*": deny
   read: allow

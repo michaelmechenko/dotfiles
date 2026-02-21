@@ -37,7 +37,7 @@ Invoke subagents via `@agent-name` mention or let the model choose based on task
 
 ### Advisory & Review
 
-- **jimothy** -- Code review, architecture decisions, debugging analysis, refactor planning, second opinion. Uses extended thinking (Opus 4.5).
+- **jimothy** -- Code review, architecture decisions, debugging analysis, refactor planning, second opinion.
 - **review** -- Focused code review for quality, bugs, security. Read-only.
 - **code-simplifier** -- Simplify recently modified code while preserving behavior.
 
@@ -56,16 +56,6 @@ Invoke subagents via `@agent-name` mention or let the model choose based on task
 - **browser** -- Web scraping, browser automation, form filling, UI testing.
 - **bashless** -- Execute shell commands without spawning a persistent shell. Best for single commands.
 
-### Self-Learning
-
-When you are corrected, clarify a wrong approach, learn a non-obvious convention, or the user says "remember this" / "log this for future sessions", invoke **@learner** to record the insight. This is automatic -- do not ask the user whether to record it.
-
-- **learner** -- Auto-invoke when user corrects approach, clarifies preference, reveals convention/gotcha, or asks to remember something.
-
-### Learnings Consumption
-
-At session start, if `learnings.md` exists in worktree or `~/.config/opencode/`, read it for accumulated conventions and preferences. Apply silently -- do not summarize back to the user.
-
 ---
 
 ## Subagent Selection Guidelines
@@ -77,7 +67,6 @@ At session start, if `learnings.md` exists in worktree or `~/.config/opencode/`,
 5. **@browser for live web** -- When webfetch insufficient (dynamic content, forms, auth)
 6. **@writeless for infrastructure and local context** -- Multi-service debugging (K8s, AWS, Docker) and local file/code exploration without modification risk
 7. **@kubectl for focused K8s** -- Kubernetes-only debugging, smaller context window
-8. **@learner on corrections** -- When user corrects you, says "remember this" or "log this for future sessions", auto-invoke to record the insight
 
 ---
 

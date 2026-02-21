@@ -15,7 +15,7 @@ sessions=$(tmux list-sessions -F '#S' | awk 'BEGIN {ORS=" "} {print $1, NR, "\"s
 # Use eval to properly handle the command
 # Multiple separator lines (empty name/key/command) create more spacing
 # Position at absolute bottom right corner of window
-eval "tmux display-menu -M -O -T \"#[align=centre]choose session\" -b rounded -x $client_width -y $((client_height - 1)) \
+eval "tmux display-menu -M -O -T \"#[align=centre]choose session\" -b rounded -x $client_width -y 1 \
     $sessions \
     \"\" \"\" \"\" \
     \"\" \"\" \"\" \

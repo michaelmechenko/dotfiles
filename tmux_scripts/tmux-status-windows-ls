@@ -50,7 +50,7 @@ if [ -z "$menu_items" ]; then
 fi
 
 # Display menu at bottom-left corner (x=0 for left edge, y at bottom)
-eval "tmux display-menu -M -O -T \"#[align=centre]other panes\" -b rounded -x $client_width -y $((client_height - 1)) \
+eval "tmux display-menu -M -O -T \"#[align=centre]other panes\" -b rounded -x $client_width -y 1 \
     $menu_items \
     \"\" \"\" \"\" \
     \"\" \"\" \"\" \

@@ -22,8 +22,8 @@ return {
       })
 
       -- Equal WinBar/WinBarNC disables dimming
-      vim.api.nvim_set_hl(0, 'WinBar', { fg = '#9396a6', bg = '#1C1C24' })
-      vim.api.nvim_set_hl(0, 'WinBarNC', { fg = '#9396a6', bg = '#1C1C24' })
+      vim.api.nvim_set_hl(0, 'WinBar', { fg = '#c3c3c3', bg = '#1C1C24' })
+      vim.api.nvim_set_hl(0, 'WinBarNC', { fg = '#c3c3c3', bg = '#1C1C24' })
       vim.api.nvim_set_hl(0, 'DropBarIconKindDefault', { fg = '#656a80' })
 
       -- Link all specific icon kinds to the default (skips NC variants)
@@ -35,8 +35,8 @@ return {
 
       vim.api.nvim_create_autocmd('ColorScheme', {
         callback = function()
-          vim.api.nvim_set_hl(0, 'WinBar', { fg = '#9396a6', bg = '#1C1C24' })
-          vim.api.nvim_set_hl(0, 'WinBarNC', { fg = '#9396a6', bg = '#1C1C24' })
+          vim.api.nvim_set_hl(0, 'WinBar', { fg = '#c3c3c3', bg = '#1C1C24' })
+          vim.api.nvim_set_hl(0, 'WinBarNC', { fg = '#c3c3c3', bg = '#1C1C24' })
           vim.api.nvim_set_hl(0, 'DropBarIconKindDefault', { fg = '#656a80' })
           for _, name in ipairs(vim.fn.getcompletion('DropBarIconKind', 'highlight')) do
             if not name:match('NC$') and name ~= 'DropBarIconKindDefault' then

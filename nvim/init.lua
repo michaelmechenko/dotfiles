@@ -14,6 +14,7 @@ vim.opt.rtp:prepend(lazypath)
 vim.opt.termguicolors = true
 vim.opt.cursorline = true
 vim.opt.conceallevel = 0
+vim.o.winborder = "rounded"
 
 vim.opt.wrap = true
 vim.opt.linebreak = true

@@ -18,7 +18,7 @@ return {
         functions = "none",
         headings = "none",
         operators = "none",
-        strings = "italic",
+        strings = "none",
         variables = "none",
 
         -- keywords
@@ -62,6 +62,8 @@ return {
 
       -- Override highlights or add new highlights
       on_highlights = function(hl, c)
+        -- hl["NormalFloat"].bg             = "#1C1C24"
+        -- hl["Pmenu"].bg                   = "#1C1C24"
         hl["Special"]                    = hl["@lsp.type.selfParameter"]
         hl["Typedef"]                    = hl["@lsp.type.typeParameter"]
         hl["Structure"]                  = hl["@lsp.type.interface"]

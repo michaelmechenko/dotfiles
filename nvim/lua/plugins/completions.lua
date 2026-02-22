@@ -30,7 +30,7 @@ return {
       },
 
       appearance = {
-        nerd_font_variant = 'normal' -- default = mono
+        nerd_font_variant = 'mono' -- or normal
       },
 
       signature = {
@@ -49,8 +49,8 @@ return {
           -- Show the signature help window when the cursor comes after a trigger character when entering insert mode
           show_on_insert_on_trigger_character = true,
         },
+
         window = {
-          border = 'single',
           scrollbar = false,
           treesitter_highlighting = true,
           show_documentation = false,
@@ -76,7 +76,6 @@ return {
             end
             return { 's', 'n' }
           end,
-          border = 'single',
           draw = {
             align_to = "cursor"
           },
@@ -85,7 +84,7 @@ return {
         documentation = {
           auto_show = true,
           auto_show_delay_ms = 800,
-          window = { border = 'single', scrollbar = true, }
+          window = { scrollbar = false, }
         },
         ghost_text = {
           enabled = true,
@@ -100,13 +99,22 @@ return {
         },
         list = {
           selection = {
-            preselect = false, auto_insert = false
+            preselect = true, auto_insert = false
           }
         }
       },
 
       sources = {
         default = { 'lsp', 'path', 'snippets' },
+        providers = {
+          path = {
+            opts = {
+              get_cwd = function(_)
+                return vim.fn.getcwd()
+              end,
+            }
+          }
+        }
       },
 
       fuzzy = { implementation = "prefer_rust_with_warning" }

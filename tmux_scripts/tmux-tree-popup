@@ -40,9 +40,9 @@ if tmux has-session -t float 2>/dev/null; then
     
     tmux list-windows -t "$session" -F '#{window_index}|#{window_name}|#{window_panes}' | while IFS='|' read -r win_idx win_name num_panes; do
         if [ "$num_panes" -eq 1 ]; then
-            printf "  \033[38;2;101;106;128m- w-%s\033[0m\n" "$win_idx" >> "$tmp_file"
+            printf "  \033[38;2;101;106;128m- %s: %s\033[0m\n" "$win_idx" "$win_name" >> "$tmp_file"
         else
-            printf "  \033[38;2;101;106;128m- w-%s [%s]\033[0m\n" "$win_idx" "$num_panes" >> "$tmp_file"
+            printf "  \033[38;2;101;106;128m- %s: %s [%s]\033[0m\n" "$win_idx" "$win_name" "$num_panes" >> "$tmp_file"
         fi
         
         tmux list-panes -t "$session:$win_idx" -F '#{pane_index}|#{pane_current_command}|#{pane_current_path}' | while IFS='|' read -r pane_idx cmd path; do
@@ -70,9 +70,9 @@ for session in $(tmux list-sessions -F '#{session_name}' | grep -v '^float$' | g
     
     tmux list-windows -t "$session" -F '#{window_index}|#{window_name}|#{window_panes}' | while IFS='|' read -r win_idx win_name num_panes; do
         if [ "$num_panes" -eq 1 ]; then
-            printf "  \033[38;2;101;106;128m- w-%s\033[0m\n" "$win_idx" >> "$tmp_file"
+            printf "  \033[38;2;101;106;128m- %s: %s\033[0m\n" "$win_idx" "$win_name" >> "$tmp_file"
         else
-            printf "  \033[38;2;101;106;128m- w-%s [%s]\033[0m\n" "$win_idx" "$num_panes" >> "$tmp_file"
+            printf "  \033[38;2;101;106;128m- %s: %s [%s]\033[0m\n" "$win_idx" "$win_name" "$num_panes" >> "$tmp_file"
         fi
         
         tmux list-panes -t "$session:$win_idx" -F '#{pane_index}|#{pane_current_command}|#{pane_current_path}' | while IFS='|' read -r pane_idx cmd path; do
@@ -101,9 +101,9 @@ if tmux has-session -t ephemeral 2>/dev/null; then
     
     tmux list-windows -t "$session" -F '#{window_index}|#{window_name}|#{window_panes}' | while IFS='|' read -r win_idx win_name num_panes; do
         if [ "$num_panes" -eq 1 ]; then
-            printf "  \033[38;2;101;106;128m- w-%s\033[0m\n" "$win_idx" >> "$tmp_file"
+            printf "  \033[38;2;101;106;128m- %s: %s\033[0m\n" "$win_idx" "$win_name" >> "$tmp_file"
         else
-            printf "  \033[38;2;101;106;128m- w-%s [%s]\033[0m\n" "$win_idx" "$num_panes" >> "$tmp_file"
+            printf "  \033[38;2;101;106;128m- %s: %s [%s]\033[0m\n" "$win_idx" "$win_name" "$num_panes" >> "$tmp_file"
         fi
         
         tmux list-panes -t "$session:$win_idx" -F '#{pane_index}|#{pane_current_command}|#{pane_current_path}' | while IFS='|' read -r pane_idx cmd path; do
@@ -147,4 +147,4 @@ cat "$tmp_file" >> "$centered_file"
 # Display popup on opposite side of active pane - close on q, Enter, or Escape
 # Remove marker when popup closes
 # Hide cursor with tput civis, restore with tput cnorm
-tmux popup -E -x$popup_x -yC -w40% -h98% -S "fg=#aeaed1" -b "rounded" "tput civis; cat '$centered_file' && rm '$centered_file' '$tmp_file' && sh -c 'old=\$(stty -g); stty raw -echo; while :; do char=\$(dd bs=1 count=1 2>/dev/null); case \"\$char\" in q) break;; *) case \"\$char\" in \"\$(printf \"\\r\")\") break;; \"\$(printf \"\\n\")\") break;; \"\$(printf \"\\033\")\") break;; esac;; esac; done; stty \$old'; tput cnorm; rm -f '$marker'"
+tmux popup -E -x$popup_x -yC -w25% -h98% -S "fg=#aeaed1" -b "rounded" "tput civis; cat '$centered_file' && rm '$centered_file' '$tmp_file' && sh -c 'old=\$(stty -g); stty raw -echo; while :; do char=\$(dd bs=1 count=1 2>/dev/null); case \"\$char\" in q) break;; *) case \"\$char\" in \"\$(printf \"\\r\")\") break;; \"\$(printf \"\\n\")\") break;; \"\$(printf \"\\033\")\") break;; esac;; esac; done; stty \$old'; tput cnorm; rm -f '$marker'"

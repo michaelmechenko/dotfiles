@@ -65,7 +65,7 @@
       }
     },
     "build": {
-      "color": "secondary",
+      "color": "#BB9DBD",
       "permission": {
         "task": "allow",
         "skill": "allow",

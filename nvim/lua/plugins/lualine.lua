@@ -27,7 +27,7 @@ local filetype_spacing = {
           return " "
         end,
         padding = 0,
-        -- color = { bg = "#1c1c24", }
+        color = { bg = "#1c1c24", }
       },
       {
         "buffers",
@@ -54,12 +54,12 @@ local filetype_spacing = {
         buffers_color = {
           active = {
             -- bg = "None", --[[ fg = "#9CABCA", ]]
-            -- bg = "#1c1c24",
+            bg = "#1c1c24",
             gui = "bold"
           },
           inactive = {
             -- bg = "None", --[[ fg = "#9CABCA", ]]
-            -- bg = "#1c1c24",
+            bg = "#1c1c24",
             fg = "#5A5A70",
           },
         },
@@ -113,6 +113,7 @@ return {
             end,
             padding = 0,
             -- color = { bg = "None", }
+            color = { bg = "#1c1c24" }
           },
           {
             "buffers",
@@ -140,9 +141,11 @@ return {
               active = {
                 -- bg = "None", --[[ fg = "#9CABCA", ]]
                 -- gui = "bold"
+                bg = "#1c1c24"
               },
               inactive = {
                 -- bg = "None", --[[ fg = "#9CABCA", ]]
+                bg = "#1c1c24",
                 fg = "5A5A70",
               },
             },

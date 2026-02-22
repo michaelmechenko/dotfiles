@@ -1,7 +1,7 @@
 ---
 description: Development agent without shell access. Best for pure code editing, documentation, and planning where shell commands are not needed.
 mode: primary
-color: warning
+color: "#F3BE7C"
 tools:
   write: true
   edit: true

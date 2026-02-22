@@ -1,10 +1,10 @@
 palette = 0=#252530
 palette = 1=#d8647e
 palette = 2=#bb9dbd
-palette = 3=#f3be7c
-palette = 4=#aeaed1
+palette = 3=#bebedb
+palette = 4=#f3be7c
 palette = 5=#90a0b5
-palette = 6=#bb9dbd
+palette = 6=#aeaed1
 palette = 7=#cdcdcd
 palette = 8=#606079
 palette = 9=#e08398
@@ -16,7 +16,7 @@ palette = 14=#bebeda
 palette = 15=#d7d7d7
 
 background = #141415
-foreground = #cdcdcd
+foreground = #c3c3c3
 selection-background = #252530
 selection-foreground = #cdcdcd
 split-divider-color = #878787

@@ -92,16 +92,20 @@ return {
         hl["@markup.strong"]             = { fg = c.constant, bg = "None" }
         hl["SnacksIndent"].fg            = "#383848"
         hl["NeoTreeIndentMarker"].fg     = "#383848"
+        hl["GitSignsAdd"]                = { fg = "#bb9dbd" }
+        hl["GitSignsDelete"]             = { fg = "#d8647e" }
+        hl["GitSignsChange"]             = { fg = "#f3be7c" }
+        hl["DiffAdd"]                    = { bg = "#39323A" }
+        hl["DiffDelete"]                 = { bg = "#3F262C" }
       end,
 
       -- Override colors
       colors = {
         -- bg = "#141415",
         -- inactiveBg = "#1c1c24",
-        -- fg = "#cdcdcd",
+        fg = "#c3c3c3",
         -- floatBorder = "#878787",
         -- line = "#252530",
-        line = "#1c1c24",
         -- comment = "#606079",
         -- builtin = "#b4d4cf",
         -- func = "#c48282",

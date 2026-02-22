@@ -1,6 +1,6 @@
 # Global Instructions
 
-- Be extremely concise; sacrifice grammar for brevity
+- Be concise; sacrifice grammar for brevity
 - Do not use emojis
 - User will request elaboration when needed
 - Never use markdown tables -- use bullet lists instead (tables render poorly in terminals)

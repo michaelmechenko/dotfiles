@@ -165,6 +165,15 @@ automatically-unhide-macos-hidden-apps = false
 
     # See: https://nikitabobko.github.io/AeroSpace/commands#mode
     cmd-shift-enter = 'mode service'
+    cmd-shift-backtick = 'mode move'
+
+[mode.move.binding]
+    1 = ['move-node-to-workspace --focus-follows-window 1*', 'mode main']
+    2 = ['move-node-to-workspace --focus-follows-window 2*', 'mode main']
+    3 = ['move-node-to-workspace --focus-follows-window 3*', 'mode main']
+    shift-1 = ['move-node-to-workspace --focus-follows-window 1^', 'mode main']
+    shift-2 = ['move-node-to-workspace --focus-follows-window 2^', 'mode main']
+    esc = ['mode main']
 
 # 'service' binding mode declaration.
 # See: https://nikitabobko.github.io/AeroSpace/guide#binding-modes

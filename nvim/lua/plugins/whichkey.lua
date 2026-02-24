@@ -486,13 +486,29 @@ return {
 
       -- surround
       { "<leader>s",  group = "surround" },
+      { "<leader>ss", function() return require("nvim-surround").normal_surround({ line_mode = false }) end, desc = "surround motion", expr = true },
+      {
+        "<leader>sa",
+        function()
+          local curpos = require("nvim-surround.buffer").get_curpos()
+          return string.format(
+            ":lua require'nvim-surround'.visual_surround({ line_mode = false, curpos = { %d, %d }, curswant = %d })<CR>",
+            curpos[1], curpos[2], vim.fn.winsaveview().curswant
+          )
+        end,
+        desc = "surround selection",
+        expr = true,
+        mode = "x",
+      },
+      { "ds",         function() return require("nvim-surround").delete_surround() end,                      desc = "delete surround",         expr = true },
+      { "cs",         function() return require("nvim-surround").change_surround({ line_mode = false }) end, desc = "change surround",         expr = true },
 
       -- stay-centered
-      { "<leader>st", function() require('stay-centered').toggle() end,               desc = "toggle stay centered" },
+      { "<leader>st", function() require('stay-centered').toggle() end,                                      desc = "toggle stay centered" },
 
       -- scopes
-      { "[[",         function() require('snacks').scope.jump() end,                  desc = "jump to top of scope",    mode = { "n", "x" } },
-      { "]]",         function() require('snacks').scope.jump({ bottom = true }) end, desc = "jump to bottom of scope", mode = { "n", "x" } }
+      { "[[",         function() require('snacks').scope.jump() end,                                         desc = "jump to top of scope",    mode = { "n", "x" } },
+      { "]]",         function() require('snacks').scope.jump({ bottom = true }) end,                        desc = "jump to bottom of scope", mode = { "n", "x" } }
     })
   end,
 }

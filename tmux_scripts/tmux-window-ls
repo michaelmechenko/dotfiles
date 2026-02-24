@@ -2,7 +2,7 @@
 
 set -e
 
-tmux list-windows -F '#{window_id} #{window_index} #{pane_current_command} #{pane_current_path}' \
+tmux list-windows -F '#{window_id} #{window_index} #{window_name} #{pane_current_path}' \
 | awk -v HOME="$HOME" 'BEGIN {ORS=" "} {
     path = $4
     

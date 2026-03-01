@@ -508,7 +508,27 @@ return {
 
       -- scopes
       { "[[",         function() require('snacks').scope.jump() end,                                         desc = "jump to top of scope",    mode = { "n", "x" } },
-      { "]]",         function() require('snacks').scope.jump({ bottom = true }) end,                        desc = "jump to bottom of scope", mode = { "n", "x" } }
+      { "]]",         function() require('snacks').scope.jump({ bottom = true }) end,                        desc = "jump to bottom of scope", mode = { "n", "x" } },
+
+      -- treesitter-textobjects
+      {
+        "[m",
+        function()
+          require("nvim-treesitter-textobjects.move").goto_previous_start("@function.outer",
+            "textobjects")
+        end,
+        desc = "prev function start",
+        mode = { "n", "x", "o" }
+      },
+      {
+        "]m",
+        function()
+          require("nvim-treesitter-textobjects.move").goto_next_start("@function.outer",
+            "textobjects")
+        end,
+        desc = "next function start",
+        mode = { "n", "x", "o" }
+      },
     })
   end,
 }

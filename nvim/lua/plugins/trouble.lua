@@ -67,4 +67,15 @@ return {
       },
     },
   },
+  -- config = function(_, opts)
+  --   require("trouble").setup(opts)
+  --
+  --   -- auto-fold all items when trouble opens
+  --   vim.api.nvim_create_autocmd("User", {
+  --     pattern = "TroubleOpen",
+  --     callback = function()
+  --       require("trouble").fold_close_all()
+  --     end,
+  --   })
+  -- end,
 }

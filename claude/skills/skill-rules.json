@@ -1,0 +1,180 @@
+{
+  "version": "1.0",
+  "skills": {
+    "code-review": {
+      "priority": "high",
+      "promptTriggers": {
+        "keywords": ["review", "code review", "review pr", "review changes", "check code", "audit"],
+        "intentPatterns": [
+          "(review|audit|check).*?(code|changes|pr|pull request|diff|commit)",
+          "(look over|inspect).*?(implementation|code)"
+        ]
+      }
+    },
+    "plan-review": {
+      "priority": "high",
+      "promptTriggers": {
+        "keywords": ["review plan", "check plan", "plan review", "review my plan"],
+        "intentPatterns": [
+          "(review|evaluate|critique|check).*?plan",
+          "plan.*(look|good|ok|ready|missing)"
+        ]
+      }
+    },
+    "simplify": {
+      "priority": "medium",
+      "promptTriggers": {
+        "keywords": ["simplify", "reduce complexity", "clean up code", "refactor for simplicity"],
+        "intentPatterns": [
+          "(simplify|clean up|reduce).*?(code|implementation|logic)",
+          "(too complex|overly complicated|over-?engineered)"
+        ]
+      }
+    },
+    "search": {
+      "priority": "low",
+      "promptTriggers": {
+        "keywords": ["search for", "find files", "find code", "grep for", "locate"],
+        "intentPatterns": [
+          "(search|find|locate|grep).*?(file|code|function|class|pattern)",
+          "where is.*?(defined|implemented|used)"
+        ]
+      }
+    },
+    "commit-work": {
+      "priority": "high",
+      "promptTriggers": {
+        "keywords": ["commit", "git commit", "stage changes", "commit message", "ready to commit"],
+        "intentPatterns": [
+          "(commit|stage|prepare).*?(changes|work|code)",
+          "(create|write|draft).*?commit"
+        ]
+      }
+    },
+    "session-summary": {
+      "priority": "medium",
+      "promptTriggers": {
+        "keywords": ["session summary", "handoff", "end session", "summarize session", "context handoff", "wrap up"],
+        "intentPatterns": [
+          "(summarize|wrap up|end|close).*?session",
+          "(handoff|hand off|transfer).*?(context|session)",
+          "before (I|we) (stop|leave|break)"
+        ]
+      }
+    },
+    "copy-content": {
+      "priority": "low",
+      "promptTriggers": {
+        "keywords": ["copy to clipboard", "pbcopy", "copy this", "clipboard"],
+        "intentPatterns": [
+          "(copy|pipe|send).*?(clipboard|pbcopy)"
+        ]
+      }
+    },
+    "diff-summary": {
+      "priority": "medium",
+      "promptTriggers": {
+        "keywords": ["diff", "what changed", "show changes", "compare branches", "uncommitted"],
+        "intentPatterns": [
+          "(show|summarize|what are).*?(diff|changes|modified)",
+          "(compare|difference).*?(branch|commit)"
+        ]
+      }
+    },
+    "index-knowledge": {
+      "priority": "medium",
+      "promptTriggers": {
+        "keywords": ["index knowledge", "generate claude.md", "create claude.md", "knowledge base", "document codebase"],
+        "intentPatterns": [
+          "(generate|create|build|index).*?(claude.?md|knowledge|documentation)",
+          "(document|map).*?(codebase|project|repo)"
+        ]
+      }
+    },
+    "claude-api": {
+      "priority": "high",
+      "promptTriggers": {
+        "keywords": ["claude api", "anthropic sdk", "anthropic api", "agent sdk", "claude sdk", "messages api"],
+        "intentPatterns": [
+          "(use|call|integrate|build with).*?(claude|anthropic).*?(api|sdk)",
+          "(agent|claude).*?sdk"
+        ]
+      }
+    },
+    "mcp-builder": {
+      "priority": "high",
+      "promptTriggers": {
+        "keywords": ["mcp server", "build mcp", "create mcp", "mcp tool", "model context protocol"],
+        "intentPatterns": [
+          "(build|create|implement|design).*?mcp.*?(server|tool)",
+          "mcp.*?(server|integration|protocol)"
+        ]
+      }
+    },
+    "skill-creator": {
+      "priority": "medium",
+      "promptTriggers": {
+        "keywords": ["create skill", "build skill", "new skill", "skill creator", "modify skill"],
+        "intentPatterns": [
+          "(create|build|make|modify|edit|improve).*?skill",
+          "skill.*?(creator|builder|development)"
+        ]
+      }
+    },
+    "pr-create": {
+      "priority": "high",
+      "promptTriggers": {
+        "keywords": ["create pr", "open pr", "pull request", "push and create", "ready for review", "create pull request", "open pull request"],
+        "intentPatterns": [
+          "(create|open|make|submit).*?(pr|pull request)",
+          "(push|send).*?(for review|to review)",
+          "ready (for|to) (review|merge)"
+        ]
+      }
+    },
+    "incident-triage": {
+      "priority": "high",
+      "promptTriggers": {
+        "keywords": ["incident", "outage", "service down", "pod crashing", "production issue", "on-call", "pager", "alerts firing"],
+        "intentPatterns": [
+          "(investigate|debug|triage).*?(incident|outage|issue|problem)",
+          "(service|pod|container).*?(down|crash|fail|unreachable)",
+          "(500 errors|high latency|oomkilled|crashloopbackoff)"
+        ]
+      }
+    },
+    "jira-report": {
+      "priority": "medium",
+      "promptTriggers": {
+        "keywords": ["sprint report", "sprint summary", "standup prep", "standup update", "velocity report", "backlog overview", "what did i work on", "sprint progress"],
+        "intentPatterns": [
+          "(sprint|velocity|standup|backlog).*?(report|summary|update|overview|prep)",
+          "what (did|have) (i|we) (work|done|complete)",
+          "(prepare|prep) for.*(standup|retro|sprint review)"
+        ]
+      }
+    },
+    "aws-lookup": {
+      "priority": "medium",
+      "promptTriggers": {
+        "keywords": ["aws", "amazon web services", "s3 bucket", "ec2 instance", "lambda function", "iam policy", "vpc", "cloudwatch", "rds", "ecs", "eks"],
+        "intentPatterns": [
+          "(configure|setup|create|troubleshoot).*?(aws|s3|ec2|lambda|iam|vpc|rds|ecs|eks|cloudfront)",
+          "aws.*?(best practice|security|pricing|error|limit)",
+          "(terraform|cloudformation|cdk).*?(aws|resource)"
+        ]
+      }
+    },
+    "config-audit": {
+      "priority": "low",
+      "promptTriggers": {
+        "keywords": ["config audit", "audit config", "review setup", "review my setup", "check config", "config issues", "is my config clean"],
+        "intentPatterns": [
+          "(audit|review|check|validate).*?(config|setup|settings|permissions)",
+          "(permission|hook|skill).*?(error|broken|not working|issue)",
+          "clean up.*(config|settings)"
+        ]
+      }
+    }
+  }
+}

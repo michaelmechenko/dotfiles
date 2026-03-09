@@ -126,3 +126,4 @@ eval "$(oh-my-posh init zsh --config ~/.config/ohmyposh/base.json)"
 # bun
 export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
+export CLAUDE_CONFIG_DIR=~/.config/claude

@@ -1,0 +1,202 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git diff *)",
+      "Bash(git status *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(wc *)",
+      "Bash(grep *)",
+      "Bash(rg *)",
+      "Bash(fd *)",
+      "Bash(npm test*)",
+      "Bash(pnpm test*)",
+      "Bash(yarn test*)",
+      "Task",
+      "WebFetch(domain:opencode.ai)",
+      "Bash(gh api *)",
+      "Bash(gh pr view *)",
+      "Bash(gh pr list *)",
+      "Bash(gh pr diff *)",
+      "Bash(gh issue view *)",
+      "Bash(gh issue list *)",
+      "Bash(gh search *)",
+      "Bash(jq *)",
+      "Bash(which *)",
+      "Bash(echo *)",
+      "Bash(kubectl get *)",
+      "Bash(kubectl describe *)",
+      "Bash(kubectl logs *)",
+      "Bash(kubectl top *)",
+      "Bash(kubectl config get-contexts*)",
+      "Bash(kubectl config current-context*)",
+      "Bash(base64 *)",
+      "Bash(file *)",
+      "Bash(find *)",
+      "Bash(sort *)",
+      "Bash(uniq *)",
+      "Bash(tr *)",
+      "Bash(cut *)",
+      "Bash(awk *)",
+      "Bash(sed -n *)",
+      "Bash(diff *)",
+      "Bash(realpath *)",
+      "Bash(dirname *)",
+      "Bash(basename *)",
+      "mcp__kubernetes__pods_list",
+      "mcp__kubernetes__pods_list_in_namespace",
+      "mcp__kubernetes__pods_get",
+      "mcp__kubernetes__pods_log",
+      "mcp__kubernetes__pods_top",
+      "mcp__kubernetes__resources_list",
+      "mcp__kubernetes__resources_get",
+      "mcp__kubernetes__nodes_top",
+      "mcp__kubernetes__nodes_log",
+      "mcp__kubernetes__nodes_stats_summary",
+      "mcp__kubernetes__events_list",
+      "mcp__kubernetes__namespaces_list",
+      "mcp__kubernetes__helm_list",
+      "mcp__kubernetes__configuration_view",
+      "mcp__kubernetes__configuration_contexts_list",
+      "mcp__atlassian__search",
+      "mcp__atlassian__searchConfluenceUsingCql",
+      "mcp__atlassian__searchJiraIssuesUsingJql",
+      "mcp__atlassian__getConfluencePage",
+      "mcp__atlassian__getConfluenceSpaces",
+      "mcp__atlassian__getPagesInConfluenceSpace",
+      "mcp__atlassian__getConfluencePageDescendants",
+      "mcp__atlassian__getConfluencePageFooterComments",
+      "mcp__atlassian__getConfluencePageInlineComments",
+      "mcp__atlassian__getConfluenceCommentChildren",
+      "mcp__atlassian__getJiraIssue",
+      "mcp__atlassian__getJiraIssueRemoteIssueLinks",
+      "mcp__atlassian__getJiraIssueTypeMetaWithFields",
+      "mcp__atlassian__getJiraProjectIssueTypesMetadata",
+      "mcp__atlassian__getVisibleJiraProjects",
+      "mcp__atlassian__getTransitionsForJiraIssue",
+      "mcp__atlassian__lookupJiraAccountId",
+      "mcp__atlassian__atlassianUserInfo",
+      "mcp__atlassian__getAccessibleAtlassianResources",
+      "mcp__atlassian__jiraRead",
+      "mcp__atlassian__fetch",
+      "mcp__n8n-mcp__search_nodes",
+      "mcp__n8n-mcp__search_templates",
+      "mcp__n8n-mcp__get_node",
+      "mcp__n8n-mcp__get_template",
+      "mcp__n8n-mcp__validate_node",
+      "mcp__n8n-mcp__validate_workflow",
+      "mcp__n8n-mcp__tools_documentation",
+      "mcp__n8n-mcp__n8n_create_workflow",
+      "mcp__n8n-mcp__n8n_update_full_workflow",
+      "mcp__n8n-mcp__n8n_update_partial_workflow",
+      "mcp__n8n-mcp__n8n_test_workflow",
+      "mcp__n8n-mcp__n8n_autofix_workflow",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__query-docs",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:docs.n8n.io)",
+      "WebFetch(domain:developer.atlassian.com)",
+      "WebFetch(domain:support.atlassian.com)",
+      "WebFetch(domain:community.atlassian.com)",
+      "WebFetch(domain:deepwiki.com)",
+      "WebFetch(domain:gist.github.com)",
+      "Bash(terraform validate*)",
+      "Bash(terraform fmt*)",
+      "Bash(terraform show*)",
+      "Bash(terraform state list*)",
+      "Bash(terraform state show*)",
+      "Bash(terraform providers*)",
+      "Bash(terraform output*)",
+      "Edit(/Users/michael.mechenko/.claude/rules/memory-*)",
+      "Write(/Users/michael.mechenko/.claude/rules/memory-*)",
+      "Read(/Users/michael.mechenko/.claude/rules/memory-*)"
+    ],
+    "deny": [
+      "Bash(rm *)",
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(.envrc)",
+      "Read(secrets/*)",
+      "mcp__kubernetes__helm_install",
+      "mcp__kubernetes__helm_uninstall",
+      "mcp__kubernetes__pods_delete",
+      "mcp__kubernetes__pods_exec",
+      "mcp__kubernetes__pods_run",
+      "mcp__kubernetes__resources_create_or_update",
+      "mcp__kubernetes__resources_delete",
+      "mcp__kubernetes__resources_scale",
+      "mcp__slack__conversations_add_message",
+      "mcp__atlassian__addCommentToJiraIssue",
+      "mcp__atlassian__addWorklogToJiraIssue",
+      "mcp__atlassian__createConfluenceFooterComment",
+      "mcp__atlassian__createConfluenceInlineComment",
+      "mcp__atlassian__createConfluencePage",
+      "mcp__atlassian__createJiraIssue",
+      "mcp__atlassian__editJiraIssue",
+      "mcp__atlassian__transitionJiraIssue",
+      "mcp__atlassian__updateConfluencePage",
+      "mcp__n8n-mcp__n8n_delete_workflow",
+      "mcp__n8n-mcp__n8n_deploy_template"
+    ],
+    "defaultMode": "plan"
+  },
+  "model": "opus",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $HOME/.claude/hooks/skill-activation.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $HOME/.claude/hooks/memory-nudge.sh"
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "bash /Users/michael.mechenko/.claude/statusline-command.sh"
+  },
+  "enabledPlugins": {
+    "frontend-design@claude-plugins-official": true,
+    "typescript-lsp@claude-plugins-official": true,
+    "security-guidance@claude-plugins-official": true,
+    "pyright-lsp@claude-plugins-official": true,
+    "claude-code-setup@claude-plugins-official": true,
+    "explanatory-output-style@claude-plugins-official": true,
+    "gopls-lsp@claude-plugins-official": true,
+    "clangd-lsp@claude-plugins-official": true,
+    "lua-lsp@claude-plugins-official": true
+  },
+  "extraKnownMarketplaces": {
+    "anthropic-agent-skills": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/skills"
+      }
+    }
+  },
+  "spinnerVerbs": {
+    "mode": "replace",
+    "verbs": [
+      "hmmm"
+    ]
+  },
+  "autoMemoryEnabled": false,
+  "effortLevel": "high"
+}

@@ -22,3 +22,15 @@ aichat
 chrome
 /gh
 /op
+/claude/backups
+/claude/debug
+/claude/file-history
+/claude/paste-cache
+/claude/plans
+/claude/projects
+/claude/shell-snapshots
+/claude/tasks
+/claude/telemetry
+/claude/todos
+/claude/history.jsonl
+/claude/settings.local.json

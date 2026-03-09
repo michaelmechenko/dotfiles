@@ -170,7 +170,7 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "bash /Users/michael.mechenko/.claude/statusline-command.sh"
+    "command": "bash /Users/michael.mechenko/.config/claude/statusline-command.sh"
   },
   "enabledPlugins": {
     "frontend-design@claude-plugins-official": true,
@@ -193,9 +193,7 @@
   },
   "spinnerVerbs": {
     "mode": "replace",
-    "verbs": [
-      "hmmm"
-    ]
+    "verbs": ["hmmm"]
   },
   "autoMemoryEnabled": false,
   "effortLevel": "high"

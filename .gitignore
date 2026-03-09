@@ -34,3 +34,4 @@ chrome
 /claude/todos
 /claude/history.jsonl
 /claude/settings.local.json
+/claude/.claude.json

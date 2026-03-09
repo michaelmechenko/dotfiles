@@ -92,8 +92,8 @@ return {
         hl["@markup.heading.6.markdown"] = { fg = c.keyword, bg = "None" }
         hl["@markup.italic"]             = { fg = c.parameter, bg = "None" }
         hl["@markup.strong"]             = { fg = c.constant, bg = "None" }
-        hl["SnacksIndent"].fg            = "#383848"
-        hl["NeoTreeIndentMarker"].fg     = "#383848"
+        hl["SnacksIndent"]               = { fg = "#383848" }
+        hl["NeoTreeIndentMarker"]        = { fg = "#383848" }
         hl["GitSignsAdd"]                = { fg = "#bb9dbd" }
         hl["GitSignsDelete"]             = { fg = "#d8647e" }
         hl["GitSignsChange"]             = { fg = "#f3be7c" }

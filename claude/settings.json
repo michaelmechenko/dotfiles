@@ -112,9 +112,9 @@
       "Bash(terraform state show*)",
       "Bash(terraform providers*)",
       "Bash(terraform output*)",
-      "Edit(/Users/michael.mechenko/.claude/rules/memory-*)",
-      "Write(/Users/michael.mechenko/.claude/rules/memory-*)",
-      "Read(/Users/michael.mechenko/.claude/rules/memory-*)"
+      "Edit(/Users/michael.mechenko/.config/claude/rules/memory-*)",
+      "Write(/Users/michael.mechenko/.config/claude/rules/memory-*)",
+      "Read(/Users/michael.mechenko/.config/claude/rules/memory-*)"
     ],
     "deny": [
       "Bash(rm *)",
@@ -152,7 +152,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash $HOME/.claude/hooks/skill-activation.sh"
+            "command": "bash $HOME/.config/claude/hooks/skill-activation.sh"
           }
         ]
       }
@@ -162,7 +162,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash $HOME/.claude/hooks/memory-nudge.sh"
+            "command": "bash $HOME/.config/claude/hooks/memory-nudge.sh"
           }
         ]
       }
@@ -196,5 +196,46 @@
     "verbs": ["hmmm"]
   },
   "autoMemoryEnabled": false,
-  "effortLevel": "high"
+  "effortLevel": "high",
+  "mcpServers": {
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp"]
+    },
+    "atlassian": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://mcp.atlassian.com/v1/sse"]
+    },
+    "n8n-mcp": {
+      "command": "npx",
+      "args": ["n8n-mcp"],
+      "env": {
+        "MCP_MODE": "stdio",
+        "LOG_LEVEL": "error",
+        "DISABLE_CONSOLE_OUTPUT": "true",
+        "N8N_API_URL": "{env:N8N_API_URL}",
+        "N8N_API_KEY": "{env:N8N_API_KEY}"
+      }
+    },
+    "kubernetes": {
+      "command": "npx",
+      "args": ["-y", "kubernetes-mcp-server@latest"]
+    },
+    "aws-documentation-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.aws-documentation-mcp-server@latest"]
+    },
+    "slack": {
+      "command": "npx",
+      "args": ["-y", "slack-mcp-server@latest", "--transport", "stdio"]
+    },
+    "chrome-devtools": {
+      "command": "npx",
+      "args": ["-y", "chrome-devtools-mcp@latest"]
+    },
+    "figma": {
+      "type": "http",
+      "url": "https://mcp.figma.com/mcp"
+    }
+  }
 }

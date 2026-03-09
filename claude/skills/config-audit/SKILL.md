@@ -13,7 +13,7 @@ Run through each section and report findings.
 
 ### 1. Settings Validation
 
-Read `~/.claude/settings.json` and check:
+Read `~/.config/claude/settings.json` and check:
 
 - **JSON validity**: Parse and verify structure
 - **Permission consistency**: No tool in both allow AND deny lists
@@ -24,17 +24,17 @@ Read `~/.claude/settings.json` and check:
 
 ### 2. CLAUDE.md Accuracy
 
-Read `~/.claude/CLAUDE.md` and cross-reference:
+Read `~/.config/claude/CLAUDE.md` and cross-reference:
 
-- **Agent inventory**: Every agent listed in CLAUDE.md has a file in `~/.claude/agents/`, and every file in agents/ is listed
-- **Skill inventory**: Every skill listed in CLAUDE.md has a directory in `~/.claude/skills/` with a SKILL.md, and every skill directory is listed
+- **Agent inventory**: Every agent listed in CLAUDE.md has a file in `~/.config/claude/agents/`, and every file in agents/ is listed
+- **Skill inventory**: Every skill listed in CLAUDE.md has a directory in `~/.config/claude/skills/` with a SKILL.md, and every skill directory is listed
 - **Selection guidelines**: Still accurate given current agents/skills
 
 ### 3. Skill Rules Validation
 
-Read `~/.claude/skills/skill-rules.json` and check:
+Read `~/.config/claude/skills/skill-rules.json` and check:
 
-- **All skills covered**: Every skill in `~/.claude/skills/` has an entry in skill-rules.json
+- **All skills covered**: Every skill in `~/.config/claude/skills/` has an entry in skill-rules.json
 - **No phantom entries**: No rules for skills that don't exist
 - **Keyword quality**: Flag overly broad keywords that cause false positives (single common words like "create", "review", "build")
 - **Intent pattern validity**: Test each regex pattern compiles without error
@@ -51,7 +51,7 @@ For each hook script referenced in settings.json:
 
 ### 5. Memory Files
 
-Check `~/.claude/rules/memory-*.md`:
+Check `~/.config/claude/rules/memory-*.md`:
 - Do the files exist?
 - Are the Edit/Write/Read permissions in settings.json correct?
 - Is content accumulating (not just headers)?
@@ -59,7 +59,7 @@ Check `~/.claude/rules/memory-*.md`:
 
 ### 6. Project Coverage
 
-For each project directory in `~/.claude/projects/`:
+For each project directory in `~/.config/claude/projects/`:
 - Does the project root have a CLAUDE.md?
 - Is the CLAUDE.md substantive (not just a stub)?
 - Are there project-specific settings that might conflict with global settings?
@@ -92,19 +92,19 @@ Where possible, verify things programmatically rather than just reading:
 
 ```bash
 # Validate JSON
-jq . ~/.claude/settings.json > /dev/null
+jq . ~/.config/claude/settings.json > /dev/null
 
 # Check hook executability
-for hook in $(jq -r '.. | .command? // empty' ~/.claude/settings.json); do
+for hook in $(jq -r '.. | .command? // empty' ~/.config/claude/settings.json); do
   expanded=$(eval echo "$hook")
   [[ -x "$expanded" ]] && echo "OK: $expanded" || echo "FAIL: $expanded not executable"
 done
 
 # Check agent files vs CLAUDE.md listing
-ls ~/.claude/agents/*.md | xargs -I{} basename {} .md
+ls ~/.config/claude/agents/*.md | xargs -I{} basename {} .md
 
 # Check skill directories
-ls -d ~/.claude/skills/*/SKILL.md | xargs -I{} dirname {} | xargs -I{} basename {}
+ls -d ~/.config/claude/skills/*/SKILL.md | xargs -I{} dirname {} | xargs -I{} basename {}
 ```
 
 ## When to Run

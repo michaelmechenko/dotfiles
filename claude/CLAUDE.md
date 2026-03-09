@@ -78,7 +78,7 @@ Load skills for specialized workflows via `/skill-name` or let the model choose 
 
 ## Auto-Update Memory (MANDATORY)
 
-Update memory files in `~/.claude/rules/` AS YOU GO, not at the end. When you learn something new, update immediately.
+Update memory files in `~/.config/claude/rules/` AS YOU GO, not at the end. When you learn something new, update immediately.
 
 - User states a preference -> Update `memory-preferences.md`
 - A decision is made -> Update `memory-decisions.md` with date

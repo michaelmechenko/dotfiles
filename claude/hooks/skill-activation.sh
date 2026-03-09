@@ -6,7 +6,7 @@ input=$(cat)
 prompt=$(echo "$input" | jq -r '.prompt' | tr '[:upper:]' '[:lower:]')
 
 # Load skill rules
-rules_path="$HOME/.claude/skills/skill-rules.json"
+rules_path="$HOME/.config/claude/skills/skill-rules.json"
 [[ -f "$rules_path" ]] || exit 0
 
 matched=""

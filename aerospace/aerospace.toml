@@ -171,6 +171,7 @@ automatically-unhide-macos-hidden-apps = false
     1 = ['move-node-to-workspace --focus-follows-window 1*', 'mode main']
     2 = ['move-node-to-workspace --focus-follows-window 2*', 'mode main']
     3 = ['move-node-to-workspace --focus-follows-window 3*', 'mode main']
+    m = ['exec-and-forget aerospace list-windows --all --format "%{window-id}" | xargs -I{} aerospace move-node-to-workspace --window-id {} 1* && aerospace workspace 1* && hs -c "centerAllWindows()"', 'mode main']
     shift-1 = ['move-node-to-workspace --focus-follows-window 1^', 'mode main']
     shift-2 = ['move-node-to-workspace --focus-follows-window 2^', 'mode main']
     esc = ['mode main']
@@ -178,8 +179,8 @@ automatically-unhide-macos-hidden-apps = false
 # 'service' binding mode declaration.
 # See: https://nikitabobko.github.io/AeroSpace/guide#binding-modes
 [mode.service.binding]
-    esc = ['reload-config', 'mode main']
-    r = ['flatten-workspace-tree', 'mode main'] # reset layout
+    esc = ['flatten-workspace-tree', 'mode main'] # reset layout
+    r = ['reload-config', 'mode main']
     f = ['layout floating tiling', 'mode main'] # Toggle between floating and tiling layout
     # backspace = ['close-all-windows-but-current', 'mode main']
 

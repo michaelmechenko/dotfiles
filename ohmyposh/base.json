@@ -62,7 +62,7 @@
           "options": {
             "cache_duration": "none"
           },
-          "template": "\udb83\udd72",
+          "template": "*",
           "type": "text",
           "style": "plain"
         }

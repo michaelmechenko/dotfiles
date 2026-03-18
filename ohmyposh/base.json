@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/schema.json",
   "transient_prompt": {
-    "template": "\udb85\udd45 ",
+    "template": "* ",
     "foreground": "#BB9DBD",
     "background": "transparent"
   },
@@ -14,7 +14,7 @@
           "options": {
             "cache_duration": "none"
           },
-          "template": "\udb85\udf42 {{ .UserName }} ",
+          "template": "\udb85\udd45 {{ .UserName }} ",
           "foreground": "#AEAED1",
           "type": "session",
           "style": "plain"

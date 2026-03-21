@@ -138,7 +138,7 @@ automatically-unhide-macos-hidden-apps = false
     cmd-shift-a = 'move-node-to-workspace --focus-follows-window prev'
     cmd-shift-d = 'move-node-to-workspace --focus-follows-window next'
 
-    cmd-shift-w = 'move-node-to-monitor --focus-follows-window --wrap-around next'
+    cmd-shift-w = ["move-node-to-monitor --focus-follows-window --wrap-around next", "exec-and-forget osascript -e 'tell application \"System Events\" to keystroke \"x\" using {control down, option down, command down}'"]
 
     cmd-semicolon = 'workspace prev'
     cmd-quote = 'workspace next'
@@ -171,7 +171,7 @@ automatically-unhide-macos-hidden-apps = false
     1 = ['move-node-to-workspace --focus-follows-window 1*', 'mode main']
     2 = ['move-node-to-workspace --focus-follows-window 2*', 'mode main']
     3 = ['move-node-to-workspace --focus-follows-window 3*', 'mode main']
-    m = ['exec-and-forget aerospace list-windows --all --format "%{window-id}" | xargs -I{} aerospace move-node-to-workspace --window-id {} 1* && aerospace workspace 1* && hs -c "centerAllWindows()"', 'mode main']
+    m = ['exec-and-forget aerospace list-windows --all --format "%{window-id}" | xargs -I{} aerospace move-node-to-workspace --window-id {} 1* && aerospace workspace 1* && hs -c "sendXToAllWindows()"', 'mode main']
     shift-1 = ['move-node-to-workspace --focus-follows-window 1^', 'mode main']
     shift-2 = ['move-node-to-workspace --focus-follows-window 2^', 'mode main']
     esc = ['mode main']

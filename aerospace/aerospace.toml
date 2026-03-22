@@ -53,7 +53,7 @@ automatically-unhide-macos-hidden-apps = false
     inner.vertical =   12
     outer.left =       16
     outer.bottom =     16
-    outer.top =        38
+    outer.top =        [ {monitor."Built-*" = 14}, 38 ]
     outer.right =      16
 
 # 'main' binding mode declaration
@@ -134,10 +134,10 @@ automatically-unhide-macos-hidden-apps = false
     cmd-shift-1 = 'workspace 1^'
     cmd-shift-2 = 'workspace 2^'
 
-    cmd-shift-a = 'move-node-to-workspace --focus-follows-window prev'
-    cmd-shift-d = 'move-node-to-workspace --focus-follows-window next'
+    cmd-shift-a = ['move-node-to-workspace --focus-follows-window prev', "exec-and-forget open -g 'rectangle-pro://execute-action?name=almost-maximize'"]
+    cmd-shift-d = ['move-node-to-workspace --focus-follows-window next', "exec-and-forget open -g 'rectangle-pro://execute-action?name=almost-maximize'"]
 
-    cmd-shift-w = ["move-node-to-monitor --focus-follows-window --wrap-around next", "exec-and-forget osascript -e 'tell application \"System Events\" to keystroke \"x\" using {control down, option down, command down}'"]
+    cmd-shift-w = ["move-node-to-monitor --focus-follows-window --wrap-around next", "exec-and-forget open -g 'rectangle-pro://execute-action?name=almost-maximize'"]
 
     cmd-semicolon = 'workspace prev'
     cmd-quote = 'workspace next'
@@ -149,12 +149,12 @@ automatically-unhide-macos-hidden-apps = false
     # cmd-shift-d = 'workspace next'
 
     # See: https://nikitabobko.github.io/AeroSpace/commands#move-node-to-workspace
-    cmd-ctrl-1 = 'move-node-to-workspace --focus-follows-window 1*'
-    cmd-ctrl-2 = 'move-node-to-workspace --focus-follows-window 2*'
-    cmd-ctrl-3 = 'move-node-to-workspace --focus-follows-window 3*'
+    cmd-ctrl-1 = ['move-node-to-workspace --focus-follows-window 1*', "exec-and-forget open -g 'rectangle-pro://execute-action?name=almost-maximize'"]
+    cmd-ctrl-2 = ['move-node-to-workspace --focus-follows-window 2*', "exec-and-forget open -g 'rectangle-pro://execute-action?name=almost-maximize'"]
+    cmd-ctrl-3 = ['move-node-to-workspace --focus-follows-window 3*', "exec-and-forget open -g 'rectangle-pro://execute-action?name=almost-maximize'"]
 
-    cmd-shift-ctrl-1 = 'move-node-to-workspace --focus-follows-window 1^'
-    cmd-shift-ctrl-2 = 'move-node-to-workspace --focus-follows-window 2^'
+    cmd-shift-ctrl-1 = ['move-node-to-workspace --focus-follows-window 1^', "exec-and-forget open -g 'rectangle-pro://execute-action?name=almost-maximize'"]
+    cmd-shift-ctrl-2 = ['move-node-to-workspace --focus-follows-window 2^', "exec-and-forget open -g 'rectangle-pro://execute-action?name=almost-maximize'"]
     # cmd-shift-ctrl-3 = 'move-node-to-workspace --focus-follows-window 3^'
 
     # See: https://nikitabobko.github.io/AeroSpace/commands#workspace-back-and-forth
@@ -170,7 +170,7 @@ automatically-unhide-macos-hidden-apps = false
     1 = ['move-node-to-workspace --focus-follows-window 1*', 'mode main']
     2 = ['move-node-to-workspace --focus-follows-window 2*', 'mode main']
     3 = ['move-node-to-workspace --focus-follows-window 3*', 'mode main']
-    m = ['exec-and-forget aerospace list-windows --all --format "%{window-id}" | xargs -I{} aerospace move-node-to-workspace --window-id {} 1* && aerospace workspace 1* && hs -c "sendXToAllWindows()"', 'mode main']
+    m = ['exec-and-forget aerospace list-windows --all --format "%{window-id}" | xargs -I{} aerospace move-node-to-workspace --window-id {} 1* && aerospace workspace 1* && hs -c "almostMaximizeAll()"', 'mode main']
     shift-1 = ['move-node-to-workspace --focus-follows-window 1^', 'mode main']
     shift-2 = ['move-node-to-workspace --focus-follows-window 2^', 'mode main']
     esc = ['mode main']
@@ -210,6 +210,9 @@ automatically-unhide-macos-hidden-apps = false
 [[on-window-detected]]
     check-further-callbacks = true
     run = 'layout floating'
+
+[[on-window-detected]]
+    run = "exec-and-forget open -g 'rectangle-pro://execute-action?name=center'"
 
 # [[on-window-detected]]
 #     if.app-id = 'com.1password.1password'

@@ -48,7 +48,7 @@ sketchybar --add item frontapps_sep left \
     label.padding_left=8 \
     label.padding_right=8 \
     label.color=0x80EDEDED \
-    label="*-*-*"
+    label="*/*/*"
 
 sketchybar --add item frontapps_apps left \
     --subscribe frontapps_apps aerospace_workspace_change aerospace_focus_change \
@@ -178,7 +178,7 @@ sketchybar --add item battery right \
     --set battery update_freq=60 label.padding_right=0 padding_right=0 label.color=0xffEDEDED icon.drawing=off script="$PLUGIN_DIR/battery.sh"
 
 sketchybar --add item sep_right right \
-    --set sep_right icon="*-*-*" icon.padding_left=8 icon.padding_right=8 icon.color=0x80EDEDED label.drawing=off
+    --set sep_right icon="*/*/*" icon.padding_left=8 icon.padding_right=8 icon.color=0x80EDEDED label.drawing=off
 
 sketchybar --add item date right \
     --set date update_freq=30 label.padding_right=0 label.color=0xffEDEDED script="$PLUGIN_DIR/date.sh" icon.drawing=off

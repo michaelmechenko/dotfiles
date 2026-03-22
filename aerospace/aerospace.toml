@@ -127,12 +127,12 @@ automatically-unhide-macos-hidden-apps = false
     cmd-shift-right = 'resize width +50'
 
     # See: https://nikitabobko.github.io/AeroSpace/commands#workspace
-    cmd-1 = 'workspace 1*'
-    cmd-2 = 'workspace 2*'
-    cmd-3 = 'workspace 3*'
+    cmd-1 = ['workspace 1*', "exec-and-forget open -g 'rectangle-pro://execute-action?name=center'"]
+    cmd-2 = ['workspace 2*', "exec-and-forget open -g 'rectangle-pro://execute-action?name=center'"]
+    cmd-3 = ['workspace 3*', "exec-and-forget open -g 'rectangle-pro://execute-action?name=center'"]
 
-    cmd-shift-1 = 'workspace 1^'
-    cmd-shift-2 = 'workspace 2^'
+    cmd-shift-1 = ['workspace 1^', "exec-and-forget open -g 'rectangle-pro://execute-action?name=center'"]
+    cmd-shift-2 = ['workspace 2^', "exec-and-forget open -g 'rectangle-pro://execute-action?name=center'"]
 
     cmd-shift-a = ['move-node-to-workspace --focus-follows-window prev', "exec-and-forget open -g 'rectangle-pro://execute-action?name=almost-maximize'"]
     cmd-shift-d = ['move-node-to-workspace --focus-follows-window next', "exec-and-forget open -g 'rectangle-pro://execute-action?name=almost-maximize'"]

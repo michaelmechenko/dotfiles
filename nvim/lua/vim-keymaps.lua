@@ -10,11 +10,12 @@ vim.api.nvim_del_augroup_by_name('nvim.popupmenu')
 vim.cmd([[
   silent! aunmenu PopUp
 
+  anoremenu PopUp.open\ in\ finder                    <Cmd>call jobstart(['open', expand('%:p:h')])<CR>
   anoremenu PopUp.file\ explorer\ (toggle)            <Cmd>Neotree toggle right<CR>
+  anoremenu PopUp.copy\ absolute\ path                <Cmd>let @+=expand('%:p')<CR>
   vnoremenu PopUp.copy                                "+y
   anoremenu PopUp.paste                               "+gP
   vnoremenu PopUp.paste                               "+P
-  anoremenu PopUp.copy\ absolute\ path                <Cmd>let @+=expand('%:p')<CR>
 
   anoremenu PopUp.-1-                                 <Nop>
 

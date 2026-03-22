@@ -11,12 +11,6 @@
 - **State intent then proceed**: Multi-file changes, architectural decisions with one clear winner
 - **Ask first**: Destructive operations, ambiguous requirements, trade-offs with no clear winner, public API changes
 
-## Error Recovery
-
-1. **Tool failure** -- Retry once with adjusted params. Still failing? Report and ask.
-2. **Test failure after change** -- Revert change, diagnose, then fix. Never fix-forward blindly.
-3. **Stuck (3+ failed attempts)** -- Stop. Summarize what was tried, what failed. Ask for direction.
-
 ## Code Quality Standards
 
 - Make minimal, surgical changes

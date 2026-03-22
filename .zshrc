@@ -31,7 +31,7 @@ zstyle ':omz:update' mode reminder
 
 # HIST_STAMPS="mm/dd/yyyy"
 
-plugins=(git macos zsh-syntax-highlighting zsh-autosuggestions)
+plugins=(macos zsh-syntax-highlighting zsh-autosuggestions)
 
 source $ZSH/oh-my-zsh.sh
 
@@ -121,9 +121,10 @@ tempe () {
 eval "$(oh-my-posh init zsh --config ~/.config/ohmyposh/base.json)"
 
 # bun completions
-[ -s "/Users/mishka/.bun/_bun" ] && source "/Users/mishka/.bun/_bun"
+# [ -s "/Users/mishka/.bun/_bun" ] && source "/Users/mishka/.bun/_bun"
 
 # bun
 export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
+
 export CLAUDE_CONFIG_DIR=~/.config/claude

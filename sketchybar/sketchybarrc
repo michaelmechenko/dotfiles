@@ -5,20 +5,19 @@ bar=(
   blur_radius=90
   position=top
   color=0x900f0f0f
-  border_width=0
-  border_color=0x750f0f0f
   margin=0
   notch_display_height=38
   notch_offset=0
-  sticky=true
+  sticky=false
   font_smoothing=on
-  topmost=window
 )
+
 sketchybar --bar "${bar[@]}"
 
 default=(
-  icon.font="Lilex:Regular:13"
-  label.font="Lilex:Regular:13"
+  icon.font="CommitMono-m1v1:Regular:13"
+  label.font="CommitMono-m1v1:Regular:13"
+  width=dynamic
   icon.color=0xffEDEDED
   label.color=0xffEDEDED
   icon.padding_left=6
@@ -27,23 +26,24 @@ default=(
 sketchybar --default "${default[@]}"
 
 sketchybar --add event aerospace_workspace_change
+sketchybar --add event aerospace_focus_change
 
-# sketchybar --add item sep_left center \
-#            --set sep_left icon="{" icon.y_offset=2 icon.padding_left=2 icon.padding_right=2 icon.color=0x80EDEDED label.drawing=off icon.font.style="Normal"\
-# 
-# for sid in $(aerospace list-workspaces --all); do
-#     sketchybar --add item space.$sid center \
-#         --subscribe space.$sid aerospace_workspace_change \
-#         --set space.$sid \
-#         icon="*" \
-#         label.drawing=off \
-#         icon.y_offset=2 \
-#         click_script="aerospace workspace $sid" \
-#         script="$PLUGIN_DIR/aerospace.sh $sid"
-# done
-# 
-# sketchybar --add item sep_right center \
-#            --set sep_right icon="}" icon.y_offset=2 icon.padding_left=2 icon.padding_right=2 icon.color=0x80EDEDED label.drawing=off icon.font.style="Normal"\
+#
+# ACTUAL LEFT BLOCK - Front apps in focused workspace
+#
+
+sketchybar --add item frontapps left \
+    --subscribe frontapps aerospace_workspace_change aerospace_focus_change \
+    --set frontapps \
+    label.width=400 \
+    icon.drawing=off \
+    label.drawing=on \
+    label.color=0xffEDEDED \
+    script="$PLUGIN_DIR/frontapps.sh"
+
+#
+### CENTER BLOCK CENTER BLOCK
+#
 
 #
 # LEFT BLOCK - Secondary monitor workspace 1^
@@ -81,7 +81,7 @@ sketchybar --add item sep_secondary_right center \
                  icon.font.style="Normal"
 
 #
-# CENTER BLOCK - Main monitor workspaces (1*, 2*, 3*)
+# CENTER BLOCK (of center block) - Main monitor workspaces (1*, 2*, 3*)
 #
 
 sketchybar --add item sep_main_left center \
@@ -149,6 +149,20 @@ sketchybar --add item sep_laptop_right center \
                  icon.color=0x80EDEDED \
                  label.drawing=off \
                  icon.font.style="Normal"
+
+#
+# ACTUAL RIGHT BLOCK - Date/Time and Battery
+#
+
+
+sketchybar --add item battery right \
+    --set battery update_freq=60 label.padding_right=0 padding_right=0 label.color=0xffEDEDED icon.drawing=off script="$PLUGIN_DIR/battery.sh"
+
+sketchybar --add item sep_right right \
+    --set sep_right icon="*" icon.padding_left=8 icon.padding_right=8 icon.color=0xffEDEDED label.drawing=off
+
+sketchybar --add item date right \
+    --set date update_freq=30 label.padding_right=0 label.color=0xffEDEDED script="$PLUGIN_DIR/date.sh" icon.drawing=off
 
 ##### Force all scripts to run the first time (never do this in a script) #####
 sketchybar --update

@@ -7,6 +7,8 @@ exec-on-workspace-change = ['/bin/bash', '-c',
   'sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE'
 ]
 
+on-focus-changed = ['exec-and-forget sketchybar --trigger aerospace_focus_change']
+
 start-at-login = true
 
 enable-normalization-flatten-containers = true
@@ -51,7 +53,7 @@ automatically-unhide-macos-hidden-apps = false
     inner.vertical =   12
     outer.left =       16
     outer.bottom =     16
-    outer.top =        14
+    outer.top =        38
     outer.right =      16
 
 # 'main' binding mode declaration

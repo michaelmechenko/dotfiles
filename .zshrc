@@ -56,6 +56,7 @@ bindkey "^[[1;3C" forward-word      # Alt+Right
 bindkey "^[[1;3D" backward-word     # Alt+Left
 
 alias ls="eza -1"
+alias o="ofd ."
 # alias lsl="eza"
 # alias cat="bat"
 alias e="nvim"
@@ -124,7 +125,7 @@ eval "$(oh-my-posh init zsh --config ~/.config/ohmyposh/base.json)"
 # [ -s "/Users/mishka/.bun/_bun" ] && source "/Users/mishka/.bun/_bun"
 
 # bun
-export BUN_INSTALL="$HOME/.bun"
-export PATH="$BUN_INSTALL/bin:$PATH"
+# export BUN_INSTALL="$HOME/.bun"
+# export PATH="$BUN_INSTALL/bin:$PATH"
 
 export CLAUDE_CONFIG_DIR=~/.config/claude

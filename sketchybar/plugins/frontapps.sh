@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+WORKSPACE=$(aerospace list-workspaces --focused --format '%{workspace}' 2>/dev/null)
 WINDOWS=$(aerospace list-windows --workspace focused --format '%{window-id} %{app-name}')
 FOCUSED_WID=$(aerospace list-windows --focused --format '%{window-id}' 2>/dev/null)
 
@@ -24,4 +25,5 @@ while IFS= read -r line; do
     fi
 done <<< "$WINDOWS"
 
-sketchybar --set "$NAME" label="$LABEL"
+sketchybar --set frontapps_ws label="$WORKSPACE"
+sketchybar --set frontapps_apps label="$LABEL"

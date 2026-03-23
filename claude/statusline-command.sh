@@ -19,32 +19,13 @@ sep="${color_sep} * ${reset}"
 # Extract JSON fields
 model_name=$(echo "$input" | jq -r '.model.display_name')
 current_dir=$(echo "$input" | jq -r '.workspace.current_dir')
-ctx_size=$(echo "$input" | jq -r '.context_window.context_window_size')
 ctx_used=$(echo "$input" | jq -r '.context_window.used_percentage // empty')
 
-# Directory: parent/basename, collapse $HOME to ~
-home_dir="$HOME"
-short_dir="${current_dir/#$home_dir/~}"
-dir_name="$(basename "$(dirname "$short_dir")")/$(basename "$short_dir")"
-# Clean up edge cases: if parent is ~ or / just show as-is
-[[ "$dir_name" == "/" ]] && dir_name="/"
-[[ "$dir_name" == "./" ]] && dir_name="$(basename "$short_dir")"
+# Directory: just basename
+dir_name=$(basename "$current_dir")
 
-# Model: strip any existing context label, lowercase, then re-add
-model_clean=$(echo "$model_name" | sed -E 's/ \([0-9]+[mMkK] context\)//g')
-model_lower=$(echo "$model_clean" | tr '[:upper:]' '[:lower:]')
-if [[ "$ctx_size" != "null" && "$ctx_size" -ge 1000000 ]]; then
-  ctx_label="$(( ctx_size / 1000000 ))m context"
-elif [[ "$ctx_size" != "null" && "$ctx_size" -ge 1000 ]]; then
-  ctx_label="$(( ctx_size / 1000 ))k context"
-else
-  ctx_label=""
-fi
-if [[ -n "$ctx_label" ]]; then
-  model_str="${model_lower} (${ctx_label})"
-else
-  model_str="${model_lower}"
-fi
+# Model: strip context label, lowercase
+model_str=$(echo "$model_name" | sed -E 's/ \([0-9]+[mMkK] context\)//g' | tr '[:upper:]' '[:lower:]')
 
 # Context % usage
 ctx_pct=""

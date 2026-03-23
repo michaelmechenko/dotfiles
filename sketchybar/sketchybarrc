@@ -48,7 +48,7 @@ sketchybar --add item frontapps_sep left \
     label.padding_left=8 \
     label.padding_right=8 \
     label.color=0x80EDEDED \
-    label="*/*/*"
+    label="-~-"
 
 sketchybar --add item frontapps_apps left \
     --subscribe frontapps_apps aerospace_workspace_change aerospace_focus_change \

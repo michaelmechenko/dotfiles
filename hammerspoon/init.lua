@@ -10,10 +10,10 @@ _G.almostMaximizeAll = rectangle.almostMaximizeAll
 _G.centerAll = rectangle.centerAll
 
 -- Watch for screen changes
-screenWatcher = hs.screen.watcher.new(function()
-  hs.timer.doAfter(0.05, rectangle.almostMaximizeAll)
-end)
-
-screenWatcher:start()
+-- screenWatcher = hs.screen.watcher.new(function()
+--   hs.timer.doAfter(0.05, rectangle.almostMaximizeAll)
+-- end)
+--
+-- screenWatcher:start()
 
 hs.hotkey.bind({ "cmd", "ctrl", "alt" }, "c", rectangle.almostMaximizeAll)

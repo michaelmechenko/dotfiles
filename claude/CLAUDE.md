@@ -21,7 +21,7 @@
 
 ## Agent CLI Preferences
 
-- Use `fd` instead of `find` for file discovery
+- Use `fd` for file discovery
 - Use `rg` (ripgrep) for content search
 - Use `git` and `gh` (GitHub CLI) liberally for version control and GitHub operations
 
@@ -34,9 +34,9 @@ Native subagents (delegated to automatically or by request):
 - **kubectl** -- Read-only Kubernetes debugging (pods, services, deployments)
 - **bashless** -- Write-only agent for the cwd, no shell access, has web access for docs
 - **atlassian** -- Read-only Jira/Confluence explorer for issues, sprints, pages, JSM, automation, and API questions
+- **n8n** -- n8n workflow designer: assess, create, test, and validate n8n workflows
 - **tmux-expert** -- Tmux configuration, keybindings, session management
 - **neovim-expert** -- Neovim configuration, plugins, troubleshooting
-- **n8n** -- n8n workflow designer: assess, create, test, and validate n8n workflows
 
 ## Available Skills
 
@@ -87,14 +87,3 @@ Update memory files in `~/.config/claude/rules/` AS YOU GO, not at the end. When
 **Skip:** Quick factual questions, trivial tasks with no new info.
 
 **DO NOT ASK. Just update the files when you learn something.**
-
----
-
-## Selection Guidelines
-
-1. **Default to solving directly** -- Only load skill/agent if specialized capability needed
-2. **jimothy for uncertainty** -- When you need a second opinion or deeper analysis
-3. **librarian for external code + docs** -- When exploring code outside the current project or finding documentation
-4. **kubectl for focused K8s** -- Kubernetes-only debugging
-5. **atlassian for Jira/Confluence** -- Fetching issues, searching projects, reading pages, JSM and automation questions
-6. **n8n for workflows** -- Creating, assessing, or debugging n8n automation workflows

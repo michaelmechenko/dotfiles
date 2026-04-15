@@ -145,7 +145,7 @@
     ],
     "defaultMode": "plan"
   },
-  "model": "opus",
+  "model": "opus[1m]",
   "hooks": {
     "UserPromptSubmit": [
       {
@@ -181,7 +181,8 @@
     "explanatory-output-style@claude-plugins-official": true,
     "gopls-lsp@claude-plugins-official": true,
     "clangd-lsp@claude-plugins-official": true,
-    "lua-lsp@claude-plugins-official": true
+    "lua-lsp@claude-plugins-official": true,
+    "skill-creator@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "anthropic-agent-skills": {
@@ -193,22 +194,33 @@
   },
   "spinnerVerbs": {
     "mode": "replace",
-    "verbs": ["hmmm"]
+    "verbs": [
+      "hmmm"
+    ]
   },
-  "autoMemoryEnabled": false,
   "effortLevel": "high",
+  "autoMemoryEnabled": false,
   "mcpServers": {
     "context7": {
       "command": "npx",
-      "args": ["-y", "@upstash/context7-mcp"]
+      "args": [
+        "-y",
+        "@upstash/context7-mcp"
+      ]
     },
     "atlassian": {
       "command": "npx",
-      "args": ["-y", "mcp-remote", "https://mcp.atlassian.com/v1/sse"]
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://mcp.atlassian.com/v1/sse"
+      ]
     },
     "n8n-mcp": {
       "command": "npx",
-      "args": ["n8n-mcp"],
+      "args": [
+        "n8n-mcp"
+      ],
       "env": {
         "MCP_MODE": "stdio",
         "LOG_LEVEL": "error",
@@ -219,19 +231,32 @@
     },
     "kubernetes": {
       "command": "npx",
-      "args": ["-y", "kubernetes-mcp-server@latest"]
+      "args": [
+        "-y",
+        "kubernetes-mcp-server@latest"
+      ]
     },
     "aws-documentation-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.aws-documentation-mcp-server@latest"]
+      "args": [
+        "awslabs.aws-documentation-mcp-server@latest"
+      ]
     },
     "slack": {
       "command": "npx",
-      "args": ["-y", "slack-mcp-server@latest", "--transport", "stdio"]
+      "args": [
+        "-y",
+        "slack-mcp-server@latest",
+        "--transport",
+        "stdio"
+      ]
     },
     "chrome-devtools": {
       "command": "npx",
-      "args": ["-y", "chrome-devtools-mcp@latest"]
+      "args": [
+        "-y",
+        "chrome-devtools-mcp@latest"
+      ]
     },
     "figma": {
       "type": "http",

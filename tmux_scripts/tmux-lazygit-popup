@@ -1,0 +1,8 @@
+#!/bin/zsh
+
+set -e
+
+BORDER_COLOR=$(tmux show-options -gqv @color-inactive)
+BORDER_COLOR=${BORDER_COLOR:-"#a9b1d6"}
+
+tmux popup -E -d '#{pane_current_path}' -xC -yC -w100% -h100% -S "fg=$BORDER_COLOR" "lazygit"

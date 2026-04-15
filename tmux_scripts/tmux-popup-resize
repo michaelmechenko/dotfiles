@@ -1,0 +1,21 @@
+#!/bin/zsh
+
+set -e
+
+ACTION="${1:-restore}"
+SESSION="$(tmux display-message -p -F "#{session_name}")"
+
+BORDER_COLOR=$(tmux show-options -gqv @color-inactive)
+BORDER_COLOR=${BORDER_COLOR:-"#a9b1d6"}
+
+tmux detach-client
+
+if [ "$ACTION" = "maximize" ]; then
+    tmux popup -E -xC -yC -w100% -h100% -S "fg=$BORDER_COLOR" "tmux attach -t '$SESSION'"
+elif [ "$ACTION" = "restore" ]; then
+    if echo "$SESSION" | grep -q '^ephemeral'; then
+        tmux popup -E -xC -y100% -w100% -h30% -S "fg=$BORDER_COLOR" "tmux attach -t '$SESSION'"
+    else
+        tmux popup -E -xC -yC -w80% -h75% -S "fg=$BORDER_COLOR" "tmux attach -t '$SESSION'"
+    fi
+fi

@@ -1,9 +1,4 @@
-vim.cmd([[
-    augroup RestoreCursorShapeOnExit
-        autocmd!
-        autocmd VimLeave * set guicursor=a:hor1
-    augroup END
-]])
+
 
 vim.opt.mousemodel = "popup"
 vim.api.nvim_del_augroup_by_name('nvim.popupmenu')

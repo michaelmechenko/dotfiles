@@ -5,7 +5,7 @@ if not (vim.uv or vim.loop).fs_stat(lazypath) then
     "clone",
     "--filter=blob:none",
     "https://github.com/folke/lazy.nvim.git",
-    "--branch=stable", -- latest stable release
+    "--branch=stable",
     lazypath,
   })
 end
@@ -15,6 +15,51 @@ vim.opt.termguicolors = true
 vim.opt.cursorline = true
 vim.opt.conceallevel = 0
 vim.o.winborder = "rounded"
+
+-- Native completion (0.12)
+vim.o.completeopt = "menu,menuone,noselect"
+vim.o.complete = ".,w,b,u,t"
+vim.o.autocomplete = true
+vim.o.autocompletedelay = 50
+vim.o.pumheight = 10
+vim.o.pummaxwidth = 60
+vim.o.pumborder = "rounded"
+vim.o.completeitemalign = "abbr,kind,menu"
+
+-- LspAttach: enable completion, remove default CTRL-S, set completion keymaps
+vim.api.nvim_create_autocmd("LspAttach", {
+  group = vim.api.nvim_create_augroup("lsp.completion", { clear = true }),
+  callback = function(ev)
+    local client = vim.lsp.get_client_by_id(ev.data.client_id)
+    if not client then return end
+    pcall(vim.keymap.del, "i", "<C-S>", { buffer = ev.buf })
+
+    -- Completion keymaps (buffer-local to override LSP defaults)
+    vim.keymap.set("i", "<C-e>", function()
+      if vim.fn.pumvisible() == 1 then return "<C-y>" end
+      return "<C-e>"
+    end, { buffer = ev.buf, expr = true, desc = "Accept completion" })
+
+    vim.keymap.set("i", "<C-q>", function()
+      if vim.fn.pumvisible() == 1 then return "<C-e>" end
+      return "<C-q>"
+    end, { buffer = ev.buf, expr = true, desc = "Dismiss completion" })
+
+    vim.keymap.set("i", "<C-s>", function()
+      if vim.fn.pumvisible() == 1 then return "<C-n>" end
+      return "<C-s>"
+    end, { buffer = ev.buf, expr = true, desc = "Next completion item" })
+
+    vim.keymap.set("i", "<C-w>", function()
+      if vim.fn.pumvisible() == 1 then return "<C-p>" end
+      return "<C-w>"
+    end, { buffer = ev.buf, expr = true, desc = "Previous completion item" })
+
+    if client:supports_method("textDocument/completion") then
+      vim.lsp.completion.enable(true, client.id, ev.buf, { autotrigger = true })
+    end
+  end,
+})
 
 vim.opt.wrap = true
 vim.opt.linebreak = true

@@ -78,8 +78,31 @@ vim.keymap.set("n", "O", "o<C-[>k", {})
 -- delete line below
 vim.keymap.set("n", "Z", "jddk", {})
 
--- remap escape
-vim.keymap.set("i", "<Tab>", "<Esc>", {})
+-- remap escape (snippet-aware: Tab jumps snippet tabstops when active)
+vim.keymap.set("i", "<Tab>", function()
+  if vim.snippet.active({ direction = 1 }) then
+    return "<Cmd>lua vim.snippet.jump(1)<CR>"
+  end
+  return "<Esc>"
+end, { expr = true })
+vim.keymap.set("s", "<Tab>", function()
+  if vim.snippet.active({ direction = 1 }) then
+    return "<Cmd>lua vim.snippet.jump(1)<CR>"
+  end
+  return "<Esc>"
+end, { expr = true })
+vim.keymap.set("i", "<S-Tab>", function()
+  if vim.snippet.active({ direction = -1 }) then
+    return "<Cmd>lua vim.snippet.jump(-1)<CR>"
+  end
+  return "<S-Tab>"
+end, { expr = true })
+vim.keymap.set("s", "<S-Tab>", function()
+  if vim.snippet.active({ direction = -1 }) then
+    return "<Cmd>lua vim.snippet.jump(-1)<CR>"
+  end
+  return "<S-Tab>"
+end, { expr = true })
 vim.keymap.set("v", "<Tab>", "<Esc>", {})
 -- vim.keymap.set("i", "<C-s>", "<Esc>", {})
 -- vim.keymap.set("v", "<C-s>", "<Esc>", {})

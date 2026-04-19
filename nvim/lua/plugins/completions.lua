@@ -1,124 +1,105 @@
 return {
   {
-    "L3MON4D3/LuaSnip",
-    -- follow latest release.
-    version = "v2.*", -- Replace <CurrentMajor> by the latest released major (first number of latest release)
-    -- install jsregexp (optional!).
-    build = "make install_jsregexp"
-  },
-  {
-    'saghen/blink.cmp',
-    dependencies = { 'rafamadriz/friendly-snippets' },
-    version = '1.*',
+    "neovim/nvim-lspconfig",
+    init = function()
+      vim.o.completeopt = "menu,menuone,noselect,popup,preinsert"
+      vim.o.complete = ".^5,w^5,b^5"
+      vim.o.autocomplete = true
+      vim.o.pumborder = "rounded"
+    end,
+    config = function()
+      -- Remove default CTRL-S signature help; we remap to CTRL-K
+      pcall(vim.keymap.del, "i", "<C-S>")
 
-    opts = {
-      -- C-k: Toggle signature help (if signature.enabled = true)
-      keymap = {
-        preset = 'default',
-        ['<C-q>'] = { 'hide' },
-        ['<C-e>'] = { 'accept' },
-        ['<C-o>'] = { 'show_documentation', 'hide_documentation' },
-        ['<C-u>'] = { 'scroll_documentation_up' },
-        ['<C-d>'] = { 'scroll_documentation_down' },
-        ['<C-k>'] = { 'show_signature', 'hide_signature' },
-        ['<C-U>'] = { 'scroll_signature_up' },
-        ['<C-D>'] = { 'scroll_signature_down' },
-        ['<C-w>'] = { 'select_prev' },
-        ['<C-s>'] = { 'select_next' },
-        ['<Tab>'] = { 'snippet_forward', 'fallback' },
-        ['<S-Tab>'] = { 'snippet_backward', 'fallback' },
-      },
+      local pum = function()
+        return vim.fn.pumvisible() == 1
+      end
 
-      appearance = {
-        nerd_font_variant = 'mono' -- or normal
-      },
+      -- Helper: find signature help float window
+      -- Track the last signature window so we can find/scroll/close it
+      local signature_win = nil
 
-      signature = {
-        enabled = true,
-        trigger = {
-          -- Show the signature help automatically
-          enabled = true,
-          -- Show the signature help window after typing any of alphanumerics, `-` or `_`
-          show_on_keyword = false,
-          blocked_trigger_characters = {},
-          blocked_retrigger_characters = {},
-          -- Show the signature help window after typing a trigger character
-          show_on_trigger_character = true,
-          -- Show the signature help window when entering insert mode
-          show_on_insert = false,
-          -- Show the signature help window when the cursor comes after a trigger character when entering insert mode
-          show_on_insert_on_trigger_character = true,
-        },
-
-        window = {
-          scrollbar = false,
-          treesitter_highlighting = true,
-          show_documentation = false,
-        },
-      },
-
-      completion = {
-        menu = {
-          -- avoid multi-line completion ghost_text
-          direction_priority = function()
-            local ctx = require('blink.cmp').get_context()
-            local item = require('blink.cmp').get_selected_item()
-            if ctx == nil or item == nil then return { 's', 'n' } end
-
-            local item_text = item.textEdit ~= nil and item.textEdit.newText or item.insertText or item.label
-            local is_multi_line = item_text:find('\n') ~= nil
-
-            -- after showing the menu upwards, we want to maintain that direction
-            -- until we re-open the menu, so store the context id in a global variable
-            if is_multi_line or vim.g.blink_cmp_upwards_ctx_id == ctx.id then
-              vim.g.blink_cmp_upwards_ctx_id = ctx.id
-              return { 'n', 's' }
+      -- Intercept signature_help to capture the window
+      local orig_signature_help = vim.lsp.buf.signature_help
+      vim.lsp.buf.signature_help = function(opts)
+        orig_signature_help(opts)
+        -- Give the float a moment to open, then find it
+        vim.schedule(function()
+          for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+            local cfg = vim.api.nvim_win_get_config(win)
+            if cfg.relative ~= "" then
+              local buf = vim.api.nvim_win_get_buf(win)
+              local ft = vim.bo[buf].filetype
+              if ft == "lsp-signature-help" then
+                signature_win = win
+                return
+              end
             end
-            return { 's', 'n' }
-          end,
-          draw = {
-            align_to = "cursor"
-          },
-          scrollbar = false,
-        },
-        documentation = {
-          auto_show = true,
-          auto_show_delay_ms = 800,
-          window = { scrollbar = false, }
-        },
-        ghost_text = {
-          enabled = true,
-          -- Show the ghost text when an item has been selected
-          show_with_selection = true,
-          -- Show the ghost text when no item has been selected, defaulting to the first item
-          show_without_selection = false,
-          -- Show the ghost text when the menu is open
-          show_with_menu = true,
-          -- Show the ghost text when the menu is closed
-          show_without_menu = false,
-        },
-        list = {
-          selection = {
-            preselect = true, auto_insert = false
-          }
-        }
-      },
+          end
+          -- noice renders signatures with markdown filetype; find newest float
+          for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+            local cfg = vim.api.nvim_win_get_config(win)
+            if cfg.relative ~= "" and vim.bo[vim.api.nvim_win_get_buf(win)].filetype == "markdown" then
+              signature_win = win
+              return
+            end
+          end
+        end)
+      end
 
-      sources = {
-        default = { 'lsp', 'path', 'snippets' },
-        providers = {
-          path = {
-            opts = {
-              get_cwd = function(_)
-                return vim.fn.getcwd()
-              end,
-            }
-          }
-        }
-      },
+      local function toggle_signature()
+        -- Close if tracked window is still valid
+        if signature_win and vim.api.nvim_win_is_valid(signature_win) then
+          vim.api.nvim_win_close(signature_win, true)
+          signature_win = nil
+          return
+        end
+        signature_win = nil
+        vim.lsp.buf.signature_help()
+      end
 
-      fuzzy = { implementation = "prefer_rust_with_warning" }
-    },
-    opts_extend = { "sources.default" }
-  }
+      local function scroll_signature(dir)
+        if not signature_win or not vim.api.nvim_win_is_valid(signature_win) then
+          signature_win = nil
+          return
+        end
+        local keys = dir == "up" and vim.api.nvim_replace_termcodes("<C-u>", true, true, true)
+            or vim.api.nvim_replace_termcodes("<C-d>", true, true, true)
+        vim.api.nvim_win_call(signature_win, function()
+          vim.api.nvim_feedkeys(keys, "nx", false)
+        end)
+      end
+
+      -- Accept: <C-e> → <C-y> when pum visible
+      vim.keymap.set("i", "<C-e>", function()
+        if pum() then return "<C-y>" end
+        return "<C-e>"
+      end, { expr = true })
+
+      -- Dismiss: <C-q> → <C-e> when pum visible
+      vim.keymap.set("i", "<C-q>", function()
+        if pum() then return "<C-e>" end
+      end, { expr = true })
+
+      -- Select next: <C-s> → <C-n> when pum visible
+      vim.keymap.set("i", "<C-s>", function()
+        if pum() then return "<C-n>" end
+        return "<C-s>"
+      end, { expr = true })
+
+      -- Select prev: <C-w> → <C-p> when pum visible, else delete word
+      vim.keymap.set("i", "<C-w>", function()
+        if pum() then return "<C-p>" end
+        return "<C-w>"
+      end, { expr = true })
+
+      -- Toggle signature help: <C-k>
+      vim.keymap.set("i", "<C-k>", toggle_signature)
+
+      -- Scroll signature float
+      vim.keymap.set("i", "<C-U>", function() scroll_signature("up") end)
+      vim.keymap.set("i", "<C-D>", function() scroll_signature("down") end)
+    end,
+  },
 }
+

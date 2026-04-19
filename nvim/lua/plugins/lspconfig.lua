@@ -63,6 +63,19 @@ return {
       -- vim.lsp.enable('cmake')
       -- vim.lsp.enable('gopls')
       -- vim.lsp.enable('rust_analyzer')
+
+      -- Enable LSP-driven completion for each client that supports it
+      vim.api.nvim_create_autocmd("LspAttach", {
+        group = vim.api.nvim_create_augroup("lsp.completion", { clear = true }),
+        callback = function(ev)
+          local client = vim.lsp.get_client_by_id(ev.data.client_id)
+          if client and client:supports_method("textDocument/completion") then
+            vim.lsp.completion.enable(true, client.id, ev.buf, {
+              autotrigger = true,
+            })
+          end
+        end,
+      })
     end,
   },
   -- {
@@ -128,20 +141,18 @@ return {
   -- 				-- * require('lspconfig').jdtls.setup()
   -- 				-- IF they are not executed in the correct order, you will see a error
   -- 				-- notification.
-  -- 				-- Set following to false to disable the notification if you know what you
-  -- 				-- are doing
   -- 				invalid_order = true,
   --
   -- 				-- nvim-java checks if the require('java').setup() is called multiple
   -- 				-- times.
   -- 				-- IF there are multiple setup calls are executed, an error will be shown
-  -- 				-- Set following property value to false to disable the notification if
-  -- 				-- you know what you are doing
+  -- 				-- Set following property value to false to disable the notification if you
+  -- 				-- know what you're doing
   -- 				duplicate_setup_calls = true,
   --
   -- 				-- nvim-java checks if nvim-java/mason-registry is added correctly to
   -- 				-- mason.nvim plugin.
-  -- 				-- IF it's not registered correctly, an error will be thrown and nvim-java
+  -- 				-- IF it's not registered correctly, an error will throw and nvim-java
   -- 				-- will stop setup
   -- 				invalid_mason_registry = false,
   -- 			},

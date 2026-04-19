@@ -128,4 +128,7 @@ eval "$(oh-my-posh init zsh --config ~/.config/ohmyposh/base.json)"
 # export BUN_INSTALL="$HOME/.bun"
 # export PATH="$BUN_INSTALL/bin:$PATH"
 
+nvim()  { command nvim "$@"; printf '\e[4 q'; }
+claude() { command claude "$@"; printf '\e[4 q'; }
+
 export CLAUDE_CONFIG_DIR=~/.config/claude

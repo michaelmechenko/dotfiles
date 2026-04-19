@@ -27,9 +27,6 @@ return {
         null_ls.builtins.code_actions.gitsigns,
         null_ls.builtins.code_actions.impl,
 
-        -- completions
-        null_ls.builtins.completion.luasnip,
-
         -- linters
         -- null_ls.builtins.diagnostics.yamllint,
         null_ls.builtins.diagnostics.zsh,

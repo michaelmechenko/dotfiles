@@ -44,7 +44,7 @@ return {
             opts = {},     -- merged with defaults from documentation
           },
           signature = {
-            enabled = true,
+            enabled = false,
             auto_open = {
               enabled = false,
               trigger = false,

@@ -2,14 +2,25 @@
 
 FOCUSED_WS=$(aerospace list-workspaces --focused --format '%{workspace}' 2>/dev/null)
 
-# Get all workspaces with windows, sorted numerically (max 5)
+# Get all workspaces with windows.
+# Sort by group first ('*' before '^'), then numerically within group (max 5).
 WORKSPACES=$(aerospace list-workspaces --all --format '%{workspace}' 2>/dev/null | while read -r ws; do
     COUNT=$(aerospace list-windows --workspace "$ws" --count 2>/dev/null)
     if [ "$COUNT" -gt 0 ]; then
-        NUM=$(echo "$ws" | sed 's/[^0-9]//g')
-        echo "$NUM $ws"
+        NUM=$(echo "$ws" | sed -E 's/^([0-9]+).*/\1/')
+        SUFFIX=$(echo "$ws" | sed -E 's/^[0-9]+(.*)$/\1/')
+
+        if [ "$SUFFIX" = "*" ]; then
+            GROUP=0
+        elif [ "$SUFFIX" = "^" ]; then
+            GROUP=1
+        else
+            GROUP=2
+        fi
+
+        echo "$GROUP $NUM $ws"
     fi
-done | sort -n | cut -d' ' -f2 | head -5)
+done | sort -k1,1n -k2,2n | cut -d' ' -f3 | head -5)
 
 # Count how many workspaces we have
 WORKSPACE_COUNT=$(echo "$WORKSPACES" | grep -c .)

@@ -134,8 +134,8 @@ automatically-unhide-macos-hidden-apps = false
     cmd-shift-1 = ['workspace 1^']
     cmd-shift-2 = ['workspace 2^']
 
-    cmd-shift-a = ['move-node-to-workspace --focus-follows-window prev', "exec-and-forget open -g 'rectangle-pro://execute-action?name=almost-maximize'"]
-    cmd-shift-d = ['move-node-to-workspace --focus-follows-window next', "exec-and-forget open -g 'rectangle-pro://execute-action?name=almost-maximize'"]
+    cmd-shift-a = ['exec-and-forget /bin/bash ~/.config/aerospace/move_workspace_cycle.sh prev', "exec-and-forget open -g 'rectangle-pro://execute-action?name=almost-maximize'"]
+    cmd-shift-d = ['exec-and-forget /bin/bash ~/.config/aerospace/move_workspace_cycle.sh next', "exec-and-forget open -g 'rectangle-pro://execute-action?name=almost-maximize'"]
 
     cmd-shift-w = ["move-node-to-monitor --focus-follows-window --wrap-around next", "exec-and-forget open -g 'rectangle-pro://execute-action?name=almost-maximize'"]
 

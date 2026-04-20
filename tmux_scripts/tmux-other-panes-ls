@@ -1,0 +1,22 @@
+#!/bin/sh
+
+set -e
+
+# Disable glob expansion to prevent * in session names from expanding
+set -f
+
+current_session=$(tmux display-message -p '#{session_name}')
+
+menu_items=$(tmux list-panes -a -F '#{session_name}|#{window_index}|#{window_name}|#{pane_index}|#{pane_current_command}|#{pane_current_path}' \
+| awk -F'|' -v HOME="$HOME" -v CURRENT="$current_session" 'BEGIN {ORS=" "} $1 != CURRENT {
+    path = $6
+    sub("^" HOME, "~", path)
+    print "\"" $1 ":" $2 " [" $3 "]{" $4 "} [" $5 "] (" path ")\" \"\" \"switch-client -t " $1 ":" $2 "." $4 "\""
+}')
+
+if [ -z "$menu_items" ]; then
+    tmux display-message "No other panes"
+    exit 0
+fi
+
+eval "tmux display-menu -T \"#[align=centre]other panes\" -b rounded $menu_items"

@@ -3,7 +3,6 @@
 set -e
 
 tmux list-sessions -F '#S #{session_windows}' \
-| grep -v '^float ' \
 | awk 'BEGIN {ORS=" "} {
     windows = $2
     window_text = windows == 1 ? "window" : "windows"

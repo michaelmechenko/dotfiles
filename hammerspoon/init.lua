@@ -1,12 +1,11 @@
 require("hs.ipc")
--- local windowCenter = require("window-center")
--- local sendKeys = require("send-keybind")
 local rectangle = require("rectangle-keybinds")
 
 _G.rectangleAlmostMaximize = rectangle.almostMaximize
 _G.rectangleMaximize = rectangle.maximize
 _G.rectangleCenter = rectangle.center
 _G.almostMaximizeAll = rectangle.almostMaximizeAll
+_G.almostMaximizeFocusedWorkspace = rectangle.almostMaximizeFocusedWorkspace
 _G.centerAll = rectangle.centerAll
 
 -- Watch for screen changes
@@ -16,4 +15,4 @@ _G.centerAll = rectangle.centerAll
 --
 -- screenWatcher:start()
 
-hs.hotkey.bind({ "cmd", "ctrl", "alt" }, "c", rectangle.almostMaximizeAll)
+hs.hotkey.bind({ "cmd", "ctrl", "alt" }, "c", rectangle.almostMaximizeFocusedWorkspace)

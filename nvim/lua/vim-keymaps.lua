@@ -1,3 +1,5 @@
+-- right click menu
+
 vim.opt.mousemodel = "popup"
 vim.api.nvim_del_augroup_by_name('nvim.popupmenu')
 vim.cmd([[
@@ -28,16 +30,6 @@ vim.cmd([[
   anoremenu PopUp.lsp:\ goto\ implementation          <Cmd>lua vim.lsp.buf.implementation()<CR>
   anoremenu PopUp.lsp:\ show\ signature               <Cmd>lua vim.lsp.buf.signature_help()<CR>
 ]])
-
-vim.cmd("set notermsync")
-vim.cmd("set noswapfile")
-vim.opt.fillchars = { eob = " " }
-vim.g.mapleader = " "
-
-vim.cmd("set expandtab")
-vim.cmd("set tabstop=2")
-vim.cmd("set softtabstop=2")
-vim.cmd("set shiftwidth=2")
 
 -- yanking/pasting/cutting to global register
 vim.keymap.set("n", "P", '"+p', {})
@@ -106,9 +98,4 @@ end, { expr = true })
 vim.keymap.set("v", "<Tab>", "<Esc>", {})
 -- vim.keymap.set("i", "<C-s>", "<Esc>", {})
 -- vim.keymap.set("v", "<C-s>", "<Esc>", {})
---
 vim.keymap.set("i", "<C-v>", '<C-r>0', { noremap = true, silent = true, desc = "Paste yank register" })
-
-vim.opt.number = true
-vim.opt.relativenumber = true
-vim.opt.signcolumn = "number"

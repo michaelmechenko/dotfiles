@@ -16,6 +16,20 @@ vim.opt.cursorline = true
 vim.opt.conceallevel = 0
 vim.o.winborder = "rounded"
 
+vim.opt.number = true
+vim.opt.relativenumber = true
+vim.opt.signcolumn = "number"
+
+vim.cmd("set notermsync")
+vim.cmd("set noswapfile")
+vim.opt.fillchars = { eob = " " }
+vim.g.mapleader = " "
+
+vim.cmd("set expandtab")
+vim.cmd("set tabstop=2")
+vim.cmd("set softtabstop=2")
+vim.cmd("set shiftwidth=2")
+
 -- Native completion (0.12)
 vim.o.completeopt = "menu,menuone,noselect"
 vim.o.complete = ".,w,b,u,t"

@@ -32,11 +32,10 @@ Native subagents (delegated to automatically or by request):
 - **jimothy** -- Code review, architecture decisions, debugging analysis, refactor planning, second opinion
 - **librarian** -- Understanding 3rd party libraries, exploring GitHub/npm/PyPI, tracing unfamiliar code, finding documentation from websites. Show response in full
 - **kubectl** -- Read-only Kubernetes debugging (pods, services, deployments)
-- **bashless** -- Write-only agent for the cwd, no shell access, has web access for docs
 - **atlassian** -- Read-only Jira/Confluence explorer for issues, sprints, pages, JSM, automation, and API questions
 - **n8n** -- n8n workflow designer: assess, create, test, and validate n8n workflows
-- **tmux-expert** -- Tmux configuration, keybindings, session management
-- **neovim-expert** -- Neovim configuration, plugins, troubleshooting
+- **tmux-agent** -- Tmux configuration, keybindings, session management
+- **neovim-agent** -- Neovim configuration, plugins, troubleshooting
 
 ## Available Skills
 
@@ -62,28 +61,3 @@ Load skills for specialized workflows via `/skill-name` or let the model choose 
 - **diff-summary** -- Show working tree changes or diff between branches
 - **index-knowledge** -- Generating CLAUDE.md knowledge bases
 - **copy-content** -- Copy content to clipboard via pbcopy
-
-### Operations
-
-- **incident-triage** -- Structured production incident triage (k8s + logs + Jira)
-- **jira-report** -- Sprint summaries, velocity reports, standup prep from Jira
-
-### Development
-
-- **claude-api** -- Claude API and Anthropic SDK patterns (Python, TypeScript, Java, Go)
-- **mcp-builder** -- Build MCP servers for external service integration
-- **skill-creator** -- Create, modify, and evaluate custom skills
-
----
-
-## Auto-Update Memory (MANDATORY)
-
-Update memory files in `~/.config/claude/rules/` AS YOU GO, not at the end. When you learn something new, update immediately.
-
-- User states a preference -> Update `memory-preferences.md`
-- A decision is made -> Update `memory-decisions.md` with date
-- Completing substantive work -> Add to `memory-sessions.md`
-
-**Skip:** Quick factual questions, trivial tasks with no new info.
-
-**DO NOT ASK. Just update the files when you learn something.**

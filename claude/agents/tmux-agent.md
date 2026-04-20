@@ -1,5 +1,5 @@
 ---
-name: tmux-expert
+name: tmux-agent
 description: "Expert on tmux configuration, keybindings, and session management. Consult for any tmux questions."
 tools: Read, Grep, Glob, WebFetch, WebSearch, Bash
 model: inherit

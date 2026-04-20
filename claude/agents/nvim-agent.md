@@ -1,5 +1,5 @@
 ---
-name: nvim-expert
+name: nvim-agent
 description: "Expert on Neovim configuration, plugins, and troubleshooting. Consult for any Neovim questions."
 tools: Read, Grep, Glob, WebFetch, WebSearch, Bash
 model: inherit

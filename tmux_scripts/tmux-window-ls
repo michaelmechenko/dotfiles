@@ -2,12 +2,56 @@
 
 set -e
 
-current_session=$(tmux display-message -p '#{session_name}')
+current_session_id=$(tmux display-message -p '#{session_id}')
 
-tmux list-panes -a -F '#{session_name}|#{window_index}|#{window_name}|#{pane_index}|#{pane_title}|#{pane_current_command}|#{pane_current_path}' \
-| awk -F'|' -v HOME="$HOME" -v SESSION="$current_session" 'BEGIN {ORS=" "} $1 == SESSION {
+tmux list-panes -a -F '#{session_id}|#{window_index}|#{window_name}|#{pane_index}|#{pane_title}|#{pane_current_command}|#{pane_current_path}' \
+| awk -F'|' -v HOME="$HOME" -v SESSION_ID="$current_session_id" '
+BEGIN {
+    ORS = " "
+    session_target = SESSION_ID
+    gsub(/\$/, "\\$", session_target)
+}
+$1 == SESSION_ID {
+    win = $2
+    window_name = $3
+    pane = $4
+    pane_name = $5
+    cmd = $6
     path = $7
+
     sub("^" HOME, "~", path)
-    print "\"" $2 " [" $3 "]{" $4 "} [" $5 "] [" $6 "] (" path ")\" \"\" \"switch-client -t " SESSION ":" $2 "." $4 "\""
+
+    if (pane_name == "") pane_name = "-"
+
+    if (length(window_name) > 18) window_name = substr(window_name, 1, 15) "..."
+    if (length(cmd) > 12) cmd = substr(cmd, 1, 9) "..."
+    if (length(pane_name) > 18) pane_name = substr(pane_name, 1, 15) "..."
+    if (length(path) > 36) path = substr(path, 1, 33) "..."
+
+    # store first-seen windows for numeric quick-jump rows
+    if (!(win in seen_window)) {
+        seen_window[win] = window_name
+        window_order[++window_count] = win
+    }
+
+    label = sprintf("%-4s %-18s %-12s %-18s %-36s", win, window_name, cmd, pane_name, path)
+    pane_items[++pane_count] = "\"" label "\" \"\" \"switch-client -t " session_target ":" win " \\; select-pane -t " session_target ":" win "." pane "\""
+}
+END {
+    # quick window rows: press number to jump to window
+    for (i = 1; i <= window_count; i++) {
+        win = window_order[i]
+        key = (win ~ /^[0-9]$/) ? win : ""
+        label = sprintf("%-4s %-18s", win, seen_window[win])
+        print "\"" label "\" \"" key "\" \"switch-client -t " session_target ":" win "\""
+    }
+
+    print "\"\" \"\" \"\""
+    print "\"#[align=centre]pane information\" \"\" \"\""
+    print "\"" sprintf("%-4s %-18s %-12s %-18s %-36s", "WIN", "WINDOW_NAME", "COMMAND", "PANE_NAME", "PATH") "\" \"\" \"\""
+
+    for (i = 1; i <= pane_count; i++) {
+        print pane_items[i]
+    }
 }' \
-| xargs tmux display-menu -T "#[align=centre]choose pane" -b "rounded"
+| xargs tmux display-menu -T "#[align=centre]choose window" -b "rounded"

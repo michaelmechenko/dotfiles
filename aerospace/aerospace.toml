@@ -101,10 +101,13 @@ automatically-unhide-macos-hidden-apps = false
     cmd-shift-0 = 'balance-sizes'
 
     # See: https://nikitabobko.github.io/AeroSpace/commands#focus
+    cmd-w = 'close'
     cmd-h = 'focus --boundaries-action wrap-around-the-workspace left'
     cmd-j = 'focus --boundaries-action wrap-around-the-workspace down'
     cmd-k = 'focus --boundaries-action wrap-around-the-workspace up'
     cmd-l = 'focus --boundaries-action wrap-around-the-workspace right'
+    cmd-backtick = 'exec-and-forget /bin/bash ~/.config/aerospace/cycle_workspace_window.sh next'
+    cmd-shift-backtick = 'exec-and-forget /bin/bash ~/.config/aerospace/cycle_workspace_window.sh prev'
 
     # See: https://nikitabobko.github.io/AeroSpace/commands#move
     cmd-shift-h = 'move left'
@@ -171,7 +174,7 @@ automatically-unhide-macos-hidden-apps = false
 
     # See: https://nikitabobko.github.io/AeroSpace/commands#mode
     cmd-shift-enter = 'mode service'
-    cmd-shift-backtick = 'mode move'
+    cmd-shift-m = 'mode move'
 
 [mode.move.binding]
     1 = ['move-node-to-workspace --focus-follows-window 1*', 'mode main']

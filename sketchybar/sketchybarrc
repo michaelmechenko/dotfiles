@@ -32,21 +32,27 @@ sketchybar --add event aerospace_focus_change
 # LEFT BLOCK - All workspaces with windows
 #
 
-# Only ws_1 subscribes to events and triggers the script
-sketchybar --add item ws_1 left \
-    --subscribe ws_1 aerospace_workspace_change aerospace_focus_change \
-    --set ws_1 width=dynamic icon.drawing=off label.drawing=on script="$PLUGIN_DIR/frontapps.sh"
+# ws_1 subscribes and drives updates for all left-block items.
+for i in $(seq 1 5); do
+    if [ "$i" -eq 1 ]; then
+        sketchybar --add item ws_$i left \
+            --subscribe ws_$i aerospace_workspace_change aerospace_focus_change \
+            --set ws_$i width=dynamic icon.drawing=off label.drawing=on script="$PLUGIN_DIR/frontapps.sh"
+    else
+        sketchybar --add item ws_$i left \
+            --set ws_$i width=dynamic icon.drawing=off label.drawing=on
+    fi
 
-sketchybar --add item apps_1 left \
-    --set apps_1 width=dynamic icon.drawing=off label.drawing=on
+    # Up to 6 windows per workspace slot, with 5 separators between them.
+    for j in $(seq 1 6); do
+        sketchybar --add item app_${i}_${j} left \
+            --set app_${i}_${j} width=dynamic drawing=off icon.drawing=off label.drawing=on
 
-# Remaining items don't subscribe - they get updated by the script
-for i in $(seq 2 5); do
-    sketchybar --add item ws_$i left \
-        --set ws_$i width=dynamic icon.drawing=off label.drawing=on
-    
-    sketchybar --add item apps_$i left \
-        --set apps_$i width=dynamic icon.drawing=off label.drawing=on
+        if [ "$j" -lt 6 ]; then
+            sketchybar --add item sep_${i}_${j} left \
+                --set sep_${i}_${j} width=dynamic drawing=off icon.drawing=off label.drawing=on
+        fi
+    done
 done
 
 #

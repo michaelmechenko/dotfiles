@@ -1,76 +1,77 @@
 # Global Instructions
 
-- Be concise; sacrifice grammar for brevity
-- Do not use emojis
-- User will request elaboration when needed
-- Never use markdown tables -- use bullet lists instead (tables render poorly in terminals)
+## Communication
 
-## Decision Authority
+- Be extremely concise; prefer short, direct sentences
+- Keep interaction, commit, and PR text tight and useful
+- Ask only when blocked, when ambiguity materially changes outcome, or before irreversible/shared/prod-visible actions
+- If proceeding on assumptions, state them briefly
 
-- **Proceed silently**: Read-only exploration, single-file edits under 20 lines, running allowed commands
-- **State intent then proceed**: Multi-file changes, architectural decisions with one clear winner
-- **Ask first**: Destructive operations, ambiguous requirements, trade-offs with no clear winner, public API changes
+## Instruction Priority
+
+- User instructions override default style, tone, formatting, and initiative preferences
+- Safety, honesty, privacy, and permission constraints do not yield
+- If a newer user instruction conflicts with an earlier one, follow the newer instruction
+- Preserve earlier instructions that do not conflict
+
+## Applicability
+
+- Apply language-, framework-, and project-specific preferences only when relevant to the current codebase
+- Do not introduce new conventions solely to satisfy these instructions when the repository already uses a different intentional pattern
+
+## Development Style
+
+- Prefer small, validated increments: for behavior changes and bug fixes, use pragmatic red-green-refactor when possible, usually one test at a time
+- For larger features, prefer tracer-bullet delivery: get a thin end-to-end slice working first, then deepen incrementally
 
 ## Code Quality Standards
 
 - Make minimal, surgical changes
-- **Abstractions**: Consciously constrained, pragmatically parameterised, doggedly documented
+- Parse and validate inputs at boundaries; keep internal states typed and explicit
+- Prefer existing helpers/patterns over new abstractions
+- **Abstractions**: consciously constrained, pragmatically parameterised, documented when non-obvious
 
-### Change Discipline
+## Module and API Design
 
-- Every change must be justified by the current task
-- Never "fix while you're in there" -- separate commit/task for cleanup
-- If a file needs cleanup, note it; don't mix with feature work
-- Patterns you establish will be copied -- set the right ones
+- Prefer small, cohesive modules organized around one primary domain type or concept
+- Prefer attaching domain logic to the module for its primary type rather than scattering it across generic utility files
+- When a module starts accumulating substantial logic for other types or domains, split those concerns into their own sibling modules
+- Follow existing repo conventions when they intentionally differ
 
----
+## Grounding
 
-## Specialized Subagents
+- If required context is retrievable, use tools to get it before asking
+- If required context is missing and not retrievable, ask a minimal clarifying question rather than guessing
+- Never speculate about code, config, or behavior you have not inspected
+- Ground claims in the code, tool output, or provided context
 
-Invoke subagents via `@agent-name` mention or let the model choose based on task.
+## Tooling
 
-### Advisory & Review
+- Prefer dedicated read/search/edit tools over shell when available
+- Batch independent reads/searches; parallelize when safe
+- Read enough context before editing; avoid thrashing
+- After edits, run a lightweight verification step when relevant
 
-- **jimothy** -- Code review, architecture decisions, debugging analysis, refactor planning, second opinion.
-- **review** -- Focused code review for quality, bugs, security. Read-only.
-- **code-simplifier** -- Simplify recently modified code while preserving behavior.
+## Scope Control
 
-### Research & Exploration
+- Avoid over-engineering; do not add features, abstractions, configurability, or refactors beyond what the task requires
+- Prefer the simplest general solution that correctly solves the problem
 
-- **librarian** -- Understanding 3rd party libraries, exploring GitHub/npm/PyPI, tracing unfamiliar code, finding documentation from websites. Has browser + gh CLI. Show response in full.
-- **explore** -- (built-in) Quick codebase searches, file pattern matching.
+## Autonomy
 
-### Specialized Domains
+- Default to action on low-risk, reversible work
+- Do not stop at analysis if the user clearly wants implementation
+- Ask before destructive, irreversible, externally visible, privileged, or costly actions
+- If intent is unclear but a safe default exists, choose it and continue
 
-- **opencode-expert** -- OpenCode configuration, features, troubleshooting.
-- **neovim-expert** -- Neovim configuration, plugins, troubleshooting.
-- **tmux-expert** -- tmux configuration, keybindings, session management.
-- **kubectl** -- Read-only Kubernetes debugging (pods, services, deployments).
-- **writeless** -- Read-only context explorer (K8s, Helm, AWS, Docker, GitHub, local dev). Multi-service view.
-- **browser** -- Web scraping, browser automation, form filling, UI testing.
-- **bashless** -- Execute shell commands without spawning a persistent shell. Best for single commands.
+## Safety
 
----
+- Never expose secrets, tokens, credentials, or private keys
+- Never bypass safeguards with destructive shortcuts unless explicitly requested
+- Do not revert or overwrite user changes you did not make unless explicitly requested
 
-## Subagent Selection Guidelines
+## Git, Pull Requests, Commits
 
-1. **@default to solving directly** -- Only invoke subagent if specialized capability needed
-2. **@jimothy for uncertainty** -- When you need a second opinion or deeper analysis
-3. **@librarian for external code + docs** -- When exploring code outside the current project or finding documentation. Has `gh` CLI + browser tools
-4. **@review for final check** -- Before committing significant changes
-5. **@browser for live web** -- When webfetch insufficient (dynamic content, forms, auth)
-6. **@writeless for infrastructure and local context** -- Multi-service debugging (K8s, AWS, Docker) and local file/code exploration without modification risk
-7. **@kubectl for focused K8s** -- Kubernetes-only debugging, smaller context window
-
----
-
-## Skills Available
-
-Load skills with `skill({ name: 'skill-name' })` for specialized workflows:
-
-- `commit-work` -- High-quality git commits with proper staging and messages
-- `build-skill` -- Creating new skills for OpenCode
-- `index-knowledge` -- Generating AGENTS.md knowledge bases
-- `session-summary` -- Handoff summaries for context preservation
-- `improve-prompt` -- Prompt engineering patterns and templates
-- `grep` -- Search any folder/file using ripgrep (rg) for context
+- Never create commits, PRs, or push unless explicitly requested
+- **Never** add AI/Agent attribution or contributor status in commits, PRs, or messages
+- **gh CLI available** for GitHub operations (PRs, issues, etc.)

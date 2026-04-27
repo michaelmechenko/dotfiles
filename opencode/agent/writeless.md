@@ -1,6 +1,6 @@
 ---
 description: Read-only context explorer for debugging, auditing, and understanding system state across infrastructure, codebases, and local environments. Cannot modify resources.
-mode: primary
+mode: subagent
 color: error
 permission:
   "*": deny

@@ -1,11 +1,50 @@
 #!/bin/sh
 
 set -e
+set -f
 
-tmux list-sessions -F '#S #{session_windows}' \
-| awk 'BEGIN {ORS=" "} {
-    windows = $2
-    window_text = windows == 1 ? "window" : "windows"
-    print "\"" $1, "[" windows, window_text "]\"", NR, "\"switch-client -t", $1 "\""
+current_session=$(tmux display-message -p '#{session_name}')
+
+tmux list-panes -a -F '#{session_name}|#{window_index}|#{window_name}|#{pane_current_path}' \
+| awk -F'|' -v HOME="$HOME" -v CURRENT="$current_session" '
+BEGIN { ORS = " " }
+{
+    sname = $1; win = $2; wname = $3; path = $4
+
+    gsub(/\*/, "", sname)
+
+    if (!(sname in seen_session)) {
+        seen_session[sname] = 1
+        session_order[++session_count] = sname
+    }
+
+    wkey = sname SUBSEP win
+    if (!(wkey in seen_window)) {
+        seen_window[wkey] = 1
+        win_count[sname]++
+        idx = win_count[sname]
+        win_name[sname, idx] = wname
+        if (idx == 1) {
+            sub("^" HOME, "~", path)
+            if (length(path) > 30) path = "..." substr(path, length(path) - 26)
+            first_cwd[sname] = path
+        }
+    }
+}
+END {
+    for (s = 1; s <= session_count; s++) {
+        sname = session_order[s]
+        marker = (sname == CURRENT) ? "*" : ""
+        label = sname marker ":"
+        for (w = 1; w <= win_count[sname]; w++) {
+            wn = win_name[sname, w]
+            if (w == 1) {
+                label = label " " wn " [" first_cwd[sname] "]"
+            } else {
+                label = label ", " wn
+            }
+        }
+        print "\"" label "\" " s " \"switch-client -t " sname "\""
+    }
 }' \
 | xargs tmux display-menu -T "#[align=centre]choose session" -b "rounded"

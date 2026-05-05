@@ -20,15 +20,15 @@ vim.opt.number = true
 vim.opt.relativenumber = true
 vim.opt.signcolumn = "number"
 
-vim.cmd("set notermsync")
-vim.cmd("set noswapfile")
+vim.opt.termsync = false
+vim.opt.swapfile = false
 vim.opt.fillchars = { eob = " " }
 vim.g.mapleader = " "
 
-vim.cmd("set expandtab")
-vim.cmd("set tabstop=2")
-vim.cmd("set softtabstop=2")
-vim.cmd("set shiftwidth=2")
+vim.opt.expandtab = true
+vim.opt.tabstop = 2
+vim.opt.softtabstop = 2
+vim.opt.shiftwidth = 2
 
 -- Native completion (0.12)
 -- vim.o.completeopt = "menu,popup,noinsert"

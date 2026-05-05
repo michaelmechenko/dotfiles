@@ -51,14 +51,6 @@ return {
         desc = "remove highlights",
       },
 
-      -- dap
-      { "<leader>db",  "<Cmd>DapToggleBreakpoint<CR>",                                         desc = "toggle breakpoint" },
-      { "<leader>dsi", "<Cmd>DapStepInto<CR>",                                                 desc = "step into" },
-      { "<leader>dso", "<Cmd>DapStepOut<CR>",                                                  desc = "step out" },
-      { "<leader>dsr", "<Cmd>DapStepOver<CR>",                                                 desc = "step over" },
-      { "<leader>dr",  "<Cmd>DapContinue<CR>",                                                 desc = "continue dap" },
-      { "<leader>dq",  "<Cmd>DapTerminate<CR>",                                                desc = "terminate dap" },
-
       -- buffers
       { "<leader>b",   group = "buffers" },
       { "<leader>bd",  "<Cmd>bdelete<CR>",                                                     desc = "delete buf" },
@@ -296,79 +288,6 @@ return {
       { "<leader>lo", function() vim.diagnostic.open_float() end,  desc = "open diagnostic float" },
       { "<leader>ld", function() vim.lsp.buf.definition() end,     desc = "definition" },
       { "<leader>lm", function() vim.lsp.buf.code_action() end,    desc = "code action" },
-
-      -- telescope
-      -- { "<leader>f", group = "telescope" },
-      -- {
-      -- 	"<leader>fe",
-      -- 	function()
-      -- 		require("telescope.builtin").find_files({})
-      -- 	end,
-      -- 	desc = "find files",
-      -- },
-      -- {
-      -- 	"<leader>fd",
-      -- 	function()
-      -- 		require("telescope.builtin").lsp_references({})
-      -- 	end,
-      -- 	desc = "lsp references",
-      -- },
-      -- {
-      -- 	"<leader>fh",
-      -- 	function()
-      -- 		require("telescope.builtin").help_tags()
-      -- 	end,
-      -- 	desc = "help_tags",
-      -- },
-      -- {
-      -- 	"<leader>fm",
-      -- 	function()
-      -- 		require("telescope.builtin").man_pages()
-      -- 	end,
-      -- 	desc = "man pages",
-      -- },
-      -- {
-      -- 	"<leader>fq",
-      -- 	function()
-      -- 		require("telescope.builtin").quickfix()
-      -- 	end,
-      -- 	desc = "quickfix",
-      -- },
-      -- {
-      -- 	"<leader>fw",
-      -- 	function()
-      -- 		require("telescope.builtin").buffers({ show_all_buffers = true })
-      -- 	end,
-      -- 	desc = "buffers",
-      -- },
-      -- {
-      -- 	"<leader>ft",
-      -- 	function()
-      -- 		require("telescope.builtin").treesitter()
-      -- 	end,
-      -- 	desc = "treesitter",
-      -- },
-      -- {
-      -- 	"<leader>fs",
-      -- 	function()
-      -- 		require("telescope.builtin").lsp_document_symbols({ show_line = true })
-      -- 	end,
-      -- 	desc = "doc symbols",
-      -- },
-      -- {
-      -- 	"<leader>fr",
-      -- 	function()
-      -- 		require("telescope.builtin").oldfiles()
-      -- 	end,
-      -- 	desc = "recent files",
-      -- },
-      -- {
-      -- 	"<leader>fg",
-      -- 	function()
-      -- 		require("telescope.builtin").live_grep()
-      -- 	end,
-      -- 	desc = "live grep",
-      -- },
 
       -- scrollbar
       { "<leader>sd", "<Cmd>ScrollbarToggle<CR>",                  desc = "toggle scrollbar" },

@@ -22,7 +22,6 @@ return {
           -- "rust_analyzer",
           "clangd",
           -- "cmake",
-          "cssls",
           "dockerls",
           -- "gopls",
           "html",
@@ -37,7 +36,7 @@ return {
           "bashls",
           "yamlls"
         },
-        automatic_enable = false
+        automatic_enable = true
       })
     end,
   },

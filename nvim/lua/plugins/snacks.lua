@@ -83,7 +83,7 @@ return {
               ["<C-Down>"] = { "history_forward", mode = { "i", "n" } },
               ["<C-Up>"] = { "history_back", mode = { "i", "n" } },
               ["<C-c>"] = { "cancel", mode = "i" },
-              ["<C-w>"] = { "<c-s-w>", mode = { "i" }, expr = true, desc = "delete word" },
+              -- ["<C-w>"] = { "<c-s-w>", mode = { "i" }, expr = true, desc = "delete word" }, -- overridden by cycle_win below
               ["<CR>"] = { "confirm", mode = { "n", "i" } },
               ["<Down>"] = { "list_down", mode = { "i", "n" } },
               ["<Esc>"] = "cancel",

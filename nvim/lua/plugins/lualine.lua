@@ -1,21 +1,3 @@
-local oldworld_override = {
-  normal = {
-    a = { bg = "#bb9af7", fg = "#1b1b1c", gui = "bold" },
-    b = { bg = "#1c1c24", fg = "#bb9af7" },
-    c = { fg = "#bb9af7" },
-  },
-  insert = {
-    a = { bg = "#f5919b", fg = "1b1b1c", gui = "bold" },
-    b = { fg = "#f5919b" },
-    c = { fg = "#f5919b" },
-  },
-  inactive = {
-    a = { bg = "#c9c7cd", fg = "1b1b1c" },
-    b = { fg = "#c9c7cd" },
-    c = { fg = "#c9c7cd" },
-  }
-}
-
 local filetype_spacing = {
   sections = {
     lualine_a = {
@@ -146,7 +128,7 @@ return {
               inactive = {
                 -- bg = "None", --[[ fg = "#9CABCA", ]]
                 bg = "#1c1c24",
-                fg = "5A5A70",
+                fg = "#5A5A70",
               },
             },
           },

@@ -72,7 +72,7 @@ return {
           },
           Hint = {
             -- text = { "-", "=" },
-            tet = { "•" },
+            text = { "•" },
             priority = 5,
             gui = nil,
             color = nil,

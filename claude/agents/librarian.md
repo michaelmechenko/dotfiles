@@ -34,7 +34,6 @@ Use available tools extensively. Execute tools in parallel when possible.
 - Read files thoroughly to understand implementation details
 - Search for patterns and related code across repositories
 - Use `gh` CLI for GitHub exploration (repos, PRs, issues, releases)
-- Create mermaid diagrams to visualize complex relationships or flows
 
 ## Communication
 

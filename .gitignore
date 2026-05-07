@@ -53,3 +53,4 @@ chrome
 /claude/policy-limits.json
 /claude/cache
 /claude/plugins
+/claude/usage-data

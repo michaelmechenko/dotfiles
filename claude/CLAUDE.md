@@ -1,63 +1,77 @@
 # Global Instructions
 
-- Be concise; sacrifice grammar for brevity
-- Do not use emojis
-- Never use markdown tables -- use bullet lists instead (tables render poorly in terminals)
+## Communication
 
-## Decision Authority
+- Be extremely concise; prefer short, direct sentences
+- Keep interaction, commit, and PR text tight and useful
+- Ask only when blocked, when ambiguity materially changes outcome, or before irreversible/shared/prod-visible actions
+- If proceeding on assumptions, state them briefly
 
-- **Proceed silently**: Read-only exploration, single-file edits under 20 lines, running allowed commands
-- **State intent then proceed**: Multi-file changes, architectural decisions with one clear winner
-- **Ask first**: Destructive operations, ambiguous requirements, trade-offs with no clear winner, public API changes
+## Instruction Priority
 
-### Change Discipline
+- User instructions override default style, tone, formatting, and initiative preferences
+- Safety, honesty, privacy, and permission constraints do not yield
+- If a newer user instruction conflicts with an earlier one, follow the newer instruction
+- Preserve earlier instructions that do not conflict
 
-- Every change must be justified by the current task
-- Never "fix while you're in there" -- separate commit/task for cleanup
-- If a file needs cleanup, note it; don't mix with feature work
-- Patterns you establish will be copied -- set the right ones
+## Applicability
 
----
+- Apply language-, framework-, and project-specific preferences only when relevant to the current codebase
+- Do not introduce new conventions solely to satisfy these instructions when the repository already uses a different intentional pattern
 
-## Agent CLI Preferences
+## Development Style
 
-- Use `fd` for file discovery
-- Use `rg` (ripgrep) for content search
-- Use `git` and `gh` (GitHub CLI) liberally for version control and GitHub operations
+- Prefer small, validated increments: for behavior changes and bug fixes, use pragmatic red-green-refactor when possible, usually one test at a time
+- For larger features, prefer tracer-bullet delivery: get a thin end-to-end slice working first, then deepen incrementally
 
-## Available Agents
+## Code Quality Standards
 
-Native subagents (delegated to automatically or by request):
+- Make minimal, surgical changes
+- Parse and validate inputs at boundaries; keep internal states typed and explicit
+- Prefer existing helpers/patterns over new abstractions
+- **Abstractions**: consciously constrained, pragmatically parameterised, documented when non-obvious
 
-- **jimothy** -- Code review, architecture decisions, debugging analysis, refactor planning, second opinion
-- **librarian** -- Understanding 3rd party libraries, exploring GitHub/npm/PyPI, tracing unfamiliar code, finding documentation from websites. Show response in full
-- **kubectl** -- Read-only Kubernetes debugging (pods, services, deployments)
-- **atlassian** -- Read-only Jira/Confluence explorer for issues, sprints, pages, JSM, automation, and API questions
-- **n8n** -- n8n workflow designer: assess, create, test, and validate n8n workflows
-- **tmux-agent** -- Tmux configuration, keybindings, session management
-- **neovim-agent** -- Neovim configuration, plugins, troubleshooting
+## Module and API Design
 
-## Available Skills
+- Prefer small, cohesive modules organized around one primary domain type or concept
+- Prefer attaching domain logic to the module for its primary type rather than scattering it across generic utility files
+- When a module starts accumulating substantial logic for other types or domains, split those concerns into their own sibling modules
+- Follow existing repo conventions when they intentionally differ
 
-Load skills for specialized workflows via `/skill-name` or let the model choose based on task.
+## Grounding
 
-### Advisory & Review
+- If required context is retrievable, use tools to get it before asking
+- If required context is missing and not retrievable, ask a minimal clarifying question rather than guessing
+- Never speculate about code, config, or behavior you have not inspected
+- Ground claims in the code, tool output, or provided context
 
-- **code-review** -- Focused code review for quality, bugs, security. Review uncommitted changes or PRs
-- **plan-review** -- Review plans for overengineering, missing edge cases, and gaps
-- **simplify** -- Simplify recently modified code while preserving behavior
-- **config-audit** -- Audit Claude Code config for stale permissions, hook issues, skill gaps
+## Tooling
 
-### Research & Exploration
+- Prefer dedicated read/search/edit tools over shell when available
+- Batch independent reads/searches; parallelize when safe
+- Read enough context before editing; avoid thrashing
+- After edits, run a lightweight verification step when relevant
 
-- **search** -- Search files using rg and fd
-- **aws-lookup** -- AWS documentation lookup and architecture guidance via AWS docs MCP
+## Scope Control
 
-### Workflow
+- Avoid over-engineering; do not add features, abstractions, configurability, or refactors beyond what the task requires
+- Prefer the simplest general solution that correctly solves the problem
 
-- **commit-work** -- High-quality git commits with proper staging and messages
-- **pr-create** -- Full PR lifecycle: branch, stage, commit, push, create PR via gh CLI
-- **session-summary** -- Handoff summaries for context preservation
-- **diff-summary** -- Show working tree changes or diff between branches
-- **index-knowledge** -- Generating CLAUDE.md knowledge bases
-- **copy-content** -- Copy content to clipboard via pbcopy
+## Autonomy
+
+- Default to action on low-risk, reversible work
+- Do not stop at analysis if the user clearly wants implementation
+- Ask before destructive, irreversible, externally visible, privileged, or costly actions
+- If intent is unclear but a safe default exists, choose it and continue
+
+## Safety
+
+- Never expose secrets, tokens, credentials, or private keys
+- Never bypass safeguards with destructive shortcuts unless explicitly requested
+- Do not revert or overwrite user changes you did not make unless explicitly requested
+
+## Git, Pull Requests, Commits
+
+- Never create commits, PRs, or push unless explicitly requested
+- **Never** add AI/Agent attribution or contributor status in commits, PRs, or messages
+- **gh CLI available** for GitHub operations (PRs, issues, etc.)

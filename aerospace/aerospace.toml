@@ -96,6 +96,7 @@ automatically-unhide-macos-hidden-apps = false
 
     # fullscreen
     cmd-shift-f = 'fullscreen'
+    cmd-m = 'fullscreen'
 
     # balance sizes
     cmd-shift-0 = 'balance-sizes'
@@ -124,6 +125,8 @@ automatically-unhide-macos-hidden-apps = false
     # See: https://nikitabobko.github.io/AeroSpace/commands#resize
     cmd-shift-minus = 'resize smart -50'
     cmd-shift-equal = 'resize smart +50'
+    cmd-ctrl-minus = 'resize smart -325'
+    cmd-ctrl-equal = 'resize smart +325'
     cmd-shift-up    = 'resize height +50'
     cmd-shift-down  = 'resize height -50'
     cmd-shift-left  = 'resize width -50'

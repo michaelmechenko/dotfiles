@@ -34,7 +34,8 @@ return {
           "lemminx",
           -- "jdtls",
           "bashls",
-          "yamlls"
+          "yamlls",
+          "jsonls"
         },
         automatic_enable = true
       })
@@ -58,6 +59,7 @@ return {
       vim.lsp.enable('yamlls')
       vim.lsp.enable('bashls')
       vim.lsp.enable('marksman')
+      vim.lsp.enable('jsonls')
       -- vim.lsp.enable('copilot')
       -- vim.lsp.enable('cmake')
       -- vim.lsp.enable('gopls')

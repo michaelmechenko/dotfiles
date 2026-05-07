@@ -1,10 +1,10 @@
 ---
-description: Generate implementation and copy code to clipboard
+description: Generate implementation/content and copy to clipboard
 ---
 
 If the requested implementation already exists in the conversation history
 (from a previous agent response or your own prior output), extract and copy
-that code directly without regenerating it.
+the content directly without regenerating it.
 
 Otherwise, generate the requested implementation.
 

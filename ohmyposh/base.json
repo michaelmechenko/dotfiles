@@ -35,7 +35,7 @@
             "branch_icon": "",
             "cache_duration": "none"
           },
-          "template": "<#F5CC96>\udb84\udf75 '</>{{ .HEAD }}<#F5CC96>' </>",
+          "template": "<#f5cb96>\udb84\udf75 '</>{{ .HEAD }}<#f5cb96>' </>",
           "foreground": "#BB9DBD",
           "type": "git",
           "style": "plain"

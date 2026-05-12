@@ -184,7 +184,7 @@
   "effortLevel": "high",
   "tui": "default",
   "autoMemoryEnabled": true,
-  "theme": "dark-ansi",
+  "theme": "custom:vague-aligned",
   "mcpServers": {
     "context7": {
       "command": "npx",

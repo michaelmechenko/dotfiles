@@ -96,13 +96,14 @@ return {
         hl["GitSignsChange"]             = { fg = "#f3be7c" }
         hl["DiffAdd"]                    = { bg = "#39323A" }
         hl["DiffDelete"]                 = { bg = "#3F262C" }
+        hl["CursorLine"]                 = { bg = "#2A2A35" }
       end,
 
       -- Override colors
       colors = {
         -- bg = "#141415",
         -- inactiveBg = "#1c1c24",
-        fg = "#c3c3c3",
+        fg = "#B9B9B9",
         -- floatBorder = "#878787",
         -- line = "#252530",
         -- comment = "#606079",

@@ -42,7 +42,7 @@ local filetype_spacing = {
           inactive = {
             -- bg = "None", --[[ fg = "#9CABCA", ]]
             bg = "#1c1c24",
-            fg = "#5A5A70",
+            fg = "#656a80",
           },
         },
       },
@@ -128,7 +128,7 @@ return {
               inactive = {
                 -- bg = "None", --[[ fg = "#9CABCA", ]]
                 bg = "#1c1c24",
-                fg = "#5A5A70",
+                fg = "#656a80",
               },
             },
           },

@@ -1,0 +1,16 @@
+{
+  "name": "Vague Aligned",
+  "base": "dark-ansi",
+  "overrides": {
+    "claude":      "#d8647e",
+    "text":        "#B9B9B9",
+    "inactive":    "#656a80",
+    "success":     "#bb9dbd",
+    "error":       "#d8647e",
+    "warning":     "#f3be7c",
+    "planMode":    "#8ba9c1",
+    "autoAccept":  "#aeaed1",
+    "diffAdded":   "#bb9dbd",
+    "diffRemoved": "#d8647e"
+  }
+}

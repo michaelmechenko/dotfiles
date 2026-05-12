@@ -7,9 +7,9 @@ rgb() { printf '\033[38;2;%d;%d;%dm' "$1" "$2" "$3"; }
 reset='\033[0m'
 
 # Theme colors
-color_muted=$(rgb 130 130 130)    # #828282 - dir, model, context %
-color_sep=$(rgb 70 70 70)         # #464646 - separators (darker)
-color_branch=$(rgb 139 169 193)   # #8BA9C1 - git branch
+color_muted=$(rgb 101 106 128)    # #656a80 - dir, model, context %
+color_sep=$(rgb 56 56 72)         # #383848 - separators (darker)
+color_branch=$(rgb 187 157 189)   # #BB9DBD - git branch
 color_dirty=$(rgb 243 190 124)    # #F3BE7C - modified (yellow)
 color_add=$(rgb 187 157 189)      # #BB9DBD - added
 color_delete=$(rgb 216 100 126)   # #D8647E - deleted

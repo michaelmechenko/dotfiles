@@ -54,3 +54,4 @@ chrome
 /claude/cache
 /claude/plugins
 /claude/usage-data
+/claude/.last-cleanup

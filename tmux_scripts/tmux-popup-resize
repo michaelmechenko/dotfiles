@@ -8,6 +8,16 @@ SESSION="$(tmux display-message -p -F "#{session_name}")"
 BORDER_COLOR=$(tmux show-options -gqv @color-inactive)
 BORDER_COLOR=${BORDER_COLOR:-"#a9b1d6"}
 
+if [ "$ACTION" = "toggle" ]; then
+    CURRENT="$(tmux show-options -gqv @popup-state)"
+    if [ "$CURRENT" = "maximize" ]; then
+        ACTION="restore"
+    else
+        ACTION="maximize"
+    fi
+fi
+
+tmux set-option -g @popup-state "$ACTION"
 tmux detach-client
 
 if [ "$ACTION" = "maximize" ]; then

@@ -27,12 +27,12 @@ for session in $(tmux list-sessions -F '#{session_name}'); do
     # Get all windows in this session
     tmux list-windows -t "$session" -F '#{window_index}' | while read -r win_idx; do
         # Get all panes in this window
-        tmux list-panes -t "$session:$win_idx" -F '#{pane_index}|#{pane_current_command}|#{pane_current_path}' | while IFS='|' read -r pane_idx cmd path; do
+        tmux list-panes -t "$session:$win_idx" -F '#{pane_index}|#{window_name}|#{pane_current_command}|#{pane_current_path}|#{pane_title}' | while IFS='|' read -r pane_idx win_name cmd path pane_title; do
             # Shorten path
             short_path=$(echo "$path" | sed "s|^$HOME|~|")
-            
-            # Format: "session:window{pane} [command] (path)"
-            display_name="$session:$win_idx{$pane_idx} [$cmd] ($short_path)"
+
+            # Format: "{session} {window name}: {cmd} [{dir}] [{pane title}]"
+            display_name="$session $win_name: $cmd [$short_path] [$pane_title]"
             
             # Build menu item: name, key (empty), command
             echo "\"$display_name\" \"\" \"switch-client -t $session:$win_idx.$pane_idx\"" >> "$tmp_file"

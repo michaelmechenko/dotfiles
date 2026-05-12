@@ -182,7 +182,7 @@
     ]
   },
   "effortLevel": "high",
-  "tui": "fullscreen",
+  "tui": "default",
   "autoMemoryEnabled": true,
   "theme": "dark-ansi",
   "mcpServers": {

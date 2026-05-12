@@ -13,7 +13,7 @@ FOCUSED_WS="$(aerospace list-workspaces --focused --format '%{workspace}' 2>/dev
 
 case "$FOCUSED_WS" in
   *\*)
-    WORKSPACES=("1*" "2*" "3*")
+    WORKSPACES=("1*" "2*" "3*" "4*" "5*")
     ;;
   *\^)
     WORKSPACES=("1^" "2^")
@@ -25,4 +25,6 @@ esac
 
 [ "${#WORKSPACES[@]}" -eq 0 ] && exit 1
 
-printf '%s\n' "${WORKSPACES[@]}" | aerospace move-node-to-workspace --stdin --focus-follows-window --wrap-around "$DIRECTION"
+if printf '%s\n' "${WORKSPACES[@]}" | aerospace move-node-to-workspace --stdin --focus-follows-window --wrap-around "$DIRECTION"; then
+  open -g 'rectangle-pro://execute-action?name=almost-maximize'
+fi

@@ -33,7 +33,7 @@ sketchybar --add event aerospace_focus_change
 #
 
 # ws_1 subscribes and drives updates for all left-block items.
-for i in $(seq 1 5); do
+for i in $(seq 1 7); do
     if [ "$i" -eq 1 ]; then
         sketchybar --add item ws_$i left \
             --subscribe ws_$i aerospace_workspace_change aerospace_focus_change \
@@ -63,16 +63,6 @@ done
 # LEFT BLOCK - Secondary monitor workspace 1^
 #
 
-sketchybar --add item sep_secondary_left center \
-           --set sep_secondary_left \
-                 icon="{" \
-                 icon.y_offset=2 \
-                 icon.padding_left=2 \
-                 icon.padding_right=1 \
-                 icon.color=0x80EDEDED \
-                 label.drawing=off \
-                 icon.font.style="Normal"
-
 for sid in "1^"; do
     sketchybar --add item space.$sid center \
         --subscribe space.$sid aerospace_workspace_change \
@@ -80,19 +70,11 @@ for sid in "1^"; do
         icon="^" \
         label.drawing=off \
         icon.y_offset=2 \
+        icon.padding_left=8 \
+        icon.padding_right=8 \
         click_script="aerospace workspace $sid" \
         script="$PLUGIN_DIR/aerospace.sh"
 done
-
-sketchybar --add item sep_secondary_right center \
-           --set sep_secondary_right \
-                 icon="}" \
-                 icon.y_offset=2 \
-                 icon.padding_left=1 \
-                 icon.padding_right=2 \
-                 icon.color=0x80EDEDED \
-                 label.drawing=off \
-                 icon.font.style="Normal"
 
 #
 # CENTER BLOCK (of center block) - Main monitor workspaces (1*, 2*, 3*)
@@ -108,7 +90,7 @@ sketchybar --add item sep_main_left center \
                  label.drawing=off \
                  icon.font.style="Normal"
 
-for sid in "1*" "2*" "3*"; do
+for sid in "1*" "2*" "3*" "4*" "5*"; do
     sketchybar --add item space.$sid center \
         --subscribe space.$sid aerospace_workspace_change \
         --set space.$sid \
@@ -133,16 +115,6 @@ sketchybar --add item sep_main_right center \
 # RIGHT BLOCK - Secondary monitor workspace 2^
 #
 
-sketchybar --add item sep_laptop_left center \
-           --set sep_laptop_left \
-                 icon="{" \
-                 icon.y_offset=2 \
-                 icon.padding_left=2 \
-                 icon.padding_right=1 \
-                 icon.color=0x80EDEDED \
-                 label.drawing=off \
-                 icon.font.style="Normal"
-
 for sid in "2^"; do
     sketchybar --add item space.$sid center \
         --subscribe space.$sid aerospace_workspace_change \
@@ -150,19 +122,11 @@ for sid in "2^"; do
         icon="^" \
         label.drawing=off \
         icon.y_offset=2 \
+        icon.padding_left=8 \
+        icon.padding_right=8 \
         click_script="aerospace workspace $sid" \
         script="$PLUGIN_DIR/aerospace.sh"
 done
-
-sketchybar --add item sep_laptop_right center \
-           --set sep_laptop_right \
-                 icon="}" \
-                 icon.y_offset=2 \
-                 icon.padding_left=1 \
-                 icon.padding_right=2 \
-                 icon.color=0x80EDEDED \
-                 label.drawing=off \
-                 icon.font.style="Normal"
 
 #
 # ACTUAL RIGHT BLOCK - Date/Time and Battery

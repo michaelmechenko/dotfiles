@@ -61,7 +61,7 @@ if [ -n "$WINDOW_DATA" ]; then
                 }
             }
         '
-    } | sort -t $'\t' -k1,1n -k2,2n | head -5)"
+    } | sort -t $'\t' -k1,1n -k2,2n | head -7)"
 fi
 
 # Batch all updates into a single SketchyBar call.
@@ -122,11 +122,11 @@ if [ -n "$SLOTS_DATA" ]; then
         done
 
         SLOT=$((SLOT + 1))
-        [ "$SLOT" -gt 5 ] && break
+        [ "$SLOT" -gt 7 ] && break
     done <<< "$SLOTS_DATA"
 fi
 
-for ((i = SLOT; i <= 5; i++)); do
+for ((i = SLOT; i <= 7; i++)); do
     if [ "$i" -eq 1 ]; then
         # Keep ws_1 active as the event subscriber/driver item.
         CMD+=(--set "ws_1" drawing=on "label=" "label.padding_left=0" "label.padding_right=0")

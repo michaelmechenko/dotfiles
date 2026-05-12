@@ -18,7 +18,7 @@ Single source of truth for colors used across tmux, Ghostty, and zsh (via ohmypo
 
 | Role | Hex | Where used |
 |---|---|---|
-| `text` | `#B9B9B9` | Ghostty `foreground`; nvim editor fg (`vague.lua` `colors.fg`); nvim WinBar fg (`dropbar.lua`) |
+| `text` | `#BEBEBE` | Ghostty `foreground`; nvim editor fg (`vague.lua` `colors.fg`); nvim WinBar fg (`dropbar.lua`) |
 | `text-muted` | `#656a80` | tmux `@color-inactive` — secondary UI text (border fg, status secondary text, bell-state); nvim devicons, dropbar `DropBarIconKindDefault`, lualine inactive-buffer fg; Claude statusline dir/model/ctx text; Claude theme `inactive` token |
 | `text-default` | `#a9b1d6` | tmux `@color-default` — window-status text (the colored window names in the status bar). **Not referenced elsewhere.** |
 
@@ -78,7 +78,7 @@ Claude Code uses a custom theme at `~/.config/claude/themes/vague-aligned.json`,
 | Token | Hex | Palette role |
 |---|---|---|
 | `claude` | `#d8647e` | accent-primary |
-| `text` | `#B9B9B9` | text |
+| `text` | `#BEBEBE` | text |
 | `inactive` | `#656a80` | text-muted |
 | `success` | `#bb9dbd` | accent-tertiary |
 | `error` | `#d8647e` | accent-primary |

@@ -103,7 +103,7 @@ return {
       colors = {
         -- bg = "#141415",
         -- inactiveBg = "#1c1c24",
-        fg = "#B9B9B9",
+        fg = "#BEBEBE",
         -- floatBorder = "#878787",
         -- line = "#252530",
         -- comment = "#606079",

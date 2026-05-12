@@ -3,7 +3,7 @@
   "base": "dark-ansi",
   "overrides": {
     "claude":      "#d8647e",
-    "text":        "#B9B9B9",
+    "text":        "#BEBEBE",
     "inactive":    "#656a80",
     "success":     "#bb9dbd",
     "error":       "#d8647e",

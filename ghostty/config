@@ -24,7 +24,7 @@ window-padding-y = 10, 2
 
 # Match tmux window-style bg so padding wraps the inactive pane field seamlessly
 background = #100E11
-foreground = #B9B9B9
+foreground = #BEBEBE
 
 # bold-is-bright = true
 

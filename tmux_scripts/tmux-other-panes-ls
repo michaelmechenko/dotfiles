@@ -7,7 +7,11 @@ current_session_id=$(tmux display-message -p '#{session_id}')
 
 tmux list-panes -a -F '#{session_id}|#{session_name}|#{window_index}|#{window_name}|#{pane_index}|#{pane_title}|#{pane_current_command}|#{pane_current_path}' \
 | awk -F'|' -v HOME="$HOME" -v SESSION_ID="$current_session_id" '
-BEGIN { ORS = " " }
+BEGIN {
+    ORS = " "
+    KEYS = "1234567890abcdefghijklmnopqrstuvwxyz"
+    global_key_idx = 0
+}
 $1 != SESSION_ID {
     sid = $1; sname = $2; win = $3; wname = $4; pane = $5; pname = $6; cmd = $7; path = $8
 
@@ -54,7 +58,8 @@ END {
             win = win_order[sid, w]
             wkey = sid ":" win
             wname = seen_window[wkey]
-            key = (win ~ /^[0-9]$/) ? win : ""
+            global_key_idx++
+            key = (global_key_idx <= length(KEYS)) ? substr(KEYS, global_key_idx, 1) : ""
             label = sprintf("%-4s %-18s", win, wname)
             print "\"" label "\" \"" key "\" \"switch-client -t " sname ":" win "\""
         }
@@ -75,4 +80,4 @@ END {
         print "\"\" \"\" \"\""
     }
 }' \
-| xargs tmux display-menu -T "#[align=centre]other panes" -b "rounded"
+| xargs tmux display-menu -T "#[align=centre]other windows" -b "rounded"

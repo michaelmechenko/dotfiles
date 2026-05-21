@@ -3,48 +3,77 @@
 set -e
 set -f
 
+MODE="${1:-compact}"
+SCRIPT="$HOME/.config/tmux_scripts/tmux-session-ls"
 current_session=$(tmux display-message -p '#{session_name}')
 
-tmux list-panes -a -F '#{session_name}|#{window_index}|#{window_name}|#{pane_current_path}' \
-| awk -F'|' -v HOME="$HOME" -v CURRENT="$current_session" '
-BEGIN { ORS = " " }
-{
-    sname = $1; win = $2; wname = $3; path = $4
+if [ "$MODE" = "detailed" ]; then
+    TOGGLE_LABEL='-details'
+    TOGGLE_ARG=''
+    MENU_ITEMS=$(tmux list-panes -a -F '#{session_name}|#{window_index}|#{window_name}|#{pane_current_path}' \
+        | awk -F'|' -v HOME="$HOME" -v CURRENT="$current_session" '
+        BEGIN { ORS = " " }
+        {
+            sname = $1; win = $2; wname = $3; path = $4
 
-    gsub(/\*/, "", sname)
+            gsub(/\*/, "", sname)
 
-    if (!(sname in seen_session)) {
-        seen_session[sname] = 1
-        session_order[++session_count] = sname
-    }
+            if (!(sname in seen_session)) {
+                seen_session[sname] = 1
+                session_order[++session_count] = sname
+            }
 
-    wkey = sname SUBSEP win
-    if (!(wkey in seen_window)) {
-        seen_window[wkey] = 1
-        win_count[sname]++
-        idx = win_count[sname]
-        win_name[sname, idx] = wname
-        if (idx == 1) {
-            sub("^" HOME, "~", path)
-            if (length(path) > 30) path = "..." substr(path, length(path) - 26)
-            first_cwd[sname] = path
-        }
-    }
-}
-END {
-    for (s = 1; s <= session_count; s++) {
-        sname = session_order[s]
-        marker = (sname == CURRENT) ? "*" : ""
-        label = sname marker ":"
-        for (w = 1; w <= win_count[sname]; w++) {
-            wn = win_name[sname, w]
-            if (w == 1) {
-                label = label " " wn " [" first_cwd[sname] "]"
-            } else {
-                label = label ", " wn
+            wkey = sname SUBSEP win
+            if (!(wkey in seen_window)) {
+                seen_window[wkey] = 1
+                win_count[sname]++
+                idx = win_count[sname]
+                win_name[sname, idx] = wname
+                if (idx == 1) {
+                    sub("^" HOME, "~", path)
+                    if (length(path) > 30) path = "..." substr(path, length(path) - 26)
+                    first_cwd[sname] = path
+                }
             }
         }
-        print "\"" label "\" " s " \"switch-client -t " sname "\""
-    }
-}' \
-| xargs tmux display-menu -T "#[align=centre]choose session" -b "rounded"
+        END {
+            for (s = 1; s <= session_count; s++) {
+                sname = session_order[s]
+                marker = (sname == CURRENT) ? "*" : ""
+                label = sname marker ":"
+                for (w = 1; w <= win_count[sname]; w++) {
+                    wn = win_name[sname, w]
+                    if (w == 1) {
+                        label = label " " wn " [" first_cwd[sname] "]"
+                    } else {
+                        label = label ", " wn
+                    }
+                }
+                print "\"" label "\" " s " \"switch-client -t " sname "\""
+            }
+        }')
+else
+    TOGGLE_LABEL='+details'
+    TOGGLE_ARG='detailed'
+    MENU_ITEMS=$(tmux list-sessions -F '#{session_name}' \
+        | awk -v CURRENT="$current_session" '
+        BEGIN { ORS = " " }
+        {
+            sname = $1
+            gsub(/\*/, "", sname)
+            marker = (sname == CURRENT) ? "*" : ""
+            print "\"" sname marker "\" " NR " \"switch-client -t " sname "\""
+        }')
+fi
+
+# Build the run-shell argument without a trailing space when TOGGLE_ARG is empty
+if [ -n "$TOGGLE_ARG" ]; then
+    TOGGLE_CMD="$SCRIPT $TOGGLE_ARG"
+else
+    TOGGLE_CMD="$SCRIPT"
+fi
+
+# Append visual separator + toggle item bound to M-s
+# Use `--` to terminate display-menu flag parsing so labels starting with `-` (e.g. "-details") aren't treated as options
+echo "$MENU_ITEMS \"\" \"\" \"\" \"$TOGGLE_LABEL\" M-s \"run-shell '$TOGGLE_CMD'\"" \
+    | xargs tmux display-menu -T "#[align=centre]choose session" -b "rounded" --

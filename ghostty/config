@@ -39,13 +39,13 @@ macos-icon-screen-color = #9893a5
 
 resize-overlay = never
 
-font-size = 14.5
+font-size = 14
 # adjust-cell-width = 2%
 # adjust-font-baseline = 0
-adjust-cell-height = 8%
+adjust-cell-height = 6%
 font-feature = -calt
-font-thicken = true
-font-thicken-strength = 0
+# font-thicken = true
+# font-thicken-strength = 0
 # font-family = "JetBrainsMono"
 # font-family = "ComicShanns Nerd Font"
 # font-family = "0xProto"

@@ -7,11 +7,14 @@ INACTIVE_COLOR="0x80EDEDED"
 SEPARATOR="~"
 INTER_WORKSPACE_GAP=8
 
-# Focused window id for per-window active highlighting.
-FOCUSED_WIN_ID="$(aerospace list-windows --focused --format '%{window-id}' 2>/dev/null || true)"
-
-# Single AeroSpace query for all windows.
-WINDOW_DATA="$(aerospace list-windows --all --format '%{workspace}%{tab}%{workspace-is-focused}%{tab}%{window-id}%{tab}%{app-name}' 2>/dev/null || true)"
+# Run both aerospace queries in parallel — one IPC roundtrip instead of two.
+_TMPDIR="$(mktemp -d)"
+trap 'rm -rf "$_TMPDIR"' EXIT
+aerospace list-windows --focused --format '%{window-id}' >"$_TMPDIR/focused" 2>/dev/null &
+aerospace list-windows --all --format '%{workspace}%{tab}%{workspace-is-focused}%{tab}%{window-id}%{tab}%{app-name}' >"$_TMPDIR/all" 2>/dev/null &
+wait
+FOCUSED_WIN_ID="$(cat "$_TMPDIR/focused" 2>/dev/null || true)"
+WINDOW_DATA="$(cat "$_TMPDIR/all" 2>/dev/null || true)"
 
 SLOTS_DATA=""
 if [ -n "$WINDOW_DATA" ]; then

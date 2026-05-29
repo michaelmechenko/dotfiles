@@ -55,3 +55,9 @@ chrome
 /claude/plugins
 /claude/usage-data
 /claude/.last-cleanup
+/claude/daemon.status.json
+/claude/daemon.log
+/claude/daemon.lock
+/claude/jobs
+/claude/daemon/roster.json
+/air

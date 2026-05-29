@@ -41,13 +41,14 @@
         ]
       }
     },
-    "commit-work": {
+    "batch-commit": {
       "priority": "high",
       "promptTriggers": {
-        "keywords": ["commit", "git commit", "stage changes", "commit message", "ready to commit"],
+        "keywords": ["commit", "git commit", "stage changes", "commit message", "ready to commit", "batch commit", "split commits", "batch commits"],
         "intentPatterns": [
           "(commit|stage|prepare).*?(changes|work|code)",
-          "(create|write|draft).*?commit"
+          "(create|write|draft).*?commit",
+          "(split|batch|group).*?(commit|pr)"
         ]
       }
     },
@@ -62,7 +63,50 @@
         ]
       }
     },
-    "copy-content": {
+    "session-review": {
+      "priority": "medium",
+      "promptTriggers": {
+        "keywords": ["session review", "review session", "review setup", "config gaps", "review project setup", "reflect on session"],
+        "intentPatterns": [
+          "(review|reflect on).*?(session|project setup|setup)",
+          "(missing|gaps).*?(context|claude.?md|config)",
+          "what (skills|permissions).*?(add|update|edit)"
+        ]
+      }
+    },
+    "smap-read": {
+      "priority": "medium",
+      "promptTriggers": {
+        "keywords": ["smap", "session map", "read smap", "open todos", "what's left", "whats left", "project todos", "prior sessions"],
+        "intentPatterns": [
+          "(read|show|check).*?(smap|session map)",
+          "what(?:'s| is| are).*?(left|open|remaining|todo)",
+          "(recall|remember).*?(prior|previous|past).*?session"
+        ]
+      }
+    },
+    "smap-update": {
+      "priority": "medium",
+      "promptTriggers": {
+        "keywords": ["update smap", "update session map", "save session", "log session", "record todos", "save progress"],
+        "intentPatterns": [
+          "(update|write|save|record).*?(smap|session map)",
+          "(save|log|record).*?(session|progress|todos|what was done)"
+        ]
+      }
+    },
+    "smap-backfill": {
+      "priority": "medium",
+      "promptTriggers": {
+        "keywords": ["backfill smap", "backfill session map", "all sessions", "reconstruct session map", "consolidate worktree sessions", "smap history", "populate smap"],
+        "intentPatterns": [
+          "(backfill|reconstruct|populate|rebuild).*?(smap|session map|sessions)",
+          "(all|every|recursive|historical).*?sessions",
+          "(consolidate|fold|merge).*?(worktree|sessions)"
+        ]
+      }
+    },
+    "cc-clipboard": {
       "priority": "low",
       "promptTriggers": {
         "keywords": ["copy to clipboard", "pbcopy", "copy this", "clipboard"],

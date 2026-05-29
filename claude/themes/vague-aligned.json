@@ -11,6 +11,7 @@
     "planMode":    "#8ba9c1",
     "autoAccept":  "#aeaed1",
     "diffAdded":   "#bb9dbd",
-    "diffRemoved": "#d8647e"
+    "diffRemoved": "#d8647e",
+    "promptBorder": "#383848"
   }
 }

@@ -12,7 +12,24 @@ description: "Generate session handoff summaries for context preservation. Use a
 - Preparing for another person/agent to continue
 - Context approaching overflow
 
-## Generation Commands
+## Which session
+
+**Default: the current session.** Summarize the conversation in progress plus the working-tree
+state below — no file parsing needed.
+
+To summarize a *different* session, locate it first:
+- `~/.config/claude/sessions/<pid>.json` — one file per session, holds `sessionId`, `cwd`,
+  `status`, `startedAt`. Match on `cwd` to find sessions for a given project.
+- `~/.config/claude/projects/<project-slug>/<sessionId>.jsonl` — the full transcript. The slug
+  is the project cwd with `/` and `.` → `-` (e.g. `/Users/michael.mechenko/.config` →
+  `-Users-michael-mechenko--config`).
+- Parse the `.jsonl` (one JSON object per line) for user/assistant turns and tool calls to
+  reconstruct goals, work done, and open items.
+
+Prefer `/smap-read` first — if a session map exists for the project it already records goals,
+done, and open items per session, which is cheaper than re-parsing transcripts.
+
+## Generation Commands (current session)
 
 ```bash
 git diff --stat HEAD~5

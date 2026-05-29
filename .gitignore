@@ -61,3 +61,5 @@ chrome
 /claude/jobs
 /claude/daemon/roster.json
 /air
+/smap
+/claude/.last-update-result.json

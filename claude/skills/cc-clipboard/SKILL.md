@@ -1,5 +1,5 @@
 ---
-name: copy-content
+name: cc-clipboard
 description: "Pipe relevant content to the clipboard via pbcopy. Use when asked to copy something to clipboard, or when instructed to make content available for pasting."
 allowed-tools: Bash, Read, Grep, Glob
 ---

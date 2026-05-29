@@ -1,16 +1,20 @@
 ---
-name: commit-work
-description: "Create high-quality git commits: review/stage intended changes, split into logical commits, and write clear Conventional Commits messages. Use when the user asks to commit, craft a commit message, stage changes, or split work into multiple commits."
+name: batch-commit
+description: "Split work into logical, well-scoped commits and group those commits into reviewable PR-sized batches, using clear Conventional Commits messages. Never pushes. Use when the user asks to commit, craft a commit message, stage changes, split work into multiple commits, or batch commits for separate PRs."
 ---
 
-# Commit Work
+# Batch Commit
 
 ## Goal
 
-Make commits that are easy to review and safe to ship:
+Make commits that are easy to review and safe to ship, grouped into PR-sized batches:
 - only intended changes are included
 - commits are logically scoped (split when needed)
+- related commits are grouped into reviewable batches (one batch ≈ one PR)
 - commit messages describe what changed and why
+
+**Never push and never open PRs.** This skill stops at local commits. Pushing and PR creation
+are always a separate, explicit user action (use `/pr-create` for that).
 
 ## Inputs to ask for (if missing)
 
@@ -51,8 +55,18 @@ Make commits that are easy to review and safe to ship:
 
 8. **Repeat** for the next commit until the working tree is clean
 
+9. **Group commits into PR-sized batches**
+   - After committing, partition the new commits into batches that each map cleanly to one PR
+   - Batch by: independent feature, refactor vs behavior change, area of codebase, or anything a
+     reviewer would want to evaluate separately
+   - Each batch should be independently reviewable and ideally independently revertable
+   - Report the batches: which commits belong to which prospective PR, and a one-line rationale
+   - **Stop here.** Do not push, do not create branches for the batches, do not open PRs.
+     Hand off to the user (or `/pr-create`) for anything beyond local commits.
+
 ## Deliverable
 
 - the final commit message(s)
 - a short summary per commit (what/why)
 - the commands used to stage/review
+- the proposed PR-sized batches (commit groupings + rationale), with no push/PR performed

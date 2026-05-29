@@ -3,6 +3,8 @@
 ## Communication
 
 - Be extremely concise; prefer short, direct sentences
+- Lead with the answer; minimize preamble and restatement; do not waste tokens
+- Avoid markdown tables; use bulleted lists instead
 - Keep interaction, commit, and PR text tight and useful
 - Ask only when blocked, when ambiguity materially changes outcome, or before irreversible/shared/prod-visible actions
 - If proceeding on assumptions, state them briefly
@@ -51,6 +53,7 @@
 - Batch independent reads/searches; parallelize when safe
 - Read enough context before editing; avoid thrashing
 - After edits, run a lightweight verification step when relevant
+- For git commands targeting a directory other than the current working tree, use `git -C <path> <subcommand>` instead of `cd <path> && git <subcommand>`. The `cd && git` pattern triggers a hardcoded approval prompt in Claude Code; `git -C` does the same work as a single command with no directory change.
 
 ## Scope Control
 
@@ -68,6 +71,7 @@
 
 - Never expose secrets, tokens, credentials, or private keys
 - Never bypass safeguards with destructive shortcuts unless explicitly requested
+- Never attempt to bypass a blocked destructive command (e.g. `rm`). Deleting files is always a user action — instead, state which files to delete and why
 - Do not revert or overwrite user changes you did not make unless explicitly requested
 
 ## Git, Pull Requests, Commits

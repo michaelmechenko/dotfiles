@@ -73,7 +73,7 @@ Three places drift by one hex digit. The fixes are mechanical — pick one of th
 
 ## Claude Code integration
 
-Claude Code uses a custom theme at `~/.config/claude/themes/vague-aligned.json`, activated via `"theme": "custom:vague-aligned"` in `settings.json`. The theme bases on `dark-ansi` (which binds Claude's UI to Ghostty's ANSI palette) and overrides 10 semantic tokens to lock them to palette values:
+Claude Code uses a custom theme at `~/.config/claude/themes/vague-aligned.json`, activated via `"theme": "custom:vague-aligned"` in `settings.json`. The theme bases on `dark-ansi` (which binds Claude's UI to Ghostty's ANSI palette) and overrides 11 semantic tokens to lock them to palette values:
 
 | Token | Hex | Palette role |
 |---|---|---|
@@ -87,6 +87,9 @@ Claude Code uses a custom theme at `~/.config/claude/themes/vague-aligned.json`,
 | `autoAccept` | `#aeaed1` | accent-secondary |
 | `diffAdded` | `#bb9dbd` | accent-tertiary |
 | `diffRemoved` | `#d8647e` | accent-primary |
+| `promptBorder` | `#383848` | divider-subtle |
+
+`promptBorder` is the input-box border (default permission mode). Note: message-background tokens (`userMessageBackground`, etc.) only render in fullscreen TUI mode — in default scrollback mode the submitted user message is un-themeable terminal dim styling (foreground `text` at ANSI faint ≈ `#5F5F5F`), so there is no background to recolor.
 
 Other Claude tokens (subagent colors, fullscreen backgrounds, `bashBorder`, `ide`, `fastMode`, etc.) inherit from `dark-ansi` — i.e. they pick up Ghostty's ANSI palette, which is already palette-aligned for the slots in active use.
 

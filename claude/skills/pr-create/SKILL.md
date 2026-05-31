@@ -30,7 +30,7 @@ Determine:
 ### 2. Branch Management
 
 If on `main`/`master` with uncommitted changes, create a feature branch first:
-- Derive branch name from the work: `feat/description`, `fix/description`, `chore/description`
+- Derive branch name from the work: `michael.feat/description`, `michael.fix/description`, `michael.chore/description`
 - Use kebab-case, keep it short (under 50 chars)
 - `git checkout -b <branch-name>`
 

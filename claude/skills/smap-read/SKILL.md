@@ -11,9 +11,10 @@ forgotten side-tasks and open items resurface.
 
 ## Two sources
 
-- **Durable log** — `~/.config/smap/<project-slug>.md`. One block per session, newest first.
+- **Durable log** — `~/.config/smap/<project-slug>.md`. A pinned `## Findings & Directives`
+  section at the top (durable project notes), then one block per session, newest first.
 - **In-repo working list** — `SMAP-TODOS.md` at the repo root (git toplevel). Brief, current
-  open todos across the project.
+  open todos across the project, plus a `## Notes` mirror of the findings/directives.
 
 `<project-slug>` = the project directory with every `/` and `.` replaced by `-` (matches
 Claude's own `projects/` scheme). Derive it from `$PWD` (or the git toplevel). Example:
@@ -28,8 +29,12 @@ Claude's own `projects/` scheme). Derive it from `$PWD` (or the git toplevel). E
    ```
 2. Print the durable log if present: `cat ~/.config/smap/"$slug".md`
 3. Print the repo working list if present: `cat "$root"/SMAP-TODOS.md`
-4. Summarize for the user, leading with the **most recent session's Open items** plus the
+4. Summarize for the user, leading with the **`## Findings & Directives`** section if present —
+   call out **directives** prominently (they are standing rules: "don't do X" / "remember Y"),
+   then findings. After that, surface the **most recent session's Open items** plus the
    `SMAP-TODOS.md` list. Note the session id / date of the latest block.
+   - Flag any directive marked `(candidate: CLAUDE.md)` — it's a standing rule not yet promoted to
+     the auto-loaded `CLAUDE.md`; mention it so the user can decide.
    - Each `SMAP-TODOS.md` task carries `sessions: <id8>[, ...]` tags. Surface them so the user
      can see which session(s) a task came from. To expand an id8 to a full session or jump to
      its context, match the prefix against block headings in the durable log or against

@@ -115,6 +115,11 @@ sessions). Enumerate robustly:
 - Build the full file content in context and emit it with **one `Write`** to `$log`. One writer,
   whole-file replace → no interleave window and no lockfile needed for this user-invoked batch.
   Re-running is safe (sessionId dedup).
+- **Preserve the pinned `## Findings & Directives` section** if `$log` already has one — carry it
+  through unchanged at the top, above the session blocks. Do **not** synthesize it: reconstructed
+  directives/findings are unreliable, and that section is owned by live `/smap-update`. (Optional,
+  minimal: you MAY add `- [directive] [id8] <text> (backfilled)` entries for user rules found
+  *verbatim* in transcripts, but leave findings to live capture.)
 - On `--dry-run`: print the list of sessions that *would* be added (id, date, tag, title) and the
   target `$log`; write nothing.
 - **Do not touch `SMAP-TODOS.md`.** Stale "open" items from old sessions are unreliable; the live

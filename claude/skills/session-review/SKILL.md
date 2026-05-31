@@ -9,15 +9,6 @@ allowed-tools: Bash, Read, Grep, Glob
 Reflect on the current project and recent sessions, then surface **recommendations and
 proposals** to improve the Claude Code setup. Read-only and propose-only by default.
 
-## Output rule
-
-- By default, output the review **inline** as recommendations/proposals — do **not** write any
-  file and do **not** apply any change.
-- Only write a review document if the user explicitly asks for one.
-- Never edit `settings.json`, `CLAUDE.md`, skills, or permissions directly here. Hand actionable
-  items to the relevant skill (`/update-config`, `/smap-update`) or let the user decide.
-- Do **not** consult or modify `MEMORY.md` — it is out of scope for this skill.
-
 ## What to review
 
 Produce three sets of proposals:

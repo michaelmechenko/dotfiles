@@ -88,10 +88,13 @@
     "smap-update": {
       "priority": "medium",
       "promptTriggers": {
-        "keywords": ["update smap", "update session map", "save session", "log session", "record todos", "save progress"],
+        "keywords": ["update smap", "update session map", "save session", "log session", "record todos", "save progress", "remember that", "note that", "don't do", "dont do", "finding", "directive"],
         "intentPatterns": [
           "(update|write|save|record).*?(smap|session map)",
-          "(save|log|record).*?(session|progress|todos|what was done)"
+          "(save|log|record).*?(session|progress|todos|what was done)",
+          "(remember|note) that .*(project|this|here)",
+          "(don'?t|never) (do|use|touch|run|commit|push)",
+          "(record|capture|note).*(finding|directive|gotcha|rule)"
         ]
       }
     },

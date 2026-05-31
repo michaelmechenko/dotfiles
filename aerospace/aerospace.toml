@@ -3,9 +3,7 @@ after-startup-command = [
   'exec-and-forget sketchybar'
 ]
 
-exec-on-workspace-change = ['/bin/bash', '-c',
-  'sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE &'
-]
+exec-on-workspace-change = ['exec-and-forget sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE']
 
 on-focus-changed = ['exec-and-forget sketchybar --trigger aerospace_focus_change']
 
@@ -94,6 +92,9 @@ automatically-unhide-macos-hidden-apps = false
     # toggle floating window
     cmd-shift-s = 'layout floating tiling'
 
+    # toggle outer monitor gaps (16 <-> 64); inner gaps unchanged
+    cmd-shift-v = 'exec-and-forget /bin/bash ~/.config/aerospace/toggle_gaps.sh'
+
     # fullscreen
     cmd-shift-f = 'fullscreen'
     cmd-m = 'fullscreen'
@@ -154,8 +155,8 @@ automatically-unhide-macos-hidden-apps = false
 
     cmd-shift-w = ["move-node-to-monitor --focus-follows-window --wrap-around next", "exec-and-forget open -g 'rectangle-pro://execute-action?name=almost-maximize'"]
 
-    cmd-semicolon = 'workspace prev'
-    cmd-quote = 'workspace next'
+    cmd-semicolon = 'exec-and-forget /bin/bash ~/.config/aerospace/cycle_workspace.sh prev'
+    cmd-quote     = 'exec-and-forget /bin/bash ~/.config/aerospace/cycle_workspace.sh next'
     # cmd-shift-semicolon = 'move-node-to-monitor --wrap-around prev'
     # cmd-shift-quote = 'move-node-to-monitor --wrap-around next'
     # cmd-shift-semicolon = 'workspace prev'

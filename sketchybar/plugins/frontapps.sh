@@ -7,9 +7,32 @@ INACTIVE_COLOR="0x80EDEDED"
 SEPARATOR="~"
 INTER_WORKSPACE_GAP=8
 
-# Run both aerospace queries in parallel — one IPC roundtrip instead of two.
+# Leading-edge coalescing. A workspace switch fires both aerospace_workspace_change
+# and aerospace_focus_change, which SketchyBar runs concurrently — without this the
+# IPC-heavy rebuild below runs twice and races. Run the first event immediately; fold
+# any event that arrives mid-rebuild into a single extra pass. macOS has no flock(1),
+# so mkdir is the atomic lock; the pid + kill -0 guard clears a stale lock if a run
+# was killed (incl. SketchyBar's FORK_TIMEOUT).
+LOCK="${TMPDIR:-/tmp}/sketchybar_frontapps.lock"
+DIRTY="$LOCK/dirty"
+if ! mkdir "$LOCK" 2>/dev/null; then
+  if [ -f "$LOCK/pid" ] && ! kill -0 "$(cat "$LOCK/pid" 2>/dev/null)" 2>/dev/null; then
+    rm -rf "$LOCK"
+    mkdir "$LOCK" 2>/dev/null || { : >"$DIRTY" 2>/dev/null; exit 0; }
+  else
+    : > "$DIRTY" 2>/dev/null
+    exit 0
+  fi
+fi
+echo $$ > "$LOCK/pid"
+
 _TMPDIR="$(mktemp -d)"
-trap 'rm -rf "$_TMPDIR"' EXIT
+trap 'rm -rf "$_TMPDIR" "$LOCK"' EXIT
+
+while :; do
+rm -f "$DIRTY"
+
+# Run both aerospace queries in parallel — one IPC roundtrip instead of two.
 aerospace list-windows --focused --format '%{window-id}' >"$_TMPDIR/focused" 2>/dev/null &
 aerospace list-windows --all --format '%{workspace}%{tab}%{workspace-is-focused}%{tab}%{window-id}%{tab}%{app-name}' >"$_TMPDIR/all" 2>/dev/null &
 wait
@@ -147,3 +170,7 @@ for ((i = SLOT; i <= 7; i++)); do
 done
 
 "${CMD[@]}"
+
+# An event arrived while rebuilding → run one more pass to capture final state.
+[ -e "$DIRTY" ] || break
+done

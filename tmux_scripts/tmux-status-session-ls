@@ -10,7 +10,7 @@ client_width=$(tmux display-message -p '#{client_width}')
 client_height=$(tmux display-message -p '#{client_height}')
 
 # Build menu items: sessions list + separator + new session/window options
-sessions=$(tmux list-sessions -F '#S' | awk 'BEGIN {ORS=" "} {print $1, NR, "\"switch-client -t", $1 "\""}')
+sessions=$(tmux list-sessions -O creation -F '#S' | awk 'BEGIN {ORS=" "} {print $1, NR, "\"switch-client -t", $1 "\""}')
 
 # Use eval to properly handle the command
 # Multiple separator lines (empty name/key/command) create more spacing

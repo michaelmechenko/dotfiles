@@ -10,18 +10,25 @@ current_session=$(tmux display-message -p '#{session_name}')
 if [ "$MODE" = "detailed" ]; then
     TOGGLE_LABEL='-details'
     TOGGLE_ARG=''
-    MENU_ITEMS=$(tmux list-panes -a -F '#{session_name}|#{window_index}|#{window_name}|#{pane_current_path}' \
+    # Session order comes from creation-ordered S| lines (matches compact mode +
+    # status-right); pane P| lines only fill in per-window details.
+    MENU_ITEMS=$( { tmux list-sessions -O creation -F 'S|#{session_name}'; \
+        tmux list-panes -a -F 'P|#{session_name}|#{window_index}|#{window_name}|#{pane_current_path}'; } \
         | awk -F'|' -v HOME="$HOME" -v CURRENT="$current_session" '
         BEGIN { ORS = " " }
-        {
-            sname = $1; win = $2; wname = $3; path = $4
-
+        $1 == "S" {
+            sname = $2
             gsub(/\*/, "", sname)
-
             if (!(sname in seen_session)) {
                 seen_session[sname] = 1
                 session_order[++session_count] = sname
             }
+            next
+        }
+        $1 == "P" {
+            sname = $2; win = $3; wname = $4; path = $5
+
+            gsub(/\*/, "", sname)
 
             wkey = sname SUBSEP win
             if (!(wkey in seen_window)) {
@@ -55,7 +62,7 @@ if [ "$MODE" = "detailed" ]; then
 else
     TOGGLE_LABEL='+details'
     TOGGLE_ARG='detailed'
-    MENU_ITEMS=$(tmux list-sessions -F '#{session_name}' \
+    MENU_ITEMS=$(tmux list-sessions -O creation -F '#{session_name}' \
         | awk -v CURRENT="$current_session" '
         BEGIN { ORS = " " }
         {

@@ -1,0 +1,14 @@
+#!/bin/zsh
+
+# Break the active pane into a new window. If the pane was manually renamed via
+# M-t (which records the name in the pane option @pane-named), name the new
+# window after it; otherwise keep tmux's default auto-naming.
+
+name="$(tmux display-message -p '#{@pane-named}')"
+if [ -n "$name" ]; then
+    tmux break-pane -n "$name"
+    tmux rename-window "$name"   # guarantees automatic-rename stays off for the new window
+else
+    tmux break-pane
+fi
+tmux move-window -r

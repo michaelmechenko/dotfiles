@@ -1,0 +1,20 @@
+#!/usr/bin/env sh
+# nnn plugin: type a `cd "<dir>"` command at the originating pane's prompt for the
+# hovered directory, then close the explorer popup. The command is typed but NOT
+# executed (no Enter) — works whether the origin pane is a shell or a TUI such as
+# Claude; the user submits it. Invoked via ;i. Needs NNN_ORIGIN_PANE.
+# $1 = hovered basename; $PWD = current browse dir.
+
+sel="$1"
+[ -z "$sel" ] && exit 0
+[ -z "$NNN_ORIGIN_PANE" ] && exit 0
+
+if [ "$PWD" = "/" ]; then target="/$sel"; else target="$PWD/$sel"; fi
+[ -d "$target" ] || exit 0
+target=$(cd "$target" 2>/dev/null && pwd) || exit 0
+
+# Send the command text literally to the prompt (double-quoted for spaces); no Enter.
+tmux send-keys -t "$NNN_ORIGIN_PANE" -l "cd \"$target\""
+
+# Close the explorer popup; outer client lands on the origin pane with the text typed.
+tmux detach-client -s nnn 2>/dev/null

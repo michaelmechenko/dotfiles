@@ -1,0 +1,35 @@
+#!/usr/bin/env sh
+# Shared logic for the tmux-split-h / tmux-split-v nnn plugins.
+# $1 = split direction (h|v); $2 = hovered file basename (passed by the wrappers).
+# Requires NNN_ORIGIN_PANE (set by tmux-nnn-explorer) — the pane to split in the
+# originating tmux window. A tmux popup is not in the window tree, so the target
+# pane must be passed in explicitly.
+
+dir="$1"
+sel="$2"
+[ -z "$NNN_ORIGIN_PANE" ] && exit 0
+case "$dir" in
+    h) flag="-h" ;;
+    *) flag="-v" ;;
+esac
+
+# Full path of the hovered item ($2/sel is a basename; guard the / root case).
+if [ "$PWD" = "/" ]; then
+    target="/$sel"
+else
+    target="$PWD/$sel"
+fi
+
+if [ -n "$sel" ] && [ -d "$target" ]; then
+    # directory hovered -> new terminal there
+    tmux split-window "$flag" -t "$NNN_ORIGIN_PANE" -c "$target"
+elif [ -n "$sel" ] && [ -e "$target" ]; then
+    # file hovered -> open in editor (new pane cwd = browse dir)
+    tmux split-window "$flag" -t "$NNN_ORIGIN_PANE" -c "$PWD" "${EDITOR:-nvim} -- \"$target\""
+else
+    # empty dir / nothing hovered -> terminal in the browse dir
+    tmux split-window "$flag" -t "$NNN_ORIGIN_PANE" -c "$PWD"
+fi
+
+# Close the explorer popup; the outer client lands on the new (active) split.
+tmux detach-client -s nnn 2>/dev/null

@@ -22,6 +22,8 @@ cursor-style-blink = false
 window-padding-x = 12
 window-padding-y = 10, 2
 
+window-step-resize = false
+
 # Match tmux window-style bg so padding wraps the inactive pane field seamlessly
 background = #100E11
 foreground = #BEBEBE
@@ -129,3 +131,8 @@ keybind = global:cmd+shift+e=toggle_quick_terminal
 # update alt/left and alt/right bindings
 keybind = alt+left=csi:1;3D
 keybind = alt+right=csi:1;3C
+
+# ctrl+tab -> F13 (^[[25~): an unmodified key so tmux forwards it verbatim
+# (a modified key like ctrl+shift+e gets downgraded by tmux without extended-keys).
+# zsh binds ^[[25~ to accept the whole autosuggestion.
+keybind = ctrl+tab=csi:25~

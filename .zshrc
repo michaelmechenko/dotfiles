@@ -55,12 +55,32 @@ eval "$(fzf --zsh)"
 bindkey "^[[1;3C" forward-word      # Alt+Right
 bindkey "^[[1;3D" backward-word     # Alt+Left
 
+# ctrl+e: accept up to the next whitespace of the autosuggestion if present, else end-of-line.
+# vi-forward-blank-word splits on whitespace only (forward-word would stop at punctuation
+# like `--`); it's in ZSH_AUTOSUGGEST_PARTIAL_ACCEPT_WIDGETS so partial-accept wraps it.
+_accept_word_or_eol() {
+  if [[ -n $POSTDISPLAY ]]; then
+    zle vi-forward-blank-word   # partial-accept to next blank word (POSTDISPLAY = pending suggestion)
+  else
+    zle end-of-line
+  fi
+}
+zle -N _accept_word_or_eol
+bindkey '^e' _accept_word_or_eol
+
+# ctrl+tab -> accept the whole autosuggestion line.
+# Ghostty maps ctrl+tab to F13 (ESC[25~). Bare terminal delivers ^[[25~; through tmux,
+# tmux re-encodes the function key via its terminfo and delivers ^[[1;2R instead, so bind both.
+bindkey '^[[25~'  end-of-line
+bindkey '^[[1;2R' end-of-line
+
 alias ls="eza -1"
 alias o="ofd ."
 # alias lsl="eza"
 # alias cat="bat"
 alias e="nvim"
-alias ai="aichat"
+alias ej="nvim tmp.json"
+alias em="nvim tmp.md"
 alias oc="opencode"
 alias ocp="opencode --port"
 alias ocr="opencode run"

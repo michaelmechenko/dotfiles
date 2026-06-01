@@ -30,7 +30,5 @@ BATTHEME=ansi
 # fresh session each launch (reaps any lingering detached one), start in origin cwd
 tmux kill-session -t nnn 2>/dev/null || true
 
-# Detached-create -> disable the (file-manager-meaningless) tmux scrollbar + shadow the global
-# scrollbar hooks for this session so they don't fire/redraw inside the popup -> attach.
 tmux popup -xC -yC -w80% -h75% -S "fg=$BORDER_COLOR" -E \
-    "tmux new-session -d -s nnn -e NNN_ORIGIN_PANE='$ORIGIN_PANE' -e NNN_PLUG='$PLUG' -e NNN_SPLIT=v -e NNN_SPLITSIZE=$SPLITSIZE -e NNN_BATSTYLE=$BATSTYLE -e NNN_BATTHEME=$BATTHEME -e NNN_COLORS='$COLORS' -e NNN_FCOLORS='$FCOLORS' -c '$CWD' nnn -a -P p; tmux set -t nnn pane-scrollbars off; tmux set-hook -t nnn pane-focus-in ''; tmux set-hook -t nnn pane-focus-out ''; tmux set-hook -t nnn pane-mode-changed ''; tmux attach -t nnn" || true
+    "tmux new-session -s nnn -e NNN_ORIGIN_PANE='$ORIGIN_PANE' -e NNN_PLUG='$PLUG' -e NNN_SPLIT=v -e NNN_SPLITSIZE=$SPLITSIZE -e NNN_BATSTYLE=$BATSTYLE -e NNN_BATTHEME=$BATTHEME -e NNN_COLORS='$COLORS' -e NNN_FCOLORS='$FCOLORS' -c '$CWD' nnn -a -P p" || true

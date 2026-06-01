@@ -10,9 +10,9 @@ Single source of truth for colors used across tmux, Ghostty, and zsh (via ohmypo
 |---|---|---|
 | `canvas` | `#100E11` | Ghostty `background`; tmux inactive pane, status bar, borders, message line, all window-status states; active pane when single-pane or zoomed |
 | `surface-active` | `#151316` | tmux active pane bg + active border bg, only when window has 2+ panes and is not zoomed |
-| `surface-chrome` | `#1C1C24` | nvim chrome: dropbar WinBar bg, lualine statusline/winbar bg; tmux pane-scrollbar track (dim channel, shown only while the pane is in copy mode) |
+| `surface-chrome` | `#1C1C24` | nvim chrome: dropbar WinBar bg, lualine statusline/winbar bg |
 | `surface-highlight` | `#2A2A35` | nvim `CursorLine` (override in `vague.lua`'s `on_highlights`) |
-| `scrollbar-slider` | `#606079` | tmux pane-scrollbar slider fg (the moving block) + copy-mode position-indicator block bg (top-right time/scroll box); indicator text is `text-default` `#a9b1d6` |
+| `copy-mode-indicator` | `#606079` | tmux `copy-mode-position-style` block bg (top-right time/scroll box shown in copy mode); indicator text is `text-default` `#a9b1d6` |
 | `divider-subtle` | `#383848` | nvim `SnacksIndent` + `NeoTreeIndentMarker` fg (indent guides); Claude statusline ` * ` separators |
 
 ### Text

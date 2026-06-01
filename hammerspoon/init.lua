@@ -1,18 +1,16 @@
 require("hs.ipc")
-local rectangle = require("rectangle-keybinds")
+local window = require("window")
+-- local rectangle = require("rectangle-keybinds")
 
-_G.rectangleAlmostMaximize = rectangle.almostMaximize
-_G.rectangleMaximize = rectangle.maximize
-_G.rectangleCenter = rectangle.center
-_G.almostMaximizeAll = rectangle.almostMaximizeAll
-_G.almostMaximizeFocusedWorkspace = rectangle.almostMaximizeFocusedWorkspace
-_G.centerAll = rectangle.centerAll
+-- Globals for `hs -c "..."` callers (aerospace.toml, etc.)
+-- _G.rectangleAlmostMaximize = window.almostMaximize
+-- _G.rectangleMaximize = window.maximize
+-- _G.rectangleCenter = rectangle.center
+-- _G.centerAll = rectangle.centerAll
+_G.almostMaximizeAll = window.almostMaximizeAll
+_G.almostMaximizeFocusedWorkspace = window.almostMaximizeFocusedWorkspace
+_G.toggleFloatKeepPos = window.toggleFloatKeepPos
 
--- Watch for screen changes
--- screenWatcher = hs.screen.watcher.new(function()
---   hs.timer.doAfter(0.05, rectangle.almostMaximizeAll)
--- end)
---
--- screenWatcher:start()
-
-hs.hotkey.bind({ "cmd", "ctrl", "alt" }, "c", rectangle.almostMaximizeFocusedWorkspace)
+hs.hotkey.bind({ "cmd", "ctrl", "alt" }, "c", window.almostMaximizeFocusedWorkspace)
+hs.hotkey.bind({ "cmd", "ctrl", "alt" }, "x", window.almostMaximize)
+hs.hotkey.bind({ "cmd", "ctrl", "alt" }, "v", window.maximize)

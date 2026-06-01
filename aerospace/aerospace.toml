@@ -3,7 +3,9 @@ after-startup-command = [
   'exec-and-forget sketchybar'
 ]
 
-exec-on-workspace-change = ['exec-and-forget sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE']
+exec-on-workspace-change = ['/bin/bash', '-c',
+  'sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE'
+]
 
 on-focus-changed = ['exec-and-forget sketchybar --trigger aerospace_focus_change']
 
@@ -47,12 +49,12 @@ automatically-unhide-macos-hidden-apps = false
 # - Constant:     gaps.outer.top = 8
 # - Per monitor:  gaps.outer.top = [{ monitor.main = 16 }, { monitor."some-pattern" = 32 }, 24]
 [gaps]
-    inner.horizontal = 12
-    inner.vertical =   12
-    outer.left =       16
-    outer.bottom =     16
-    outer.top =        [ {monitor."Built-*" = 14}, 38 ]
-    outer.right =      16
+    inner.horizontal = 16
+    inner.vertical =   16
+    outer.left =       52
+    outer.bottom =     52
+    outer.top =        [ {monitor."Built-*" = 50}, 74 ]
+    outer.right =      52
 
 # 'main' binding mode declaration
 # See: https://nikitabobko.github.io/AeroSpace/guide#binding-modes
@@ -89,15 +91,18 @@ automatically-unhide-macos-hidden-apps = false
     cmd-slash = 'layout accordion horizontal vertical'
     cmd-shift-slash = 'layout tiles horizontal vertical'
 
-    # toggle floating window
-    cmd-shift-s = 'layout floating tiling'
+    # toggle floating window; keep on-screen frame when going tiling->floating (HS wrapper, refreshes bar)
+    cmd-shift-s = 'exec-and-forget hs -c "toggleFloatKeepPos()"'
 
     # toggle outer monitor gaps (16 <-> 64); inner gaps unchanged
     cmd-shift-v = 'exec-and-forget /bin/bash ~/.config/aerospace/toggle_gaps.sh'
 
-    # fullscreen
-    cmd-shift-f = 'fullscreen'
-    cmd-m = 'fullscreen'
+    # toggle cmd-N / cmd-shift-N roles (workspace <-> window switching)
+    cmd-shift-b = 'exec-and-forget /bin/bash ~/.config/aerospace/toggle_keyswap.sh'
+
+    # fullscreen (trigger sketchybar so the border tint + name brackets refresh immediately)
+    cmd-shift-f = ['fullscreen', 'exec-and-forget sketchybar --trigger aerospace_focus_change']
+    cmd-m       = ['fullscreen', 'exec-and-forget sketchybar --trigger aerospace_focus_change']
 
     # balance sizes
     cmd-shift-0 = 'balance-sizes'
@@ -134,18 +139,20 @@ automatically-unhide-macos-hidden-apps = false
     cmd-shift-right = 'resize width +50'
 
     # See: https://nikitabobko.github.io/AeroSpace/commands#workspace
-    cmd-1 = ['workspace 1*']
-    cmd-2 = ['workspace 2*']
-    cmd-3 = ['workspace 3*']
-    cmd-4 = ['workspace 4*']
-    cmd-5 = ['workspace 5*']
+    # cmd-N / cmd-shift-N route through keyswap.sh; cmd-shift-b swaps their roles.
+    # Default: cmd-N => workspace, cmd-shift-N => window.
+    cmd-1 = 'exec-and-forget /bin/bash ~/.config/aerospace/keyswap.sh ws 1'
+    cmd-2 = 'exec-and-forget /bin/bash ~/.config/aerospace/keyswap.sh ws 2'
+    cmd-3 = 'exec-and-forget /bin/bash ~/.config/aerospace/keyswap.sh ws 3'
+    cmd-4 = 'exec-and-forget /bin/bash ~/.config/aerospace/keyswap.sh ws 4'
+    cmd-5 = 'exec-and-forget /bin/bash ~/.config/aerospace/keyswap.sh ws 5'
 
-    cmd-shift-1 = ['exec-and-forget /bin/bash ~/.config/aerospace/focus_workspace_window.sh 1']
-    cmd-shift-2 = ['exec-and-forget /bin/bash ~/.config/aerospace/focus_workspace_window.sh 2']
-    cmd-shift-3 = ['exec-and-forget /bin/bash ~/.config/aerospace/focus_workspace_window.sh 3']
-    cmd-shift-4 = ['exec-and-forget /bin/bash ~/.config/aerospace/focus_workspace_window.sh 4']
-    cmd-shift-5 = ['exec-and-forget /bin/bash ~/.config/aerospace/focus_workspace_window.sh 5']
-    cmd-shift-6 = ['exec-and-forget /bin/bash ~/.config/aerospace/focus_workspace_window.sh 6']
+    cmd-shift-1 = 'exec-and-forget /bin/bash ~/.config/aerospace/keyswap.sh win 1'
+    cmd-shift-2 = 'exec-and-forget /bin/bash ~/.config/aerospace/keyswap.sh win 2'
+    cmd-shift-3 = 'exec-and-forget /bin/bash ~/.config/aerospace/keyswap.sh win 3'
+    cmd-shift-4 = 'exec-and-forget /bin/bash ~/.config/aerospace/keyswap.sh win 4'
+    cmd-shift-5 = 'exec-and-forget /bin/bash ~/.config/aerospace/keyswap.sh win 5'
+    cmd-shift-6 = 'exec-and-forget /bin/bash ~/.config/aerospace/keyswap.sh win 6'
 
     cmd-alt-1 = ['workspace 1^']
     cmd-alt-2 = ['workspace 2^']
@@ -182,7 +189,10 @@ automatically-unhide-macos-hidden-apps = false
 
     # See: https://nikitabobko.github.io/AeroSpace/commands#mode
     cmd-shift-enter = 'mode service'
-    cmd-shift-m = 'mode move'
+
+    # stack: maximize every window in the current workspace (Rectangle, via Hammerspoon)
+    cmd-shift-m = 'exec-and-forget hs -c "almostMaximizeFocusedWorkspace()"'
+    cmd-shift-n = 'mode move'
 
 [mode.move.binding]
     1 = ['move-node-to-workspace --focus-follows-window 1*', 'mode main']
@@ -231,6 +241,18 @@ automatically-unhide-macos-hidden-apps = false
 # floating windows by default
 [[on-window-detected]]
     check-further-callbacks = true
+    run = 'layout floating'
+
+# Excluded from auto-centering: float (already) but skip the center callback below.
+# check-further-callbacks defaults false, so a match here stops further callbacks.
+[[on-window-detected]]
+    if.app-id = 'com.apple.finder'
+    run = 'layout floating'
+[[on-window-detected]]
+    if.app-id = 'com.valvesoftware.steam'
+    run = 'layout floating'
+[[on-window-detected]]
+    if.app-id = 'com.valvesoftware.steam.helper'
     run = 'layout floating'
 
 [[on-window-detected]]

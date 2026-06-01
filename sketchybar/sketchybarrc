@@ -27,6 +27,7 @@ sketchybar --default "${default[@]}"
 
 sketchybar --add event aerospace_workspace_change
 sketchybar --add event aerospace_focus_change
+sketchybar --add event aerospace_keyswap_change
 
 #
 # LEFT BLOCK - All workspaces with windows
@@ -54,6 +55,12 @@ for i in $(seq 1 7); do
         fi
     done
 done
+
+# Swap-mode indicator: hidden unless the cmd / cmd-shift role swap is active.
+sketchybar --add item keyswap left \
+    --subscribe keyswap aerospace_keyswap_change \
+    --set keyswap width=dynamic drawing=off icon.drawing=off label.drawing=on label.padding_left=10 \
+          script="$PLUGIN_DIR/keyswap.sh"
 
 #
 ### CENTER BLOCK CENTER BLOCK

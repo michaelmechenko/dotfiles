@@ -34,10 +34,15 @@ rm -f "$DIRTY"
 
 # Run both aerospace queries in parallel — one IPC roundtrip instead of two.
 aerospace list-windows --focused --format '%{window-id}' >"$_TMPDIR/focused" 2>/dev/null &
-aerospace list-windows --all --format '%{workspace}%{tab}%{workspace-is-focused}%{tab}%{window-id}%{tab}%{app-name}' >"$_TMPDIR/all" 2>/dev/null &
+aerospace list-windows --all --format '%{workspace}%{tab}%{workspace-is-focused}%{tab}%{window-id}%{tab}%{app-name}%{tab}%{window-is-fullscreen}%{tab}%{window-layout}' >"$_TMPDIR/all" 2>/dev/null &
 wait
 FOCUSED_WIN_ID="$(cat "$_TMPDIR/focused" 2>/dev/null || true)"
 WINDOW_DATA="$(cat "$_TMPDIR/all" 2>/dev/null || true)"
+
+# Fullscreen-window lookup (field 5 == "true"); drives both brackets and border tinting.
+declare -A FS_ID=()
+while IFS= read -r _id; do [ -n "$_id" ] && FS_ID[$_id]=1; done \
+  < <(printf '%s\n' "$WINDOW_DATA" | awk -F'\t' '$5=="true"{print $3}')
 
 SLOTS_DATA=""
 if [ -n "$WINDOW_DATA" ]; then
@@ -129,7 +134,12 @@ if [ -n "$SLOTS_DATA" ]; then
                     APP_COLOR="$ACTIVE_COLOR"
                 fi
 
-                CMD+=(--set "$app_item" drawing=on "label=$app_name" "label.color=$APP_COLOR" "label.padding_left=0" "label.padding_right=0" "click_script=aerospace focus --window-id $app_id")
+                # Bracket the label when the window is (aerospace) fullscreen.
+                # Bracketed labels need a little right padding so the trailing ']' isn't clipped.
+                app_label="$app_name"; APP_RPAD=0
+                if [ -n "${FS_ID[$app_id]+x}" ]; then app_label="[$app_name]"; APP_RPAD=4; fi
+
+                CMD+=(--set "$app_item" drawing=on "label=$app_label" "label.color=$APP_COLOR" "label.padding_left=0" "label.padding_right=$APP_RPAD" "click_script=aerospace focus --window-id $app_id")
             else
                 CMD+=(--set "$app_item" drawing=off "label=" "click_script=")
             fi
@@ -170,6 +180,27 @@ for ((i = SLOT; i <= 7; i++)); do
 done
 
 "${CMD[@]}"
+
+# Per-window border color by state (focused window only; unfocused dims to inactive):
+#   fullscreen → rose #d8647e, floating → lavender #aeaed1, tiling/"sticky" → dusty #bb9dbd.
+# JankyBorders apply-to is write-only, so diff "id color" against saved state; only changed
+# windows get a borders call. inactive_color stays dark so unfocused windows still dim.
+BORDERS=/opt/homebrew/bin/borders
+INACT=0xff1c1c24
+CUR_COLORS="$(printf '%s\n' "$WINDOW_DATA" | awk -F'\t' '
+  NF>=6 && $3!="" {
+    c="0xffbb9dbd"                                  # tiling / sticky, non-maximized
+    if ($5=="true") c="0xffd8647e"                  # maximized (aerospace fullscreen)
+    else if ($6=="floating") c="0xffaeaed1"         # floating
+    print $3" "c
+  }' | sort)"
+PREV_COLORS="$(sort /tmp/aerospace_border_colors 2>/dev/null || true)"
+{ set +e
+  comm -23 <(printf '%s\n' "$CUR_COLORS") <(printf '%s\n' "$PREV_COLORS") | while read -r id c; do
+    [ -n "$id" ] && "$BORDERS" apply-to=$id active_color=$c inactive_color=$INACT >/dev/null 2>&1
+  done
+  set -e; }
+printf '%s\n' "$CUR_COLORS" > /tmp/aerospace_border_colors
 
 # An event arrived while rebuilding → run one more pass to capture final state.
 [ -e "$DIRTY" ] || break

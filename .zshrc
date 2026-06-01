@@ -152,3 +152,10 @@ nvim()  { command nvim "$@"; printf '\e[4 q'; }
 # claude() { command claude "$@"; printf '\e[4 q'; }
 
 export CLAUDE_CONFIG_DIR=~/.config/claude
+
+# Hammerspoon is a GUI app and can't see this shell env, so its config dir is set via the
+# MJConfigFile default (not an env var). Verify on shell start; correct if it drifted.
+# Takes effect on Hammerspoon's next launch.
+if [[ "$(defaults read org.hammerspoon.Hammerspoon MJConfigFile 2>/dev/null)" != "$HOME/.config/hammerspoon/init.lua" ]]; then
+  defaults write org.hammerspoon.Hammerspoon MJConfigFile "$HOME/.config/hammerspoon/init.lua"
+fi

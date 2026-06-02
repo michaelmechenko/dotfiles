@@ -1,5 +1,5 @@
 -- Window sizing/management driven by Hammerspoon (+ AeroSpace queries).
--- These compute frames directly (no Rectangle), so they hold on any display size.
+-- Frames computed directly (no Rectangle) → hold on any display size.
 local M = {}
 local AEROSPACE = "/opt/homebrew/bin/aerospace"
 
@@ -10,16 +10,15 @@ local function runAerospace(args)
 end
 
 -- AeroSpace-matched insets in px (mirror the gap states so floating windows line up
--- with tiled ones). Computed against the focused window's screen → display-agnostic.
--- Top includes SketchyBar/menu-bar clearance. Tune here.
+-- with tiled ones). Top includes SketchyBar/menu-bar clearance. Tune here.
 local ALMOST = { left = 52, right = 52, top = 74, bottom = 52 }   -- big gaps
 local MAXIM  = { left = 16, right = 16, top = 38, bottom = 16 }   -- small gaps
 
-local function snapInsets(m)
-  local w = hs.window.focusedWindow()
-  if not w then return end
-  local s = w:screen():fullFrame()   -- physical edges (aerospace insets from these)
-  w:setFrame({
+local function snapInsets(m, win)
+  win = win or hs.window.focusedWindow()
+  if not win then return end
+  local s = win:screen():fullFrame()   -- physical edges (aerospace insets from these)
+  win:setFrame({
     x = s.x + m.left,
     y = s.y + m.top,
     w = s.w - m.left - m.right,
@@ -30,24 +29,23 @@ end
 function M.almostMaximize() snapInsets(ALMOST) end
 function M.maximize() snapInsets(MAXIM) end
 
--- Apply an action to every standard, visible window (focus-cycling). Exposed for reuse.
-function M.applyToAllWindows(action)
-  local windows = {}
-  for _, app in ipairs(hs.application.runningApplications()) do
-    for _, win in ipairs(app:allWindows()) do
-      if win:isStandard() and win:isVisible() then table.insert(windows, win) end
-    end
-  end
+-- Center the focused window without resizing (replaces rectangle-pro center).
+function M.center()
+  local w = hs.window.focusedWindow()
+  if w then w:centerOnScreen(nil, true, 0) end
+end
 
-  local function processWindow(i)
-    if i > #windows then return end
-    windows[i]:focus()
-    hs.timer.doAfter(0.1, function()
-      action()
-      hs.timer.doAfter(0.05, function() processWindow(i + 1) end)
-    end)
+-- Float each window (by id, no focus change) then setFrame it to the inset rect.
+-- No focus-cycling / no sleeps → near-instant, no flicker, focus stays put.
+local function snapByIds(ids, m)
+  if #ids == 0 then return end
+  local byId = {}
+  for _, w in ipairs(hs.window.allWindows()) do byId[w:id()] = w end
+  for _, id in ipairs(ids) do
+    runAerospace("layout floating --window-id " .. id)
+    local w = byId[id]
+    if w then snapInsets(m, w) end
   end
-  processWindow(1)
 end
 
 local function focusedWorkspaceWindowIds()
@@ -60,33 +58,17 @@ local function focusedWorkspaceWindowIds()
   return ids
 end
 
-local function focusedWindowId()
-  local out = runAerospace("list-windows --focused --format '%{window-id}'")
-  return tonumber(out:match("%d+"))
+function M.almostMaximizeFocusedWorkspace()
+  snapByIds(focusedWorkspaceWindowIds(), ALMOST)
 end
 
-local function applyToFocusedWorkspace(action)
-  local ids = focusedWorkspaceWindowIds()
-  if #ids == 0 then return end
-  local original = focusedWindowId()
-
-  local function processWindow(i)
-    if i > #ids then
-      if original then runAerospace("focus --window-id " .. original) end
-      return
-    end
-    runAerospace("layout floating --window-id " .. ids[i])
-    runAerospace("focus --window-id " .. ids[i])
-    hs.timer.doAfter(0.1, function()
-      action()
-      hs.timer.doAfter(0.05, function() processWindow(i + 1) end)
-    end)
+function M.almostMaximizeAll()
+  local ids = {}
+  for _, w in ipairs(hs.window.allWindows()) do
+    if w:isStandard() and w:isVisible() then ids[#ids + 1] = w:id() end
   end
-  processWindow(1)
+  snapByIds(ids, ALMOST)
 end
-
-function M.almostMaximizeAll() M.applyToAllWindows(M.almostMaximize) end
-function M.almostMaximizeFocusedWorkspace() applyToFocusedWorkspace(M.almostMaximize) end
 
 -- Toggle the focused window tiling<->floating, preserving its on-screen frame when it
 -- becomes floating (AeroSpace otherwise repositions it). Going to tiling lets the tree own it.

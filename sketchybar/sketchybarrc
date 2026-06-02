@@ -70,6 +70,8 @@ sketchybar --add item keyswap left \
 # LEFT BLOCK - Secondary monitor workspace 1^
 #
 
+# space.1^ is the single driver for ALL workspace-indicator colors (space_colors.sh
+# batch-updates every space.* item in one call); the others carry no script/subscription.
 for sid in "1^"; do
     sketchybar --add item space.$sid center \
         --subscribe space.$sid aerospace_workspace_change \
@@ -80,7 +82,7 @@ for sid in "1^"; do
         icon.padding_left=8 \
         icon.padding_right=8 \
         click_script="aerospace workspace $sid" \
-        script="$PLUGIN_DIR/aerospace.sh"
+        script="$PLUGIN_DIR/space_colors.sh"
 done
 
 #
@@ -99,13 +101,11 @@ sketchybar --add item sep_main_left center \
 
 for sid in "1*" "2*" "3*" "4*" "5*"; do
     sketchybar --add item space.$sid center \
-        --subscribe space.$sid aerospace_workspace_change \
         --set space.$sid \
         icon="*" \
         label.drawing=off \
         icon.y_offset=2 \
-        click_script="aerospace workspace $sid" \
-        script="$PLUGIN_DIR/aerospace.sh"
+        click_script="aerospace workspace $sid"
 done
 
 sketchybar --add item sep_main_right center \
@@ -124,15 +124,13 @@ sketchybar --add item sep_main_right center \
 
 for sid in "2^"; do
     sketchybar --add item space.$sid center \
-        --subscribe space.$sid aerospace_workspace_change \
         --set space.$sid \
         icon="^" \
         label.drawing=off \
         icon.y_offset=2 \
         icon.padding_left=8 \
         icon.padding_right=8 \
-        click_script="aerospace workspace $sid" \
-        script="$PLUGIN_DIR/aerospace.sh"
+        click_script="aerospace workspace $sid"
 done
 
 #

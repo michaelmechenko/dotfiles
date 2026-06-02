@@ -26,5 +26,5 @@ esac
 [ "${#WORKSPACES[@]}" -eq 0 ] && exit 1
 
 if printf '%s\n' "${WORKSPACES[@]}" | aerospace move-node-to-workspace --stdin --focus-follows-window --wrap-around "$DIRECTION"; then
-  open -g 'rectangle-pro://execute-action?name=almost-maximize'
+  hs -c "almostMaximize()"
 fi

@@ -22,11 +22,9 @@ cursor-style-blink = false
 window-padding-x = 12
 window-padding-y = 10, 2
 
-window-step-resize = false
-
 # Match tmux window-style bg so padding wraps the inactive pane field seamlessly
 background = #100E11
-foreground = #BEBEBE
+foreground = #cdcdcd
 
 # bold-is-bright = true
 
@@ -46,8 +44,8 @@ font-size = 14
 # adjust-font-baseline = 0
 adjust-cell-height = 6%
 font-feature = -calt
-# font-thicken = true
-# font-thicken-strength = 0
+font-thicken = true
+font-thicken-strength = 0
 # font-family = "JetBrainsMono"
 # font-family = "ComicShanns Nerd Font"
 # font-family = "0xProto"

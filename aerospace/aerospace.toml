@@ -109,10 +109,10 @@ automatically-unhide-macos-hidden-apps = false
 
     # See: https://nikitabobko.github.io/AeroSpace/commands#focus
     cmd-w = 'close'
-    cmd-h = 'focus --boundaries-action wrap-around-the-workspace left'
+    cmd-h = 'focus --ignore-floating --boundaries-action wrap-around-the-workspace left'
     cmd-j = 'focus --boundaries-action wrap-around-the-workspace down'
     cmd-k = 'focus --boundaries-action wrap-around-the-workspace up'
-    cmd-l = 'focus --boundaries-action wrap-around-the-workspace right'
+    cmd-l = 'focus --ignore-floating --boundaries-action wrap-around-the-workspace right'
     cmd-backtick = 'exec-and-forget /bin/bash ~/.config/aerospace/cycle_workspace_window.sh next'
     cmd-shift-backtick = 'exec-and-forget /bin/bash ~/.config/aerospace/cycle_workspace_window.sh prev'
 
@@ -160,26 +160,23 @@ automatically-unhide-macos-hidden-apps = false
     cmd-shift-a = 'exec-and-forget /bin/bash ~/.config/aerospace/move_workspace_cycle.sh prev'
     cmd-shift-d = 'exec-and-forget /bin/bash ~/.config/aerospace/move_workspace_cycle.sh next'
 
-    cmd-shift-w = ["move-node-to-monitor --focus-follows-window --wrap-around next", "exec-and-forget open -g 'rectangle-pro://execute-action?name=almost-maximize'"]
+    cmd-shift-w = ["move-node-to-monitor --focus-follows-window --wrap-around next", 'exec-and-forget hs -c "almostMaximize()"']
 
-    cmd-semicolon = 'exec-and-forget /bin/bash ~/.config/aerospace/cycle_workspace.sh prev'
-    cmd-quote     = 'exec-and-forget /bin/bash ~/.config/aerospace/cycle_workspace.sh next'
-    # cmd-shift-semicolon = 'move-node-to-monitor --wrap-around prev'
-    # cmd-shift-quote = 'move-node-to-monitor --wrap-around next'
-    # cmd-shift-semicolon = 'workspace prev'
-    # cmd-shift-quote = 'workspace next'
-    # cmd-shift-a = 'workspace prev'
-    # cmd-shift-d = 'workspace next'
+    # cmd-;/' cycle windows (= cmd-`/cmd-shift-`); cmd-shift-;/' cycle workspaces
+    cmd-semicolon       = 'exec-and-forget /bin/bash ~/.config/aerospace/cycle_workspace_window.sh prev'
+    cmd-quote           = 'exec-and-forget /bin/bash ~/.config/aerospace/cycle_workspace_window.sh next'
+    cmd-shift-semicolon = 'exec-and-forget /bin/bash ~/.config/aerospace/cycle_workspace.sh prev'
+    cmd-shift-quote     = 'exec-and-forget /bin/bash ~/.config/aerospace/cycle_workspace.sh next'
 
     # See: https://nikitabobko.github.io/AeroSpace/commands#move-node-to-workspace
-    cmd-ctrl-1 = ['move-node-to-workspace --focus-follows-window 1*', "exec-and-forget open -g 'rectangle-pro://execute-action?name=almost-maximize'"]
-    cmd-ctrl-2 = ['move-node-to-workspace --focus-follows-window 2*', "exec-and-forget open -g 'rectangle-pro://execute-action?name=almost-maximize'"]
-    cmd-ctrl-3 = ['move-node-to-workspace --focus-follows-window 3*', "exec-and-forget open -g 'rectangle-pro://execute-action?name=almost-maximize'"]
-    cmd-ctrl-4 = ['move-node-to-workspace --focus-follows-window 4*', "exec-and-forget open -g 'rectangle-pro://execute-action?name=almost-maximize'"]
-    cmd-ctrl-5 = ['move-node-to-workspace --focus-follows-window 5*', "exec-and-forget open -g 'rectangle-pro://execute-action?name=almost-maximize'"]
+    cmd-ctrl-1 = ['move-node-to-workspace --focus-follows-window 1*', 'exec-and-forget hs -c "almostMaximize()"']
+    cmd-ctrl-2 = ['move-node-to-workspace --focus-follows-window 2*', 'exec-and-forget hs -c "almostMaximize()"']
+    cmd-ctrl-3 = ['move-node-to-workspace --focus-follows-window 3*', 'exec-and-forget hs -c "almostMaximize()"']
+    cmd-ctrl-4 = ['move-node-to-workspace --focus-follows-window 4*', 'exec-and-forget hs -c "almostMaximize()"']
+    cmd-ctrl-5 = ['move-node-to-workspace --focus-follows-window 5*', 'exec-and-forget hs -c "almostMaximize()"']
 
-    cmd-shift-ctrl-1 = ['move-node-to-workspace --focus-follows-window 1^', "exec-and-forget open -g 'rectangle-pro://execute-action?name=almost-maximize'"]
-    cmd-shift-ctrl-2 = ['move-node-to-workspace --focus-follows-window 2^', "exec-and-forget open -g 'rectangle-pro://execute-action?name=almost-maximize'"]
+    cmd-shift-ctrl-1 = ['move-node-to-workspace --focus-follows-window 1^', 'exec-and-forget hs -c "almostMaximize()"']
+    cmd-shift-ctrl-2 = ['move-node-to-workspace --focus-follows-window 2^', 'exec-and-forget hs -c "almostMaximize()"']
     # cmd-shift-ctrl-3 = 'move-node-to-workspace --focus-follows-window 3^'
 
     # See: https://nikitabobko.github.io/AeroSpace/commands#workspace-back-and-forth
@@ -256,7 +253,7 @@ automatically-unhide-macos-hidden-apps = false
     run = 'layout floating'
 
 [[on-window-detected]]
-    run = "exec-and-forget open -g 'rectangle-pro://execute-action?name=center'"
+    run = 'exec-and-forget hs -c "center()"'
 
 # [[on-window-detected]]
 #     if.app-id = 'com.1password.1password'

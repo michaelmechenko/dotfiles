@@ -9,12 +9,25 @@ height=${2:-75%}
 BORDER_COLOR=$(tmux show-options -gqv @color-inactive)
 BORDER_COLOR=${BORDER_COLOR:-"#a9b1d6"}
 
-if echo "$CURRENT_PANE" | grep -q '^float.*'; then
-    tmux detach-client
+# The popup runs `tmux attach` inside `tmux popup` (modal); the wrapper sets @in_float_popup=1
+# while that attach is live and clears it on exit. Popups are modal, so @in_float_popup=1 means
+# "you are currently inside the popup" → close it (detach ONLY the popup client; outer untouched).
+if [ "$(tmux show-options -gqv @in_float_popup)" = "1" ]; then
+    tmux detach-client -t "$(tmux display-message -p -F '#{client_name}')"
+    exit 0
+fi
+
+# Choose the popup target: normally session `float`. But if the main client already IS float,
+# show the most-recent session instead — so you stay in float and peek at the other session.
+if echo "$CURRENT_PANE" | grep -q '^float'; then
+    TARGET="$(tmux display-message -p -F '#{client_last_session}')"
+    [ -z "$TARGET" ] && exit 0
 else
-    if [ "$1" = "single" ]; then
-        tmux popup -d '#{pane_current_path}' -xC -yC -w$width -h$height -S "fg=$BORDER_COLOR" -E "tmux attach -t 'float' || tmux new -s 'float-$CURRENT_PANE'" || true
-    else
-        tmux popup -E -xC -yC -w$width -h$height -S "fg=$BORDER_COLOR" "tmux attach -t float || tmux new -s float" || true
-    fi
+    TARGET="float"
+fi
+
+if [ "$1" = "single" ] && [ "$TARGET" = "float" ]; then
+    tmux popup -d '#{pane_current_path}' -xC -yC -w$width -h$height -S "fg=$BORDER_COLOR" -E "tmux set -g @in_float_popup 1; { tmux attach -t 'float' || tmux new -s 'float-$CURRENT_PANE'; }; tmux set -g @in_float_popup 0" || true
+else
+    tmux popup -E -xC -yC -w$width -h$height -S "fg=$BORDER_COLOR" "tmux set -g @in_float_popup 1; { tmux attach -t '$TARGET' || tmux new -s '$TARGET'; }; tmux set -g @in_float_popup 0" || true
 fi

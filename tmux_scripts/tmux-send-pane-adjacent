@@ -1,0 +1,22 @@
+#!/bin/sh
+# Move the current pane into the adjacent window (next|prev). If that window already
+# exists, join into it and — when the result has >2 panes — tidy it with main-vertical.
+# If there is no adjacent window, create one and join (always 2 panes → no relayout).
+set -e
+
+if [ "$1" = next ]; then
+    adj=+1; back=-1
+else
+    adj=-1; back=+1
+fi
+
+if tmux has-session -t ":$adj" 2>/dev/null; then
+    dst=$(tmux display-message -p -t ":$adj" '#{window_id}')   # capture before join (id is stable)
+    tmux join-pane -h -t ":$adj"
+    if [ "$(tmux display-message -p -t "$dst" '#{window_panes}')" -gt 2 ]; then
+        tmux select-layout -t "$dst" main-vertical
+    fi
+else
+    tmux new-window -d -t "$adj"
+    tmux join-pane -h -t ":$back"
+fi

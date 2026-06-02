@@ -9,7 +9,7 @@ Single source of truth for colors used across tmux, Ghostty, and zsh (via ohmypo
 | Role | Hex | Where used |
 |---|---|---|
 | `canvas` | `#100E11` | Ghostty `background`; tmux inactive pane, status bar, borders, message line, all window-status states; active pane when single-pane or zoomed; tmux `message-style`/`message-command-style` `fill=` (required on next-3.7 so the command-prompt repaints the full line — see Cross-tool notes) |
-| `surface-active` | `#151316` | tmux active pane bg + active border bg, only when window has 2+ panes and is not zoomed |
+| `surface-active` | `#16141a` | tmux active pane bg (the `refresh-active-bg` alias's 2+-pane branch), only when window has 2+ panes and is not zoomed. Active border bg stays `canvas` `#100E11`. |
 | `surface-chrome` | `#1C1C24` | nvim chrome: dropbar WinBar bg, lualine statusline/winbar bg |
 | `surface-highlight` | `#2A2A35` | nvim `CursorLine` (override in `vague.lua`'s `on_highlights`) |
 | `copy-mode-indicator` | `#606079` | tmux `copy-mode-position-style` block bg (top-right time/scroll box shown in copy mode); indicator text is `text-default` `#a9b1d6` |
@@ -112,6 +112,19 @@ The `M-d` nnn file explorer previews code through `bat` using the **upstream `va
 
 - **Vendored, not hand-maintained** — don't hand-edit syntax scopes; re-fetch from upstream if it drifts.
 - **Known near-miss:** the theme's global `background` is `#141415` and `foreground` `#cdcdcd`, vs the repo `canvas` `#100E11` / `text` `#BEBEBE`. Negligible in a small preview pane; if exact match is wanted, edit the theme's top `background`→`#100E11` and `foreground`→`#BEBEBE` (then `bat cache --build`).
+
+## fzf
+
+`FZF_DEFAULT_OPTS` in `~/.config/.zshrc` sets a `--color` scheme matching the palette (applies to all fzf: fzcd, tmux-fzf-url, fzf-tab, shell). Mapping:
+
+- `fg` `#BEBEBE` (text) · `fg+` `#bebedb` (`accent-highlight`, current line) · `bg`/`gutter`/`preview-bg` `-1` (transparent)
+- `bg+` `#2A2A35` (`surface-highlight`, current-line bg)
+- `hl`/`hl+` `#d8647e` (`accent-primary` rose, match highlight; `hl+` bold) — swap to `#aeaed1` lavender for a softer look
+- `border`/`separator`/`scrollbar` `#383848` (`divider-subtle`)
+- `prompt` `#aeaed1` (`accent-secondary`) · `pointer` `#d8647e` · `marker` `#bb9dbd` (`accent-tertiary`) · `spinner` `#f3be7c` (`accent-amber`) · `info` `#8ba9c1` (`accent-info`)
+- `header`/`disabled`/`label` `#656a80` (`text-muted`)
+
+Note: `~/.config/.zshrc` is the tracked source of truth; the live `~/.zshrc` is synced manually (they have diverged — see future persona/work-profile split).
 
 ## How to add new colors
 

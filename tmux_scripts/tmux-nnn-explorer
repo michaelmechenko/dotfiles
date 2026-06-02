@@ -31,8 +31,14 @@ SPLITSIZE=60                               # preview pane width % (explorer gets
 # preview-tui text-speed knobs: plain bat (no line-number/grid rendering),
 # ansi theme (inherits the terminal palette). Image/video previewers left unset
 # so those heavy branches never fire.
-BATSTYLE=plain
+BATSTYLE=numbers
 BATTHEME=vague
+
+# Self-heal the per-machine bat cache: custom themes only resolve after `bat cache --build`,
+# which is local (not in git). Build once if `vague` isn't registered yet (no-op afterwards).
+if command -v bat >/dev/null 2>&1; then
+    bat --list-themes 2>/dev/null | grep -qx vague || bat cache --build >/dev/null 2>&1
+fi
 
 # fresh session each launch (reaps any lingering detached one), start in origin cwd
 tmux kill-session -t nnn 2>/dev/null || true

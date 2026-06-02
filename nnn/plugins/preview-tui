@@ -526,11 +526,16 @@ preview_fifo() {
             selection="$newer"
         done
         if [ -n "$selection" ]; then
-            pidkill "$PREVIEWPID"
-            [ -p "$FIFO_UEBERZUG" ] && ueberzug_remove
-            [ "$selection" = "close" ] && break
-            preview_file "$selection"
-            printf "%s" "$selection" > "$CURSEL"
+            [ "$selection" = "close" ] && { pidkill "$PREVIEWPID"; [ -p "$FIFO_UEBERZUG" ] && ueberzug_remove; break ;}
+            # Dedup: skip files already shown (CURSEL). Kills the startup double-load — nnn
+            # re-sends the initial selection through the FIFO after `preview_file "$PWD/$1"`
+            # already rendered it; the second draw raced the first and clipped the first cell.
+            if [ "$selection" != "$(cat "$CURSEL" 2>/dev/null)" ]; then
+                pidkill "$PREVIEWPID"
+                [ -p "$FIFO_UEBERZUG" ] && ueberzug_remove
+                preview_file "$selection"
+                printf "%s" "$selection" > "$CURSEL"
+            fi
         fi
     done < "$NNN_FIFO"
     sleep 0.1 # make sure potential preview by winch_handler is killed

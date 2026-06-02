@@ -40,9 +40,9 @@ FOCUSED_WIN_ID="$(cat "$_TMPDIR/focused" 2>/dev/null || true)"
 WINDOW_DATA="$(cat "$_TMPDIR/all" 2>/dev/null || true)"
 
 # Fullscreen-window lookup (field 5 == "true"); drives both brackets and border tinting.
-declare -A FS_ID=()
-while IFS= read -r _id; do [ -n "$_id" ] && FS_ID[$_id]=1; done \
-  < <(printf '%s\n' "$WINDOW_DATA" | awk -F'\t' '$5=="true"{print $3}')
+# Space-padded id set + `case` membership test instead of `declare -A` (associative arrays are
+# bash 4+; macOS ships bash 3.2, so this keeps the plugin portable without `brew install bash`).
+FS_IDS=" $(printf '%s\n' "$WINDOW_DATA" | awk -F'\t' '$5=="true"{print $3}' | tr '\n' ' ')"
 
 SLOTS_DATA=""
 if [ -n "$WINDOW_DATA" ]; then
@@ -137,7 +137,7 @@ if [ -n "$SLOTS_DATA" ]; then
                 # Bracket the label when the window is (aerospace) fullscreen.
                 # Bracketed labels need a little right padding so the trailing ']' isn't clipped.
                 app_label="$app_name"; APP_RPAD=0
-                if [ -n "${FS_ID[$app_id]+x}" ]; then app_label="[$app_name]"; APP_RPAD=4; fi
+                case "$FS_IDS" in *" $app_id "*) app_label="[$app_name]"; APP_RPAD=4 ;; esac
 
                 CMD+=(--set "$app_item" drawing=on "label=$app_label" "label.color=$APP_COLOR" "label.padding_left=0" "label.padding_right=$APP_RPAD" "click_script=aerospace focus --window-id $app_id")
             else

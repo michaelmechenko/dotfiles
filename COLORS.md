@@ -8,7 +8,7 @@ Single source of truth for colors used across tmux, Ghostty, and zsh (via ohmypo
 
 | Role | Hex | Where used |
 |---|---|---|
-| `canvas` | `#100E11` | Ghostty `background`; tmux inactive pane, status bar, borders, message line, all window-status states; active pane when single-pane or zoomed |
+| `canvas` | `#100E11` | Ghostty `background`; tmux inactive pane, status bar, borders, message line, all window-status states; active pane when single-pane or zoomed; tmux `message-style`/`message-command-style` `fill=` (required on next-3.7 so the command-prompt repaints the full line — see Cross-tool notes) |
 | `surface-active` | `#151316` | tmux active pane bg + active border bg, only when window has 2+ panes and is not zoomed |
 | `surface-chrome` | `#1C1C24` | nvim chrome: dropbar WinBar bg, lualine statusline/winbar bg |
 | `surface-highlight` | `#2A2A35` | nvim `CursorLine` (override in `vague.lua`'s `on_highlights`) |
@@ -20,7 +20,7 @@ Single source of truth for colors used across tmux, Ghostty, and zsh (via ohmypo
 | Role | Hex | Where used |
 |---|---|---|
 | `text` | `#BEBEBE` | Ghostty `foreground`; nvim editor fg (`vague.lua` `colors.fg`); nvim WinBar fg (`dropbar.lua`) |
-| `text-muted` | `#656a80` | tmux `@color-inactive` — secondary UI text (border fg, status secondary text, bell-state); nvim devicons, dropbar `DropBarIconKindDefault`, lualine inactive-buffer fg; Claude statusline dir/model/ctx text; Claude theme `inactive` token |
+| `text-muted` | `#656a80` | tmux `@color-inactive` — secondary UI text (border fg, status secondary text, bell-state); tmux copy-mode non-current line numbers (`copy-mode-line-number-style`, dim); nvim devicons, dropbar `DropBarIconKindDefault`, lualine inactive-buffer fg; Claude statusline dir/model/ctx text; Claude theme `inactive` token |
 | `text-default` | `#a9b1d6` | tmux `@color-default` — window-status text (the colored window names in the status bar). **Not referenced elsewhere.** |
 
 ### Accents
@@ -30,7 +30,7 @@ Single source of truth for colors used across tmux, Ghostty, and zsh (via ohmypo
 | `accent-primary` (rose) | `#d8647e` | tmux `@color-rose`; tmux ephemeral session indicator + zoomed border center; Ghostty ANSI 1; ohmyposh path segment |
 | `accent-secondary` (lavender) | `#aeaed1` | tmux `@color-ephemeral` / `@color-lavender2` / `@color-float`; tmux pane-border-active fg; Ghostty ANSI 6; ohmyposh session segment |
 | `accent-tertiary` (dusty pink) | `#bb9dbd` | tmux `@color-dusty_pink`; Ghostty ANSI 2; ohmyposh transient prompt + git segment |
-| `accent-highlight` (pale lavender) | `#bebedb` | tmux `@color-lavender` / `@color-active` — current window status |
+| `accent-highlight` (pale lavender) | `#bebedb` | tmux `@color-lavender` / `@color-active` — current window status; tmux copy-mode current line number (`copy-mode-current-line-number-style`, bold) |
 | `accent-info` (slate) | `#8ba9c1` | Ghostty ANSI 12; ohmyposh executiontime segment. **No tmux usage.** |
 | `accent-warn` (warm sand) | `#f5cb96` | Ghostty ANSI 11. **ohmyposh uses a near-miss variant** (see below). |
 | `accent-amber` (amber) | `#f3be7c` | Ghostty ANSI 4; nvim `GitSignsChange`. Distinct from `accent-warn` (`#f5cb96`, ANSI 11) — `accent-amber` is more orange-ward. |

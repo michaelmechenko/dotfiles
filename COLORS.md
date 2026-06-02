@@ -106,6 +106,13 @@ The statusline script at `~/.config/claude/statusline-command.sh` uses six color
 | Deleted (− / diffRemoved) | `#d8647e` (`accent-primary`) | nvim `GitSignsDelete`; Claude statusline `color_delete`; Claude theme `error` + `diffRemoved` |
 | Git icon decoration | `#f5cb96` (`accent-warn`) | ohmyposh git template surround |
 
+## nnn preview (bat)
+
+The `M-d` nnn file explorer previews code through `bat` using the **upstream `vague` TextMate theme** at `~/.config/bat/themes/vague.tmTheme` (from `vague-theme/vague-bat`, the official port of the nvim `vague` colorscheme). Selected via `NNN_BATTHEME=vague` in `tmux_scripts/tmux-nnn-explorer`; registered into bat's cache with `bat cache --build` (re-run after any bat upgrade).
+
+- **Vendored, not hand-maintained** — don't hand-edit syntax scopes; re-fetch from upstream if it drifts.
+- **Known near-miss:** the theme's global `background` is `#141415` and `foreground` `#cdcdcd`, vs the repo `canvas` `#100E11` / `text` `#BEBEBE`. Negligible in a small preview pane; if exact match is wanted, edit the theme's top `background`→`#100E11` and `foreground`→`#BEBEBE` (then `bat cache --build`).
+
 ## How to add new colors
 
 1. Pick a role from the table above if one fits; if not, add a new role.

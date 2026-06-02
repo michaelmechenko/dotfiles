@@ -81,6 +81,7 @@ alias o="ofd ."
 alias e="nvim"
 alias ej="nvim tmp.json"
 alias em="nvim tmp.md"
+alias cc="claude"
 alias oc="opencode"
 alias ocp="opencode --port"
 alias ocr="opencode run"
@@ -149,7 +150,7 @@ eval "$(oh-my-posh init zsh --config ~/.config/ohmyposh/base.json)"
 # export PATH="$BUN_INSTALL/bin:$PATH"
 
 nvim()  { command nvim "$@"; printf '\e[4 q'; }
-# claude() { command claude "$@"; printf '\e[4 q'; }
+claude() { command claude "$@"; printf '\e[4 q'; }
 
 export CLAUDE_CONFIG_DIR=~/.config/claude
 

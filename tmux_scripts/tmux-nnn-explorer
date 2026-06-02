@@ -15,20 +15,22 @@ BORDER_COLOR=$(tmux show-options -gqv @color-inactive)
 BORDER_COLOR=${BORDER_COLOR:-"#a9b1d6"}
 
 # in-nnn plugin keys (pressed as ;<key>): ;l horizontal split, ;j vertical split,
-# ;i send a cd command to the origin pane's prompt, ;p toggle file preview.
-PLUG='l:tmux-split-h;j:tmux-split-v;i:cd-origin;p:preview-tui'
+# ;i send a cd command to the origin pane's prompt, ;p toggle file preview,
+# ;f fzf fuzzy-jump to a subdir. (nnn keybinds are compiled-in; ; is a mandatory
+# plugin prefix — bare keys can't run plugins without recompiling nnn.)
+PLUG='l:tmux-split-h;j:tmux-split-v;i:cd-origin;p:preview-tui;f:fzcd'
 # colors via ANSI indices -> inherit the terminal's themed (vague) palette.
 COLORS='63256325'                          # 4 context colors (lavender/pale/mauve/slate), repeated
 FCOLORS='060606020005030801050201'         # blk chr DIR exe reg hard sym miss orph fifo sock unk
-SPLITSIZE=40                               # preview pane width %
+SPLITSIZE=60                               # preview pane width % (explorer gets the other 40%)
 # preview-tui text-speed knobs: plain bat (no line-number/grid rendering),
 # ansi theme (inherits the terminal palette). Image/video previewers left unset
 # so those heavy branches never fire.
 BATSTYLE=plain
-BATTHEME=ansi
+BATTHEME=vague
 
 # fresh session each launch (reaps any lingering detached one), start in origin cwd
 tmux kill-session -t nnn 2>/dev/null || true
 
 tmux popup -xC -yC -w80% -h75% -S "fg=$BORDER_COLOR" -E \
-    "tmux new-session -s nnn -e NNN_ORIGIN_PANE='$ORIGIN_PANE' -e NNN_PLUG='$PLUG' -e NNN_SPLIT=v -e NNN_SPLITSIZE=$SPLITSIZE -e NNN_BATSTYLE=$BATSTYLE -e NNN_BATTHEME=$BATTHEME -e NNN_COLORS='$COLORS' -e NNN_FCOLORS='$FCOLORS' -c '$CWD' nnn -a -P p" || true
+    "tmux new-session -s nnn -e NNN_ORIGIN_PANE='$ORIGIN_PANE' -e NNN_PLUG='$PLUG' -e NNN_SPLIT=v -e NNN_SPLITSIZE=$SPLITSIZE -e NNN_BATSTYLE=$BATSTYLE -e NNN_BATTHEME=$BATTHEME -e NNN_COLORS='$COLORS' -e NNN_FCOLORS='$FCOLORS' -c '$CWD' nnn -aH -P p" || true

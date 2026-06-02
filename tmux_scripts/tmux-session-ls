@@ -18,7 +18,6 @@ if [ "$MODE" = "detailed" ]; then
         BEGIN { ORS = " " }
         $1 == "S" {
             sname = $2
-            gsub(/\*/, "", sname)
             if (!(sname in seen_session)) {
                 seen_session[sname] = 1
                 session_order[++session_count] = sname
@@ -27,8 +26,6 @@ if [ "$MODE" = "detailed" ]; then
         }
         $1 == "P" {
             sname = $2; win = $3; wname = $4; path = $5
-
-            gsub(/\*/, "", sname)
 
             wkey = sname SUBSEP win
             if (!(wkey in seen_window)) {
@@ -46,7 +43,7 @@ if [ "$MODE" = "detailed" ]; then
         END {
             for (s = 1; s <= session_count; s++) {
                 sname = session_order[s]
-                marker = (sname == CURRENT) ? "*" : ""
+                marker = (sname == CURRENT) ? " [*]" : ""
                 label = sname marker ":"
                 for (w = 1; w <= win_count[sname]; w++) {
                     wn = win_name[sname, w]
@@ -67,8 +64,7 @@ else
         BEGIN { ORS = " " }
         {
             sname = $1
-            gsub(/\*/, "", sname)
-            marker = (sname == CURRENT) ? "*" : ""
+            marker = (sname == CURRENT) ? " [*]" : ""
             print "\"" sname marker "\" " NR " \"switch-client -t " sname "\""
         }')
 fi

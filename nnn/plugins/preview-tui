@@ -264,8 +264,15 @@ fifo_pager() {
         exec > "$FIFOPATH"
         if [ "$cmd" = "pager" ]; then
             if exists bat; then
+                # Large-file guard: cap rendering at 500 lines for files over ~500KB so
+                # huge files don't stall the FIFO/highlighter while scrolling.
+                if [ "$(wc -c < "$1" 2>/dev/null || echo 0)" -gt 500000 ]; then
+                    brange="--line-range=:500"
+                else
+                    brange=""
+                fi
                 bat --terminal-width="$cols" --decorations=always --color=always \
-                    --paging=never --style="$NNN_BATSTYLE" --theme="$NNN_BATTHEME" "$@" &
+                    --paging=never $brange --style="$NNN_BATSTYLE" --theme="$NNN_BATTHEME" "$@" &
             else
                 $NNN_PAGER "$@" &
             fi
@@ -515,7 +522,7 @@ preview_fifo() {
     while read -r selection; do
         # Debounce: while more selections keep arriving within the window (fast
         # scrolling), skip ahead to the latest and don't preview the items passed over.
-        while read -r -t 0.1 newer; do
+        while read -r -t 0.15 newer; do
             selection="$newer"
         done
         if [ -n "$selection" ]; then

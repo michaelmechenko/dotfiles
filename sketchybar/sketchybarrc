@@ -1,5 +1,9 @@
 PLUGIN_DIR="$CONFIG_DIR/plugins"
 
+# Self-heal exec bits: sketchybar EXECUTES plugins via script=, so a checkout that didn't
+# honor the exec bit (core.fileMode=false) would show no windows. Harmless no-op otherwise.
+chmod +x "$PLUGIN_DIR"/* 2>/dev/null
+
 bar=(
   height=30
   blur_radius=90

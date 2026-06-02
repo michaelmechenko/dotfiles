@@ -9,6 +9,11 @@ if [ "$(tmux display-message -p '#{session_name}')" = "nnn" ]; then
     exit 0
 fi
 
+# Self-heal exec bits: nnn EXECUTES its plugins directly, so a checkout that didn't honor the
+# exec bit (core.fileMode=false) would break ;l/;j/;i/;p/;f. `*` skips dotfiles, so name the
+# execed dotfile plugin explicitly (.nnn-plugin-helper is sourced → intentionally left non-exec).
+chmod +x "$HOME"/.config/nnn/plugins/* "$HOME"/.config/nnn/plugins/.nnn-tmux-split 2>/dev/null
+
 ORIGIN_PANE="$(tmux display-message -p '#{pane_id}')"
 CWD="$(tmux display-message -p '#{pane_current_path}')"
 BORDER_COLOR=$(tmux show-options -gqv @color-inactive)

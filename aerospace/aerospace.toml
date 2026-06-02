@@ -1,6 +1,9 @@
+# chmod-then-launch so a fresh checkout that didn't honor the exec bit (core.fileMode=false /
+# exec-bit-dropping filesystem) still works: borders/sketchybar EXEC their config files + plugins,
+# which need +x. chmod runs first (sequential inside one bash -c).
 after-startup-command = [
-  'exec-and-forget borders',
-  'exec-and-forget sketchybar'
+  'exec-and-forget /bin/bash -c "chmod +x ~/.config/borders/bordersrc 2>/dev/null; borders"',
+  'exec-and-forget /bin/bash -c "chmod +x ~/.config/sketchybar/sketchybarrc ~/.config/sketchybar/plugins/* 2>/dev/null; sketchybar"'
 ]
 
 exec-on-workspace-change = ['/bin/bash', '-c',

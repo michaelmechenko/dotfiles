@@ -42,13 +42,13 @@ resize-overlay = never
 font-size = 14
 # adjust-cell-width = 2%
 # adjust-font-baseline = 0
-adjust-cell-height = 6%
+adjust-cell-height = 10%
 font-feature = -calt
 font-thicken = true
 font-thicken-strength = 0
 # font-family = "JetBrainsMono"
 # font-family = "ComicShanns Nerd Font"
-# font-family = "0xProto"
+font-family = "0xProto"
 
 
 # lilex-specific config
@@ -67,16 +67,16 @@ font-thicken-strength = 0
 # font-thicken = true
 # font-thicken-strength = 0
 # adjust-cell-height = 22%
-font-family = "CommitMono-m1v1"
+# font-family = "CommitMono-m1v1"
 # weight: 450, spacing: 0%, line height: 1.2
 # enabled: ss01/02/03
 # alternate: cv02/04/06/08
 # Ligatures <= != === 
-font-feature = +ss01
+# font-feature = +ss01
 # Arrows >-> =>
-font-feature = +ss02
+# font-feature = +ss02
 # Smart case (1:1) 2+3
-font-feature = +ss03
+# font-feature = +ss03
 # Symbol spacing ... <<
 # font-feature = +ss04
 # Smart kerning (immi)
@@ -84,19 +84,19 @@ font-feature = +ss03
 # Alt. 'a'
 # font-feature = +cv01
 # Alt. 'g'
-font-feature = +cv02
+# font-feature = +cv02
 # Square dots .:ij
 # font-feature = +cv03
 # Alt. 'i'
-font-feature = +cv04
+# font-feature = +cv04
 # Standard @
 # font-feature = +cv05
 # Alt. '6', '9'
-font-feature = +cv06
+# font-feature = +cv06
 # Dotted 0
 # font-feature = +cv07
 # Alt. italic 'aefgy'
-font-feature = +cv08
+# font-feature = +cv08
 # Lifted *
 # font-feature = +cv09
 # Alt. l

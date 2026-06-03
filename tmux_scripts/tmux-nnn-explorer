@@ -44,4 +44,4 @@ fi
 tmux kill-session -t nnn 2>/dev/null || true
 
 tmux popup -xC -yC -w80% -h75% -S "fg=$BORDER_COLOR" -E \
-    "tmux new-session -s nnn -e NNN_ORIGIN_PANE='$ORIGIN_PANE' -e NNN_PLUG='$PLUG' -e NNN_SPLIT=v -e NNN_SPLITSIZE=$SPLITSIZE -e NNN_BATSTYLE=$BATSTYLE -e NNN_BATTHEME=$BATTHEME -e NNN_COLORS='$COLORS' -e NNN_FCOLORS='$FCOLORS' -c '$CWD' nnn -aH -P p" || true
+    "tmux new-session -s nnn -e NNN_ORIGIN_PANE='$ORIGIN_PANE' -e NNN_PLUG='$PLUG' -e NNN_SPLIT=v -e NNN_SPLITSIZE=$SPLITSIZE -e NNN_BATSTYLE=$BATSTYLE -e NNN_BATTHEME=$BATTHEME -e NNN_COLORS='$COLORS' -e NNN_FCOLORS='$FCOLORS' -e NNN_PAGER='less -R --mouse --wheel-lines=3 -+F' -c '$CWD' nnn -aH -P p" || true

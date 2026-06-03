@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+# Local patch: enable extglob explicitly. The image/video branches use `+(gif|video)` extglob
+# inside `[[ ]]`, which bash 4.1+ auto-enables but macOS bash 3.2 treats as a SYNTAX ERROR —
+# failing to parse the whole script (→ no preview pane) on machines without Homebrew bash.
+shopt -s extglob 2>/dev/null
+
 # Description: Terminal based file previewer
 #
 # Note: This plugin needs a "NNN_FIFO" to work. See man.

@@ -64,13 +64,44 @@ local filetype_spacing = {
   filetypes = { 'neo-tree', 'lazygit', 'codecompanion' }
 }
 
+-- Inline lualine theme. Upstream vague.nvim removed its shipped lualine theme
+-- (commit f911602), so theme='auto' fell back to lualine's default. Define it
+-- here to own the statusline colors. Section mapping is fixed: a+z -> .a,
+-- b+y -> .b, c+x -> .c. Whole bar is surface-chrome #1C1C24; only a/z (status
+-- and location) carry the per-mode accent.
+local chrome = "#1C1C24"       -- surface-chrome (whole bar bg)
+local chrome_fg = "#BEBEBE"    -- text
+local block_fg = "#100E11"     -- canvas (dark text on accent block)
+local inactive_fg = "#656a80"  -- text-muted
+
+local function mode(accent)
+  return {
+    a = { fg = block_fg, bg = accent, gui = "bold" },
+    b = { fg = chrome_fg, bg = chrome },
+    c = { fg = chrome_fg, bg = chrome },
+  }
+end
+
+local vague_lualine = {
+  normal   = mode("#aeaed1"), -- accent-secondary
+  insert   = mode("#f3be7c"), -- accent-amber
+  visual   = mode("#bb9dbd"), -- accent-tertiary
+  replace  = mode("#d8647e"), -- accent-primary
+  command  = mode("#aeaed1"), -- accent-secondary
+  inactive = {
+    a = { fg = inactive_fg, bg = chrome },
+    b = { fg = inactive_fg, bg = chrome },
+    c = { fg = inactive_fg, bg = chrome },
+  },
+}
+
 return {
   "nvim-lualine/lualine.nvim",
   dependencies = { "nvim-tree/nvim-web-devicons" },
   config = function()
     require("lualine").setup({
       options = {
-        -- theme = oldworld_override,
+        theme = vague_lualine,
         component_separators = '',
         section_separators = '',
         ignore_focus = {},

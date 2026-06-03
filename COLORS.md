@@ -10,7 +10,7 @@ Single source of truth for colors used across tmux, Ghostty, and zsh (via ohmypo
 |---|---|---|
 | `canvas` | `#100E11` | Ghostty `background`; tmux inactive pane, status bar, borders, message line, all window-status states; active pane when single-pane or zoomed; tmux `message-style`/`message-command-style` `fill=` (required on next-3.7 so the command-prompt repaints the full line — see Cross-tool notes) |
 | `surface-active` | `#16141a` | tmux active pane bg (the `refresh-active-bg` alias's 2+-pane branch), only when window has 2+ panes and is not zoomed. Active border bg stays `canvas` `#100E11`. |
-| `surface-chrome` | `#1C1C24` | nvim chrome: dropbar WinBar bg, lualine statusline/winbar bg |
+| `surface-chrome` | `#1C1C24` | nvim chrome: dropbar WinBar bg, lualine statusline/winbar bg (the whole bar — sections `b`/`c`/`x`/`y` + inactive — in the inline lualine theme; see `nvim lualine statusline`) |
 | `surface-highlight` | `#2A2A35` | nvim `CursorLine` (override in `vague.lua`'s `on_highlights`) |
 | `copy-mode-indicator` | `#606079` | tmux `copy-mode-position-style` block bg (top-right time/scroll box shown in copy mode); indicator text is `text-default` `#a9b1d6` |
 | `divider-subtle` | `#383848` | nvim `SnacksIndent` + `NeoTreeIndentMarker` fg (indent guides); Claude statusline ` * ` separators |
@@ -27,13 +27,13 @@ Single source of truth for colors used across tmux, Ghostty, and zsh (via ohmypo
 
 | Role | Hex | Where used |
 |---|---|---|
-| `accent-primary` (rose) | `#d8647e` | tmux `@color-rose`; tmux ephemeral session indicator + zoomed border center; Ghostty ANSI 1; ohmyposh path segment |
-| `accent-secondary` (lavender) | `#aeaed1` | tmux `@color-ephemeral` / `@color-lavender2` / `@color-float`; tmux pane-border-active fg; Ghostty ANSI 6; ohmyposh session segment |
-| `accent-tertiary` (dusty pink) | `#bb9dbd` | tmux `@color-dusty_pink`; Ghostty ANSI 2; ohmyposh transient prompt + git segment |
+| `accent-primary` (rose) | `#d8647e` | tmux `@color-rose`; tmux ephemeral session indicator + zoomed border center; Ghostty ANSI 1; ohmyposh path segment; nvim lualine `replace`-mode status/location block |
+| `accent-secondary` (lavender) | `#aeaed1` | tmux `@color-ephemeral` / `@color-lavender2` / `@color-float`; tmux pane-border-active fg; Ghostty ANSI 6; ohmyposh session segment; nvim lualine `normal`/`command`-mode status/location block |
+| `accent-tertiary` (dusty pink) | `#bb9dbd` | tmux `@color-dusty_pink`; Ghostty ANSI 2; ohmyposh transient prompt + git segment; nvim lualine `visual`-mode status/location block |
 | `accent-highlight` (pale lavender) | `#bebedb` | tmux `@color-lavender` / `@color-active` — current window status; tmux copy-mode current line number (`copy-mode-current-line-number-style`, bold) |
 | `accent-info` (slate) | `#8ba9c1` | Ghostty ANSI 12; ohmyposh executiontime segment. **No tmux usage.** |
 | `accent-warn` (warm sand) | `#f5cb96` | Ghostty ANSI 11. **ohmyposh uses a near-miss variant** (see below). |
-| `accent-amber` (amber) | `#f3be7c` | Ghostty ANSI 4; nvim `GitSignsChange`. Distinct from `accent-warn` (`#f5cb96`, ANSI 11) — `accent-amber` is more orange-ward. |
+| `accent-amber` (amber) | `#f3be7c` | Ghostty ANSI 4; nvim `GitSignsChange`; nvim lualine `insert`-mode status/location block. Distinct from `accent-warn` (`#f5cb96`, ANSI 11) — `accent-amber` is more orange-ward. |
 
 ### Selection / chrome (Ghostty only)
 
@@ -106,6 +106,22 @@ The statusline script at `~/.config/claude/statusline-command.sh` uses six color
 | Deleted (− / diffRemoved) | `#d8647e` (`accent-primary`) | nvim `GitSignsDelete`; Claude statusline `color_delete`; Claude theme `error` + `diffRemoved` |
 | Git icon decoration | `#f5cb96` (`accent-warn`) | ohmyposh git template surround |
 
+## nvim lualine statusline
+
+The lualine theme is defined **inline** in `nvim/lua/plugins/lualine.lua` (`vague_lualine` table + `mode()` helper), set via `options.theme`. This replaces the theme vague.nvim used to ship at `lua/lualine/themes/vague.lua`, which upstream removed (commit `f911602`) — without it, lualine's `theme = 'auto'` silently fell back to its default theme. Owning it here keeps the statusline immune to upstream churn.
+
+Lualine's section→color mapping is fixed: `lualine_a` + `lualine_z` use `.a`, `lualine_b` + `lualine_y` use `.b`, `lualine_c` + `lualine_x` use `.c`. So "location" (`z`) always matches "status" (`a`).
+
+- **Whole bar bg** (`b`/`c`/`x`/`y`, all modes) = `surface-chrome` `#1C1C24`; their fg = `text` `#BEBEBE`.
+- **Status/location block** (`a`/`z`) fg = `canvas` `#100E11` (dark text on the accent), bold; bg is the per-mode accent:
+  - normal / command → `accent-secondary` `#aeaed1`
+  - insert → `accent-amber` `#f3be7c`
+  - visual → `accent-tertiary` `#bb9dbd`
+  - replace → `accent-primary` `#d8647e`
+- **Inactive** (`a`/`b`/`c`) = bg `#1C1C24`, fg `text-muted` `#656a80`.
+
+Per-component overrides in the same file (the `buffers_color` block, the zero-width `#1c1c24` spacer in `lualine_b`, and the `filetype_spacing` extension) pin buffers to `#1c1c24` so they don't inherit the mode accent — consistent with the theme bg.
+
 ## nnn preview (bat)
 
 The `M-d` nnn file explorer previews code through `bat` using the **upstream `vague` TextMate theme** at `~/.config/bat/themes/vague.tmTheme` (from `vague-theme/vague-bat`, the official port of the nvim `vague` colorscheme). Selected via `NNN_BATTHEME=vague` in `tmux_scripts/tmux-nnn-explorer`; registered into bat's cache with `bat cache --build` (re-run after any bat upgrade).
@@ -117,10 +133,10 @@ The `M-d` nnn file explorer previews code through `bat` using the **upstream `va
 
 `FZF_DEFAULT_OPTS` in `~/.config/.zshrc` sets a `--color` scheme matching the palette (applies to all fzf: fzcd, tmux-fzf-url, fzf-tab, shell). Mapping:
 
-- `fg` `#BEBEBE` (text) · `fg+` `#bebedb` (`accent-highlight`, current line) · `bg`/`gutter`/`preview-bg` `-1` (transparent)
-- `bg+` `#2A2A35` (`surface-highlight`, current-line bg)
-- `hl`/`hl+` `#d8647e` (`accent-primary` rose, match highlight; `hl+` bold) — swap to `#aeaed1` lavender for a softer look
-- `border`/`separator`/`scrollbar` `#383848` (`divider-subtle`)
+- `fg` `#BEBEBE` (text) · `fg+` `#bebedb` (`accent-highlight`, current line) · `query` `#bebedb` (`accent-highlight`, typed text) · `bg`/`gutter`/`preview-bg` `-1` (transparent)
+- `bg+` `#2A2A35` (`surface-highlight`, current-line bg). The `--highlight-line` flag makes `bg+` paint the **full row** as a selection bar, not just behind the text.
+- Match hierarchy: `hl` `#bb9dbd` (`accent-tertiary` dusty pink — matches on non-current rows) · `hl+` `#d8647e:bold` (`accent-primary` rose — matches on the current row, so the selected line pops)
+- `border`/`separator`/`scrollbar`/`preview-border`/`preview-scrollbar` `#383848` (`divider-subtle`)
 - `prompt` `#aeaed1` (`accent-secondary`) · `pointer` `#d8647e` · `marker` `#bb9dbd` (`accent-tertiary`) · `spinner` `#f3be7c` (`accent-amber`) · `info` `#8ba9c1` (`accent-info`)
 - `header`/`disabled`/`label` `#656a80` (`text-muted`)
 

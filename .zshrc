@@ -53,8 +53,9 @@ export EDITOR='nvim'
 eval "$(fzf --zsh)"
 
 # fzf colors → vague palette (applies to fzcd, tmux-fzf-url, fzf-tab, shell fzf).
-# bg/gutter/preview-bg = -1 (transparent). Match highlight = rose #d8647e.
-export FZF_DEFAULT_OPTS='--color=fg:#bebebe,fg+:#bebedb,bg:-1,bg+:#2a2a35,hl:#d8647e,hl+:#d8647e:bold,gutter:-1,border:#383848,separator:#383848,scrollbar:#383848,preview-fg:#bebebe,preview-bg:-1,prompt:#aeaed1,pointer:#d8647e,marker:#bb9dbd,spinner:#f3be7c,info:#8ba9c1,header:#656a80,query:#bebebe,disabled:#656a80,label:#656a80'
+# bg/gutter/preview-bg = -1 (transparent). --highlight-line = full-row selection bar (bg+).
+# Match hierarchy: hl dusty-pink #bb9dbd (other rows), hl+ rose #d8647e bold (current row).
+export FZF_DEFAULT_OPTS='--highlight-line --color=fg:#bebebe,fg+:#bebedb,bg:-1,bg+:#2a2a35,hl:#bb9dbd,hl+:#d8647e:bold,gutter:-1,border:#383848,separator:#383848,scrollbar:#383848,preview-fg:#bebebe,preview-bg:-1,preview-border:#383848,preview-scrollbar:#383848,prompt:#aeaed1,pointer:#d8647e,marker:#bb9dbd,spinner:#f3be7c,info:#8ba9c1,header:#656a80,query:#bebedb,disabled:#656a80,label:#656a80'
 
 bindkey "^[[1;3C" forward-word      # Alt+Right
 bindkey "^[[1;3D" backward-word     # Alt+Left

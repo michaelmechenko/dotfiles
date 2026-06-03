@@ -16,3 +16,4 @@ _G.toggleFloatKeepPos = window.toggleFloatKeepPos
 hs.hotkey.bind({ "cmd", "ctrl", "alt" }, "c", window.almostMaximizeFocusedWorkspace)
 hs.hotkey.bind({ "cmd", "ctrl", "alt" }, "x", window.almostMaximize)
 hs.hotkey.bind({ "cmd", "ctrl", "alt" }, "v", window.maximize)
+hs.hotkey.bind({ "cmd", "ctrl", "alt" }, "space", window.center)

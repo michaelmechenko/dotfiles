@@ -15,7 +15,12 @@ if [ -f "$FLAG" ]; then
 fi
 
 if [ "$ROLE" = ws ]; then
-  case "$N" in 1|2|3|4|5) aerospace workspace "${N}*" ;; esac   # no workspace 6*
+  # cmd-2 falls back to secondary workspace 1^ when 2* is empty.
+  if [ "$N" = 2 ] && [ -z "$(aerospace list-windows --workspace '2*' --format '%{window-id}' 2>/dev/null)" ]; then
+    aerospace workspace '1^'
+  else
+    case "$N" in 1|2|3|4|5) aerospace workspace "${N}*" ;; esac   # no workspace 6*
+  fi
 else
   /bin/bash ~/.config/aerospace/focus_workspace_window.sh "$N"
 fi

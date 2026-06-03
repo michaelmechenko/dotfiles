@@ -29,10 +29,20 @@ end
 function M.almostMaximize() snapInsets(ALMOST) end
 function M.maximize() snapInsets(MAXIM) end
 
--- Center the focused window without resizing (replaces rectangle-pro center).
+-- Center the focused window without resizing. Centered horizontally on the screen and
+-- vertically within the SAME band as almost-maximize (top=ALMOST.top, bottom=ALMOST.bottom)
+-- so its midpoint lines up with the maximize windows (not biased ~11px high).
 function M.center()
   local w = hs.window.focusedWindow()
-  if w then w:centerOnScreen(nil, true, 0) end
+  if not w then return end
+  local f = w:frame()
+  local s = w:screen():fullFrame()
+  w:setFrame({
+    x = s.x + (s.w - f.w) / 2,
+    y = s.y + ALMOST.top + (s.h - ALMOST.top - ALMOST.bottom - f.h) / 2,
+    w = f.w,
+    h = f.h,
+  }, 0)
 end
 
 -- Float each window (by id, no focus change) then setFrame it to the inset rect.

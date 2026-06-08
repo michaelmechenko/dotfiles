@@ -155,7 +155,7 @@ eval "$(oh-my-posh init zsh --config ~/.config/ohmyposh/base.json)"
 # export PATH="$BUN_INSTALL/bin:$PATH"
 
 nvim()  { command nvim "$@"; printf '\e[4 q'; }
-claude() { command claude "$@"; printf '\e[4 q'; }
+claude() { EDITOR="$HOME/.config/tmux_scripts/tmux-editor-split" VISUAL="$HOME/.config/tmux_scripts/tmux-editor-split" command claude "$@"; printf '\e[4 q'; }
 
 export CLAUDE_CONFIG_DIR=~/.config/claude
 

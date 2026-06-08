@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# Cross-tmux Claude session menu (bound to M-b).
+#   enter -> focus that session's pane (across any tmux session)
+#   k     -> send Enter to every session blocked on a permission prompt
+# Colors keyed off COLORS.md roles: rose=waiting, dusty_pink=thinking, inactive=idle.
+
+SELF="$HOME/.config/tmux_scripts/tmux-claude-menu"
+LS="$HOME/.config/tmux_scripts/tmux-claude-ls"
+
+case "${1:-}" in
+  --colorize)
+    "$LS" | awk -F'\t' '
+    BEGIN { ESC = sprintf("%c", 27); RST = ESC "[0m" }
+    {
+      sid=$1; pane=$2; target=$3; sname=$4; state=$5; name=$6; tr=$7;
+      if (state == "awaiting-permission") { c = "216;100;126"; tag = "PERMISSION" }
+      else if (state == "waiting")        { c = "216;100;126"; tag = "WAITING"    }
+      else if (state == "thinking")       { c = "187;157;189"; tag = "THINKING"   }
+      else                                { c = "101;106;128"; tag = "idle"       }
+      label = (name == "-" ? sname : name);
+      pre = ESC "[38;2;" c "m";
+      disp = sprintf("%s● %-10s %-24.24s %s%s", pre, tag, label, target, RST);
+      printf "%s\t%s\t%s\t%s\t%s\n", disp, pane, target, sid, tr;
+    }'
+    exit 0 ;;
+
+  --preview)
+    tr="$2"
+    [ -f "$tr" ] || { echo "(no transcript)"; exit 0; }
+    grep '"type":"assistant"' "$tr" | tail -1 \
+      | jq -r '.message.content[] | select(.type=="text") | .text' 2>/dev/null | head -300
+    exit 0 ;;
+
+  --accept-all)
+    # Send Enter to every session needing user input (approves a permission
+    # prompt's highlighted default; takes the default on a question).
+    "$LS" | awk -F'\t' '$5=="awaiting-permission" || $5=="waiting" {print $2}' | while read -r p; do
+      [ -n "$p" ] && tmux send-keys -t "$p" Enter
+    done
+    exit 0 ;;
+
+  --inner)
+    out=$("$SELF" --colorize | fzf --ansi --delimiter='\t' --with-nth=1 \
+      --no-sort --reverse --cycle --prompt='claude > ' \
+      --header='enter: focus    k: approve all waiting    esc: close' \
+      --preview "$SELF --preview {5}" --preview-window=right:58%:wrap \
+      --bind "k:execute-silent($SELF --accept-all)+reload($SELF --colorize)")
+    [ -n "$out" ] || exit 0
+    pane=$(printf '%s' "$out" | cut -f2)
+    target=$(printf '%s' "$out" | cut -f3)
+    if [ -n "$target" ]; then
+      if [ -n "${ORIGIN_CLIENT:-}" ]; then
+        tmux switch-client -c "$ORIGIN_CLIENT" -t "$target"
+      else
+        tmux switch-client -t "$target"
+      fi
+    fi
+    [ -n "$pane" ] && tmux select-pane -t "$pane"
+    exit 0 ;;
+
+  *)
+    origin=$(tmux display -p '#{client_name}')
+    border=$(tmux show -gqv @color-inactive); [ -n "$border" ] || border="#a9b1d6"
+    tmux display-popup -E -w 80% -h 70% -b rounded -S "fg=$border" \
+      "ORIGIN_CLIENT='$origin' '$SELF' --inner"
+    ;;
+esac

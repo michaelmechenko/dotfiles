@@ -12,7 +12,7 @@ Single source of truth for colors used across tmux, Ghostty, and zsh (via ohmypo
 | `surface-active` | `#16141a` | tmux active pane bg (the `refresh-active-bg` alias's 2+-pane branch), only when window has 2+ panes and is not zoomed. Active border bg stays `canvas` `#100E11`. |
 | `surface-chrome` | `#1C1C24` | nvim chrome: dropbar WinBar bg, lualine statusline/winbar bg (the whole bar — sections `b`/`c`/`x`/`y` + inactive — in the inline lualine theme; see `nvim lualine statusline`) |
 | `surface-highlight` | `#2A2A35` | nvim `CursorLine` (override in `vague.lua`'s `on_highlights`) |
-| `copy-mode-indicator` | `#606079` | tmux `copy-mode-position-style` block bg (top-right time/scroll box shown in copy mode); indicator text is `text-default` `#a9b1d6` |
+| `copy-mode-indicator` | `#606079` | tmux `copy-mode-position-style` block bg (top-right time/scroll box shown in copy mode); indicator text is `text-default` `#a9b1d6`. Also Ghostty ANSI 14 override (`ghostty/config`) — deliberately dims Claude Code's hardcoded session-rename label, which has no theme token (see Claude Code integration notes). |
 | `divider-subtle` | `#383848` | nvim `SnacksIndent` + `NeoTreeIndentMarker` fg (indent guides); Claude statusline ` * ` separators |
 
 ### Text
@@ -57,15 +57,15 @@ Single source of truth for colors used across tmux, Ghostty, and zsh (via ohmypo
 | Conflict | Tmux | Ghostty | ohmyposh |
 |---|---|---|---|
 | Soft lavender used in zoomed-border stars | `#c9b1c9` (inline in pane-border-format) | `#c9b1ca` (ANSI 13) | n/a |
-| Pale lavender (window-status / "bright cyan") | `#bebedb` (`@color-lavender`) | `#bebeda` (ANSI 14) | n/a |
 | Warm sand (git icon / "bright yellow") | n/a | `#f5cb96` (ANSI 11) | `#F5CC96` (git icon template) |
 
-Three places drift by one hex digit. The fixes are mechanical — pick one of the two values for each conflict and propagate.
+Two places drift by one hex digit. The fixes are mechanical — pick one of the two values for each conflict and propagate.
+
+> Ghostty ANSI 14 ("bright cyan") was formerly a pale-lavender near-miss (`#bebeda` vs tmux's `#bebedb`). It is now **deliberately diverged** to `#606079` in `ghostty/config` to dim Claude Code's hardcoded session-rename label (Claude Code has no theme token for it). tmux's pale-lavender `accent-highlight` is a literal `#bebedb` and is unaffected.
 
 ### Recommended normalization (not yet applied)
 
 - Lavender accent (`c9b1c9` vs `c9b1ca`): pick **`#c9b1ca`** (Ghostty's value, since the palette is the larger contract). Update the tmux pane-border-format on line 254 of `~/.config/.tmux.conf` to use `#c9b1ca`.
-- Pale lavender (`bebedb` vs `bebeda`): pick **`#bebedb`** (tmux's value, since `@color-lavender` is referenced multiple times). Update Ghostty `~/.config/ghostty/themes/vague` ANSI 14 to `#bebedb`.
 - Warm sand (`F5CC96` vs `f5cb96`): pick **`#f5cb96`** (Ghostty's value). Update `~/.config/ohmyposh/base.json` git template — both occurrences of `#F5CC96` become `#f5cb96`.
 
 ### Tmux-only colors (not in Ghostty's palette)
@@ -133,11 +133,11 @@ The `M-d` nnn file explorer previews code through `bat` using the **upstream `va
 
 `FZF_DEFAULT_OPTS` in `~/.config/.zshrc` sets a `--color` scheme matching the palette (applies to all fzf: fzcd, tmux-fzf-url, fzf-tab, shell). Mapping:
 
-- `fg` `#BEBEBE` (text) · `fg+` `#bebedb` (`accent-highlight`, current line) · `query` `#bebedb` (`accent-highlight`, typed text) · `bg`/`gutter`/`preview-bg` `-1` (transparent)
-- `bg+` `#2A2A35` (`surface-highlight`, current-line bg). The `--highlight-line` flag makes `bg+` paint the **full row** as a selection bar, not just behind the text.
-- Match hierarchy: `hl` `#bb9dbd` (`accent-tertiary` dusty pink — matches on non-current rows) · `hl+` `#d8647e:bold` (`accent-primary` rose — matches on the current row, so the selected line pops)
+- `fg` `#656a80` (`text-muted` gray — unselected rows) · `fg+` `#bebebe` (`text` — selected row text, normal brightness) · `query` `#bebedb` (`accent-highlight`, typed text) · `bg`/`bg+`/`gutter`/`preview-bg` `-1` (all transparent)
+- Selection indicated by `▌` pointer in `#d8647e` (`accent-primary` rose) on the left; selected row text is `text` `#bebebe`. No full-row bg tint.
+- Match hierarchy: `hl` `#bb9dbd` (`accent-tertiary` dusty pink — matches on unselected rows) · `hl+` `#d8647e:bold` (`accent-primary` rose bold — matches on the selected row)
 - `border`/`separator`/`scrollbar`/`preview-border`/`preview-scrollbar` `#383848` (`divider-subtle`)
-- `prompt` `#aeaed1` (`accent-secondary`) · `pointer` `#d8647e` · `marker` `#bb9dbd` (`accent-tertiary`) · `spinner` `#f3be7c` (`accent-amber`) · `info` `#8ba9c1` (`accent-info`)
+- `prompt` `#aeaed1` (`accent-secondary`) · `marker` `#bb9dbd` (`accent-tertiary`) · `spinner` `#f3be7c` (`accent-amber`) · `info` `#8ba9c1` (`accent-info`)
 - `header`/`disabled`/`label` `#656a80` (`text-muted`)
 
 Note: `~/.config/.zshrc` is the tracked source of truth; the live `~/.zshrc` is synced manually (they have diverged — see future persona/work-profile split).

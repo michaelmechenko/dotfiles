@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# Emit one TSV row per live, tmux-attached Claude session:
+#   sessionId <TAB> pane_id <TAB> target <TAB> session_name <TAB> state <TAB> name <TAB> transcript
+# state ∈ awaiting-permission | waiting | thinking | idle
+#   awaiting-permission : optional Notification-hook signal (state file present)
+#   waiting             : Claude's live `status` == "waiting" (blocked on user input)
+#   thinking            : status == "busy" (generating)
+#   idle                : status == "idle" (ready at prompt)
+#
+# Join key: a `claude` process's parent pid (ppid) == its owning tmux pane's
+# pane_pid. cwd is NOT a usable key (many sessions share one cwd). The transcript
+# is located by sessionId via `find` (the projects/<slug> dir name collapses /, .,
+# and _ to '-', so deriving it by substitution is unreliable across path types).
+
+SESS_DIR="$HOME/.config/claude/sessions"
+PROJ_DIR="$HOME/.config/claude/projects"
+STATE_DIR="/tmp/claude-session-state"
+
+# pane_pid|pane_id|target|session_name  (one pane per line)
+panes=$(tmux list-panes -a -F '#{pane_pid}|#{pane_id}|#{session_name}:#{window_index}.#{pane_index}|#{session_name}' 2>/dev/null)
+[ -n "$panes" ] || exit 0
+
+# Feed three tagged, tab-delimited streams to awk on stdin (passing the multi-line
+# pane map via -v breaks on BSD awk). T=transcript map, P=pane map, S=session.
+{
+  /usr/bin/find "$PROJ_DIR" -maxdepth 2 -name '*.jsonl' 2>/dev/null | while read -r p; do
+    b=${p##*/}; b=${b%.jsonl}
+    printf 'T\t%s\t%s\n' "$b" "$p"
+  done
+
+  while IFS='|' read -r pp pid tg sn; do
+    [ -n "$pp" ] || continue
+    printf 'P\t%s\t%s\t%s\t%s\n' "$pp" "$pid" "$tg" "$sn"
+  done <<< "$panes"
+
+  for f in "$SESS_DIR"/*.json; do
+    [ -e "$f" ] || continue
+    IFS=$'\t' read -r sid cpid status name < <(jq -r '[.sessionId, .pid, .status, (.name // "-")] | @tsv' "$f" 2>/dev/null)
+    [ -n "$cpid" ] || continue
+    ppid=$(ps -o ppid= -p "$cpid" 2>/dev/null | tr -d ' ')
+    [ -n "$ppid" ] || continue
+    printf 'S\t%s\t%s\t%s\t%s\n' "$ppid" "$sid" "$status" "$name"
+  done
+} | awk -F'\t' -v sd="$STATE_DIR" '
+$1 == "T" { TR[$2]=$3; next }
+$1 == "P" { PID[$2]=$3; TGT[$2]=$4; SN[$2]=$5; next }
+$1 == "S" {
+  ppid=$2; sid=$3; status=$4; name=$5;
+  if (!(ppid in PID)) next;                      # session not in any live pane
+  sf = sd "/" sid;
+  has_hook = ((getline line < sf) > 0);
+  close(sf);
+  if      (has_hook)            state = "awaiting-permission";
+  else if (status == "busy")    state = "thinking";
+  else if (status == "waiting") state = "waiting";
+  else                          state = "idle";
+  printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", sid, PID[ppid], TGT[ppid], SN[ppid], state, name, TR[sid];
+}'

@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Cycle to the next Claude session needing user input (prefix '.').
+# Cyclic over targets sorted ascending; wraps to the first.
+
+LS="$HOME/.config/tmux_scripts/tmux-claude-ls"
+cur=$(tmux display -p '#{session_name}:#{window_index}.#{pane_index}')
+
+# pane_id|target for each session needing input, sorted by target
+rows=$("$LS" | awk -F'\t' '$5=="awaiting-permission" || $5=="waiting" {print $2"|"$3}' | sort -t'|' -k2,2)
+[ -n "$rows" ] || { tmux display-message "no sessions need input"; exit 0; }
+
+pane=""; target=""
+while IFS='|' read -r p t; do
+  [ -n "$t" ] || continue
+  if [[ "$t" > "$cur" ]]; then pane="$p"; target="$t"; break; fi
+done <<< "$rows"
+
+if [ -z "$target" ]; then
+  IFS='|' read -r pane target <<< "$(printf '%s\n' "$rows" | head -1)"
+fi
+
+tmux switch-client -t "$target"
+tmux select-pane -t "$pane"

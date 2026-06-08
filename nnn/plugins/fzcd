@@ -34,6 +34,14 @@ if ! type fzf >/dev/null 2>&1; then
     exit 1
 fi
 
+# Zoom the nnn pane so fzf + its preview fill the whole popup; restore the split on
+# exit (only toggle if it wasn't already zoomed, so we never leave it inconsistent).
+ZOOMED=""
+if [ -n "$TMUX" ] && [ "$(tmux display-message -p '#{window_zoomed_flag}' 2>/dev/null)" = "0" ]; then
+    tmux resize-pane -Z 2>/dev/null && ZOOMED=1
+    trap '[ -n "$ZOOMED" ] && tmux resize-pane -Z 2>/dev/null' EXIT INT HUP TERM
+fi
+
 if [ -n "$1" ] && [ "$(file -b --mime-type "$1")" = 'text/plain' ] && [ -e "$(head -1 "$1")" ]; then
     LIST="$1"
 elif ! [ -s "$LIST" ]; then

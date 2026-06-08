@@ -26,6 +26,11 @@ window-padding-y = 10, 2
 background = #100E11
 foreground = #cdcdcd
 
+# ANSI 14 (bright cyan) is remapped to dim Claude Code's hardcoded
+# session-rename label (#bebeda was too bright). No CC theme token exists
+# for it — see github anthropics/claude-code#37349.
+palette = 14=#606079
+
 # bold-is-bright = true
 
 # macos-titlebar-style = tabs

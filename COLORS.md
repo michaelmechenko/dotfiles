@@ -137,7 +137,7 @@ The `M-d` nnn file explorer previews code through `bat` using the **upstream `va
 - Selection indicated by `▌` pointer in `#d8647e` (`accent-primary` rose) on the left; selected row text is `text` `#bebebe`. No full-row bg tint.
 - Match hierarchy: `hl` `#bb9dbd` (`accent-tertiary` dusty pink — matches on unselected rows) · `hl+` `#d8647e:bold` (`accent-primary` rose bold — matches on the selected row)
 - `border`/`separator`/`scrollbar`/`preview-border`/`preview-scrollbar` `#383848` (`divider-subtle`)
-- `prompt` `#aeaed1` (`accent-secondary`) · `marker` `#bb9dbd` (`accent-tertiary`) · `spinner` `#f3be7c` (`accent-amber`) · `info` `#8ba9c1` (`accent-info`)
+- `prompt` `#aeaed1` (`accent-secondary`) · `marker` `#bb9dbd` (`accent-tertiary`) · `spinner` `#f3be7c` (`accent-amber`) · `info` `#656a80` (`text-muted` — the preview scroll-position "N/M" indicator)
 - `header`/`disabled`/`label` `#656a80` (`text-muted`)
 
 Note: `~/.config/.zshrc` is the tracked source of truth; the live `~/.zshrc` is synced manually (they have diverged — see future persona/work-profile split).

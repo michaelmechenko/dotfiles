@@ -16,8 +16,8 @@ SESS_DIR="$HOME/.config/claude/sessions"
 PROJ_DIR="$HOME/.config/claude/projects"
 STATE_DIR="/tmp/claude-session-state"
 
-# pane_pid|pane_id|target|session_name  (one pane per line)
-panes=$(tmux list-panes -a -F '#{pane_pid}|#{pane_id}|#{session_name}:#{window_index}.#{pane_index}|#{session_name}' 2>/dev/null)
+# pane_pid|pane_id|target|session_name|window_name  (one pane per line)
+panes=$(tmux list-panes -a -F '#{pane_pid}|#{pane_id}|#{session_name}:#{window_index}.#{pane_index}|#{session_name}|#{window_name}' 2>/dev/null)
 [ -n "$panes" ] || exit 0
 
 # Feed three tagged, tab-delimited streams to awk on stdin (passing the multi-line
@@ -28,9 +28,9 @@ panes=$(tmux list-panes -a -F '#{pane_pid}|#{pane_id}|#{session_name}:#{window_i
     printf 'T\t%s\t%s\n' "$b" "$p"
   done
 
-  while IFS='|' read -r pp pid tg sn; do
+  while IFS='|' read -r pp pid tg sn wn; do
     [ -n "$pp" ] || continue
-    printf 'P\t%s\t%s\t%s\t%s\n' "$pp" "$pid" "$tg" "$sn"
+    printf 'P\t%s\t%s\t%s\t%s\t%s\n' "$pp" "$pid" "$tg" "$sn" "$wn"
   done <<< "$panes"
 
   for f in "$SESS_DIR"/*.json; do
@@ -43,7 +43,7 @@ panes=$(tmux list-panes -a -F '#{pane_pid}|#{pane_id}|#{session_name}:#{window_i
   done
 } | awk -F'\t' -v sd="$STATE_DIR" '
 $1 == "T" { TR[$2]=$3; next }
-$1 == "P" { PID[$2]=$3; TGT[$2]=$4; SN[$2]=$5; next }
+$1 == "P" { PID[$2]=$3; TGT[$2]=$4; SN[$2]=$5; WN[$2]=$6; next }
 $1 == "S" {
   ppid=$2; sid=$3; status=$4; name=$5;
   if (!(ppid in PID)) next;                      # session not in any live pane
@@ -54,5 +54,5 @@ $1 == "S" {
   else if (status == "busy")    state = "thinking";
   else if (status == "waiting") state = "waiting";
   else                          state = "idle";
-  printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", sid, PID[ppid], TGT[ppid], SN[ppid], state, name, TR[sid];
+  printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", sid, PID[ppid], TGT[ppid], SN[ppid], state, name, TR[sid], WN[ppid];
 }'

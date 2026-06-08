@@ -54,6 +54,7 @@
 - Read enough context before editing; avoid thrashing
 - After edits, run a lightweight verification step when relevant
 - For git commands targeting a directory other than the current working tree, use `git -C <path> <subcommand>` instead of `cd <path> && git <subcommand>`. The `cd && git` pattern triggers a hardcoded approval prompt in Claude Code; `git -C` does the same work as a single command with no directory change.
+- Run Python via `uv`: prefer `uv run <script>.py` (or `uv run --with-requirements <file> <script>.py`) and `uv pip` / `uv venv` over bare `python`/`pip`. For standalone scripts, prefer PEP 723 inline dependency metadata so `uv run` self-resolves. Defer to a project's existing runner when it intentionally standardizes on something else (poetry, pdm, a committed venv).
 
 ## Scope Control
 

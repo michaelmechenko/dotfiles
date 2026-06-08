@@ -175,9 +175,11 @@
     ]
   },
   "effortLevel": "high",
+  "awaySummaryEnabled": false,
   "tui": "default",
   "autoMemoryEnabled": true,
   "theme": "custom:vague-aligned",
+  "editorMode": "normal",
   "mcpServers": {
     "context7": {
       "command": "npx",

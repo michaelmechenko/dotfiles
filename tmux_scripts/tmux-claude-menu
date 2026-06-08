@@ -12,23 +12,48 @@ case "${1:-}" in
     "$LS" | awk -F'\t' '
     BEGIN { ESC = sprintf("%c", 27); RST = ESC "[0m" }
     {
-      sid=$1; pane=$2; target=$3; sname=$4; state=$5; name=$6; tr=$7;
+      sid=$1; pane=$2; target=$3; sname=$4; state=$5; name=$6; tr=$7; wname=$8;
       if (state == "awaiting-permission") { c = "216;100;126"; tag = "PERMISSION" }
       else if (state == "waiting")        { c = "216;100;126"; tag = "WAITING"    }
       else if (state == "thinking")       { c = "187;157;189"; tag = "THINKING"   }
       else                                { c = "101;106;128"; tag = "idle"       }
       label = (name == "-" ? sname : name);
-      pre = ESC "[38;2;" c "m";
-      disp = sprintf("%s● %-10s %-24.24s %s%s", pre, tag, label, target, RST);
+      loc   = sname " · " wname;
+      pre   = ESC "[38;2;" c "m";
+      disp  = sprintf("%s● %-10s %-24.24s %s%s", pre, tag, label, loc, RST);
       printf "%s\t%s\t%s\t%s\t%s\n", disp, pane, target, sid, tr;
     }'
     exit 0 ;;
 
   --preview)
+    # Assemble the conversation slice (prev response → question → latest response)
+    # plus any plan excerpt as a markdown doc, then highlight it with bat (theme=ansi
+    # = the terminal's vague palette, matching the M-d nnn previews). bat wraps to the
+    # live preview width via FZF_PREVIEW_COLUMNS, so both the side and bottom layouts fit.
     tr="$2"
     [ -f "$tr" ] || { echo "(no transcript)"; exit 0; }
-    grep '"type":"assistant"' "$tr" | tail -1 \
-      | jq -r '.message.content[] | select(.type=="text") | .text' 2>/dev/null | head -300
+    a_prev=$(grep '"type":"assistant"' "$tr" | tail -2 | head -1 \
+      | jq -r '.message.content[] | select(.type=="text") | .text' 2>/dev/null)
+    q=$(grep '"type":"user"' "$tr" | tail -1 \
+      | jq -r '.message.content | if type=="array" then map(select(.type=="text") | .text) | join("\n") elif type=="string" then . else "" end' \
+      2>/dev/null | head -20)
+    a=$(grep '"type":"assistant"' "$tr" | tail -1 \
+      | jq -r '.message.content[] | select(.type=="text") | .text' 2>/dev/null)
+    plan_rel=$(grep -ho 'claude/plans/[a-z0-9-]*\.md' "$tr" 2>/dev/null \
+      | grep -v -- '-agent-' | tail -1)
+    {
+      if [ -n "$a_prev" ] && [ "$a_prev" != "$a" ]; then
+        printf '## prev claude\n\n'; printf '%s\n' "$a_prev" | head -40; printf '\n'
+      fi
+      [ -n "$q" ] && printf '## you\n\n%s\n\n' "$q"
+      if [ -n "$a" ]; then
+        printf '## claude\n\n'; printf '%s\n' "$a" | head -200; printf '\n'
+      fi
+      if [ -n "$plan_rel" ] && [ -f "$HOME/.config/$plan_rel" ]; then
+        printf '## plan\n\n'; head -40 "$HOME/.config/$plan_rel"
+      fi
+    } | bat -l md --color=always --style=plain --paging=never --theme=ansi \
+        --terminal-width="${FZF_PREVIEW_COLUMNS:-80}"
     exit 0 ;;
 
   --accept-all)
@@ -42,9 +67,10 @@ case "${1:-}" in
   --inner)
     out=$("$SELF" --colorize | fzf --ansi --delimiter='\t' --with-nth=1 \
       --no-sort --reverse --cycle --prompt='claude > ' \
-      --header='enter: focus    k: approve all waiting    esc: close' \
-      --preview "$SELF --preview {5}" --preview-window=right:58%:wrap \
-      --bind "k:execute-silent($SELF --accept-all)+reload($SELF --colorize)")
+      --header='enter: focus    k: approve waiting    tab: next    esc: close' \
+      --preview "$SELF --preview {5}" \
+      --preview-window 'right,58%,wrap,<80(down,55%)' --preview-wrap-sign='' \
+      --bind "tab:down,btab:up,k:execute-silent($SELF --accept-all)+reload($SELF --colorize)")
     [ -n "$out" ] || exit 0
     pane=$(printf '%s' "$out" | cut -f2)
     target=$(printf '%s' "$out" | cut -f3)

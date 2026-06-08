@@ -12,7 +12,7 @@ end
 -- AeroSpace-matched insets in px (mirror the gap states so floating windows line up
 -- with tiled ones). Top includes SketchyBar/menu-bar clearance. Tune here.
 local ALMOST = { left = 52, right = 52, top = 74, bottom = 52 }   -- big gaps
-local MAXIM  = { left = 16, right = 16, top = 38, bottom = 16 }   -- small gaps
+local MAXIM  = { left = 16, right = 16, top = 74, bottom = 52 }   -- wider than ALMOST; top/bottom match the aerospace boundary (no longer sits too high)
 
 local function snapInsets(m, win)
   win = win or hs.window.focusedWindow()

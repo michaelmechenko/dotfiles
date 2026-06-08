@@ -15,12 +15,12 @@ case "${1:-}" in
       sid=$1; pane=$2; target=$3; sname=$4; state=$5; name=$6; tr=$7; wname=$8;
       if (state == "awaiting-permission") { c = "216;100;126"; tag = "PERMISSION" }
       else if (state == "waiting")        { c = "216;100;126"; tag = "WAITING"    }
-      else if (state == "thinking")       { c = "187;157;189"; tag = "THINKING"   }
+      else if (state == "thinking")       { c = "187;157;189"; tag = "thinking"   }
       else                                { c = "101;106;128"; tag = "idle"       }
-      label = (name == "-" ? sname : name);
-      loc   = sname " · " wname;
-      pre   = ESC "[38;2;" c "m";
-      disp  = sprintf("%s● %-10s %-24.24s %s%s", pre, tag, label, loc, RST);
+      loc = wname " · " sname;                 # window-name · tmux-session-name
+      if (name != "-") loc = loc " · " name;   # · claude-session-name (when set)
+      pre  = ESC "[38;2;" c "m";
+      disp = sprintf("%s● %-10s %s%s", pre, tag, loc, RST);
       printf "%s\t%s\t%s\t%s\t%s\n", disp, pane, target, sid, tr;
     }'
     exit 0 ;;
@@ -66,11 +66,11 @@ case "${1:-}" in
 
   --inner)
     out=$("$SELF" --colorize | fzf --ansi --delimiter='\t' --with-nth=1 \
-      --no-sort --reverse --cycle --prompt='claude > ' \
-      --header='enter: focus    k: approve waiting    tab: next    esc: close' \
+      --no-sort --layout=reverse-list --cycle --prompt='claude > ' \
+      --header=$'enter focus · k approve · esc/M-b close\nC-j/C-k nav · C-d/C-u scroll preview' \
       --preview "$SELF --preview {5}" \
       --preview-window 'right,58%,wrap,<80(down,55%)' --preview-wrap-sign='' \
-      --bind "tab:down,btab:up,k:execute-silent($SELF --accept-all)+reload($SELF --colorize)")
+      --bind "tab:down,btab:up,ctrl-j:down,ctrl-k:up,ctrl-d:preview-half-page-down,ctrl-u:preview-half-page-up,alt-b:abort,k:execute-silent($SELF --accept-all)+reload($SELF --colorize)")
     [ -n "$out" ] || exit 0
     pane=$(printf '%s' "$out" | cut -f2)
     target=$(printf '%s' "$out" | cut -f3)

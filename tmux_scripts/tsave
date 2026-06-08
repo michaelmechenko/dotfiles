@@ -1,0 +1,117 @@
+#!/bin/sh
+
+# Snapshot every active tmux session -> window -> pane to a JSON file plus a
+# human-readable markdown tree, under ~/.config/tmux_sessions/. A pane running
+# Claude Code is recorded with its sessionId (recovered via the pane's process
+# tree -> ~/.config/claude/sessions/<pid>.json) so `tload` can `claude --resume`.
+#   usage: tsave [name]   (name defaults to a timestamp)
+
+set -e
+set -f
+
+name="${1:-$(date +%Y%m%d-%H%M%S)}"
+dir="$HOME/.config/tmux_sessions"
+mkdir -p "$dir"
+json="$dir/$name.json"
+md="$dir/$name.md"
+
+TAB=$(printf '\t')
+
+# BFS over a pid's descendants (inclusive of itself), one pid per line.
+pane_descendants() {
+    queue="$1"
+    while [ -n "$queue" ]; do
+        set -- $queue
+        pid="$1"
+        shift
+        queue="$*"
+        printf '%s\n' "$pid"
+        kids=$(pgrep -P "$pid" 2>/dev/null || true)
+        [ -n "$kids" ] && queue="$queue $kids"
+    done
+}
+
+# Echo the Claude sessionId for a pane (given its pane_pid), or nothing.
+# Guarded on comm=claude so a stale session json for a reused pid is ignored.
+claude_session() {
+    for p in $(pane_descendants "$1"); do
+        case "$(ps -o comm= -p "$p" 2>/dev/null)" in
+            *claude*) ;;
+            *) continue ;;
+        esac
+        f="$HOME/.config/claude/sessions/$p.json"
+        if [ -f "$f" ]; then
+            if sid=$(jq -er '.sessionId' "$f" 2>/dev/null); then
+                printf '%s' "$sid"
+                return 0
+            fi
+        fi
+    done
+    return 0
+}
+
+fmt="#{session_name}${TAB}#{window_index}${TAB}#{window_name}${TAB}#{window_layout}${TAB}#{window_active}${TAB}#{pane_index}${TAB}#{pane_active}${TAB}#{pane_pid}${TAB}#{pane_current_path}${TAB}#{pane_current_command}${TAB}#{pane_title}"
+
+tmp=$(mktemp "${TMPDIR:-/tmp}/tsave.XXXXXX")
+trap 'rm -f "$tmp"' EXIT
+
+# Capture all panes, then enrich each line with the Claude sessionId (field 12).
+tmux list-panes -a -F "$fmt" | while IFS="$TAB" read -r session widx wname layout wactive pidx pactive ppid cwd cmd title; do
+    csid=$(claude_session "$ppid")
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+        "$session" "$widx" "$wname" "$layout" "$wactive" "$pidx" "$pactive" "$ppid" "$cwd" "$cmd" "$title" "$csid"
+done >"$tmp"
+
+ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+# Group the flat TSV into nested session/window/pane JSON.
+jq -R -s --arg name "$name" --arg saved_at "$ts" '
+    [ split("\n")[] | select(length > 0) | split("\t") | {
+        session: .[0],
+        widx: (.[1] | tonumber),
+        wname: .[2],
+        layout: .[3],
+        wactive: (.[4] == "1"),
+        pidx: (.[5] | tonumber),
+        pactive: (.[6] == "1"),
+        cwd: .[8],
+        command: .[9],
+        title: .[10],
+        claude_session: (if (.[11] | length) > 0 then .[11] else null end)
+      } ]
+    | group_by(.session)
+    | map(
+        { name: .[0].session,
+          active_window: ([ .[] | select(.wactive) ][0].widx // .[0].widx),
+          windows: (
+            group_by(.widx) | map(
+              .[0] as $w
+              | { index: $w.widx,
+                  name: $w.wname,
+                  layout: $w.layout,
+                  active_pane: ([ .[] | select(.pactive) ][0].pidx // .[0].pidx),
+                  panes: (sort_by(.pidx) | map({ index: .pidx, cwd: .cwd, command: (if .claude_session != null then "claude" else .command end), title: .title, claude_session: .claude_session }))
+                }
+            )
+          )
+        }
+      )
+    | { name: $name, saved_at: $saved_at, sessions: . }
+' "$tmp" >"$json"
+
+# Render the human-readable tree.
+jq -r --arg home "$HOME" '
+    "SESSIONS:",
+    ( .sessions[] |
+      " - [\(.name)]",
+      ( .windows[] |
+        "   - [\(.name)]",
+        ( .panes[] |
+          (.cwd | if startswith($home) then sub("^" + $home; "~") else . end) as $d |
+          "      - (\($d)) \(.command) [\(.title)]"
+        )
+      )
+    )
+' "$json" >"$md"
+
+printf '%s\n%s\n' "$json" "$md"

@@ -1,0 +1,107 @@
+#!/bin/sh
+
+# Recreate tmux sessions/windows/panes from a file written by `tsave`.
+# Sessions that already exist are skipped (additive). Pane geometry is restored
+# via the saved window_layout string; a pane recorded with a Claude sessionId is
+# relaunched with `claude --resume <id>`, every other pane is a plain shell in
+# its saved cwd.
+#   usage: tload <name|path>
+
+set -e
+set -f
+
+[ -n "$1" ] || { echo "usage: tload <name|path>" >&2; exit 2; }
+
+if [ -r "$1" ]; then
+    file="$1"
+else
+    file="$HOME/.config/tmux_sessions/$1.json"
+fi
+[ -r "$file" ] || { echo "tload: no such snapshot: $1" >&2; exit 1; }
+
+expand_home() {
+    case "$1" in
+        "~") printf '%s' "$HOME" ;;
+        "~/"*) printf '%s' "$HOME${1#\~}" ;;
+        *) printf '%s' "$1" ;;
+    esac
+}
+
+nsess=$(jq -r '.sessions | length' "$file")
+i=0
+while [ "$i" -lt "$nsess" ]; do
+    sp=".sessions[$i]"
+    sname=$(jq -r "$sp.name" "$file")
+
+    if tmux has-session -t "=$sname" 2>/dev/null; then
+        printf 'skip: %s (exists)\n' "$sname"
+        i=$((i + 1))
+        continue
+    fi
+
+    awin=$(jq -r "$sp.active_window" "$file")
+    nwin=$(jq -r "$sp.windows | length" "$file")
+    active_window_id=""
+
+    w=0
+    while [ "$w" -lt "$nwin" ]; do
+        wp="$sp.windows[$w]"
+        widx=$(jq -r "$wp.index" "$file")
+        wname=$(jq -r "$wp.name" "$file")
+        layout=$(jq -r "$wp.layout" "$file")
+        apane=$(jq -r "$wp.active_pane" "$file")
+        np=$(jq -r "$wp.panes | length" "$file")
+
+        p0cwd=$(expand_home "$(jq -r "$wp.panes[0].cwd" "$file")")
+        if [ "$w" -eq 0 ]; then
+            first_pane=$(tmux new-session -d -s "$sname" -n "$wname" -c "$p0cwd" -P -F '#{pane_id}')
+        else
+            first_pane=$(tmux new-window -t "$sname:" -n "$wname" -c "$p0cwd" -P -F '#{pane_id}')
+        fi
+
+        if [ "$widx" = "$awin" ]; then
+            active_window_id=$(tmux display-message -p -t "$first_pane" '#{window_id}')
+        fi
+
+        # Create remaining panes (geometry fixed afterward by select-layout).
+        pane_ids="$first_pane"
+        p=1
+        while [ "$p" -lt "$np" ]; do
+            pcwd=$(expand_home "$(jq -r "$wp.panes[$p].cwd" "$file")")
+            npid=$(tmux split-window -t "$first_pane" -c "$pcwd" -P -F '#{pane_id}')
+            pane_ids="$pane_ids $npid"
+            p=$((p + 1))
+        done
+
+        [ "$np" -gt 1 ] && tmux select-layout -t "$first_pane" "$layout" >/dev/null 2>&1 || true
+
+        # Relaunch commands and locate the active pane id by saved index.
+        active_pane_id=""
+        p=0
+        for pane in $pane_ids; do
+            csid=$(jq -r "$wp.panes[$p].claude_session // empty" "$file")
+            cmd=$(jq -r "$wp.panes[$p].command" "$file")
+            pidx=$(jq -r "$wp.panes[$p].index" "$file")
+            [ "$pidx" = "$apane" ] && active_pane_id="$pane"
+            if [ -n "$csid" ]; then
+                tmux send-keys -t "$pane" "claude --resume $csid" C-m
+            elif [ "$cmd" = "claude" ]; then
+                tmux send-keys -t "$pane" "claude" C-m
+            fi
+            p=$((p + 1))
+        done
+        [ -n "$active_pane_id" ] && tmux select-pane -t "$active_pane_id" >/dev/null 2>&1 || true
+
+        w=$((w + 1))
+    done
+
+    [ -n "$active_window_id" ] && tmux select-window -t "$active_window_id" >/dev/null 2>&1 || true
+    printf 'loaded: %s\n' "$sname"
+    i=$((i + 1))
+done
+
+# If invoked outside tmux, attach to the first restored session.
+if [ -z "$TMUX" ]; then
+    first=$(jq -r '.sessions[0].name // empty' "$file")
+    [ -n "$first" ] && tmux has-session -t "=$first" 2>/dev/null && exec tmux attach -t "$first"
+fi

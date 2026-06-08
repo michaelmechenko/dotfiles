@@ -154,6 +154,17 @@ eval "$(oh-my-posh init zsh --config ~/.config/ohmyposh/base.json)"
 # export BUN_INSTALL="$HOME/.bun"
 # export PATH="$BUN_INSTALL/bin:$PATH"
 
+alias tsave="$HOME/.config/tmux_scripts/tsave"
+alias tload="$HOME/.config/tmux_scripts/tload"
+
+# Tab-complete snapshot names for tload (completes from ~/.config/tmux_sessions/*.json):
+_tload() { compadd -- ${(f)"$(cd ~/.config/tmux_sessions 2>/dev/null && ls *.json(:r) 2>/dev/null)"}; }
+compdef _tload tload
+
+# List saved snapshots:
+alias tls="ls ~/.config/tmux_sessions/*.md 2>/dev/null | sed 's#.*/##;s#\.md\$##'"
+
+
 nvim()  { command nvim "$@"; printf '\e[4 q'; }
 claude() { EDITOR="$HOME/.config/tmux_scripts/tmux-editor-split" VISUAL="$HOME/.config/tmux_scripts/tmux-editor-split" command claude "$@"; printf '\e[4 q'; }
 

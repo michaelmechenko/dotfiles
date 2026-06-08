@@ -27,15 +27,14 @@ expand_home() {
     esac
 }
 
-nsess=$(jq -r '.sessions | length' "$file")
-i=0
-while [ "$i" -lt "$nsess" ]; do
+# Restore order: float first (popup session the others may depend on), then saved order.
+order=$(jq -r '.sessions | to_entries | sort_by(.value.name != "float") | .[].key' "$file")
+for i in $order; do
     sp=".sessions[$i]"
     sname=$(jq -r "$sp.name" "$file")
 
     if tmux has-session -t "=$sname" 2>/dev/null; then
         printf 'skip: %s (exists)\n' "$sname"
-        i=$((i + 1))
         continue
     fi
 
@@ -97,11 +96,10 @@ while [ "$i" -lt "$nsess" ]; do
 
     [ -n "$active_window_id" ] && tmux select-window -t "$active_window_id" >/dev/null 2>&1 || true
     printf 'loaded: %s\n' "$sname"
-    i=$((i + 1))
 done
 
-# If invoked outside tmux, attach to the first restored session.
+# If invoked outside tmux, attach to the first non-float session (avoid landing in the popup).
 if [ -z "$TMUX" ]; then
-    first=$(jq -r '.sessions[0].name // empty' "$file")
+    first=$(jq -r 'first(.sessions[] | select(.name != "float") | .name) // (.sessions[0].name) // empty' "$file")
     [ -n "$first" ] && tmux has-session -t "=$first" 2>/dev/null && exec tmux attach -t "$first"
 fi

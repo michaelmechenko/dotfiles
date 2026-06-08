@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Open the current pane's Claude session's plan file in an nvim split (prefix 'p').
 # The plan path is recorded in the session transcript; subagent plans (…-agent-<hash>.md)
-# are filtered out. Split direction: 1 pane -> right (-h); 2+ panes -> below (-v).
+# are filtered out. Opens always to the right (see tmux-claude-open-split for placement).
 
 LS="$HOME/.config/tmux_scripts/tmux-claude-ls"
 cur=$(tmux display -p '#{pane_id}')
@@ -17,5 +17,4 @@ plan=$(grep -ho 'claude/plans/[a-z0-9-]*\.md' "$transcript" 2>/dev/null | grep -
 planpath="$HOME/.config/$plan"
 [ -f "$planpath" ] || { tmux display-message "plan file missing: $plan"; exit 0; }
 
-[ "$(tmux display -p '#{window_panes}')" -ge 2 ] && dir=-v || dir=-h
-tmux split-window "$dir" "nvim '$planpath'"
+"$HOME/.config/tmux_scripts/tmux-claude-open-split" "$planpath"

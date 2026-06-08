@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Open a file in an nvim split, always to the right (never below):
+#   1 pane            -> new pane to the right.
+#   2+ panes          -> new pane above the rightmost pane (stacked atop the right column).
+f="$1"
+panes=$(tmux display -p '#{window_panes}')
+if [ "${panes:-1}" -le 1 ]; then
+  tmux split-window -h "nvim '$f'"
+else
+  rp=$(tmux list-panes -F '#{pane_left} #{pane_id}' | sort -n | tail -1 | cut -d' ' -f2)
+  tmux split-window -v -b -t "$rp" "nvim '$f'"
+fi

@@ -108,7 +108,10 @@ jq -r --arg home "$HOME" '
         "   - [\(.name)]",
         ( .panes[] |
           (.cwd | if startswith($home) then sub("^" + $home; "~") else . end) as $d |
-          "      - (\($d)) \(.command) [\(.title)]"
+          if .claude_session != null
+          then "      - (\($d)) claude [\(.title | sub("^[^A-Za-z0-9]+"; ""))] \(.claude_session)"
+          else "      - (\($d)) \(.command) [\(.title)]"
+          end
         )
       )
     )

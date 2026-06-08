@@ -8,13 +8,14 @@ description: "Split work into logical, well-scoped commits and group those commi
 ## Goal
 
 Make commits that are easy to review and safe to ship, grouped into PR-sized batches:
+
 - only intended changes are included
 - commits are logically scoped (split when needed)
 - related commits are grouped into reviewable batches (one batch ≈ one PR)
 - commit messages describe what changed and why
 
 **Never push and never open PRs.** This skill stops at local commits. Pushing and PR creation
-are always a separate, explicit user action (use `/pr-create` for that).
+are always a separate, explicit user action. 
 
 ## Inputs to ask for (if missing)
 
@@ -49,6 +50,7 @@ are always a separate, explicit user action (use `/pr-create` for that).
    - Use Conventional Commits: `type(scope): short summary`
    - Blank line, body (what/why), footer (BREAKING CHANGE) if needed
    - See `references/commit-message-template.md` if helpful
+   - Do not use emojis
 
 7. **Run the smallest relevant verification**
    - Run the repo's fastest meaningful check (unit tests, lint, or build)

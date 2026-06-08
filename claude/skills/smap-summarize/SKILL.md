@@ -1,5 +1,5 @@
 ---
-name: session-summary
+name: smap-summarize
 description: "Generate session handoff summaries for context preservation. Use at session end, before breaks, or when transferring context to new session/agent."
 ---
 

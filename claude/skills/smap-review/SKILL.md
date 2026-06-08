@@ -1,5 +1,5 @@
 ---
-name: session-review
+name: smap-review
 description: "Review the current project/session and propose config improvements: missing CLAUDE.md context, candidate skills/permissions from recurring queries or tool calls, and todo/preference updates. Proposes only — does not apply changes. Use when asked to review the session, reflect on the project setup, or find config gaps."
 allowed-tools: Bash, Read, Grep, Glob
 ---

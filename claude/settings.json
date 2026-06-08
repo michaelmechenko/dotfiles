@@ -135,7 +135,6 @@
     ],
     "defaultMode": "plan"
   },
-  "model": "opus[1m]",
   "statusLine": {
     "type": "command",
     "command": "bash /Users/michael.mechenko/.config/claude/statusline-command.sh"
@@ -166,6 +165,7 @@
       }
     }
   },
+  "spinnerTipsEnabled": false,
   "spinnerVerbs": {
     "mode": "replace",
     "verbs": [
@@ -178,7 +178,6 @@
   "tui": "default",
   "autoMemoryEnabled": true,
   "theme": "custom:vague-aligned",
-  "spinnerTipsEnabled": false,
   "mcpServers": {
     "context7": {
       "command": "npx",

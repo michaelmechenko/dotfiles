@@ -40,8 +40,15 @@ if command -v bat >/dev/null 2>&1; then
     bat --list-themes 2>/dev/null | grep -qx vague || bat cache --build >/dev/null 2>&1
 fi
 
+# Use moor if installed (mouse wheel + position indicator); fall back to less.
+if command -v moor >/dev/null 2>&1; then
+    PAGER_CMD='moor --no-linenumbers --mousemode=scroll --statusbar=plain'
+else
+    PAGER_CMD='less -R --mouse --wheel-lines=3 -+F'
+fi
+
 # fresh session each launch (reaps any lingering detached one), start in origin cwd
 tmux kill-session -t nnn 2>/dev/null || true
 
 tmux popup -xC -yC -w80% -h75% -S "fg=$BORDER_COLOR" -E \
-    "tmux new-session -s nnn -e NNN_ORIGIN_PANE='$ORIGIN_PANE' -e NNN_PLUG='$PLUG' -e NNN_SPLIT=v -e NNN_SPLITSIZE=$SPLITSIZE -e NNN_BATSTYLE=$BATSTYLE -e NNN_BATTHEME=$BATTHEME -e NNN_COLORS='$COLORS' -e NNN_FCOLORS='$FCOLORS' -e NNN_PAGER='less -R --mouse --wheel-lines=3 -+F' -c '$CWD' nnn -aH -P p" || true
+    "tmux new-session -s nnn -e NNN_ORIGIN_PANE='$ORIGIN_PANE' -e NNN_PLUG='$PLUG' -e NNN_SPLIT=v -e NNN_SPLITSIZE=$SPLITSIZE -e NNN_BATSTYLE=$BATSTYLE -e NNN_BATTHEME=$BATTHEME -e NNN_COLORS='$COLORS' -e NNN_FCOLORS='$FCOLORS' -e NNN_PAGER='$PAGER_CMD' -c '$CWD' nnn -aH -l 1 -P p" || true

@@ -131,6 +131,7 @@ ENVVARS+=(
   "FIFOPID=$TMPDIR/nnn-preview-tui-fifopid.$NNN_PARENT"
   "FIFOPATH=$TMPDIR/nnn-preview-tui-fifo.$NNN_PARENT"
   "PREVIEWPID=$TMPDIR/nnn-preview-tui-previewpid.$NNN_PARENT"
+  "PREVIEWFILE=$TMPDIR/nnn-preview-tui-render.$NNN_PARENT"
   "CURSEL=$TMPDIR/nnn-preview-tui-selection.$NNN_PARENT"
   "FIFO_UEBERZUG=$TMPDIR/nnn-preview-tui-ueberzug-fifo.$NNN_PARENT"
   "POSOFFSET=$TMPDIR/nnn-preview-tui-posoffset"
@@ -259,34 +260,49 @@ fifo_pager() {
     cmd="$1"
     shift
 
-    # We use a FIFO to access $NNN_PAGER PID in jobs control
-    mkfifo "$FIFOPATH" || return
-
-    $NNN_PAGER < "$FIFOPATH" &
-    printf "%s" "$!" > "$PREVIEWPID"
-
-    (
-        exec > "$FIFOPATH"
-        if [ "$cmd" = "pager" ]; then
-            if exists bat; then
-                # Large-file guard: cap rendering at 500 lines for files over ~500KB so
-                # huge files don't stall the FIFO/highlighter while scrolling.
-                if [ "$(wc -c < "$1" 2>/dev/null || echo 0)" -gt 500000 ]; then
-                    brange="--line-range=:500"
-                else
-                    brange=""
-                fi
-                bat --terminal-width="$cols" --decorations=always --color=always \
-                    --paging=never $brange --style="$NNN_BATSTYLE" --theme="$NNN_BATTHEME" "$@" &
+    # Render the preview content to a regular file first (unified for every pager).
+    # stdin is redirected from /dev/null: some generators (notably `glow` for .md)
+    # read stdin even when given a file arg, and would hang forever in this
+    # background context, leaving a 0-byte file and a blank preview.
+    if [ "$cmd" = "pager" ]; then
+        if exists bat; then
+            # Large-file guard: cap rendering at 500 lines for files over ~500KB so
+            # huge files don't stall the highlighter.
+            if [ "$(wc -c < "$1" 2>/dev/null || echo 0)" -gt 500000 ]; then
+                brange="--line-range=:500"
             else
-                $NNN_PAGER "$@" &
+                brange=""
             fi
+            bat --terminal-width="$cols" --decorations=always --color=always \
+                --paging=never $brange --style="$NNN_BATSTYLE" --theme="$NNN_BATTHEME" "$@" \
+                < /dev/null > "$PREVIEWFILE" 2>/dev/null
         else
-            "$cmd" "$@" &
+            cat "$@" < /dev/null > "$PREVIEWFILE" 2>/dev/null
         fi
-    )
+    else
+        "$cmd" "$@" < /dev/null > "$PREVIEWFILE" 2>/dev/null
+    fi
 
-    rm -- "$FIFOPATH"
+    # Pager launch differs by pager. Navigation previews are launched from the
+    # backgrounded preview_fifo loop, and in that background context `less` renders
+    # blank when fed a *seekable* regular file (it grabs the tty during line-map
+    # init) — it only paints when fed via a FIFO/pipe. moor buffers its input and
+    # paints fine from a regular file, which is also seekable so mouse-scroll-to-EOF
+    # works (the whole reason for the tempfile). So: regular file for moor, FIFO for
+    # less and everything else.
+    case "$NNN_PAGER" in
+        moor*)
+            $NNN_PAGER < "$PREVIEWFILE" &
+            printf "%s" "$!" > "$PREVIEWPID"
+            ;;
+        *)
+            mkfifo "$FIFOPATH" || return
+            $NNN_PAGER < "$FIFOPATH" &
+            printf "%s" "$!" > "$PREVIEWPID"
+            cat "$PREVIEWFILE" > "$FIFOPATH"
+            rm -- "$FIFOPATH"
+            ;;
+    esac
 }
 
 # Binary file: show file info inside the pager
@@ -558,7 +574,7 @@ if [ "$PREVIEW_MODE" -eq 1 ] 2>/dev/null; then
     printf "%s" "$!" > "$FIFOPID"
     printf "%s" "$PWD/$1" > "$CURSEL"
     trap 'winch_handler' WINCH
-    trap 'rm -- "$PREVIEWPID" "$CURSEL" "$FIFO_UEBERZUG" "$FIFOPID" "$POSOFFSET" 2>/dev/null' INT HUP EXIT
+    trap 'rm -- "$PREVIEWPID" "$PREVIEWFILE" "$CURSEL" "$FIFO_UEBERZUG" "$FIFOPID" "$POSOFFSET" 2>/dev/null' INT HUP EXIT
     while kill -s 0 $WAITPID; do
       wait $WAITPID 2>/dev/null
     done

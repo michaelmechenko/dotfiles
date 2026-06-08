@@ -166,7 +166,7 @@ alias tls="ls ~/.config/tmux_sessions/*.md 2>/dev/null | sed 's#.*/##;s#\.md\$##
 
 
 nvim()  { command nvim "$@"; printf '\e[4 q'; }
-claude() { EDITOR="$HOME/.config/tmux_scripts/tmux-editor-split" VISUAL="$HOME/.config/tmux_scripts/tmux-editor-split" command claude "$@"; printf '\e[4 q'; }
+claude() { command claude "$@"; printf '\e[4 q'; }
 
 export CLAUDE_CONFIG_DIR=~/.config/claude
 

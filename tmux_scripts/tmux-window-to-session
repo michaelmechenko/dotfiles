@@ -4,6 +4,6 @@ set -e
 
 CURRENT_WINDOW="$(tmux display-message -p '#{session_name}:#{window_index}')"
 
-tmux list-sessions -F '#S' \
+tmux list-sessions -O creation -F '#S' \
 | awk -v win="$CURRENT_WINDOW" 'BEGIN {ORS=" "} {print $1, NR, "\"move-window -s", win, "-t", $1 ":\""}' \
 | xargs tmux display-menu -T "move window to session" -b "rounded"

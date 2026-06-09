@@ -18,7 +18,7 @@ tmp_file="/tmp/tmux-windows-menu-$$"
 > "$tmp_file"
 
 # Iterate through all sessions except current
-for session in $(tmux list-sessions -F '#{session_name}'); do
+for session in $(tmux list-sessions -O creation -F '#{session_name}'); do
     # Skip current session
     if [ "$session" = "$current_session" ]; then
         continue

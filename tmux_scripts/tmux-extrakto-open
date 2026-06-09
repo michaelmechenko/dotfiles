@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# @extrakto_open_tool: open a selected file path in an nvim split to the right of the
+# originating pane. Resolves ~ and relative names against that pane's cwd; anything that
+# isn't an existing file falls back to `open` (URLs, dirs) so default behavior is preserved.
+sel="$1"
+pane="${EXTRAKTO_ORIGIN_PANE:-}"
+cwd=$([ -n "$pane" ] && tmux display -p -t "$pane" '#{pane_current_path}' 2>/dev/null)
+[ -n "$cwd" ] || cwd=$(tmux display -p '#{pane_current_path}' 2>/dev/null)
+
+case "$sel" in
+  "~")   sel="$HOME" ;;
+  "~/"*) sel="$HOME/${sel#\~/}" ;;
+esac
+case "$sel" in
+  /*) path="$sel" ;;
+  *)  path="$cwd/$sel" ;;
+esac
+
+if [ -f "$path" ]; then
+  tmux split-window -h ${pane:+-t "$pane"} -c "$cwd" "nvim -- '$path'"
+else
+  open "$sel"
+fi

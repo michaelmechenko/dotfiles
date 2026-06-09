@@ -2,6 +2,10 @@
 
 set -e
 
+# Placement mode: "float" (default, M-d) = centred popup; "pane" (M-B) = overlay the
+# launching pane so the explorer fills it instead of floating.
+MODE="${1:-float}"
+
 # Toggle: pressing the launch key from inside the explorer popup closes it
 # (the popup hosts a nested tmux client, so tmux intercepts the key here).
 if [ "$(tmux display-message -p '#{session_name}')" = "nnn" ]; then
@@ -16,6 +20,11 @@ chmod +x "$HOME"/.config/nnn/plugins/* "$HOME"/.config/nnn/plugins/.nnn-tmux-spl
 
 ORIGIN_PANE="$(tmux display-message -p '#{pane_id}')"
 CWD="$(tmux display-message -p '#{pane_current_path}')"
+# Pane geometry, used only in "pane" mode to overlay the launching pane. The popup -y anchors
+# the popup's BOTTOM edge, so we anchor at popup_pane_bottom (popup_pane_left for -x); both
+# account for the status-line offset. pane_width/height give the size.
+PANE_W="$(tmux display-message -p '#{pane_width}')"
+PANE_H="$(tmux display-message -p '#{pane_height}')"
 BORDER_COLOR=$(tmux show-options -gqv @color-inactive)
 BORDER_COLOR=${BORDER_COLOR:-"#a9b1d6"}
 
@@ -39,5 +48,12 @@ PAGER_CMD='moor --no-linenumbers --mousemode=scroll --statusbar=plain'
 # fresh session each launch (reaps any lingering detached one), start in origin cwd
 tmux kill-session -t nnn 2>/dev/null || true
 
-tmux popup -xC -yC -w80% -h75% -S "fg=$BORDER_COLOR" -E \
+# Geometry: centred float by default; overlay the launching pane in "pane" mode.
+if [ "$MODE" = "pane" ]; then
+    GEO=(-t "$ORIGIN_PANE" -x '#{popup_pane_left}' -y '#{popup_pane_bottom}' -w "$PANE_W" -h "$PANE_H")
+else
+    GEO=(-xC -yC -w80% -h75%)
+fi
+
+tmux popup "${GEO[@]}" -S "fg=$BORDER_COLOR" -E \
     "tmux new-session -s nnn -e NNN_ORIGIN_PANE='$ORIGIN_PANE' -e NNN_PLUG='$PLUG' -e NNN_SPLIT=v -e NNN_SPLITSIZE=$SPLITSIZE -e NNN_BATSTYLE=$BATSTYLE -e NNN_BATTHEME=$BATTHEME -e NNN_COLORS='$COLORS' -e NNN_FCOLORS='$FCOLORS' -e NNN_PAGER='$PAGER_CMD' -c '$CWD' nnn -aH -l 1 -P p" || true

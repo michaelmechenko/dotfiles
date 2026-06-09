@@ -59,7 +59,7 @@ if tmux has-session -t float 2>/dev/null; then
 fi
 
 # Process regular sessions (not float or ephemeral)
-for session in $(tmux list-sessions -F '#{session_name}' | grep -v '^float$' | grep -v '^ephemeral$'); do
+for session in $(tmux list-sessions -O creation -F '#{session_name}' | grep -v '^float$' | grep -v '^ephemeral$'); do
     num_windows=$(tmux list-windows -t "$session" | wc -l | tr -d ' ')
     
     if [ "$session" = "$current_session" ]; then

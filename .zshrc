@@ -57,6 +57,34 @@ eval "$(fzf --zsh)"
 # Match hierarchy: hl dusty-pink #bb9dbd (other rows), hl+ rose #d8647e bold (current row).
 export FZF_DEFAULT_OPTS='--pointer=▌ --color=fg:#656a80,fg+:#bebebe,bg:-1,bg+:-1,hl:#bb9dbd,hl+:#d8647e:bold,gutter:-1,border:#383848,separator:#383848,scrollbar:#383848,preview-fg:#bebebe,preview-bg:-1,preview-border:#383848,preview-scrollbar:#383848,prompt:#aeaed1,pointer:#d8647e,marker:#bb9dbd,spinner:#f3be7c,info:#656a80,header:#656a80,query:#bebedb,disabled:#656a80,label:#656a80'
 
+# Self-heal the per-machine bat cache: custom themes only resolve after `bat cache --build`,
+# which is local (not in git). Build once if `vague` isn't registered yet (no-op afterwards).
+if command -v bat >/dev/null 2>&1; then
+    bat --list-themes 2>/dev/null | grep -qx vague || bat cache --build >/dev/null 2>&1
+fi
+
+# preview-tui text-speed knobs: plain bat (no line-number/grid rendering),
+# ansi theme (inherits the terminal palette). Image/video previewers left unset
+# so those heavy branches never fire.
+export NNN_BATSTYLE=numbers 
+export NNN_BATTHEME=vague 
+# colors via ANSI indices -> inherit the terminal's themed (vague) palette.
+export NNN_COLORS='63256325'
+export NNN_FCOLORS='060606020005030801050201'
+# in-nnn plugin keys (pressed as ;<key>): ;l horizontal split, ;j vertical split,
+# ;i send a cd command to the origin pane's prompt
+export NNN_PLUG='l:tmux-split-h;j:tmux-split-v;i:cd-origin;p:preview-tui'
+export NNN_SPLIT=v
+export NNN_SPLITSIZE=60
+# use moor if installed
+if command -v moor >/dev/null 2>&1; then
+    export NNN_PAGER='moor --no-linenumbers --mousemode=scroll --statusbar=plain'
+else
+    export NNN_PAGER='less -R --mouse --wheel-lines=1 -+F'
+fi
+
+alias n="nnn -aH -l 1 -P p"
+
 bindkey "^[[1;3C" forward-word      # Alt+Right
 bindkey "^[[1;3D" backward-word     # Alt+Left
 

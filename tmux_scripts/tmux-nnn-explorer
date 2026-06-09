@@ -34,18 +34,7 @@ SPLITSIZE=60                               # preview pane width % (explorer gets
 BATSTYLE=numbers
 BATTHEME=vague
 
-# Self-heal the per-machine bat cache: custom themes only resolve after `bat cache --build`,
-# which is local (not in git). Build once if `vague` isn't registered yet (no-op afterwards).
-if command -v bat >/dev/null 2>&1; then
-    bat --list-themes 2>/dev/null | grep -qx vague || bat cache --build >/dev/null 2>&1
-fi
-
-# Use moor if installed (mouse wheel + position indicator); fall back to less.
-if command -v moor >/dev/null 2>&1; then
-    PAGER_CMD='moor --no-linenumbers --mousemode=scroll --statusbar=plain'
-else
-    PAGER_CMD='less -R --mouse --wheel-lines=3 -+F'
-fi
+PAGER_CMD='moor --no-linenumbers --mousemode=scroll --statusbar=plain'
 
 # fresh session each launch (reaps any lingering detached one), start in origin cwd
 tmux kill-session -t nnn 2>/dev/null || true

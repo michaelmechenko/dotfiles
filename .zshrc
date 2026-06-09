@@ -68,14 +68,17 @@ fi
 # so those heavy branches never fire.
 export NNN_BATSTYLE=numbers 
 export NNN_BATTHEME=vague 
+
 # colors via ANSI indices -> inherit the terminal's themed (vague) palette.
 export NNN_COLORS='63256325'
 export NNN_FCOLORS='060606020005030801050201'
+
 # in-nnn plugin keys (pressed as ;<key>): ;l horizontal split, ;j vertical split,
 # ;i send a cd command to the origin pane's prompt
 export NNN_PLUG='l:tmux-split-h;j:tmux-split-v;i:cd-origin;p:preview-tui'
 export NNN_SPLIT=v
 export NNN_SPLITSIZE=60
+
 # use moor if installed
 if command -v moor >/dev/null 2>&1; then
     export NNN_PAGER='moor --no-linenumbers --mousemode=scroll --statusbar=plain'
@@ -112,6 +115,7 @@ alias o="ofd ."
 # alias lsl="eza"
 # alias cat="bat"
 alias e="nvim"
+alias ef='nvim "+lua require(\"snacks\").picker.files({ hidden = true, ignored = true })"'
 alias ej="nvim tmp.json"
 alias em="nvim tmp.md"
 alias cc="claude"
@@ -191,7 +195,6 @@ compdef _tload tload
 
 # List saved snapshots:
 alias tls="ls ~/.config/tmux_sessions/*.md 2>/dev/null | sed 's#.*/##;s#\.md\$##'"
-
 
 nvim()  { command nvim "$@"; printf '\e[4 q'; }
 claude() { command claude "$@"; printf '\e[4 q'; }

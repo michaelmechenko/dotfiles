@@ -53,12 +53,34 @@ DEFAULT_OPTIONS = {
 }
 
 
+# LOCAL PATCH: batch all global options in one `tmux show-options -g` instead of forking
+# `tmux show-option -gqv <name>` once per option (~28 reads). The per-fork form cost ~330ms
+# of startup latency; the single batched read is ~40ms. Cached for the process lifetime.
+_OPTION_CACHE = None
+
+
+def _load_options():
+    global _OPTION_CACHE
+    cache = {}
+    out = subprocess.check_output(["tmux", "show-options", "-g"]).decode("utf-8")
+    for line in out.splitlines():
+        key, sep, val = line.partition(" ")
+        if not sep:
+            cache[key] = ""
+            continue
+        # tmux quotes (with double quotes) only values that need escaping; `-gqv` returns
+        # them unquoted, so strip one layer and unescape to match the old behavior exactly.
+        if len(val) >= 2 and val[0] == '"' and val[-1] == '"':
+            val = val[1:-1].replace('\\"', '"').replace("\\\\", "\\")
+        cache[key] = val
+    _OPTION_CACHE = cache
+
+
 def get_option_only(option):
-    return (
-        subprocess.check_output(["tmux", "show-option", "-gqv", option])
-        .decode("utf-8")
-        .strip()
-    )
+    # Unset options aren't listed by `show-options -g`; "" matches `-gqv`'s empty result.
+    if _OPTION_CACHE is None:
+        _load_options()
+    return (_OPTION_CACHE or {}).get(option, "")
 
 
 def get_option(option):

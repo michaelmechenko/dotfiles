@@ -16,5 +16,6 @@ target=$(cd "$target" 2>/dev/null && pwd) || exit 0
 # Send the command text literally to the prompt (double-quoted for spaces); no Enter.
 tmux send-keys -t "$NNN_ORIGIN_PANE" -l "cd \"$target\""
 
-# Close the explorer popup; outer client lands on the origin pane with the text typed.
-tmux detach-client -s nnn 2>/dev/null
+# Close the popup as M-d does — kill the session (detach-client leaves nnn alive and can
+# keep the popup open). Outer client lands on the origin pane with the text typed.
+tmux kill-session -t nnn 2>/dev/null

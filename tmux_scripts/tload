@@ -86,6 +86,14 @@ for i in $order; do
                 tmux send-keys -t "$pane" "claude --resume $csid" C-m
             elif [ "$cmd" = "claude" ]; then
                 tmux send-keys -t "$pane" "claude" C-m
+            elif [ "$cmd" = "nvim" ]; then
+                # Reopen the saved buffers (@sh-quotes each path); plain nvim if none recorded.
+                files=$(jq -r "$wp.panes[$p].nvim_files // [] | map(@sh) | join(\" \")" "$file")
+                if [ -n "$files" ]; then
+                    tmux send-keys -t "$pane" "nvim -- $files" C-m
+                else
+                    tmux send-keys -t "$pane" "nvim" C-m
+                fi
             fi
             p=$((p + 1))
         done

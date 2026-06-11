@@ -1,0 +1,10 @@
+#!/bin/sh
+# M-o launcher for tmux-fzf-url. Records the origin pane in the global tmux env (so the shared
+# opener can resolve relative paths + split off it), then runs fzf-url with our smart opener and
+# an extra xre pattern that surfaces file paths AND bare filenames (e.g. ~/_main/test.md, test.md,
+# ./notes.txt, src/main.rs) alongside the built-in URL matches. Selecting a file -> nvim split;
+# a URL (or any non-file) -> `open`. fzf-url args: limit custom_open custom_copy custom_pat.
+tmux set-environment -g TMUX_OPEN_PANE "$(tmux display -p '#{pane_id}')"
+PATH_PAT='(?:[~.]{0,2}/)?(?:[A-Za-z0-9._@-]+/)*[A-Za-z0-9._@-]+\.[A-Za-z0-9]+'
+exec "$HOME/.config/tmux_plugins/tmux-fzf-url/fzf-url.sh" \
+  screen "$HOME/.config/tmux_scripts/tmux-open-target" '' "$PATH_PAT"

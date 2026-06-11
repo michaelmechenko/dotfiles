@@ -1,0 +1,12 @@
+#!/usr/bin/env sh
+# nnn helper: open $1 (a path, possibly relative to the browse dir $PWD) in an nvim split in
+# the origin tmux window (NNN_ORIGIN_PANE), then close the explorer popup. Optional $2 = line.
+# Used by fzcd's ctrl-o bind and the fzrg (;g) ripgrep plugin. Routes through the shared,
+# injection-safe opener tmux-open-target.
+sel="$1"
+line="$2"
+[ -n "$sel" ] && [ -n "$NNN_ORIGIN_PANE" ] || exit 0
+case "$sel" in /*) t="$sel" ;; *) t="$PWD/$sel" ;; esac
+[ -f "$t" ] || exit 0
+TMUX_OPEN_PANE="$NNN_ORIGIN_PANE" "$HOME/.config/tmux_scripts/tmux-open-target" "$t" "$line"
+tmux detach-client -s nnn 2>/dev/null

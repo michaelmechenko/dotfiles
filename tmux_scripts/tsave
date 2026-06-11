@@ -50,16 +50,30 @@ claude_session() {
     return 0
 }
 
-fmt="#{session_name}${TAB}#{window_index}${TAB}#{window_name}${TAB}#{window_layout}${TAB}#{window_active}${TAB}#{pane_index}${TAB}#{pane_active}${TAB}#{pane_pid}${TAB}#{pane_current_path}${TAB}#{pane_current_command}${TAB}#{session_id}${TAB}#{pane_title}"
+# Echo a pane's open, listed nvim buffer file paths (newline-separated), or nothing.
+# The nvim() zsh wrapper makes each in-tmux nvim --listen on a per-pane socket; query it.
+nvim_files() {
+    paneid="$1"
+    [ -n "$paneid" ] || return 0
+    sock="${TMPDIR:-/tmp}/nvim-${paneid}.sock"
+    [ -S "$sock" ] || return 0
+    nvim --server "$sock" --remote-expr \
+        "join(filter(map(getbufinfo({'buflisted':1}), 'v:val.name'), 'v:val !=# \"\"'), \"\n\")" \
+        2>/dev/null
+}
+
+# pane_id (last field) is used only at save time to find the nvim socket; it is not stored.
+fmt="#{session_name}${TAB}#{window_index}${TAB}#{window_name}${TAB}#{window_layout}${TAB}#{window_active}${TAB}#{pane_index}${TAB}#{pane_active}${TAB}#{pane_pid}${TAB}#{pane_current_path}${TAB}#{pane_current_command}${TAB}#{session_id}${TAB}#{pane_title}${TAB}#{pane_id}"
 
 tmp=$(mktemp "${TMPDIR:-/tmp}/tsave.XXXXXX")
 trap 'rm -f "$tmp"' EXIT
 
 # Capture all panes, then enrich each line with the Claude sessionId (last field).
-tmux list-panes -a -F "$fmt" | while IFS="$TAB" read -r session widx wname layout wactive pidx pactive ppid cwd cmd sid title; do
+tmux list-panes -a -F "$fmt" | while IFS="$TAB" read -r session widx wname layout wactive pidx pactive ppid cwd cmd sid title paneid; do
     csid=$(claude_session "$ppid")
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-        "$session" "$widx" "$wname" "$layout" "$wactive" "$pidx" "$pactive" "$ppid" "$cwd" "$cmd" "$sid" "$title" "$csid"
+    nf=$(nvim_files "$paneid" | tr '\n' '\037')
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+        "$session" "$widx" "$wname" "$layout" "$wactive" "$pidx" "$pactive" "$ppid" "$cwd" "$cmd" "$sid" "$title" "$csid" "$nf"
 done >"$tmp"
 
 ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -78,7 +92,8 @@ jq -R -s --arg name "$name" --arg saved_at "$ts" '
         command: .[9],
         sidnum: (.[10] | ltrimstr("$") | tonumber),
         title: .[11],
-        claude_session: (if (.[12] | length) > 0 then .[12] else null end)
+        claude_session: (if (.[12] | length) > 0 then .[12] else null end),
+        nvim_files: (if (.[13] | length) > 0 then (.[13] | split("\u001f") | map(select(length > 0))) else [] end)
       } ]
     | group_by(.session)
     | sort_by(.[0].sidnum)
@@ -92,7 +107,7 @@ jq -R -s --arg name "$name" --arg saved_at "$ts" '
                   name: $w.wname,
                   layout: $w.layout,
                   active_pane: ([ .[] | select(.pactive) ][0].pidx // .[0].pidx),
-                  panes: (sort_by(.pidx) | map({ index: .pidx, cwd: .cwd, command: (if .claude_session != null then "claude" else .command end), title: .title, claude_session: .claude_session }))
+                  panes: (sort_by(.pidx) | map({ index: .pidx, cwd: .cwd, command: (if .claude_session != null then "claude" else .command end), title: .title, claude_session: .claude_session, nvim_files: .nvim_files }))
                 }
             )
           )

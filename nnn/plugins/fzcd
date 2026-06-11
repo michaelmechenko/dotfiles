@@ -46,6 +46,7 @@ if [ -n "$1" ] && [ "$(file -b --mime-type "$1")" = 'text/plain' ] && [ -e "$(he
     LIST="$1"
 elif ! [ -s "$LIST" ]; then
     sel=$(fzf \
+        --bind 'ctrl-o:execute-silent($HOME/.config/nnn/plugins/.nnn-open-origin {})+abort' \
         --preview '[ -d {} ] && eza -TL2 --icons=always --color=always {} || bat --color=always --style=numbers {}' \
         --preview-window 'right,60%,border-left')
     # Show only the file and parent dir
@@ -67,6 +68,7 @@ if [ -n "$LIST" ]; then
         done < "$LIST"
 
         sel=$(xargs -d '\n' < "$tmpfile" -I{} find {} -type f -printf "%H//%P\n" | sed '/.*\/\/\(\..*\|.*\/\..*\)/d; s:/\+:/:g' | fzf --delimiter / --tiebreak=begin --info=hidden \
+            --bind 'ctrl-o:execute-silent($HOME/.config/nnn/plugins/.nnn-open-origin {})+abort' \
             --preview '[ -d {} ] && eza -TL2 --icons=always --color=always {} || bat --color=always --style=numbers {}' \
             --preview-window 'right,60%,border-left')
         # Alternative for 'fd'

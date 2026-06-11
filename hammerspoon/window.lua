@@ -10,19 +10,33 @@ local function runAerospace(args)
 end
 
 -- AeroSpace-matched insets in px (mirror the gap states so floating windows line up
--- with tiled ones). Top includes SketchyBar/menu-bar clearance. Tune here.
-local ALMOST = { left = 52, right = 52, top = 74, bottom = 52 }   -- big gaps
-local MAXIM  = { left = 16, right = 16, top = 74, bottom = 52 }   -- wider than ALMOST; top/bottom match the aerospace boundary (no longer sits too high)
+-- with tiled ones). Measured from the VISIBLE frame (screen:frame(), below the menu bar) —
+-- the same reference AeroSpace insets tiled windows from — so they don't sit too high.
+-- The TOP gap is per-monitor, mirroring aerospace.toml `outer.top = [{monitor."Built-*"=N}, M]`
+-- (the menu-bar-less external needs a larger top gap than the built-in). Keep in sync with
+-- toggle_gaps.sh: big = ALMOST, small = MAXIM.
+local ALMOST = { left = 52, right = 52, bottom = 52, top_builtin = 50, top_ext = 74 }  -- big gaps
+local MAXIM  = { left = 16, right = 16, bottom = 16, top_builtin = 14, top_ext = 38 }  -- small gaps (biggest window)
+
+local function isBuiltin(scr)
+  return ((scr:name() or ""):match("^Built")) ~= nil
+end
+
+local function topInset(m, scr)
+  return isBuiltin(scr) and m.top_builtin or m.top_ext
+end
 
 local function snapInsets(m, win)
   win = win or hs.window.focusedWindow()
   if not win then return end
-  local s = win:screen():fullFrame()   -- physical edges (aerospace insets from these)
+  local scr = win:screen()
+  local s = scr:frame()   -- visible frame (excludes menu bar/dock) — matches AeroSpace's reference
+  local top = topInset(m, scr)
   win:setFrame({
     x = s.x + m.left,
-    y = s.y + m.top,
+    y = s.y + top,
     w = s.w - m.left - m.right,
-    h = s.h - m.top - m.bottom,
+    h = s.h - top - m.bottom,
   }, 0)
 end
 
@@ -36,10 +50,12 @@ function M.center()
   local w = hs.window.focusedWindow()
   if not w then return end
   local f = w:frame()
-  local s = w:screen():fullFrame()
+  local scr = w:screen()
+  local s = scr:frame()
+  local top = topInset(ALMOST, scr)
   w:setFrame({
     x = s.x + (s.w - f.w) / 2,
-    y = s.y + ALMOST.top + (s.h - ALMOST.top - ALMOST.bottom - f.h) / 2,
+    y = s.y + top + (s.h - top - ALMOST.bottom - f.h) / 2,
     w = f.w,
     h = f.h,
   }, 0)

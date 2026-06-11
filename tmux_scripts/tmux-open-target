@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Shared "open a selected token" handler for the fzf-style pickers (extrakto, tmux-fzf-url,
+# shell Ctrl-T). An existing file opens in nvim in a split to the right of the origin pane;
+# anything else (URLs, dirs, non-existent paths) falls through to `open`.
+#
+# Origin pane: $TMUX_OPEN_PANE when a launcher set it — extrakto and tmux-fzf-url run this
+# opener detached (via `tmux run-shell`/the picker subprocess), so they pass the pane through
+# the global tmux environment. Shell Ctrl-T sets nothing, so we fall back to the active pane.
+sel="$1"
+line="${2:-}"
+case "$line" in *[!0-9]*) line="" ;; esac   # accept only a numeric line
+pane="${TMUX_OPEN_PANE:-}"
+[ -n "$pane" ] || pane=$(tmux display -p '#{pane_id}' 2>/dev/null)
+cwd=$(tmux display -p -t "$pane" '#{pane_current_path}' 2>/dev/null)
+
+case "$sel" in
+  "~")   sel="$HOME" ;;
+  "~/"*) sel="$HOME/${sel#\~/}" ;;
+esac
+case "$sel" in
+  /*) path="$sel" ;;
+  *)  path="$cwd/$sel" ;;
+esac
+
+if [ -f "$path" ]; then
+  # tmux runs the split command via `sh -c`, so shell-quote the path (it comes from
+  # picker-selected pane text and may contain quotes/metacharacters) to avoid injection.
+  printf -v q '%q' "$path"
+  [ -n "$line" ] && cmd="nvim +$line -- $q" || cmd="nvim -- $q"
+  # Placement mirrors tmux-claude-open-split, scoped to the origin pane's window:
+  #   1 pane  -> split right;  2+ panes -> stack above the rightmost pane.
+  npanes=$(tmux display -p -t "$pane" '#{window_panes}' 2>/dev/null)
+  if [ "${npanes:-1}" -le 1 ]; then
+    tmux split-window -h -t "$pane" -c "$cwd" "$cmd"
+  else
+    rp=$(tmux list-panes -t "$pane" -F '#{pane_left} #{pane_id}' | sort -n | tail -1 | cut -d' ' -f2)
+    tmux split-window -v -b -t "$rp" -c "$cwd" "$cmd"
+  fi
+else
+  open "$sel"
+fi

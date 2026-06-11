@@ -57,6 +57,10 @@ eval "$(fzf --zsh)"
 # Match hierarchy: hl dusty-pink #bb9dbd (other rows), hl+ rose #d8647e bold (current row).
 export FZF_DEFAULT_OPTS='--pointer=▌ --color=fg:#656a80,fg+:#bebebe,bg:-1,bg+:-1,hl:#bb9dbd,hl+:#d8647e:bold,gutter:-1,border:#383848,separator:#383848,scrollbar:#383848,preview-fg:#bebebe,preview-bg:-1,preview-border:#383848,preview-scrollbar:#383848,prompt:#aeaed1,pointer:#d8647e,marker:#bb9dbd,spinner:#f3be7c,info:#656a80,header:#656a80,query:#bebedb,disabled:#656a80,label:#656a80'
 
+# Ctrl-T file widget: Enter still inserts the path (default); ctrl-o opens the selected file in
+# an nvim split via the shared opener — consistent with extrakto / M-o (ctrl-o = open in nvim).
+export FZF_CTRL_T_OPTS="--bind 'ctrl-o:execute-silent($HOME/.config/tmux_scripts/tmux-open-target {})+abort'"
+
 # Self-heal the per-machine bat cache: custom themes only resolve after `bat cache --build`,
 # which is local (not in git). Build once if `vague` isn't registered yet (no-op afterwards).
 if command -v bat >/dev/null 2>&1; then
@@ -196,7 +200,18 @@ compdef _tload tload
 # List saved snapshots:
 alias tls="ls ~/.config/tmux_sessions/*.md 2>/dev/null | sed 's#.*/##;s#\.md\$##'"
 
-nvim()  { command nvim "$@"; printf '\e[4 q'; }
+# Inside tmux, listen on a per-pane RPC socket so tsave can query the open buffers
+# (tload reopens them). Path is deterministic from $TMUX_PANE; rm any stale socket first.
+nvim()  {
+  if [ -n "$TMUX_PANE" ]; then
+    local sock="${TMPDIR:-/tmp}/nvim-${TMUX_PANE}.sock"
+    rm -f "$sock" 2>/dev/null
+    command nvim --listen "$sock" "$@"
+  else
+    command nvim "$@"
+  fi
+  printf '\e[4 q'
+}
 claude() { command claude "$@"; printf '\e[4 q'; }
 
 export CLAUDE_CONFIG_DIR=~/.config/claude

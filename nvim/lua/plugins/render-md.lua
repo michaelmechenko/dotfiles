@@ -6,22 +6,27 @@ return {
     config = function()
       require("render-markdown").setup({
         enabled = true,
+        anti_conceal = {
+          enabled = true,
+          disabled_modes = { "n" },
+        },
         heading = {
           sign = true,
-          icons = { "# ", "## ", "### ", "# ", "## ", "### " },
+          icons = { "# ", "## ", "### ", "#### ", "#### ", "#### " },
           position = "inline",
           width = "block",
-          -- min_width = 35
-          -- border = true,
-          -- above = '',
-          -- below = '-',
+          border = true,
+          border_virtual = true,
+          border_prefix = true,
+          above = " ",
+          below = "─",
           backgrounds = {
-            'None',
-            'None',
-            'None',
-            'None',
-            'None',
-            'None',
+            "RenderMarkdownH1Bg",
+            "RenderMarkdownH2Bg",
+            "RenderMarkdownH3Bg",
+            "RenderMarkdownH4Bg",
+            "RenderMarkdownH5Bg",
+            "RenderMarkdownH6Bg",
           },
         },
         indent = {
@@ -33,10 +38,10 @@ return {
           -- left_pad = 0.2,
           -- right_pad = 0.2,
           sign = false,
-          conceal_delimiters = false,
+          conceal_delimiters = true,
         },
         quote = {
-          enabled = false,
+          enabled = true,
         },
         bullet = {
           enabled = false,
@@ -46,10 +51,6 @@ return {
         },
         link = {
           enabled = false,
-          render_modes = false,
-          footnote = {
-            enabled = false,
-          },
         },
         latex = {
           enabled = false,

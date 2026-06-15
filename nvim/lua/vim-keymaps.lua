@@ -100,3 +100,43 @@ vim.keymap.set("v", "<Tab>", "<Esc>", {})
 -- vim.keymap.set("i", "<C-s>", "<Esc>", {})
 -- vim.keymap.set("v", "<C-s>", "<Esc>", {})
 vim.keymap.set("i", "<C-v>", '<C-r>0', { noremap = true, silent = true, desc = "Paste yank register" })
+
+-- preview current line in a floating window (useful when wrap is off and line extends past screen)
+vim.keymap.set("n", "<leader>pl", function()
+  local line = vim.api.nvim_get_current_line()
+  local win = vim.api.nvim_get_current_win()
+  local text_width = vim.api.nvim_win_get_width(win) - vim.fn.getwininfo(win)[1].textoff
+  if vim.fn.strdisplaywidth(line) <= text_width then return end
+  local display_width = vim.fn.strdisplaywidth(line)
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { line })
+  local float_width = math.min(display_width + 4, vim.o.columns - 4)
+  local float_height = math.ceil(display_width / text_width)
+  -- position: below cursor if room, above if not
+  local screen_row = vim.fn.winline()
+  local rows_below = vim.api.nvim_win_get_height(win) - screen_row
+  local row_offset = rows_below >= float_height + 2 and (screen_row) or (screen_row - float_height - 2)
+  row_offset = math.max(0, row_offset)
+  local col = math.max(0, math.floor((vim.o.columns - float_width) / 2))
+  local float_win = vim.api.nvim_open_win(buf, true, {
+    relative = "win",
+    width = float_width,
+    height = float_height,
+    row = row_offset,
+    col = col,
+    style = "minimal",
+    border = "rounded",
+    zindex = 100,
+  })
+  vim.wo[float_win].wrap = true
+  vim.wo[float_win].linebreak = true
+  vim.keymap.set("n", "q", "<cmd>close<cr>", { buffer = buf })
+  vim.keymap.set("n", "<Esc>", "<cmd>close<cr>", { buffer = buf })
+  vim.api.nvim_create_autocmd("WinLeave", {
+    buffer = buf,
+    callback = function()
+      if vim.api.nvim_win_is_valid(float_win) then vim.api.nvim_win_close(float_win, true) end
+    end,
+    once = true,
+  })
+end, { desc = "Preview long line in float" })

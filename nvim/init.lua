@@ -83,8 +83,9 @@ vim.api.nvim_create_autocmd("LspAttach", {
   end,
 })
 
-vim.opt.wrap = true
-vim.opt.linebreak = true
+vim.opt.wrap = false
+vim.opt.list = true
+vim.opt.listchars = { extends = "»", precedes = "«" }
 
 vim.opt.autoread = true
 vim.api.nvim_create_autocmd({ "BufEnter", "CursorHold", "CursorHoldI", "FocusGained" }, {

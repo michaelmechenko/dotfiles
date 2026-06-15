@@ -12,6 +12,11 @@ Single source of truth for colors used across tmux, Ghostty, and zsh (via ohmypo
 | `surface-active` | `#16141a` | tmux active pane bg (the `refresh-active-bg` alias's 2+-pane branch), only when window has 2+ panes and is not zoomed. Active border bg stays `canvas` `#100E11`. |
 | `surface-chrome` | `#1C1C24` | nvim chrome: dropbar WinBar bg, lualine statusline/winbar bg (the whole bar — sections `b`/`c`/`x`/`y` + inactive — in the inline lualine theme; see `nvim lualine statusline`) |
 | `surface-highlight` | `#2A2A35` | nvim `CursorLine` (override in `vague.lua`'s `on_highlights`) |
+| `surface-extend` | `#d8647e` | nvim `NonText` fg/bold — `listchars` `extends`/`precedes` indicators (`»`/`«`) when line exceeds window width. Uses `accent-primary` rose. **Side-effect override:** groups that inherit `NonText` but should remain dim are reset to `copy-mode-indicator` `#606079`: `BlinkCmpGhostText`, `LspInlayHint`, `GitSignsCurrentLineBlame`, `ComplHint`. |
+| `surface-fold` | `#8ba9c1` | nvim `FoldColumn` fg — fold markers (`▸`/`▾`/`│`) in the sign column. Uses `accent-info` slate blue. |
+| `surface-heading-h1` | `#352f37` | nvim render-md H1 heading bg + underline fg (via `bg_as_fg`). Faint dusty pink tint at ~20% on canvas. Uses `accent-tertiary` hue. |
+| `surface-heading-h2` | `#33333a` | nvim render-md H2 heading bg + underline fg. Faint lavender tint at ~20% on canvas. Uses `accent-secondary` hue. |
+| `surface-heading-h3` | `#40362a` | nvim render-md H3 heading bg + underline fg. Faint amber tint at ~20% on canvas. Uses `accent-amber` hue. |
 | `copy-mode-indicator` | `#606079` | tmux `copy-mode-position-style` block bg (top-right time/scroll box shown in copy mode); indicator text is `text-default` `#a9b1d6`. Also Ghostty ANSI 14 override (`ghostty/config`) — deliberately dims Claude Code's hardcoded session-rename label, which has no theme token (see Claude Code integration notes). |
 | `divider-subtle` | `#383848` | nvim `SnacksIndent` + `NeoTreeIndentMarker` fg (indent guides); Claude statusline ` * ` separators |
 
@@ -19,8 +24,9 @@ Single source of truth for colors used across tmux, Ghostty, and zsh (via ohmypo
 
 | Role | Hex | Where used |
 |---|---|---|
-| `text` | `#BEBEBE` | Ghostty `foreground`; nvim editor fg (`vague.lua` `colors.fg`); nvim WinBar fg (`dropbar.lua`) |
-| `text-muted` | `#656a80` | tmux `@color-inactive` — secondary UI text (border fg, status secondary text, bell-state); tmux copy-mode non-current line numbers (`copy-mode-line-number-style`, dim); nvim devicons, dropbar `DropBarIconKindDefault`, lualine inactive-buffer fg; Claude statusline dir/model/ctx text; Claude theme `inactive` token |
+| `text` | `#BEBEBE` | Ghostty `foreground`; nvim editor fg (`vague.lua` `colors.fg`) |
+| `text-ui` | `#9094A0` | nvim WinBar fg (`dropbar.lua`) — slightly dimmer than `text` for chrome/breadcrumb text |
+| `text-muted` | `#656a80` | tmux `@color-inactive` — secondary UI text (border fg, status secondary text, bell-state); tmux copy-mode non-current line numbers (`copy-mode-line-number-style`, dim); nvim devicons, dropbar `DropBarIconKindDefault`, lualine inactive-buffer fg; nvim `FloatBorder` fg; Claude statusline dir/model/ctx text; Claude theme `inactive` token |
 | `text-default` | `#a9b1d6` | tmux `@color-default` — window-status text (the colored window names in the status bar). **Not referenced elsewhere.** |
 
 ### Accents
@@ -31,7 +37,7 @@ Single source of truth for colors used across tmux, Ghostty, and zsh (via ohmypo
 | `accent-secondary` (lavender) | `#aeaed1` | tmux `@color-ephemeral` / `@color-lavender2` / `@color-float`; tmux pane-border-active fg; Ghostty ANSI 6; ohmyposh session segment; nvim lualine `normal`/`command`-mode status/location block |
 | `accent-tertiary` (dusty pink) | `#bb9dbd` | tmux `@color-dusty_pink`; Ghostty ANSI 2; ohmyposh transient prompt + git segment; nvim lualine `visual`-mode status/location block |
 | `accent-highlight` (pale lavender) | `#bebedb` | tmux `@color-lavender` / `@color-active` — current window status; tmux copy-mode current line number (`copy-mode-current-line-number-style`, bold) |
-| `accent-info` (slate) | `#8ba9c1` | Ghostty ANSI 12; ohmyposh executiontime segment. **No tmux usage.** |
+| `accent-info` (slate) | `#8ba9c1` | Ghostty ANSI 12; ohmyposh executiontime segment; nvim `FoldColumn` fg. **No tmux usage.** |
 | `accent-warn` (warm sand) | `#f5cb96` | Ghostty ANSI 11. **ohmyposh uses a near-miss variant** (see below). |
 | `accent-amber` (amber) | `#f3be7c` | Ghostty ANSI 4; nvim `GitSignsChange`; nvim lualine `insert`-mode status/location block. Distinct from `accent-warn` (`#f5cb96`, ANSI 11) — `accent-amber` is more orange-ward. |
 

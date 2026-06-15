@@ -81,14 +81,14 @@ return {
         -- hl["@variable"]                  = hl["@lsp.type.variable"]
         -- hl["@variable.parameter"]        = hl["@lsp.type.parameter"]
         -- hl["@property"]                  = hl["@lsp.type.property"]
-        -- hl["@markup.heading.1.markdown"] = { fg = c.func, bg = "None" }
-        -- hl["@markup.heading.2.markdown"] = { fg = c.parameter, bg = "None" }
-        -- hl["@markup.heading.3.markdown"] = { fg = c.constant, bg = "None" }
-        -- hl["@markup.heading.4.markdown"] = { fg = c.keyword, bg = "None" }
-        -- hl["@markup.heading.5.markdown"] = { fg = c.visual, bg = "None" }
-        -- hl["@markup.heading.6.markdown"] = { fg = c.keyword, bg = "None" }
-        -- hl["@markup.italic"]             = { fg = c.parameter, bg = "None" }
-        -- hl["@markup.strong"]             = { fg = c.constant, bg = "None" }
+        hl["@markup.heading.1.markdown"] = { fg = "#bb9dbd", bg = "None" }
+        hl["@markup.heading.2.markdown"] = { fg = "#aeaed1", bg = "None" }
+        hl["@markup.heading.3.markdown"] = { fg = "#f3be7c", bg = "None" }
+        hl["@markup.heading.4.markdown"] = { fg = "#bb9dbd", bg = "None" }
+        hl["@markup.heading.5.markdown"] = { fg = "#aeaed1", bg = "None" }
+        hl["@markup.heading.6.markdown"] = { fg = "#f3be7c", bg = "None" }
+        hl["@markup.italic"]             = { fg = "#f3be7c", italic = true, bg = "None" }
+        hl["@markup.strong"]             = { fg = "#c3c3d5", bold = true, bg = "None" }
         hl["SnacksIndent"]               = { fg = "#383848" }
         hl["NeoTreeIndentMarker"]        = { fg = "#383848" }
         hl["GitSignsAdd"]                = { fg = "#bb9dbd" }
@@ -97,6 +97,19 @@ return {
         hl["DiffAdd"]                    = { bg = "#39323A" }
         hl["DiffDelete"]                 = { bg = "#3F262C" }
         hl["CursorLine"]                 = { bg = "#2A2A35" }
+        hl["FoldColumn"]                 = { fg = "#8ba9c1" }
+        -- hl["NonText"]                    = { fg = "#d8647e", bold = true }
+        hl["FloatBorder"]                = { fg = "#656a80" }
+        hl["BlinkCmpGhostText"]          = { fg = "#606079" }
+        hl["LspInlayHint"]               = { fg = "#606079", italic = true }
+        hl["GitSignsCurrentLineBlame"]   = { fg = "#606079" }
+        hl["ComplHint"]                  = { fg = "#606079" }
+        hl["RenderMarkdownH1Bg"]         = { bg = "#352f37" }
+        hl["RenderMarkdownH2Bg"]         = { bg = "#33333a" }
+        hl["RenderMarkdownH3Bg"]         = { bg = "#40362a" }
+        hl["RenderMarkdownH4Bg"]         = { bg = "#352f37" }
+        hl["RenderMarkdownH5Bg"]         = { bg = "#33333a" }
+        hl["RenderMarkdownH6Bg"]         = { bg = "#40362a" }
       end,
 
       -- Override colors

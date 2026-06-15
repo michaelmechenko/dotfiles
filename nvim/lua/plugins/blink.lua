@@ -1,13 +1,13 @@
 return {
   {
     "L3MON4D3/LuaSnip",
-    version = "v2.*",
     build = "make install_jsregexp",
   },
   {
     "saghen/blink.cmp",
-    dependencies = { "rafamadriz/friendly-snippets" },
-    version = "1.*",
+    dependencies = { "rafamadriz/friendly-snippets", "saghen/blink.lib" },
+    version = "2.*",
+    build = function() require('blink.cmp').build():pwait() end,
     opts = {
       keymap = {
         preset = "default",
@@ -100,6 +100,7 @@ return {
               get_cwd = function(_)
                 return vim.fn.getcwd()
               end,
+              show_hidden_files_by_default = true,
             },
           },
         },

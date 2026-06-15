@@ -12,12 +12,23 @@ return {
     },
     modes = {
       diagnostics = {
-        filter = { buf = 0 }, -- filter diagnostics to the current buffer
+        filter = { buf = 0 },
         win = {
           type = "split",
           focus = true,
           relative = "win",
           position = "bottom",
+          size = 0.4,
+        },
+      },
+      diagnostics_right = {
+        filter = { buf = 0 },
+        mode = "diagnostics",
+        win = {
+          type = "split",
+          focus = true,
+          relative = "win",
+          position = "right",
           size = 0.4,
         },
       },
@@ -65,17 +76,52 @@ return {
           size = 0.4,
         },
       },
+      symbols_right = {
+        mode = "lsp_document_symbols",
+        focus = true,
+        win = {
+          type = "split",
+          relative = "win",
+          position = "right",
+          size = 0.4,
+        },
+      },
     },
   },
-  -- config = function(_, opts)
-  --   require("trouble").setup(opts)
-  --
-  --   -- auto-fold all items when trouble opens
-  --   vim.api.nvim_create_autocmd("User", {
-  --     pattern = "TroubleOpen",
-  --     callback = function()
-  --       require("trouble").fold_close_all()
-  --     end,
-  --   })
-  -- end,
+  config = function(_, opts)
+    require("trouble").setup(opts)
+
+    -- auto-fold all items when trouble opens
+    vim.api.nvim_create_autocmd("User", {
+      pattern = "TroubleOpen",
+      callback = function()
+        require("trouble").fold_close_all()
+      end,
+    })
+
+    -- pairs: bottom mode -> right mode
+    local position_pairs = {
+      diagnostics = "diagnostics_right",
+      diagnostics_right = "diagnostics",
+      symbols_main = "symbols_right",
+      symbols_right = "symbols_main",
+      lsp_main = "lsp_main",       -- already right, no pair
+      lsp_references = "lsp_references", -- already right, no pair
+      functions_main = "functions_main", -- already right, no pair
+    }
+
+    -- toggle trouble window position (bottom <-> right), focus stays in editor
+    vim.keymap.set("n", "<leader>xt", function()
+      local trouble = require("trouble")
+      for mode, paired in pairs(position_pairs) do
+        if trouble.is_open(mode) then
+          local target = paired
+          if target == mode then return end -- no position toggle for this mode
+          trouble.close(mode)
+          trouble.open(target, { focus = false })
+          return
+        end
+      end
+    end, { desc = "Toggle Trouble position" })
+  end,
 }

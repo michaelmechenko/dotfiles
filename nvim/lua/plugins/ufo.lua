@@ -56,7 +56,15 @@ return {
 
       require("ufo").setup({
         fold_virt_text_handler = handler,
+        close_fold_kinds_for_ft = {
+          default = { "Function", "Method" },
+        },
       })
+
+      -- fold all of a given kind (e.g. :UfoInspect to see available kinds)
+      vim.keymap.set("n", "zF", function()
+        require("ufo").closeFoldsWith("Function")
+      end, { desc = "Fold all functions" })
     end,
   },
 }

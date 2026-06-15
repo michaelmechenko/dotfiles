@@ -290,7 +290,7 @@ return {
       { "<leader>lm", function() vim.lsp.buf.code_action() end,    desc = "code action" },
 
       -- scrollbar
-      { "<leader>sd", "<Cmd>ScrollbarToggle<CR>",                  desc = "toggle scrollbar" },
+      -- { "<leader>sd", "<Cmd>ScrollbarToggle<CR>",                  desc = "toggle scrollbar" },
 
       --snacks picker
       { "<leader>f",  group = "snacks picker" },

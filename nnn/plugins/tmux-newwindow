@@ -1,0 +1,39 @@
+#!/usr/bin/env sh
+# nnn plugin (;e): open the selection in a NEW tmux window in the origin pane's session.
+#   directory hovered -> new window with that dir as its cwd (a plain shell)
+#   file hovered      -> new window whose cwd is the browse dir, running nvim on the file
+#   nothing/empty     -> new window in the browse dir
+# A tmux popup isn't in the window tree, so the new window must target the *origin* session
+# (the popup is its own session 'nnn'); needs NNN_ORIGIN_PANE (set by tmux-nnn-explorer).
+# $1 = hovered basename; $PWD = current browse dir.
+
+sel="$1"
+[ -n "$NNN_ORIGIN_PANE" ] || exit 0
+
+# Full path of the hovered item ($1 is a basename in $PWD; guard the / root case).
+if [ "$PWD" = "/" ]; then
+    target="/$sel"
+else
+    target="$PWD/$sel"
+fi
+
+# The new window goes to the origin pane's session (not the popup's 'nnn' session).
+sess=$(tmux display -p -t "$NNN_ORIGIN_PANE" '#{session_name}' 2>/dev/null)
+[ -n "$sess" ] || exit 0
+
+if [ -n "$sel" ] && [ -d "$target" ]; then
+    # directory -> new window there
+    tmux new-window -t "$sess:" -c "$target"
+elif [ -n "$sel" ] && [ -e "$target" ]; then
+    # file -> new window in the browse dir, editing the file. The path is carried as a tmux
+    # env var (-e) and referenced from a single-quoted *literal* command, so a hostile
+    # filename (e.g. `$(...)` or quotes) is data in the environment and can never be parsed
+    # as shell code when the new window runs the command via its `-c` shell.
+    tmux new-window -t "$sess:" -c "$PWD" -e TARGET="$target" 'exec "${EDITOR:-nvim}" -- "$TARGET"'
+else
+    # nothing hovered / empty dir -> new window in the browse dir
+    tmux new-window -t "$sess:" -c "$PWD"
+fi
+
+# Close the explorer popup as M-d does (kill the session, not detach-client).
+tmux kill-session -t nnn 2>/dev/null

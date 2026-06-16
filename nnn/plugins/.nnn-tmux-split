@@ -36,8 +36,10 @@ if [ -n "$sel" ] && [ -d "$target" ]; then
     # directory hovered -> new terminal there
     tmux split-window "$@" -c "$target"
 elif [ -n "$sel" ] && [ -e "$target" ]; then
-    # file hovered -> open in editor (new pane cwd = browse dir)
-    tmux split-window "$@" -c "$PWD" "${EDITOR:-nvim} -- \"$target\""
+    # file hovered -> open in editor (new pane cwd = browse dir). Path carried as a tmux env
+    # var (-e) + referenced from a single-quoted literal command, so a hostile filename can't
+    # be parsed as shell code when tmux runs the command via the new pane's `-c` shell.
+    tmux split-window "$@" -c "$PWD" -e TARGET="$target" 'exec "${EDITOR:-nvim}" -- "$TARGET"'
 else
     # empty dir / nothing hovered -> terminal in the browse dir
     tmux split-window "$@" -c "$PWD"

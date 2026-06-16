@@ -29,11 +29,12 @@ BORDER_COLOR=$(tmux show-options -gqv @color-inactive)
 BORDER_COLOR=${BORDER_COLOR:-"#a9b1d6"}
 
 # in-nnn plugin keys (pressed as ;<key>): ;l horizontal split, ;j vertical split,
+# ;e new window (dir -> shell there / file -> nvim, new window cwd = browse dir),
 # ;i send a cd command to the origin pane's prompt, ;p toggle file preview,
 # ;f fzf fuzzy-jump to a subdir (ctrl-o there opens a file in an nvim split in the origin
 # window), ;g live ripgrep -> open match in an nvim split. (nnn keybinds are compiled-in; ; is a mandatory
 # plugin prefix — bare keys can't run plugins without recompiling nnn.)
-PLUG='l:tmux-split-h;j:tmux-split-v;i:cd-origin;p:preview-tui;f:fzcd;g:fzrg'
+PLUG='l:tmux-split-h;j:tmux-split-v;e:tmux-newwindow;i:cd-origin;p:preview-tui;f:fzcd;g:fzrg'
 # colors via ANSI indices -> inherit the terminal's themed (vague) palette.
 COLORS='63256325'                          # 4 context colors (lavender/pale/mauve/slate), repeated
 FCOLORS='060606020005030801050201'         # blk chr DIR exe reg hard sym miss orph fifo sock unk

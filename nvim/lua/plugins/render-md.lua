@@ -6,17 +6,17 @@ return {
     config = function()
       require("render-markdown").setup({
         enabled = true,
-        anti_conceal = {
-          enabled = true,
-          disabled_modes = { "n" },
-        },
+        -- anti_conceal = {
+        --   enabled = true,
+        --   disabled_modes = { "n" },
+        -- },
         heading = {
           sign = true,
           icons = { "# ", "## ", "### ", "#### ", "#### ", "#### " },
           position = "inline",
           width = "block",
           border = true,
-          border_virtual = true,
+          border_virtual = false,
           border_prefix = true,
           above = " ",
           below = "─",

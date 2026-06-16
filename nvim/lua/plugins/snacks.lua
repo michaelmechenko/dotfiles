@@ -6,6 +6,12 @@ return {
     opts = {
       bigfile = { enabled = true },
 
+      -- Explicitly off (not left nil): the image attach guards check `== false`, so a nil here
+      -- lets the module run Terminal.detect() and emit an XTVERSION probe (`\e[>q`) when the
+      -- picker previews a markdown file. tmux mangles the DCS reply, which then leaks into the
+      -- picker input as `>|ghostty 1.3.1`. We don't use inline images, so disable it outright.
+      image = { enabled = false },
+
       notifier = { enabled = false },
 
       quickfile = { enabled = true },

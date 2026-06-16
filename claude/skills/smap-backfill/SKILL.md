@@ -1,6 +1,7 @@
 ---
 name: smap-backfill
 description: "Recursively reconstruct the session map for an entire project — all past sessions including git worktrees — by parsing their transcripts, folding everything into one canonical per-project log. Idempotent; preserves existing blocks. Use to backfill history, consolidate fragmented worktree session maps, or populate smap for a project from scratch."
+model: claude-sonnet-4-6[1m]
 allowed-tools: Bash, Read, Edit, Write, Agent
 ---
 

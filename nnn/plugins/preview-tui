@@ -543,7 +543,7 @@ preview_fifo() {
     while read -r selection; do
         # Debounce: while more selections keep arriving within the window (fast
         # scrolling), skip ahead to the latest and don't preview the items passed over.
-        while read -r -t 0.05 newer; do
+        while read -r -t 0 newer; do
             selection="$newer"
         done
         if [ -n "$selection" ]; then

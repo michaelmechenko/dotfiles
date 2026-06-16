@@ -78,5 +78,11 @@
 ## Git, Pull Requests, Commits
 
 - Never create commits, PRs, or push unless explicitly requested
+- Do not open or comment on PRs, request reviews, or merge without explicit instruction. Approval for one action does not extend to the next
 - **Never** add AI/Agent attribution or contributor status in commits, PRs, or messages
 - **gh CLI available** for GitHub operations (PRs, issues, etc.)
+
+## Session map (smap)
+
+- A per-project session map exists: durable log at `~/.config/smap/<slug>.md` (a pinned Findings & Directives section + one block per session, newest first), plus a `SMAP-TODOS.md` working list at the repo root (gitignored-local).
+- Use `/smap-read` / `/smap-update` (and `/smap-review`) on demand or when asked. Be aware it exists, but **do not auto-read or auto-update it at session start** — don't load it into context unprompted.

@@ -1,6 +1,7 @@
 ---
 name: smap-update
 description: "Record or update the session map for the current project: this session's goals, what was accomplished, what's still open, and the project's major todos. Use when asked to update the smap, session map, save session progress, log what was done, or record open todos for the project."
+model: claude-sonnet-4-6[1m]
 allowed-tools: Bash, Read, Edit, Write
 ---
 
@@ -26,8 +27,17 @@ tmp="${root//\//-}"; slug="${tmp//./-}"   # / and . → - (matches Claude's proj
 log=~/.config/smap/"$slug".md
 ```
 
-Session id: use `$CLAUDE_SESSION_ID` if set. Otherwise find the most recent
-`~/.config/claude/sessions/*.json` whose `cwd` equals `$root` and read its `sessionId`.
+Session id: use `$CLAUDE_SESSION_ID` if set; otherwise the newest
+`~/.config/claude/sessions/*.json` whose `cwd` equals `$root`. Use `jq` (not `node`):
+
+```bash
+sid="${CLAUDE_SESSION_ID:-}"
+[ -z "$sid" ] && for f in $(ls -t ~/.config/claude/sessions/*.json 2>/dev/null); do
+  sid=$(jq -r --arg r "$root" 'select(.cwd==$r)|.sessionId' "$f" 2>/dev/null)
+  [ -n "$sid" ] && break
+done
+```
+
 Date: `date +%F`.
 
 ## File layout

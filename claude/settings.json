@@ -104,7 +104,17 @@
       "Bash(terraform state list*)",
       "Bash(terraform state show*)",
       "Bash(terraform providers*)",
-      "Bash(terraform output*)"
+      "Bash(terraform output*)",
+      "Bash(git rev-parse *)"
+    ],
+    "ask": [
+      "Bash(git push *)",
+      "Bash(gh pr create *)",
+      "Bash(gh pr merge *)",
+      "Bash(gh pr edit *)",
+      "Bash(gh pr comment *)",
+      "Bash(gh pr ready *)",
+      "Bash(gh pr review *)"
     ],
     "deny": [
       "Bash(rm *)",

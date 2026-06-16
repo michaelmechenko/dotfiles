@@ -200,18 +200,7 @@ compdef _tload tload
 # List saved snapshots:
 alias tls="ls ~/.config/tmux_sessions/*.md 2>/dev/null | sed 's#.*/##;s#\.md\$##'"
 
-# Inside tmux, listen on a per-pane RPC socket so tsave can query the open buffers
-# (tload reopens them). Path is deterministic from $TMUX_PANE; rm any stale socket first.
-nvim()  {
-  if [ -n "$TMUX_PANE" ]; then
-    local sock="${TMPDIR:-/tmp}/nvim-${TMUX_PANE}.sock"
-    rm -f "$sock" 2>/dev/null
-    command nvim --listen "$sock" "$@"
-  else
-    command nvim "$@"
-  fi
-  printf '\e[4 q'
-}
+nvim()   { command nvim "$@"; printf '\e[4 q'; }
 claude() { command claude "$@"; printf '\e[4 q'; }
 
 export CLAUDE_CONFIG_DIR=~/.config/claude

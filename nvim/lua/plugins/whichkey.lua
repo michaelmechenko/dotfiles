@@ -24,6 +24,7 @@ return {
   },
   config = function()
     local wk = require("which-key")
+    local trouble_helpers = require("utils.trouble")
     wk.add({
       -- format
       { "<leader>q", vim.lsp.buf.format,       desc = "format" },
@@ -203,7 +204,7 @@ return {
         "<leader>xz",
         function()
           if require("trouble").is_open() then
-            require("trouble").focus({ true })
+            require("trouble").focus()
           end
         end,
         desc = "focus",
@@ -220,14 +221,14 @@ return {
       {
         "<leader>xd",
         function()
-          require("trouble").toggle("diagnostics")
+          trouble_helpers.toggle("diagnostics")
         end,
         desc = "diagnostics",
       },
       {
         "<leader>xl",
         function()
-          require("trouble").toggle("lsp_main")
+          trouble_helpers.toggle("lsp_main")
         end,
         desc = "lsp main",
       },
@@ -235,42 +236,42 @@ return {
 
         "<leader>xD",
         function()
-          require("trouble").toggle("lsp_declarations")
+          trouble_helpers.toggle("lsp_declarations")
         end,
         desc = "lsp declarations",
       },
       {
         "<leader>xr",
         function()
-          require("trouble").toggle("lsp_references")
+          trouble_helpers.toggle("lsp_references")
         end,
         desc = "lsp references",
       },
       {
         "<leader>xR",
         function()
-          require("trouble").toggle("lsp_type_definitions")
+          trouble_helpers.toggle("lsp_type_definitions")
         end,
         desc = "lsp type definitions",
       },
       {
         "<leader>xf",
         function()
-          require("trouble").toggle("functions_main")
+          trouble_helpers.toggle("functions_main")
         end,
         desc = "functions",
       },
       {
         "<leader>xs",
         function()
-          require("trouble").toggle("symbols_main")
+          trouble_helpers.toggle("symbols_main")
         end,
         desc = "symbols",
       },
       {
         "<leader>xQ",
         function()
-          require("trouble").toggle("qflist")
+          trouble_helpers.toggle("qflist")
         end,
         desc = "quickfix",
       },

@@ -90,35 +90,31 @@ return {
   },
   config = function(_, opts)
     require("trouble").setup(opts)
+    local trouble_helpers = require("utils.trouble")
 
-    -- auto-fold all items when trouble opens
-    vim.api.nvim_create_autocmd("User", {
-      pattern = "TroubleOpen",
-      callback = function()
-        require("trouble").fold_close_all()
-      end,
-    })
-
-    -- pairs: bottom mode -> right mode
+    -- ordered: bottom mode -> right mode (first open wins)
     local position_pairs = {
-      diagnostics = "diagnostics_right",
-      diagnostics_right = "diagnostics",
-      symbols_main = "symbols_right",
-      symbols_right = "symbols_main",
-      lsp_main = "lsp_main",       -- already right, no pair
-      lsp_references = "lsp_references", -- already right, no pair
-      functions_main = "functions_main", -- already right, no pair
+      { "diagnostics", "diagnostics_right" },
+      { "symbols_main", "symbols_right" },
+      { "diagnostics_right", "diagnostics" },
+      { "symbols_right", "symbols_main" },
+      -- modes below have no position toggle
+      { "lsp_main", "lsp_main" },
+      { "lsp_references", "lsp_references" },
+      { "functions_main", "functions_main" },
     }
 
     -- toggle trouble window position (bottom <-> right), focus stays in editor
     vim.keymap.set("n", "<leader>xt", function()
       local trouble = require("trouble")
-      for mode, paired in pairs(position_pairs) do
+      for _, pair in ipairs(position_pairs) do
+        local mode, target = pair[1], pair[2]
         if trouble.is_open(mode) then
-          local target = paired
-          if target == mode then return end -- no position toggle for this mode
+          if target == mode then
+            return -- no position toggle for this mode
+          end
           trouble.close(mode)
-          trouble.open(target, { focus = false })
+          trouble_helpers.open(target, { focus = false })
           return
         end
       end

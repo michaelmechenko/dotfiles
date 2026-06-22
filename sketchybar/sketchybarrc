@@ -93,17 +93,7 @@ done
 # CENTER BLOCK (of center block) - Main monitor workspaces (1*, 2*, 3*)
 #
 
-sketchybar --add item sep_main_left center \
-           --set sep_main_left \
-                 icon="[" \
-                 icon.y_offset=2 \
-                 icon.padding_left=8 \
-                 icon.padding_right=1 \
-                 icon.color=0x80EDEDED \
-                 label.drawing=off \
-                 icon.font.style="Normal"
-
-for sid in "1*" "2*" "3*" "4*" "5*"; do
+for sid in "1*" "2*" "3*"; do
     sketchybar --add item space.$sid center \
         --set space.$sid \
         icon="*" \
@@ -111,16 +101,6 @@ for sid in "1*" "2*" "3*" "4*" "5*"; do
         icon.y_offset=2 \
         click_script="aerospace workspace $sid"
 done
-
-sketchybar --add item sep_main_right center \
-           --set sep_main_right \
-                 icon="]" \
-                 icon.y_offset=2 \
-                 icon.padding_left=1 \
-                 icon.padding_right=8 \
-                 icon.color=0x80EDEDED \
-                 label.drawing=off \
-                 icon.font.style="Normal"
 
 #
 # RIGHT BLOCK - Secondary monitor workspace 2^
@@ -151,5 +131,9 @@ sketchybar --add item sep_right right \
 sketchybar --add item date right \
     --set date update_freq=30 label.padding_right=0 label.color=0xffEDEDED script="$PLUGIN_DIR/date.sh" icon.drawing=off
 
-##### Force all scripts to run the first time (never do this in a script) #####
-sketchybar --update
+##### Initial render: targeted triggers, not a full --update (which forces every #####
+##### script at once and stalls redraw on monitor attach). Each event fires  #####
+##### the specific subscribers that need to run.                              #####
+sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE="$(aerospace list-workspaces --focused --format '%{workspace}' 2>/dev/null)"
+sketchybar --trigger aerospace_focus_change
+sketchybar --trigger aerospace_keyswap_change

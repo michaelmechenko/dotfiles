@@ -8,7 +8,7 @@ INACTIVE=0x80EDEDED
 WS="${FOCUSED_WORKSPACE:-$(aerospace list-workspaces --focused --format '%{workspace}' 2>/dev/null)}"
 
 CMD=(sketchybar)
-for sid in "1^" "1*" "2*" "3*" "4*" "5*" "2^"; do
+for sid in "1^" "1*" "2*" "3*" "2^"; do
   if [ "$sid" = "$WS" ]; then c=$ACTIVE; else c=$INACTIVE; fi
   CMD+=(--set "space.$sid" icon.color="$c")
 done

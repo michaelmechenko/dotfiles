@@ -8,6 +8,7 @@ local window = require("window")
 -- _G.rectangleCenter = rectangle.center
 -- _G.centerAll = rectangle.centerAll
 _G.almostMaximize = window.almostMaximize
+_G.almostMaximizeAfterMove = window.almostMaximizeAfterMove
 _G.center = window.center
 _G.almostMaximizeAll = window.almostMaximizeAll
 _G.almostMaximizeFocusedWorkspace = window.almostMaximizeFocusedWorkspace

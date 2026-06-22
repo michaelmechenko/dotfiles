@@ -163,7 +163,7 @@ automatically-unhide-macos-hidden-apps = false
     cmd-shift-a = 'exec-and-forget /bin/bash ~/.config/aerospace/move_workspace_cycle.sh prev'
     cmd-shift-d = 'exec-and-forget /bin/bash ~/.config/aerospace/move_workspace_cycle.sh next'
 
-    cmd-shift-w = ["move-node-to-monitor --focus-follows-window --wrap-around next", 'exec-and-forget hs -c "almostMaximize()"']
+    cmd-shift-w = ["move-node-to-monitor --focus-follows-window --wrap-around next", 'exec-and-forget hs -c "almostMaximizeAfterMove()"']
 
     # cmd-;/' cycle windows (= cmd-`/cmd-shift-`); cmd-shift-;/' cycle workspaces
     cmd-semicolon       = 'exec-and-forget /bin/bash ~/.config/aerospace/cycle_workspace_window.sh prev'

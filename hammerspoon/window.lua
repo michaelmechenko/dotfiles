@@ -43,6 +43,32 @@ end
 function M.almostMaximize() snapInsets(ALMOST) end
 function M.maximize() snapInsets(MAXIM) end
 
+-- Snap the focused window to ALMOST insets, but wait for its screen to settle first.
+-- Used after cross-monitor moves (cmd-shift-w): the Accessibility API can still report
+-- the OLD screen for a few ms after `move-node-to-monitor --focus-follows-window`, so an
+-- immediate snapInsets() computes the frame against the wrong monitor and the window lands
+-- off-center / on the wrong display. Poll the focused window's screen id; snap as soon as
+-- it stabilizes across two ticks (or give up after ~250ms and snap whatever we have).
+function M.almostMaximizeAfterMove()
+  local win = hs.window.focusedWindow()
+  if not win then snapInsets(ALMOST); return end
+  local prev = win:screen():id()
+  local ticks = 0
+  local function step()
+    local w = hs.window.focusedWindow()
+    if not w then return end
+    local cur = w:screen():id()
+    ticks = ticks + 1
+    if cur == prev or ticks >= 5 then
+      snapInsets(ALMOST, w)
+      return
+    end
+    prev = cur
+    hs.timer.doAfter(0.05, step)
+  end
+  hs.timer.doAfter(0.04, step)
+end
+
 -- Center the focused window without resizing. Centered horizontally on the screen and
 -- vertically within the SAME band as almost-maximize (top=ALMOST.top, bottom=ALMOST.bottom)
 -- so its midpoint lines up with the maximize windows (not biased ~11px high).

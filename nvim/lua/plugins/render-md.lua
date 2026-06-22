@@ -32,13 +32,17 @@ return {
         indent = {
           enabled = false
         },
+        dash = {
+          enabled = false
+        },
         code = {
           enabled = true,
+          border = "none",
           -- width = 'block',
           -- left_pad = 0.2,
           -- right_pad = 0.2,
           sign = false,
-          conceal_delimiters = true,
+          conceal_delimiters = false,
         },
         quote = {
           enabled = true,

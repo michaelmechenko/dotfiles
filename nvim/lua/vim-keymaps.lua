@@ -101,42 +101,57 @@ vim.keymap.set("v", "<Tab>", "<Esc>", {})
 -- vim.keymap.set("v", "<C-s>", "<Esc>", {})
 vim.keymap.set("i", "<C-v>", '<C-r>0', { noremap = true, silent = true, desc = "Paste yank register" })
 
--- preview current line in a floating window (useful when wrap is off and line extends past screen)
+local preview_float_win = nil
+
+local function close_preview_float()
+  if preview_float_win and vim.api.nvim_win_is_valid(preview_float_win) then
+    vim.api.nvim_win_close(preview_float_win, true)
+  end
+  preview_float_win = nil
+end
+
 vim.keymap.set("n", "<leader>pl", function()
+  close_preview_float()
   local line = vim.api.nvim_get_current_line()
   local win = vim.api.nvim_get_current_win()
-  local text_width = vim.api.nvim_win_get_width(win) - vim.fn.getwininfo(win)[1].textoff
-  if vim.fn.strdisplaywidth(line) <= text_width then return end
+  local win_info = vim.fn.getwininfo(win)[1]
+  local text_width = vim.api.nvim_win_get_width(win) - (win_info and win_info.textoff or 0)
+  if text_width <= 0 or vim.fn.strdisplaywidth(line) <= text_width then return end
   local display_width = vim.fn.strdisplaywidth(line)
-  local buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { line })
-  local float_width = math.min(display_width + 4, vim.o.columns - 4)
-  local float_height = math.ceil(display_width / text_width)
-  -- position: below cursor if room, above if not
+  local float_width = math.min(display_width + 4, text_width + 4, vim.o.columns - 4)
+  float_width = math.max(1, float_width)
+  local content_width = math.max(text_width, 1)
+  local float_height = math.min(math.max(1, math.ceil(display_width / content_width)),
+    vim.api.nvim_win_get_height(win) - 2)
+  float_height = math.max(1, float_height)
   local screen_row = vim.fn.winline()
   local rows_below = vim.api.nvim_win_get_height(win) - screen_row
-  local row_offset = rows_below >= float_height + 2 and (screen_row) or (screen_row - float_height - 2)
-  row_offset = math.max(0, row_offset)
-  local col = math.max(0, math.floor((vim.o.columns - float_width) / 2))
-  local float_win = vim.api.nvim_open_win(buf, true, {
-    relative = "win",
+  local row_offset = rows_below >= float_height + 2 and 1 or -(float_height + 1)
+  local anchor = row_offset >= 0 and "NW" or "SW"
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { line })
+  vim.api.nvim_buf_set_option(buf, "filetype", vim.bo[vim.api.nvim_get_current_buf()].filetype)
+  vim.api.nvim_buf_set_option(buf, "bufhidden", "wipe")
+  preview_float_win = vim.api.nvim_open_win(buf, false, {
+    relative = "cursor",
+    anchor = anchor,
+    row = row_offset,
+    col = 0,
     width = float_width,
     height = float_height,
-    row = row_offset,
-    col = col,
     style = "minimal",
     border = "rounded",
+    focusable = false,
     zindex = 100,
   })
-  vim.wo[float_win].wrap = true
-  vim.wo[float_win].linebreak = true
-  vim.keymap.set("n", "q", "<cmd>close<cr>", { buffer = buf })
-  vim.keymap.set("n", "<Esc>", "<cmd>close<cr>", { buffer = buf })
-  vim.api.nvim_create_autocmd("WinLeave", {
-    buffer = buf,
-    callback = function()
-      if vim.api.nvim_win_is_valid(float_win) then vim.api.nvim_win_close(float_win, true) end
-    end,
-    once = true,
-  })
+  vim.wo[preview_float_win].wrap = true
+  vim.wo[preview_float_win].linebreak = true
+  vim.schedule(function()
+    local group = vim.api.nvim_create_augroup("PreviewLongLine", { clear = true })
+    vim.api.nvim_create_autocmd({ "CursorMoved", "InsertEnter", "BufLeave" }, {
+      group = group,
+      once = true,
+      callback = close_preview_float,
+    })
+  end)
 end, { desc = "Preview long line in float" })

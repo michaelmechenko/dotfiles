@@ -120,6 +120,8 @@ alias o="ofd ."
 # alias cat="bat"
 alias e="nvim"
 alias ef='nvim "+lua require(\"snacks\").picker.files({ hidden = true, ignored = true })"'
+alias er='nvim "+lua require(\"snacks\").picker.recent({ hidden = true, ignored = true })"'
+alias eg='nvim "+lua require(\"snacks\").picker.grep({ hidden = true, ignored = true })"'
 alias ej="nvim tmp.json"
 alias em="nvim tmp.md"
 alias cc="claude"

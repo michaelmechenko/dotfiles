@@ -38,6 +38,7 @@ return {
         code = {
           enabled = true,
           border = "none",
+          background_inset = 0,
           -- width = 'block',
           -- left_pad = 0.2,
           -- right_pad = 0.2,

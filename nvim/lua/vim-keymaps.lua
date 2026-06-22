@@ -112,7 +112,7 @@ end
 
 vim.keymap.set("n", "<leader>pl", function()
   close_preview_float()
-  local line = vim.api.nvim_get_current_line()
+  local line = vim.api.nvim_get_current_line():gsub("^%s+", "")
   local win = vim.api.nvim_get_current_win()
   local win_info = vim.fn.getwininfo(win)[1]
   local text_width = vim.api.nvim_win_get_width(win) - (win_info and win_info.textoff or 0)

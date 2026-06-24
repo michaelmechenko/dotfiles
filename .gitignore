@@ -66,3 +66,5 @@ chrome
 /CLAUDE.md
 /acli
 /claude/security
+/homebrew/trust.json
+/homebrew/trust.json.lock

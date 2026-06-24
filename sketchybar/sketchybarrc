@@ -129,7 +129,7 @@ sketchybar --add item sep_right right \
     --set sep_right icon="*-*-*" icon.padding_left=8 icon.padding_right=8 icon.color=0x80EDEDED label.drawing=off
 
 sketchybar --add item date right \
-    --set date update_freq=30 label.padding_right=0 label.color=0xffEDEDED script="$PLUGIN_DIR/date.sh" icon.drawing=off
+    --set date update_freq=30 label.padding_right=2 label.color=0xffEDEDED script="$PLUGIN_DIR/date.sh" icon.drawing=off
 
 ##### Initial render: targeted triggers, not a full --update (which forces every #####
 ##### script at once and stalls redraw on monitor attach). Each event fires  #####
@@ -137,3 +137,9 @@ sketchybar --add item date right \
 sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE="$(aerospace list-workspaces --focused --format '%{workspace}' 2>/dev/null)"
 sketchybar --trigger aerospace_focus_change
 sketchybar --trigger aerospace_keyswap_change
+
+# Populate timer-only items immediately (date/battery use update_freq, which won't fire
+# until their first interval — on monitor-attach the recreated bar would otherwise sit
+# blank for up to 60s). Direct invocation matches sketchybar's own script= env ($NAME).
+NAME=date "$PLUGIN_DIR/date.sh"
+NAME=battery "$PLUGIN_DIR/battery.sh"

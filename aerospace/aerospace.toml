@@ -52,12 +52,12 @@ automatically-unhide-macos-hidden-apps = false
 # - Constant:     gaps.outer.top = 8
 # - Per monitor:  gaps.outer.top = [{ monitor.main = 16 }, { monitor."some-pattern" = 32 }, 24]
 [gaps]
-    inner.horizontal = 16
-    inner.vertical =   16
-    outer.left =       52
-    outer.bottom =     52
-    outer.top =        [ {monitor."Built-*" = 50}, 74 ]
-    outer.right =      52
+    inner.horizontal = 12
+    inner.vertical =   12
+    outer.left =       16
+    outer.bottom =     16
+    outer.top =        [ {monitor."Built-*" = 14}, 38 ]
+    outer.right =      16
 
 # 'main' binding mode declaration
 # See: https://nikitabobko.github.io/AeroSpace/guide#binding-modes

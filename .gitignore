@@ -68,3 +68,4 @@ chrome
 /claude/security
 /homebrew/trust.json
 /homebrew/trust.json.lock
+/claude/.claude.json.backup

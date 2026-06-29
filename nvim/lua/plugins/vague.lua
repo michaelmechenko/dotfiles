@@ -81,6 +81,7 @@ return {
         -- hl["@variable"]                  = hl["@lsp.type.variable"]
         -- hl["@variable.parameter"]        = hl["@lsp.type.parameter"]
         -- hl["@property"]                  = hl["@lsp.type.property"]
+        hl["@markup.heading.markdown"]   = { fg = "#bb9dbd", bg = "None" }
         hl["@markup.heading.1.markdown"] = { fg = "#bb9dbd", bg = "None" }
         hl["@markup.heading.2.markdown"] = { fg = "#aeaed1", bg = "None" }
         hl["@markup.heading.3.markdown"] = { fg = "#f3be7c", bg = "None" }
@@ -110,6 +111,11 @@ return {
         hl["RenderMarkdownH4Bg"]         = { bg = "#352f37" }
         hl["RenderMarkdownH5Bg"]         = { bg = "#33333a" }
         hl["RenderMarkdownH6Bg"]         = { bg = "#40362a" }
+        -- inline `code`: periwinkle fg, no background; fenced blocks keep their bg
+        hl["RenderMarkdownCodeInline"]   = { fg = "#9b9bcc", bg = "None" }
+        -- table borders: periwinkle (Head default-links to @markup.heading = blue keyword)
+        hl["RenderMarkdownTableHead"]    = { fg = "#9b9bcc" }
+        hl["RenderMarkdownTableRow"]     = { fg = "#9b9bcc" }
       end,
 
       -- Override colors

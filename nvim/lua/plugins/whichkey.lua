@@ -87,8 +87,8 @@ return {
       { "<leader>g",   group = "git" },
       {
         "<leader>gs",
-        "<cmd>Gitsigns toggle_numhl<CR><cmd>Gitsigns toggle_signs<CR>",
-        desc = "gitsigns toggle all",
+        "<cmd>Gitsigns toggle_numhl<CR>",
+        desc = "gitsigns toggle num",
       },
       {
         "<leader>gS",
@@ -158,7 +158,7 @@ return {
       { "<leader>rw", "<cmd>Neotree buffers reveal float reveal_force_cwd<CR>",    desc = "buffers" },
       { "<leader>rt", "<cmd>Neotree filesystem reveal float reveal_force_cwd<CR>", desc = "buffers" },
       { "<leader>rq", "<cmd>Neotree close<CR>",                                    desc = "close" },
-      { "<leader>rb", "<cmd>Neotree git_status reveal float reveal_force_cwd<CR>", desc = "git status" },
+      { "<leader>rg", "<cmd>Neotree git_status reveal float reveal_force_cwd<CR>", desc = "git status" },
 
       -- { "<leader>r", group = "explorer" },
       -- {

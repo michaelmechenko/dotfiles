@@ -19,7 +19,7 @@ return {
           changedelete = { text = '┃' },
           untracked    = { text = '┆' },
         },
-        signcolumn          = true,
+        signcolumn          = false,
         numhl               = true,
         linehl              = false,
         word_diff           = false,

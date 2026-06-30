@@ -6,11 +6,14 @@ after-startup-command = [
   'exec-and-forget /bin/bash -c "chmod +x ~/.config/sketchybar/sketchybarrc ~/.config/sketchybar/plugins/* 2>/dev/null; sketchybar"'
 ]
 
+# AeroSpace -> SketchyBar callbacks. Flag-gated by /tmp/sketchybar_perf_mode (toggled via
+# cmd-ctrl-alt-p / sketchybar/toggle_mode.sh): in performance mode the sketchybar IPC isn't
+# fired at all, so workspace/focus switches incur zero bar redraw cost.
 exec-on-workspace-change = ['/bin/bash', '-c',
-  'sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE'
+  '[ -f /tmp/sketchybar_perf_mode ] || sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE'
 ]
 
-on-focus-changed = ['exec-and-forget sketchybar --trigger aerospace_focus_change']
+on-focus-changed = ['exec-and-forget [ -f /tmp/sketchybar_perf_mode ] || sketchybar --trigger aerospace_focus_change']
 
 start-at-login = true
 

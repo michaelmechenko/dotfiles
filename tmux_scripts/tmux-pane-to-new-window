@@ -1,0 +1,35 @@
+#!/bin/sh
+
+# Move a pane into its OWN new window — the crash-safe replacement for
+# `break-pane`. The installed tmux (Homebrew --HEAD "3.7", commit 705fbf9)
+# crashes the *entire server* on break-pane, so we never call it. Instead:
+# create a detached placeholder window at the end of the target session,
+# join-pane the pane into it, then kill the placeholder so the pane is left
+# alone in the new window. (new-window / join-pane / kill-pane do not crash.)
+# Prints the new window id. Revert callers to a plain `break-pane` once tmux is
+# on a build whose break-pane works.
+#
+# Usage: tmux-pane-to-new-window <pane-id> [target-session] [window-name]
+#   <pane-id>        pane to move, e.g. %5
+#   [target-session] session id/name for the new window (default: pane's session)
+#   [window-name]    if non-empty, name the window (rename-window pins
+#                    automatic-rename off)
+
+pane="$1"
+target="$2"
+name="$3"
+[ -n "$target" ] || target="$(tmux display-message -t "$pane" -p '#{session_id}')"
+
+# Detached placeholder window at the end of the target session. Capture its
+# window id and placeholder pane id in one call (neither contains whitespace, so
+# positional splitting is safe).
+set -- $(tmux new-window -d -P -F '#{window_id} #{pane_id}' -t "${target}:")
+newwin="$1"
+placeholder="$2"
+
+tmux join-pane -s "$pane" -t "$newwin"   # newwin now holds placeholder + moved pane
+tmux kill-pane -t "$placeholder"         # leave only the moved pane
+
+[ -n "$name" ] && tmux rename-window -t "$newwin" "$name"
+
+printf '%s\n' "$newwin"

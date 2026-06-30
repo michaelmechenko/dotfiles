@@ -2,8 +2,28 @@
 
 set -e
 
-CURRENT_PANE="$(tmux display-message -p '#{pane_id}')"
+# Move the current pane into a new window in a chosen session.
+#
+# Routes through the shared crash-safe helper tmux-pane-to-new-window instead of
+# `break-pane` (the installed tmux --HEAD build crashes the whole server on
+# break-pane). Each menu item shells out via run-shell so the helper can capture
+# the new window/placeholder ids; the target session is passed by id and
+# single-quoted so run-shell's /bin/sh treats the leading `$` literally (tmux
+# session ids look like $3) and never globs/expands odd session names.
 
-tmux list-sessions -O creation -F '#S' \
-| awk -v pane="$CURRENT_PANE" 'BEGIN {ORS=" "} {print $1, NR, "\"break-pane -s", pane, "-t", $1 ":\""}' \
-| xargs tmux display-menu -T "move pane to session" -b "rounded"
+CURRENT_PANE="$(tmux display-message -p '#{pane_id}')"
+HELPER="$HOME/.config/tmux_scripts/tmux-pane-to-new-window"
+
+# Build display-menu args (name key command) ... as proper positional params so
+# quoting survives intact — no awk/xargs re-parsing.
+set --
+n=0
+while IFS='|' read -r sname sid; do
+    [ -n "$sid" ] || continue
+    n=$((n + 1))
+    set -- "$@" "$sname" "$n" "run-shell -b \"$HELPER $CURRENT_PANE '$sid'\""
+done <<EOF
+$(tmux list-sessions -O creation -F '#{session_name}|#{session_id}')
+EOF
+
+tmux display-menu -T "move pane to session" -b "rounded" "$@"

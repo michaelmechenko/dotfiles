@@ -10,11 +10,13 @@ local window = require("window")
 _G.almostMaximize = window.almostMaximize
 _G.almostMaximizeAfterMove = window.almostMaximizeAfterMove
 _G.center = window.center
+_G.center43 = window.center43
 _G.almostMaximizeAll = window.almostMaximizeAll
 _G.almostMaximizeFocusedWorkspace = window.almostMaximizeFocusedWorkspace
 _G.toggleFloatKeepPos = window.toggleFloatKeepPos
 
 hs.hotkey.bind({ "cmd", "ctrl", "alt" }, "c", window.almostMaximizeFocusedWorkspace)
 hs.hotkey.bind({ "cmd", "ctrl", "alt" }, "x", window.almostMaximize)
+hs.hotkey.bind({ "cmd", "ctrl", "alt" }, "b", window.center43)
 hs.hotkey.bind({ "cmd", "ctrl", "alt" }, "v", window.maximize)
 hs.hotkey.bind({ "cmd", "ctrl", "alt" }, "space", window.center)

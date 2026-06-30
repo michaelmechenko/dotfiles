@@ -94,6 +94,35 @@ function M.center()
   }, 0)
 end
 
+-- Center the focused window at a 4:3 aspect ratio, sized smaller than almost-maximize
+-- (cmd-ctrl-alt-x). Same centering band as M.center (horizontal screen center, vertical
+-- center within the ALMOST top/bottom band) so it lines up with the other presets.
+-- Height is 80% of the almost-maximize band; width = height * 4/3, clamped to the
+-- available width if the display is too narrow to hold a 4:3 at that height. Scale is
+-- the single knob to tune "smaller than x".
+function M.center43()
+  local w = hs.window.focusedWindow()
+  if not w then return end
+  local scr = w:screen()
+  local s = scr:frame()
+  local top = topInset(ALMOST, scr)
+  local avail_w = s.w - ALMOST.left - ALMOST.right
+  local avail_h = s.h - top - ALMOST.bottom
+  local scale = 0.8
+  local h = math.floor(avail_h * scale)
+  local win_w = math.floor(h * 4 / 3)
+  if win_w > avail_w then
+    win_w = avail_w
+    h = math.floor(win_w * 3 / 4)
+  end
+  w:setFrame({
+    x = s.x + (s.w - win_w) / 2,
+    y = s.y + top + (avail_h - h) / 2,
+    w = win_w,
+    h = h,
+  }, 0)
+end
+
 -- Float each window (by id, no focus change) then setFrame it to the inset rect.
 -- No focus-cycling / no sleeps → near-instant, no flicker, focus stays put.
 local function snapByIds(ids, m)

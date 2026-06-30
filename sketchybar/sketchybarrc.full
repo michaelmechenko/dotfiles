@@ -72,9 +72,8 @@ CMD+=(--set keyswap width=dynamic drawing=off icon.drawing=off label.drawing=on 
 ### CENTER BLOCK CENTER BLOCK
 #
 
-# All five workspace indicators render as "*":  1^  1* 2* 3*  2^  =>  * * * * *
-# Only the middle three (1* 2* 3* — main-monitor workspaces) carry a fake overline
-# (a thin background strip; SketchyBar has no native underline/overline — see issue #565).
+# All five workspace indicators render as stars with connected center trio:
+# 1^  1* 2* 3*  2^  =>  * *-*-* *
 # space.1^ stays the single driver for ALL space.* indicator colors via space_colors.sh;
 # the others carry no script/subscription. Batched into one sketchybar call.
 CMD=(sketchybar)
@@ -82,38 +81,29 @@ CMD=(sketchybar)
 # 1^ — left marker (was "^", now "*")
 CMD+=(--add item space.1^ center)
 CMD+=(--subscribe space.1^ aerospace_workspace_change)
-CMD+=(--set space.1^ icon="*" label.drawing=off icon.y_offset=2 icon.padding_left=2 icon.padding_right=2 \
+CMD+=(--set space.1^ icon="*" label.drawing=off icon.y_offset=2 icon.padding_left=2 icon.padding_right=4 \
       click_script="aerospace workspace 1^" script="$PLUGIN_DIR/space_colors.sh")
 
-# 1* 2* 3* — main-monitor workspaces, overlined (thin top strip; SketchyBar has no native
-# underline/overline — see issue #565). Tuning notes:
-#   - background.y_offset is POSITIVE to push the strip to the bar top (negative would render
-#     it as an underline at the bottom).
-#   - background.padding_left/right = 0 on the INNER edges so the three per-item strips merge
-#     into ONE continuous overline across the three glyphs.
-#   - The OUTER edges are inset (leftmost left, rightmost right) by the icon padding (4) so the
-#     overline aligns with the star glyphs rather than overhanging into the icon-padding zone.
-#   - icon.padding_left/right reduced (4/4, vs the 6/6 default) so the stars sit closer
-#     together; symmetric padding keeps each star centered in its item, so the overline stays
-#     centered over the glyph.
-#   - color is the inactive-workspace tone (0x80EDEDED) and is STATIC: space_colors.sh only
-#     recolors icon.color, so the overline stays put regardless of which workspace is focused.
-for sid in "1*" "2*" "3*"; do
-    CMD+=(--add item space.$sid center)
-    bg_l=0; bg_r=0
-    [ "$sid" = "1*" ] && bg_l=4
-    [ "$sid" = "3*" ] && bg_r=4
-    CMD+=(--set space.$sid icon="*" label.drawing=off icon.y_offset=2 icon.padding_left=4 icon.padding_right=4 \
-          click_script="aerospace workspace $sid" \
-          background.drawing=on background.color=0x80EDEDED background.height=1 background.corner_radius=0 \
-          background.border_width=0 background.y_offset=9 \
-          background.padding_left=$bg_l background.padding_right=$bg_r)
-done
+# 1* 2* 3* — connected trio in the center: *-*-*
+# Connectors are labels so only star icons get active/inactive recoloring.
+CMD+=(--add item space.1* center)
+CMD+=(--set space.1* icon="*" label="-" label.drawing=on label.color=0x80EDEDED \
+      icon.y_offset=2 label.y_offset=2 icon.padding_left=4 icon.padding_right=0 \
+      label.padding_left=2 label.padding_right=2 click_script="aerospace workspace 1*")
+
+CMD+=(--add item space.2* center)
+CMD+=(--set space.2* icon="*" label="-" label.drawing=on label.color=0x80EDEDED \
+      icon.y_offset=2 label.y_offset=2 icon.padding_left=0 icon.padding_right=0 \
+      label.padding_left=2 label.padding_right=2 click_script="aerospace workspace 2*")
+
+CMD+=(--add item space.3* center)
+CMD+=(--set space.3* icon="*" label.drawing=off icon.y_offset=2 icon.padding_left=0 icon.padding_right=4 \
+      click_script="aerospace workspace 3*")
 
 # 2^ — right marker (was "^", now "*"). Extra right padding so the center block has a gap
 # before the right block (battery/date) instead of sitting flush against it.
 CMD+=(--add item space.2^ center)
-CMD+=(--set space.2^ icon="*" label.drawing=off icon.y_offset=2 icon.padding_left=2 icon.padding_right=16 \
+CMD+=(--set space.2^ icon="*" label.drawing=off icon.y_offset=2 icon.padding_left=4 icon.padding_right=16 \
       click_script="aerospace workspace 2^")
 
 "${CMD[@]}"
@@ -126,7 +116,7 @@ sketchybar --add item battery right \
     --set battery update_freq=60 label.padding_right=0 padding_right=0 label.color=0xffEDEDED icon.drawing=off script="$PLUGIN_DIR/battery.sh"
 
 sketchybar --add item sep_right right \
-    --set sep_right icon="*-*-*" icon.padding_left=8 icon.padding_right=8 icon.color=0x80EDEDED label.drawing=off
+    --set sep_right icon="*-*-*" icon.y_offset=2 icon.padding_left=8 icon.padding_right=8 icon.color=0x80EDEDED label.drawing=off
 
 sketchybar --add item date right \
     --set date update_freq=30 label.padding_right=2 label.color=0xffEDEDED script="$PLUGIN_DIR/date.sh" icon.drawing=off

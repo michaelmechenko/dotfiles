@@ -9,6 +9,13 @@ local function runAerospace(args)
   return output or ""
 end
 
+-- True if the AeroSpace server is running and accepting commands. Gates the workspace-wide
+-- snap path vs. the display-wide fallback (AeroSpace disabled/paused/uninstalled).
+local function aerospaceAvailable()
+  local _, ok = hs.execute(AEROSPACE .. " list-windows --all --format '%{window-id}' 2>/dev/null", false)
+  return ok == true
+end
+
 -- AeroSpace-matched insets in px (mirror the gap states so floating windows line up
 -- with tiled ones). Measured from the VISIBLE frame (screen:frame(), below the menu bar) —
 -- the same reference AeroSpace insets tiled windows from — so they don't sit too high.
@@ -110,8 +117,33 @@ local function focusedWorkspaceWindowIds()
   return ids
 end
 
+-- Fallback for when AeroSpace is disabled/paused: snap every standard visible window on
+-- the focused window's display (no AeroSpace IPC, no float step — without the WM windows
+-- are already free-floating). If there's no focused window (can't pick a display), fall
+-- back to ALL visible standard windows.
+local function snapDisplayWindows(m)
+  local focused = hs.window.focusedWindow()
+  local sid = focused and focused:screen() and focused:screen():id()
+  for _, w in ipairs(hs.window.allWindows()) do
+    if w:isStandard() and w:isVisible() then
+      if not sid or (w:screen() and w:screen():id() == sid) then
+        snapInsets(m, w)
+      end
+    end
+  end
+end
+
+-- cmd-ctrl-alt-c: workspace-wide when AeroSpace is active (float + snap each window on the
+-- focused workspace); display-wide fallback when AeroSpace is disabled/paused.
 function M.almostMaximizeFocusedWorkspace()
-  snapByIds(focusedWorkspaceWindowIds(), ALMOST)
+  if aerospaceAvailable() then
+    local ids = focusedWorkspaceWindowIds()
+    if #ids > 0 then
+      snapByIds(ids, ALMOST)
+      return
+    end
+  end
+  snapDisplayWindows(ALMOST)
 end
 
 function M.almostMaximizeAll()

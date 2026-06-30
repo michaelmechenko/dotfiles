@@ -34,10 +34,10 @@ Single source of truth for colors used across tmux, Ghostty, and zsh (via ohmypo
 | Role | Hex | Where used |
 |---|---|---|
 | `accent-primary` (rose) | `#d8647e` | tmux `@color-rose`; tmux ephemeral session indicator + zoomed border center; Ghostty ANSI 1; ohmyposh path segment; nvim lualine `replace`-mode status/location block |
-| `accent-secondary` (lavender) | `#aeaed1` | tmux `@color-ephemeral` / `@color-lavender2` / `@color-float`; tmux pane-border-active fg; Ghostty ANSI 6; ohmyposh session segment; nvim lualine `normal`/`command`-mode status/location block |
+| `accent-secondary` (lavender) | `#aeaed1` | tmux `@color-ephemeral` / `@color-lavender2` / `@color-float`; tmux pane-border-active fg; Ghostty ANSI 6 + ANSI 12 (ANSI 12 override → Claude Code code-block syntax highlighting, since its dark-ansi theme has no syntax token); ohmyposh session segment; nvim lualine `normal`/`command`-mode status/location block |
 | `accent-tertiary` (dusty pink) | `#bb9dbd` | tmux `@color-dusty_pink`; Ghostty ANSI 2; ohmyposh transient prompt + git segment; nvim lualine `visual`-mode status/location block |
 | `accent-highlight` (pale lavender) | `#bebedb` | tmux `@color-lavender` / `@color-active` — current window status; tmux copy-mode current line number (`copy-mode-current-line-number-style`, bold) |
-| `accent-info` (slate) | `#8ba9c1` | Ghostty ANSI 12; ohmyposh executiontime segment; nvim `FoldColumn` fg. **No tmux usage.** |
+| `accent-info` (slate) | `#8ba9c1` | ohmyposh executiontime segment; nvim `FoldColumn` fg (`surface-fold`); Claude theme `planMode` token. **No tmux usage. No longer Ghostty ANSI 12** — that slot was remapped to `accent-secondary` lavender (`#aeaed1`). |
 | `accent-periwinkle` | `#9b9bcc` | nvim render-md inline code (`RenderMarkdownCodeInline` fg, bg cleared — fenced blocks keep their bg) + table borders (`RenderMarkdownTableHead` / `RenderMarkdownTableRow` fg; Head otherwise default-links to `@markup.heading` = blue `c.keyword`). A blue-violet between `accent-info` slate and `accent-secondary` lavender. **nvim-only.** |
 | `accent-warn` (warm sand) | `#f5cb96` | Ghostty ANSI 11. **ohmyposh uses a near-miss variant** (see below). |
 | `accent-amber` (amber) | `#f3be7c` | Ghostty ANSI 4; nvim `GitSignsChange`; nvim lualine `insert`-mode status/location block. Distinct from `accent-warn` (`#f5cb96`, ANSI 11) — `accent-amber` is more orange-ward. |
@@ -57,7 +57,8 @@ Single source of truth for colors used across tmux, Ghostty, and zsh (via ohmypo
 - `#d8647e` rose — tmux `@color-rose`, Ghostty ANSI 1, ohmyposh path ✓
 - `#aeaed1` lavender — tmux `@color-ephemeral`, Ghostty ANSI 6, ohmyposh session ✓
 - `#bb9dbd` dusty pink — tmux `@color-dusty_pink`, Ghostty ANSI 2, ohmyposh transient + git ✓
-- `#8ba9c1` slate — Ghostty ANSI 12, ohmyposh executiontime ✓
+- `#8ba9c1` slate — ohmyposh executiontime, nvim `FoldColumn`, Claude `planMode` ✓ (Ghostty ANSI 12 was remapped away to `#aeaed1` lavender)
+- `#aeaed1` lavender — tmux `@color-ephemeral`, Ghostty ANSI 6 + ANSI 12, ohmyposh session ✓
 
 ### Near-misses (different by one hex digit between tools — should be normalized)
 
@@ -77,7 +78,7 @@ Two places drift by one hex digit. The fixes are mechanical — pick one of the 
 
 ### Tmux-only colors (not in Ghostty's palette)
 
-- `#a9b1d6` (`@color-default`) — closest Ghostty match is ANSI 12 (`#8ba9c1`), but they're notably different. Either accept that tmux has its own "default text" color outside the palette, or replace it with a palette-aligned hex. Currently no inconsistency *bug*, just an "outlier" worth noting.
+- `#a9b1d6` (`@color-default`) — closest Ghostty match was ANSI 12 (formerly `#8ba9c1`, now remapped to `#aeaed1`), but they're notably different. Either accept that tmux has its own "default text" color outside the palette, or replace it with a palette-aligned hex. Currently no inconsistency *bug*, just an "outlier" worth noting.
 
 ## Claude Code integration
 

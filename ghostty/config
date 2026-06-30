@@ -31,6 +31,13 @@ foreground = #cdcdcd
 # for it — see github anthropics/claude-code#37349.
 palette = 14=#606079
 
+# ANSI 12 (bright blue) is remapped from accent-info slate (#8ba9c1) to
+# accent-secondary lavender (#aeaed1). Claude Code's dark-ansi-based theme has
+# no token for code-block syntax highlighting — it inherits ANSI 12 — so this
+# recolors Claude's syntax-highlight blue (also affects any other ANSI-12
+# output, e.g. bat --theme=ansi).
+palette = 12=#aeaed1
+
 # bold-is-bright = true
 
 # macos-titlebar-style = tabs

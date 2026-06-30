@@ -50,6 +50,23 @@ end
 function M.almostMaximize() snapInsets(ALMOST) end
 function M.maximize() snapInsets(MAXIM) end
 
+-- Fully maximize the focused window (cmd-ctrl-alt-shift-v). Same left/right/bottom insets as
+-- M.maximize (MAXIM: 16/16/16) but the top inset equals the bottom (MAXIM.bottom = 16) instead
+-- of MAXIM's bar-clearing top (14/38) — so the window covers the SketchyBar strip while keeping
+-- symmetric vertical padding. Distinct from M.maximize (cmd-ctrl-alt-v), which uses MAXIM.top
+-- so the bar stays visible above the window.
+function M.fullMaximize()
+  local w = hs.window.focusedWindow()
+  if not w then return end
+  local s = w:screen():frame()   -- visible frame (excludes menu bar/dock) — same as snapInsets
+  w:setFrame({
+    x = s.x + MAXIM.left,
+    y = s.y + MAXIM.bottom,
+    w = s.w - MAXIM.left - MAXIM.right,
+    h = s.h - 2 * MAXIM.bottom,
+  }, 0)
+end
+
 -- Snap the focused window to ALMOST insets, but wait for its screen to settle first.
 -- Used after cross-monitor moves (cmd-shift-w): the Accessibility API can still report
 -- the OLD screen for a few ms after `move-node-to-monitor --focus-follows-window`, so an

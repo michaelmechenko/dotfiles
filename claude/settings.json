@@ -105,16 +105,10 @@
       "Bash(terraform state show*)",
       "Bash(terraform providers*)",
       "Bash(terraform output*)",
-      "Bash(git rev-parse *)"
-    ],
-    "ask": [
-      "Bash(git push *)",
-      "Bash(gh pr create *)",
-      "Bash(gh pr merge *)",
-      "Bash(gh pr edit *)",
-      "Bash(gh pr comment *)",
-      "Bash(gh pr ready *)",
-      "Bash(gh pr review *)"
+      "Bash(git rev-parse *)",
+      "Skill(cc-clipboard)",
+      "Skill(smap-read)",
+      "Skill(smap-review)"
     ],
     "deny": [
       "Bash(rm *)",
@@ -143,7 +137,19 @@
       "mcp__n8n-mcp__n8n_delete_workflow",
       "mcp__n8n-mcp__n8n_deploy_template"
     ],
+    "ask": [
+      "Bash(git push *)",
+      "Bash(gh pr create *)",
+      "Bash(gh pr merge *)",
+      "Bash(gh pr edit *)",
+      "Bash(gh pr comment *)",
+      "Bash(gh pr ready *)",
+      "Bash(gh pr review *)"
+    ],
     "defaultMode": "plan"
+  },
+  "worktree": {
+    "baseRef": "head"
   },
   "statusLine": {
     "type": "command",
@@ -152,14 +158,14 @@
   "enabledPlugins": {
     "frontend-design@claude-plugins-official": true,
     "typescript-lsp@claude-plugins-official": true,
-    "security-guidance@claude-plugins-official": true,
+    "security-guidance@claude-plugins-official": false,
     "pyright-lsp@claude-plugins-official": true,
     "claude-code-setup@claude-plugins-official": true,
-    "explanatory-output-style@claude-plugins-official": true,
+    "explanatory-output-style@claude-plugins-official": false,
     "gopls-lsp@claude-plugins-official": true,
-    "clangd-lsp@claude-plugins-official": true,
+    "clangd-lsp@claude-plugins-official": false,
     "lua-lsp@claude-plugins-official": true,
-    "skill-creator@claude-plugins-official": true
+    "skill-creator@claude-plugins-official": false
   },
   "extraKnownMarketplaces": {
     "anthropic-agent-skills": {
@@ -186,6 +192,8 @@
   },
   "effortLevel": "high",
   "awaySummaryEnabled": false,
+  "autoUpdatesChannel": "stable",
+  "minimumVersion": "2.1.193",
   "tui": "default",
   "autoMemoryEnabled": true,
   "theme": "custom:vague-aligned",

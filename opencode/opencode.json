@@ -60,6 +60,7 @@
     "build": {
       "color": "#BB9DBD",
       "permission": {
+        "edit": "allow",
         "task": "allow",
         "skill": "allow",
         "webfetch": "allow",
@@ -67,10 +68,10 @@
         "codesearch": "allow",
         "bash": {
           "*": "ask",
-          "git push *": "deny",
-          "git stash *": "deny",
           "git diff *": "allow",
-          "grep *": "allow"
+          "grep *": "allow",
+          "git status *": "allow",
+          "git fetch *": "allow"
         }
       }
     }
@@ -78,7 +79,11 @@
   "mcp": {
     "context7": {
       "type": "local",
-      "command": ["npx", "-y", "@upstash/context7-mcp"],
+      "command": [
+        "npx",
+        "-y",
+        "@upstash/context7-mcp"
+      ],
       "enabled": false
     },
     "atlassian": {
@@ -93,7 +98,10 @@
     },
     "n8n-mcp": {
       "type": "local",
-      "command": ["npx", "n8n-mcp"],
+      "command": [
+        "npx",
+        "n8n-mcp"
+      ],
       "environment": {
         "MCP_MODE": "stdio",
         "LOG_LEVEL": "error",
@@ -105,12 +113,19 @@
     },
     "kubernetes": {
       "type": "local",
-      "command": ["npx", "-y", "kubernetes-mcp-server@latest"],
+      "command": [
+        "npx",
+        "-y",
+        "kubernetes-mcp-server@latest"
+      ],
       "enabled": false
     },
     "aws-documentation-mcp-server": {
       "type": "local",
-      "command": ["uvx", "awslabs.aws-documentation-mcp-server@latest"],
+      "command": [
+        "uvx",
+        "awslabs.aws-documentation-mcp-server@latest"
+      ],
       "enabled": false
     },
     "aws-knowledge-mcp-server": {
@@ -131,8 +146,12 @@
     },
     "chrome-devtools": {
       "type": "local",
-      "command": ["npx", "-y", "chrome-devtools-mcp@latest"],
-      "enabled": true
+      "command": [
+        "npx",
+        "-y",
+        "chrome-devtools-mcp@latest"
+      ],
+      "enabled": false
     }
   }
 }

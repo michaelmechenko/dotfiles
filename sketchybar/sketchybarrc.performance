@@ -2,9 +2,10 @@ PLUGIN_DIR="$CONFIG_DIR/plugins"
 
 # PERFORMANCE PROFILE — minimal bar, no AeroSpace integration.
 # Active when /tmp/sketchybar_perf_mode exists (toggled by toggle_mode.sh / cmd-ctrl-alt-p).
-# Only the right block (date + battery); display=main + blur_radius=0 to minimize redraw
-# cost on display churn. AeroSpace callbacks are flag-gated in aerospace.toml so they don't
-# even fire the sketchybar IPC while this profile is active.
+# Only the right block (date + battery); blur_radius=0 to minimize redraw cost. Shows on ALL
+# displays (no display= key → sketchybar default is `all`), unlike the full profile which is
+# single-bar. AeroSpace callbacks are flag-gated in aerospace.toml so they don't even fire the
+# sketchybar IPC while this profile is active.
 
 chmod +x "$PLUGIN_DIR"/* 2>/dev/null
 
@@ -18,7 +19,6 @@ bar=(
   notch_offset=0
   sticky=false
   font_smoothing=on
-  display=main
 )
 
 sketchybar --bar "${bar[@]}"
@@ -34,13 +34,15 @@ default=(
 )
 sketchybar --default "${default[@]}"
 
-# Right block only — batched into one call.
+# Right block only.
 sketchybar --add item battery right \
-           --set battery update_freq=60 label.padding_right=0 padding_right=0 label.color=0xffEDEDED icon.drawing=off script="$PLUGIN_DIR/battery.sh" \
-           --add item sep_right right \
-           --set sep_right icon="*-*-*" icon.padding_left=8 icon.padding_right=8 icon.color=0x80EDEDED label.drawing=off \
-           --add item date right \
-           --set date update_freq=30 label.padding_right=2 label.color=0xffEDEDED script="$PLUGIN_DIR/date.sh" icon.drawing=off
+    --set battery update_freq=60 label.padding_right=0 padding_right=0 label.color=0xffEDEDED icon.drawing=off script="$PLUGIN_DIR/battery.sh"
+
+sketchybar --add item sep_right right \
+    --set sep_right icon="*-*-*" icon.padding_left=8 icon.padding_right=8 icon.color=0x80EDEDED label.drawing=off
+
+sketchybar --add item date right \
+    --set date update_freq=30 label.padding_right=2 label.color=0xffEDEDED script="$PLUGIN_DIR/date.sh" icon.drawing=off
 
 # Prime timer-only items immediately (see sketchybarrc.full for rationale).
 NAME=date "$PLUGIN_DIR/date.sh"

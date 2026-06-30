@@ -110,9 +110,10 @@ for sid in "1*" "2*" "3*"; do
           background.padding_left=$bg_l background.padding_right=$bg_r)
 done
 
-# 2^ — right marker (was "^", now "*")
+# 2^ — right marker (was "^", now "*"). Extra right padding so the center block has a gap
+# before the right block (battery/date) instead of sitting flush against it.
 CMD+=(--add item space.2^ center)
-CMD+=(--set space.2^ icon="*" label.drawing=off icon.y_offset=2 icon.padding_left=2 icon.padding_right=2 \
+CMD+=(--set space.2^ icon="*" label.drawing=off icon.y_offset=2 icon.padding_left=2 icon.padding_right=16 \
       click_script="aerospace workspace 2^")
 
 "${CMD[@]}"
@@ -120,7 +121,6 @@ CMD+=(--set space.2^ icon="*" label.drawing=off icon.y_offset=2 icon.padding_lef
 #
 # ACTUAL RIGHT BLOCK - Date/Time and Battery
 #
-
 
 sketchybar --add item battery right \
     --set battery update_freq=60 label.padding_right=0 padding_right=0 label.color=0xffEDEDED icon.drawing=off script="$PLUGIN_DIR/battery.sh"

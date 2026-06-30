@@ -17,6 +17,7 @@ _G.almostMaximizeFocusedWorkspace = window.almostMaximizeFocusedWorkspace
 _G.fullMaximize = window.fullMaximize
 _G.toggleFloatKeepPos = window.toggleFloatKeepPos
 _G.toggleBarMode = bar.toggleMode
+_G.toggleAerospace = bar.toggleAerospace
 
 hs.hotkey.bind({ "cmd", "ctrl", "alt" }, "c", window.almostMaximizeFocusedWorkspace)
 hs.hotkey.bind({ "cmd", "ctrl", "alt" }, "x", window.almostMaximize)
@@ -25,4 +26,5 @@ hs.hotkey.bind({ "cmd", "ctrl", "alt" }, "v", window.maximize)
 hs.hotkey.bind({ "cmd", "ctrl", "alt", "shift" }, "v", window.fullMaximize)
 hs.hotkey.bind({ "cmd", "ctrl", "alt" }, "p", bar.toggleMode)
 hs.hotkey.bind({ "cmd", "ctrl", "alt" }, "o", bar.reload)
+hs.hotkey.bind({ "cmd", "ctrl", "alt", "shift" }, "o", bar.toggleAerospace)
 hs.hotkey.bind({ "cmd", "ctrl", "alt" }, "space", window.center)

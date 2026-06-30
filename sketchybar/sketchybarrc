@@ -82,20 +82,31 @@ CMD=(sketchybar)
 # 1^ — left marker (was "^", now "*")
 CMD+=(--add item space.1^ center)
 CMD+=(--subscribe space.1^ aerospace_workspace_change)
-CMD+=(--set space.1^ icon="*" label.drawing=off icon.y_offset=2 icon.padding_left=8 icon.padding_right=8 \
+CMD+=(--set space.1^ icon="*" label.drawing=off icon.y_offset=2 icon.padding_left=2 icon.padding_right=2 \
       click_script="aerospace workspace 1^" script="$PLUGIN_DIR/space_colors.sh")
 
-# 1* 2* 3* — main-monitor workspaces, underlined
+# 1* 2* 3* — main-monitor workspaces, overlined (thin top strip; SketchyBar has no native
+# underline/overline — see issue #565). Tuning notes:
+#   - background.y_offset is POSITIVE to push the strip to the bar top (negative would render
+#     it as an underline at the bottom).
+#   - background.padding_left/right = 0 → strip spans the full item width.
+#   - icon.padding_left/right reduced (2/2, vs the 6/6 default) so the stars sit closer
+#     together; symmetric padding keeps each star centered in its item, so the overline stays
+#     centered over the glyph.
+#   - color is the inactive-workspace tone (0x80EDEDED) and is STATIC: space_colors.sh only
+#     recolors icon.color, so the overline stays put regardless of which workspace is focused.
 for sid in "1*" "2*" "3*"; do
     CMD+=(--add item space.$sid center)
-    CMD+=(--set space.$sid icon="*" label.drawing=off icon.y_offset=2 click_script="aerospace workspace $sid" \
-          background.drawing=on background.color=0xffEDEDED background.height=2 background.corner_radius=0 \
-          background.y_offset=12)
+    CMD+=(--set space.$sid icon="*" label.drawing=off icon.y_offset=2 icon.padding_left=4 icon.padding_right=4 \
+          click_script="aerospace workspace $sid" \
+          background.drawing=on background.color=0x80EDEDED background.height=1 background.corner_radius=0 \
+          background.border_width=0 background.y_offset=9 \
+          background.padding_left=0 background.padding_right=0)
 done
 
 # 2^ — right marker (was "^", now "*")
 CMD+=(--add item space.2^ center)
-CMD+=(--set space.2^ icon="*" label.drawing=off icon.y_offset=2 icon.padding_left=8 icon.padding_right=8 \
+CMD+=(--set space.2^ icon="*" label.drawing=off icon.y_offset=2 icon.padding_left=2 icon.padding_right=2 \
       click_script="aerospace workspace 2^")
 
 "${CMD[@]}"

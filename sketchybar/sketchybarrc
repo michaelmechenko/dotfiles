@@ -6,7 +6,7 @@ chmod +x "$PLUGIN_DIR"/* 2>/dev/null
 
 bar=(
   height=30
-  blur_radius=90
+  blur_radius=30
   position=top
   color=0x900f0f0f
   margin=0
@@ -29,93 +29,76 @@ default=(
 )
 sketchybar --default "${default[@]}"
 
-sketchybar --add event aerospace_workspace_change
-sketchybar --add event aerospace_focus_change
-sketchybar --add event aerospace_keyswap_change
+sketchybar --add event aerospace_workspace_change \
+           --add event aerospace_focus_change \
+           --add event aerospace_keyswap_change
 
 #
 # LEFT BLOCK - All workspaces with windows
 #
 
+# Batch all left-block item creation into ONE sketchybar call (~84 -> 1 IPC roundtrip).
+# SketchyBar redraws after every standalone invocation, so batching is the single biggest
+# startup-cost win here — critical on monitor-attach when the whole bar is recreated.
+CMD=(sketchybar)
 # ws_1 subscribes and drives updates for all left-block items.
 for i in $(seq 1 7); do
+    CMD+=(--add item ws_$i left)
     if [ "$i" -eq 1 ]; then
-        sketchybar --add item ws_$i left \
-            --subscribe ws_$i aerospace_workspace_change aerospace_focus_change \
-            --set ws_$i width=dynamic icon.drawing=off label.drawing=on script="$PLUGIN_DIR/frontapps.sh"
+        CMD+=(--subscribe ws_$i aerospace_workspace_change aerospace_focus_change)
+        CMD+=(--set ws_$i width=dynamic icon.drawing=off label.drawing=on script="$PLUGIN_DIR/frontapps.sh")
     else
-        sketchybar --add item ws_$i left \
-            --set ws_$i width=dynamic icon.drawing=off label.drawing=on
+        CMD+=(--set ws_$i width=dynamic icon.drawing=off label.drawing=on)
     fi
 
     # Up to 6 windows per workspace slot, with 5 separators between them.
     for j in $(seq 1 6); do
-        sketchybar --add item app_${i}_${j} left \
-            --set app_${i}_${j} width=dynamic drawing=off icon.drawing=off label.drawing=on
-
+        CMD+=(--add item app_${i}_${j} left)
+        CMD+=(--set app_${i}_${j} width=dynamic drawing=off icon.drawing=off label.drawing=on)
         if [ "$j" -lt 6 ]; then
-            sketchybar --add item sep_${i}_${j} left \
-                --set sep_${i}_${j} width=dynamic drawing=off icon.drawing=off label.drawing=on
+            CMD+=(--add item sep_${i}_${j} left)
+            CMD+=(--set sep_${i}_${j} width=dynamic drawing=off icon.drawing=off label.drawing=on)
         fi
     done
 done
 
 # Swap-mode indicator: hidden unless the cmd / cmd-shift role swap is active.
-sketchybar --add item keyswap left \
-    --subscribe keyswap aerospace_keyswap_change \
-    --set keyswap width=dynamic drawing=off icon.drawing=off label.drawing=on label.padding_left=10 \
-          script="$PLUGIN_DIR/keyswap.sh"
+CMD+=(--add item keyswap left)
+CMD+=(--subscribe keyswap aerospace_keyswap_change)
+CMD+=(--set keyswap width=dynamic drawing=off icon.drawing=off label.drawing=on label.padding_left=10 script="$PLUGIN_DIR/keyswap.sh")
+"${CMD[@]}"
 
 #
 ### CENTER BLOCK CENTER BLOCK
 #
 
-#
-# LEFT BLOCK - Secondary monitor workspace 1^
-#
+# All five workspace indicators render as "*":  1^  1* 2* 3*  2^  =>  * * * * *
+# Only the middle three (1* 2* 3* — main-monitor workspaces) carry a fake underline
+# (a thin background strip; SketchyBar has no native underline — see issue #565).
+# space.1^ stays the single driver for ALL space.* indicator colors via space_colors.sh;
+# the others carry no script/subscription. Batched into one sketchybar call.
+CMD=(sketchybar)
 
-# space.1^ is the single driver for ALL workspace-indicator colors (space_colors.sh
-# batch-updates every space.* item in one call); the others carry no script/subscription.
-for sid in "1^"; do
-    sketchybar --add item space.$sid center \
-        --subscribe space.$sid aerospace_workspace_change \
-        --set space.$sid \
-        icon="^" \
-        label.drawing=off \
-        icon.y_offset=2 \
-        icon.padding_left=8 \
-        icon.padding_right=8 \
-        click_script="aerospace workspace $sid" \
-        script="$PLUGIN_DIR/space_colors.sh"
-done
+# 1^ — left marker (was "^", now "*")
+CMD+=(--add item space.1^ center)
+CMD+=(--subscribe space.1^ aerospace_workspace_change)
+CMD+=(--set space.1^ icon="*" label.drawing=off icon.y_offset=2 icon.padding_left=8 icon.padding_right=8 \
+      click_script="aerospace workspace 1^" script="$PLUGIN_DIR/space_colors.sh")
 
-#
-# CENTER BLOCK (of center block) - Main monitor workspaces (1*, 2*, 3*)
-#
-
+# 1* 2* 3* — main-monitor workspaces, underlined
 for sid in "1*" "2*" "3*"; do
-    sketchybar --add item space.$sid center \
-        --set space.$sid \
-        icon="*" \
-        label.drawing=off \
-        icon.y_offset=2 \
-        click_script="aerospace workspace $sid"
+    CMD+=(--add item space.$sid center)
+    CMD+=(--set space.$sid icon="*" label.drawing=off icon.y_offset=2 click_script="aerospace workspace $sid" \
+          background.drawing=on background.color=0xffEDEDED background.height=2 background.corner_radius=0 \
+          background.y_offset=12)
 done
 
-#
-# RIGHT BLOCK - Secondary monitor workspace 2^
-#
+# 2^ — right marker (was "^", now "*")
+CMD+=(--add item space.2^ center)
+CMD+=(--set space.2^ icon="*" label.drawing=off icon.y_offset=2 icon.padding_left=8 icon.padding_right=8 \
+      click_script="aerospace workspace 2^")
 
-for sid in "2^"; do
-    sketchybar --add item space.$sid center \
-        --set space.$sid \
-        icon="^" \
-        label.drawing=off \
-        icon.y_offset=2 \
-        icon.padding_left=8 \
-        icon.padding_right=8 \
-        click_script="aerospace workspace $sid"
-done
+"${CMD[@]}"
 
 #
 # ACTUAL RIGHT BLOCK - Date/Time and Battery

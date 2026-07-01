@@ -16,9 +16,11 @@ return {
         ["<C-o>"] = { "show_documentation", "hide_documentation" },
         ["<C-u>"] = { "scroll_documentation_up" },
         ["<C-d>"] = { "scroll_documentation_down" },
-        ["<C-k>"] = { "show_signature", "hide_signature" },
+        ["<C-K>"] = { "show_signature", "hide_signature" },
         ["<C-w>"] = { "select_prev" },
+        ["<C-j>"] = { "select_prev" },
         ["<C-s>"] = { "select_next" },
+        ["<C-k>"] = { "select_next" },
         ["<Tab>"] = false,
         ["<S-Tab>"] = false,
       },
@@ -88,6 +90,23 @@ return {
           selection = {
             preselect = true,
             auto_insert = false,
+          },
+        },
+      },
+
+      cmdline = {
+        keymap = {
+          preset = "cmdline",
+          ["<Tab>"] = { "show", "accept" },
+          ["<C-e>"] = { "show", "accept" },
+          ["<C-w>"] = { "select_prev", "fallback" },
+          ["<C-s>"] = { "select_next", "fallback" },
+        },
+        completion = {
+          menu = {
+            auto_show = function()
+              return vim.fn.getcmdtype() == ":"
+            end,
           },
         },
       },

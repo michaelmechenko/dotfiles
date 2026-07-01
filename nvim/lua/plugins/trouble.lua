@@ -9,6 +9,7 @@ return {
       j = "next",
       k = "prev",
       e = "jump",
+      c = "fold_toggle",
     },
     modes = {
       diagnostics = {
@@ -90,7 +91,6 @@ return {
   },
   config = function(_, opts)
     require("trouble").setup(opts)
-    local trouble_helpers = require("utils.trouble")
 
     -- ordered: bottom mode -> right mode (first open wins)
     local position_pairs = {
@@ -104,7 +104,7 @@ return {
       { "functions_main", "functions_main" },
     }
 
-    -- toggle trouble window position (bottom <-> right), focus stays in editor
+    -- toggle trouble window position (bottom <-> right), retain focus/fold level
     vim.keymap.set("n", "<leader>xt", function()
       local trouble = require("trouble")
       for _, pair in ipairs(position_pairs) do
@@ -113,11 +113,36 @@ return {
           if target == mode then
             return -- no position toggle for this mode
           end
+
+          local source_view = trouble.open({ mode = mode, focus = false, refresh = false })
+          if not source_view then
+            return
+          end
+
+          local had_trouble_focus = source_view.win
+            and source_view.win.win
+            and vim.api.nvim_get_current_win() == source_view.win.win
+
+          local fold_level = source_view.renderer and source_view.renderer.foldlevel
+          if fold_level == nil
+            and source_view.win
+            and source_view.win.win
+            and vim.api.nvim_win_is_valid(source_view.win.win)
+          then
+            fold_level = vim.wo[source_view.win.win].foldlevel
+          end
+
           trouble.close(mode)
-          trouble_helpers.open(target, { focus = false })
+
+          local target_view = trouble.open({ mode = target, focus = had_trouble_focus, refresh = false })
+          if target_view and fold_level ~= nil then
+            target_view:wait(function()
+              target_view:fold_level({ level = fold_level })
+            end)
+          end
           return
         end
       end
-    end, { desc = "Toggle Trouble position" })
+    end, { desc = "toggle trouble position" })
   end,
 }

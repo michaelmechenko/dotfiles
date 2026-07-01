@@ -132,10 +132,7 @@ Per-component overrides in the same file (the `buffers_color` block, the zero-wi
 
 ## nnn preview (bat)
 
-The `M-d` nnn file explorer previews code through `bat` using the **upstream `vague` TextMate theme** at `~/.config/bat/themes/vague.tmTheme` (from `vague-theme/vague-bat`, the official port of the nvim `vague` colorscheme). Selected via `NNN_BATTHEME=vague` in `tmux_scripts/tmux-nnn-explorer`; registered into bat's cache with `bat cache --build` (re-run after any bat upgrade).
-
-- **Vendored, not hand-maintained** — don't hand-edit syntax scopes; re-fetch from upstream if it drifts.
-- **Known near-miss:** the theme's global `background` is `#141415` and `foreground` `#cdcdcd`, vs the repo `canvas` `#100E11` / `text` `#BEBEBE`. Negligible in a small preview pane; if exact match is wanted, edit the theme's top `background`→`#100E11` and `foreground`→`#BEBEBE` (then `bat cache --build`).
+`M-d` nnn previews (including `;f`/`fzcd` and `;g`/`fzrg`) and tmux fzf previews use bat with `--theme=ansi` (`NNN_BATTHEME=ansi`). This keeps syntax colors aligned with the active terminal palette instead of pinning a separate TextMate theme.
 
 ## fzf
 

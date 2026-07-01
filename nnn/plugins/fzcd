@@ -47,7 +47,7 @@ if [ -n "$1" ] && [ "$(file -b --mime-type "$1")" = 'text/plain' ] && [ -e "$(he
 elif ! [ -s "$LIST" ]; then
     sel=$(fzf \
         --bind 'ctrl-o:execute-silent($HOME/.config/nnn/plugins/.nnn-open-origin {})+abort' \
-        --preview '[ -d {} ] && eza -TL2 --icons=always --color=always {} || bat --color=always --style=numbers {}' \
+        --preview '[ -d {} ] && eza -TL2 --icons=always --color=always {} || bat --color=always --style=numbers --theme=ansi {}' \
         --preview-window 'right,60%,border-left')
     # Show only the file and parent dir
     # sel=$(fzf --delimiter / --with-nth=-2,-1 --tiebreak=begin --info=hidden)
@@ -69,7 +69,7 @@ if [ -n "$LIST" ]; then
 
         sel=$(xargs -d '\n' < "$tmpfile" -I{} find {} -type f -printf "%H//%P\n" | sed '/.*\/\/\(\..*\|.*\/\..*\)/d; s:/\+:/:g' | fzf --delimiter / --tiebreak=begin --info=hidden \
             --bind 'ctrl-o:execute-silent($HOME/.config/nnn/plugins/.nnn-open-origin {})+abort' \
-            --preview '[ -d {} ] && eza -TL2 --icons=always --color=always {} || bat --color=always --style=numbers {}' \
+            --preview '[ -d {} ] && eza -TL2 --icons=always --color=always {} || bat --color=always --style=numbers --theme=ansi {}' \
             --preview-window 'right,60%,border-left')
         # Alternative for 'fd'
         # sel=$(xargs -d '\n' < "$tmpfile" fd . | fzf --delimiter / --tiebreak=begin --info=hidden)

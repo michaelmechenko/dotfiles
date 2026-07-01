@@ -308,7 +308,7 @@ return {
           char = "┊",
           underline = false,
           only_current = true,
-          -- hl = "SnacksIndentScope",
+          hl = "Comment",
           -- hl = "Special",
           -- hl = "Function",
           -- hl = "CursorLineNr",

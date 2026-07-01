@@ -61,17 +61,11 @@ export FZF_DEFAULT_OPTS='--pointer=▌ --color=fg:#656a80,fg+:#bebebe,bg:-1,bg+:
 # an nvim split via the shared opener — consistent with extrakto / M-o (ctrl-o = open in nvim).
 export FZF_CTRL_T_OPTS="--bind 'ctrl-o:execute-silent($HOME/.config/tmux_scripts/tmux-open-target {})+abort'"
 
-# Self-heal the per-machine bat cache: custom themes only resolve after `bat cache --build`,
-# which is local (not in git). Build once if `vague` isn't registered yet (no-op afterwards).
-if command -v bat >/dev/null 2>&1; then
-    bat --list-themes 2>/dev/null | grep -qx vague || bat cache --build >/dev/null 2>&1
-fi
-
 # preview-tui text-speed knobs: plain bat (no line-number/grid rendering),
 # ansi theme (inherits the terminal palette). Image/video previewers left unset
 # so those heavy branches never fire.
 export NNN_BATSTYLE=numbers 
-export NNN_BATTHEME=vague 
+export NNN_BATTHEME=ansi 
 
 # colors via ANSI indices -> inherit the terminal's themed (vague) palette.
 export NNN_COLORS='63256325'

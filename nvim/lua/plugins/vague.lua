@@ -105,12 +105,18 @@ return {
         hl["LspInlayHint"]               = { fg = "#606079", italic = true }
         hl["GitSignsCurrentLineBlame"]   = { fg = "#606079" }
         hl["ComplHint"]                  = { fg = "#606079" }
-        hl["RenderMarkdownH1Bg"]         = { bg = "#352f37" }
-        hl["RenderMarkdownH2Bg"]         = { bg = "#33333a" }
-        hl["RenderMarkdownH3Bg"]         = { bg = "#40362a" }
-        hl["RenderMarkdownH4Bg"]         = { bg = "#352f37" }
-        hl["RenderMarkdownH5Bg"]         = { bg = "#33333a" }
-        hl["RenderMarkdownH6Bg"]         = { bg = "#40362a" }
+        hl["RenderMarkdownH1Bg"]         = { fg = "#bb9dbd", bg = "None" }
+        hl["RenderMarkdownH2Bg"]         = { fg = "#bb9dbd", bg = "None" }
+        hl["RenderMarkdownH3Bg"]         = { fg = "#aeaed1", bg = "None" }
+        hl["RenderMarkdownH4Bg"]         = { fg = "#f3be7c", bg = "None" }
+        hl["RenderMarkdownH5Bg"]         = { fg = "#bb9dbd", bg = "None" }
+        hl["RenderMarkdownH6Bg"]         = { fg = "#aeaed1", bg = "None" }
+        -- hl["RenderMarkdownH1Bg"]         = { bg"#f3be7c" = "#352f37" }
+        -- hl["RenderMarkdownH2Bg"]         = { bg"#f3be7c" = "#33333a" }
+        -- hl["RenderMarkdownH3Bg"]         = { bg = "#40362a" }
+        -- hl["RenderMarkdownH4Bg"]         = { bg = "#352f37" }
+        -- hl["RenderMarkdownH5Bg"]         = { bg = "#33333a" }
+        -- hl["RenderMarkdownH6Bg"]         = { bg = "#40362a" }
         -- inline `code`: periwinkle fg, no background; fenced blocks keep their bg
         hl["RenderMarkdownCodeInline"]   = { fg = "#9b9bcc", bg = "None" }
         -- table borders: periwinkle (Head default-links to @markup.heading = blue keyword)

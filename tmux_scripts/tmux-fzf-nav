@@ -79,58 +79,27 @@ preview_pane() {
 }
 
 preview_grep_match() {
-  local dataset="$1"
-  local dataset_line="${2:-}"
-  local query="${3:-}"
-  local pane
-  local session
-  local winpane
-  local wname
-  local line
-  local start
-  local end
-  local hl
-  local tmp
+  local snap_path="${1:-}"
+  local line="${2:-}"
 
-  [ -f "$dataset" ] || { printf '(no dataset)\n'; exit 0; }
-  [[ "$dataset_line" =~ ^[0-9]+$ ]] || { printf '(no match)\n'; exit 0; }
+  [ -f "$snap_path" ] || { printf '(no snapshot)\n'; exit 0; }
+  [[ "$line" =~ ^[0-9]+$ ]] || line=1
 
-  IFS=$'\t' read -r pane _target session winpane wname line _text < <(
-    awk -F'\t' -v n="$dataset_line" 'NR == n { print $1 "\t" $2 "\t" $3 "\t" $4 "\t" $5 "\t" $6 "\t" $7; exit }' "$dataset"
-  )
+  local ansi_path="${snap_path%.txt}.ansi"
 
-  [ -n "$pane" ] || { printf '(match not available)\n'; exit 0; }
-
-  start=$((line - 120))
-  [ "$start" -lt 1 ] && start=1
-  end=$((line + 120))
-  hl=$((line - start + 1))
-
-  printf 'session: %s  window: %s (%s)  line: %s\n\n' "$session" "$winpane" "$wname" "$line"
-
-  tmp=$(mktemp "${TMPDIR:-/tmp}/tmux-fzf-rg-preview.XXXXXX")
-  awk -F'\t' -v pane="$pane" -v start="$start" -v end="$end" '
-    $1 == pane && $6 >= start && $6 <= end {
-      print $7
-    }' "$dataset" >"$tmp"
-
-  if have_cmd bat; then
-    if [ -n "$query" ] && have_cmd rg; then
-      if ! bat --color=always --style=numbers --paging=never --theme=ansi \
-          --highlight-line "$hl" --terminal-width="${FZF_PREVIEW_COLUMNS:-80}" "$tmp" \
-          | rg --passthru --color=always --smart-case -- "$query" 2>/dev/null; then
-        bat --color=always --style=numbers --paging=never --theme=ansi \
-          --highlight-line "$hl" --terminal-width="${FZF_PREVIEW_COLUMNS:-80}" "$tmp"
-      fi
-    else
-      bat --color=always --style=numbers --paging=never --theme=ansi \
-        --highlight-line "$hl" --terminal-width="${FZF_PREVIEW_COLUMNS:-80}" "$tmp"
-    fi
+  if [ -f "$ansi_path" ]; then
+    awk -v target="$line" '
+      BEGIN { UL = sprintf("%c[4m", 27); ULOFF = sprintf("%c[24m", 27) }
+      NR == target {
+        s = $0
+        gsub(/\033\[0m/, "\033[0m\033[4m", s)
+        printf "%s%s%s\n", UL, s, ULOFF
+        next
+      }
+      { print }' "$ansi_path"
   else
-    awk '{ print }' "$tmp"
+    awk '{ print }' "$snap_path"
   fi
-
-  rm -f "$tmp"
 }
 
 scope_label() {
@@ -154,7 +123,7 @@ list_windows() {
       }
       BEGIN {
         OFS = "\t"
-        print "PANE", "TARGET", sprintf("%-24s %-14s %s", "WINDOW", "CMD", "CWD")
+        print "PANE", "TARGET", sprintf("%-14s %-10s %s", "WINDOW", "CMD", "CWD")
       }
       $3 == current_id {
         pane = $2
@@ -168,7 +137,7 @@ list_windows() {
         if (wname == "") wname = "-"
         sub("^" home, "~", cwd)
 
-        print pane, sid ":" win, sprintf("%-24s %-14s %s", trunc(wname, 24), trunc(cmd, 14), cwd)
+        print pane, sid ":" win, sprintf("%-14s %-10s %s", trunc(wname, 14), trunc(cmd, 10), cwd)
       }'
 }
 
@@ -186,7 +155,7 @@ list_sessions() {
     }
     BEGIN {
       OFS = "\t"
-      print "PANE", "TARGET", sprintf("%-16s %-26s %-12s %s", "SESSION", "ACTIVE", "CMD", "CWD")
+      print "PANE", "TARGET", sprintf("%-8s %-16s %-10s %s", "SESSION", "ACTIVE", "CMD", "CWD")
     }
     $1 == "S" {
       sid = $2
@@ -268,7 +237,7 @@ list_sessions() {
         sess = "*" sess
       }
 
-      display = sprintf("%-16s %-26s %-12s %s", trunc(sess, 16), trunc(win ":" wname, 26), trunc(cmd, 12), cwd)
+      display = sprintf("%-8s %-16s %-10s %s", trunc(sess, 8), trunc(win ":" wname, 16), trunc(cmd, 10), cwd)
 
       print pane, sid ":" win, display
     }
@@ -298,7 +267,7 @@ list_other_panes() {
     }
     BEGIN {
       OFS = "\t"
-      print "PANE", "TARGET", sprintf("%-16s %-10s %-18s %-12s %s", "SESSION", "WIN.PANE", "WINDOW", "CMD", "CWD")
+      print "PANE", "TARGET", sprintf("%-8s %-8s %-14s %-10s %s", "SESSION", "WIN.PANE", "WINDOW", "CMD", "CWD")
     }
     $1 == "S" {
       sid = $2
@@ -333,7 +302,7 @@ list_other_panes() {
       if (wname == "") wname = "-"
       sub("^" home, "~", cwd)
 
-      row = pane OFS sid ":" win OFS sprintf("%-16s %-10s %-18s %-12s %s", trunc(sname, 16), trunc(win "." pane_idx, 10), trunc(wname, 18), trunc(cmd, 12), cwd)
+      row = pane OFS sid ":" win OFS sprintf("%-8s %-8s %-14s %-10s %s", trunc(sname, 8), trunc(win "." pane_idx, 8), trunc(wname, 14), trunc(cmd, 10), cwd)
       rows[sid, ++row_count[sid]] = row
     }
     function print_rows(sid, i) {
@@ -389,83 +358,82 @@ list_scope_panes() {
 build_grep_dataset() {
   local scope="$1"
   local seed_pane="${2:-}"
-  local dataset="$3"
+  local snapdir="$3"
+  local metafile="$4"
 
-  : >"$dataset"
+  mkdir -p "$snapdir"
+  : >"$metafile"
 
   list_scope_panes "$scope" "$seed_pane" \
     | while IFS="$SEP" read -r pane_id session_id session_name window_index window_name pane_index; do
         [ -n "$pane_id" ] || continue
 
-        tmux capture-pane -p -N -t "$pane_id" -S - -E - 2>/dev/null \
-          | awk -v pane="$pane_id" -v target="$session_id:$window_index" -v sname="$session_name" -v wp="$window_index.$pane_index" -v wname="$window_name" '
-              BEGIN { OFS = "\t" }
-              {
-                gsub(/\t/, "    ", $0)
-                print pane, target, sname, wp, wname, NR, $0
-              }' >>"$dataset"
+        tmux capture-pane -p -N -t "$pane_id" -S - -E - 2>/dev/null >"$snapdir/${pane_id}.txt"
+        tmux capture-pane -p -e -N -t "$pane_id" -S - -E - 2>/dev/null >"$snapdir/${pane_id}.ansi"
+
+        printf '%s\t%s\t%s\t%s\n' "$pane_id" "$session_id:$window_index" "$session_name" "$window_name" >>"$metafile"
       done
 }
 
 rg_dataset() {
-  local dataset="$1"
-  local query="${2:-}"
+  local snapdir="$1"
+  local metafile="$2"
+  local query="${3:-}"
 
-  printf 'PANE\tTARGET\tLINE\tDATASET\tSESSION\tWINDOW\tMATCH\n'
+  printf 'PANE\tTARGET\tLINE\tSNAP\t%-6s  %-10s  %s\n' "SESSION" "WINDOW" "MATCH"
 
   [ -n "$query" ] || exit 0
 
-  { rg --line-number --no-heading --color=always --smart-case -a -- "$query" "$dataset" 2>/dev/null || true; } \
-    | awk -F'\t' '
-      function strip_ansi(s) {
-        gsub(/\033\[[0-9;]*m/, "", s)
-        return s
-      }
+  { rg --line-number --no-heading --color=always --colors 'path:none' --colors 'line:none' \
+      --colors 'match:fg:187,157,189' --colors 'match:style:underline' --colors 'match:style:nobold' \
+      --glob '*.txt' --smart-case -a -- "$query" "$snapdir" 2>/dev/null || true; } \
+    | awk -v metafile="$metafile" '
       function trunc(s, n) {
         if (length(s) <= n) return s
         return substr(s, 1, n - 3) "..."
       }
-      {
-        raw = $0
-        clean = strip_ansi(raw)
-
-        if (clean ~ /^[0-9]+:/) {
-          dataset_line = clean
-          sub(/:.*/, "", dataset_line)
-          sub(/^[^:]*:/, "", raw)
-        } else {
-          line_info = clean
-          sub(/^[^:]*:/, "", line_info)
-          dataset_line = line_info
-          sub(/:.*/, "", dataset_line)
-          if (dataset_line !~ /^[0-9]+$/) {
-            next
+      function strip_ansi(s) {
+        gsub(/\033\[[0-9;]*m/, "", s)
+        return s
+      }
+      BEGIN {
+        while ((getline line < metafile) > 0) {
+          n = split(line, parts, "\t")
+          if (n >= 4) {
+            meta_target[parts[1]] = parts[2]
+            meta_session[parts[1]] = parts[3]
+            meta_window[parts[1]] = parts[4]
           }
-          sub(/^[^:]*:[^:]*:/, "", raw)
         }
+        close(metafile)
+      }
+      {
+        clean = strip_ansi($0)
+        path = clean
+        sub(/:.*/, "", path)
+        rest = clean
+        sub(/^[^:]*:/, "", rest)
+        linenum = rest
+        sub(/:.*/, "", linenum)
 
-        if (length(raw) == 0) {
-          next
-        }
+        raw = $0
+        sub(/^[^:]*:[^:]*:/, "", raw)
 
-        nplain = split(strip_ansi(raw), plain, "\t")
-        ncolor = split(raw, color, "\t")
-        if (nplain < 7 || ncolor < 7) {
-          next
-        }
+        if (length(strip_ansi(raw)) == 0) next
 
-        pane = plain[1]
-        target = plain[2]
-        session = plain[3]
-        wname = plain[5]
-        line = plain[6]
-        match_text = color[7]
+        pane = path
+        sub(/.*\//, "", pane)
+        sub(/\.txt$/, "", pane)
 
-        session_col = sprintf("%-16s", trunc(strip_ansi(session), 16))
-        window_col = sprintf("%-22s", trunc(strip_ansi(wname), 22))
+        target = meta_target[pane]
+        session = meta_session[pane]
+        window = meta_window[pane]
 
-        print pane "\t" target "\t" line "\t" dataset_line "\t" session_col "\t" window_col "\t" "L" line " " match_text
-      }'
+        printf "%s\t%s\t%s\t%s\t%-6s  %-10s  %s\n", \
+          pane, target, linenum, path, \
+          trunc(session, 6), trunc(window, 10), raw
+      }
+    '
 }
 
 run_picker() {
@@ -519,7 +487,7 @@ run_picker() {
       ;;
   esac
 
-  bind="tab:down,btab:up,ctrl-j:down,ctrl-k:up,alt-j:down,alt-k:up,ctrl-d:preview-half-page-down,ctrl-u:preview-half-page-up,ctrl-r:reload($SELF $list_flag),ctrl-g:execute($SELF --grep '$scope' {1})+abort,alt-g:execute($SELF --grep '$scope' {1})+abort,$close_bind"
+  bind="tab:down,btab:up,ctrl-j:down,ctrl-k:up,alt-j:down,alt-k:up,ctrl-d:preview-half-page-down,ctrl-u:preview-half-page-up,alt-n:preview-half-page-down,alt-u:preview-half-page-up,alt-q:abort,ctrl-r:reload($SELF $list_flag),ctrl-g:execute($SELF --grep '$scope' {1})+abort,alt-g:execute($SELF --grep '$scope' {1})+abort,$close_bind"
 
   row_count=$("$SELF" "$list_flag" | awk 'END { print NR }')
   if [ "${row_count:-0}" -le 1 ]; then
@@ -547,7 +515,8 @@ run_grep() {
   local seed_pane="${2:-}"
   local label
   local tmpdir
-  local dataset
+  local snapdir
+  local metafile
   local out
   local pane_id
   local target
@@ -566,13 +535,14 @@ run_grep() {
 
   label=$(scope_label "$scope")
   tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/tmux-fzf-grep.XXXXXX")
-  dataset="$tmpdir/dataset.tsv"
+  snapdir="$tmpdir/snapshots"
+  metafile="$tmpdir/meta.tsv"
 
   trap 'rm -rf "$tmpdir"' EXIT INT TERM
 
-  build_grep_dataset "$scope" "$seed_pane" "$dataset"
+  build_grep_dataset "$scope" "$seed_pane" "$snapdir" "$metafile"
 
-  if [ ! -s "$dataset" ]; then
+  if [ ! -s "$metafile" ]; then
     notify "No pane content available for $label"
     exit 0
   fi
@@ -580,14 +550,14 @@ run_grep() {
   out=$(fzf --ansi --disabled --delimiter=$'\t' --with-nth='5,6,7' --header-lines=1 \
       --layout=reverse-list --cycle --prompt="rg ($label) > " \
       --header='type to ripgrep - enter focus pane - esc close' \
-      --preview "$SELF --preview-rg '$dataset' {4} {q}" \
-      --preview-window 'right,58%,nowrap,follow,+999999,<90(down,55%)' --preview-wrap-sign='' \
-      --bind "start:reload($SELF --rg '$dataset' {q}),change:reload($SELF --rg '$dataset' {q}),tab:down,btab:up,ctrl-j:down,ctrl-k:up,alt-j:down,alt-k:up,ctrl-d:preview-half-page-down,ctrl-u:preview-half-page-up") || exit 0
+      --preview "$SELF --preview-rg {4} {3}" \
+      --preview-window 'right,58%,nowrap,+{3}+3/3,<90(down,55%)' --preview-wrap-sign='' \
+      --bind "start:reload($SELF --rg '$snapdir' '$metafile' {q}),change:reload($SELF --rg '$snapdir' '$metafile' {q}),alt-g:reload($SELF --rg '$snapdir' '$metafile' {q}),tab:down,btab:up,ctrl-j:down,ctrl-k:up,alt-j:down,alt-k:up,ctrl-d:preview-half-page-down,ctrl-u:preview-half-page-up,alt-n:preview-half-page-down,alt-u:preview-half-page-up,alt-q:abort") || exit 0
 
   pane_id=$(printf '%s' "$out" | cut -f1)
   target=$(printf '%s' "$out" | cut -f2)
   line=$(printf '%s' "$out" | cut -f3)
-  match_text=$(printf '%s' "$out" | cut -f7)
+  match_text=$(printf '%s' "$out" | cut -f7 | sed $'s/\033\\[[0-9;]*m//g')
 
   focus_match "$pane_id" "$target" "$line" "$match_text"
 }
@@ -613,7 +583,7 @@ open_popup() {
   border=$(tmux show -gqv @color-inactive)
   [ -n "$border" ] || border='#a9b1d6'
 
-  tmux display-popup -E -K -w 84% -h 74% -b rounded -S "fg=$border" \
+  tmux display-popup -E -w 84% -h 74% -b rounded -S "fg=$border" \
     "ORIGIN_CLIENT='$origin' '$SELF' --inner '$mode'"
 }
 
@@ -639,7 +609,7 @@ case "${1:-}" in
     ;;
 
   --preview-rg)
-    preview_grep_match "${2:-}" "${3:-}" "${4:-}"
+    preview_grep_match "${2:-}" "${3:-}"
     ;;
 
   --list-windows)
@@ -659,7 +629,7 @@ case "${1:-}" in
     ;;
 
   --rg)
-    rg_dataset "${2:-}" "${3:-}"
+    rg_dataset "${2:-}" "${3:-}" "${4:-}"
     ;;
 
   *)

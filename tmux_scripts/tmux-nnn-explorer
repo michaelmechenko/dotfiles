@@ -53,7 +53,7 @@ if [ -z "$FZF_OPTS" ]; then
     FZF_OPTS=${FZF_OPTS#FZF_DEFAULT_OPTS=}
 fi
 
-RG_THEME_COLORS="${RG_COLORS:-match:fg:216,100,126:style:bold}"
+RG_THEME_COLORS="${RG_COLORS:-match:fg:216,100,126:style:underline}"
 
 # fresh session each launch (reaps any lingering detached one), start in origin cwd
 tmux kill-session -t nnn 2>/dev/null || true

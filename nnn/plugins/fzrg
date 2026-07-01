@@ -13,11 +13,12 @@ if [ -n "$TMUX" ] && [ "$(tmux display-message -p '#{window_zoomed_flag}' 2>/dev
 fi
 
 RG='rg --column --line-number --no-heading --color=always --smart-case'
-: "${RG_COLORS:=match:fg:216,100,126:style:bold}"
+: "${RG_COLORS:=match:fg:216,100,126:style:underline}"
 export RG_COLORS
 sel=$(fzf --ansi --disabled \
     --bind "start:reload:$RG -- {q} || true" \
     --bind "change:reload:sleep 0.1; $RG -- {q} || true" \
+    --bind "alt-q:abort,alt-j:down,alt-k:up,alt-n:preview-half-page-down,alt-u:preview-half-page-up,alt-g:reload:$RG -- {q} || true" \
     --delimiter : \
     --preview 'bat --color=always --style=numbers --theme=ansi --highlight-line {2} -- {1}' \
     --preview-window 'up,60%,border-bottom,+{2}+3/3')

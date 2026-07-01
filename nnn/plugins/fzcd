@@ -47,7 +47,8 @@ if [ -n "$1" ] && [ "$(file -b --mime-type "$1")" = 'text/plain' ] && [ -e "$(he
 elif ! [ -s "$LIST" ]; then
     sel=$(fzf \
         --bind 'ctrl-o:execute-silent($HOME/.config/nnn/plugins/.nnn-open-origin {})+abort' \
-        --preview '[ -d {} ] && eza -TL2 --icons=always --color=always {} || bat --color=always --style=numbers --theme=ansi {}' \
+        --bind 'alt-q:abort,alt-j:down,alt-k:up,alt-n:preview-half-page-down,alt-u:preview-half-page-up,alt-g:execute-silent($HOME/.config/nnn/plugins/fzrg)+abort' \
+        --preview '[ -d {} ] && eza -TL2 --icons=always --color=always {} || ( sz=$(wc -c < {} 2>/dev/null || echo 0); if [ "$sz" -gt 500000 ]; then bat --color=always --style=plain --theme=ansi --line-range=:300 {}; else bat --color=always --style=numbers --theme=ansi {}; fi )' \
         --preview-window 'right,60%,border-left')
     # Show only the file and parent dir
     # sel=$(fzf --delimiter / --with-nth=-2,-1 --tiebreak=begin --info=hidden)
@@ -69,7 +70,8 @@ if [ -n "$LIST" ]; then
 
         sel=$(xargs -d '\n' < "$tmpfile" -I{} find {} -type f -printf "%H//%P\n" | sed '/.*\/\/\(\..*\|.*\/\..*\)/d; s:/\+:/:g' | fzf --delimiter / --tiebreak=begin --info=hidden \
             --bind 'ctrl-o:execute-silent($HOME/.config/nnn/plugins/.nnn-open-origin {})+abort' \
-            --preview '[ -d {} ] && eza -TL2 --icons=always --color=always {} || bat --color=always --style=numbers --theme=ansi {}' \
+            --bind 'alt-q:abort,alt-j:down,alt-k:up,alt-n:preview-half-page-down,alt-u:preview-half-page-up,alt-g:execute-silent($HOME/.config/nnn/plugins/fzrg)+abort' \
+            --preview '[ -d {} ] && eza -TL2 --icons=always --color=always {} || ( sz=$(wc -c < {} 2>/dev/null || echo 0); if [ "$sz" -gt 500000 ]; then bat --color=always --style=plain --theme=ansi --line-range=:300 {}; else bat --color=always --style=numbers --theme=ansi {}; fi )' \
             --preview-window 'right,60%,border-left')
         # Alternative for 'fd'
         # sel=$(xargs -d '\n' < "$tmpfile" fd . | fzf --delimiter / --tiebreak=begin --info=hidden)

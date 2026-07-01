@@ -69,8 +69,8 @@ case "${1:-}" in
       --no-sort --layout=reverse-list --cycle --prompt='claude > ' \
       --header=$'enter focus · k approve · esc/M-b close\nC-j/C-k nav · C-d/C-u scroll preview' \
       --preview "$SELF --preview {5}" \
-      --preview-window 'right,58%,wrap,<80(down,55%)' --preview-wrap-sign='' \
-      --bind "tab:down,btab:up,ctrl-j:down,ctrl-k:up,ctrl-d:preview-half-page-down,ctrl-u:preview-half-page-up,alt-b:abort,k:execute-silent($SELF --accept-all)+reload($SELF --colorize)")
+      --preview-window 'right,58%,wrap,follow,+999999,<80(down,55%)' --preview-wrap-sign='' \
+      --bind "tab:down,btab:up,ctrl-j:down,ctrl-k:up,alt-j:down,alt-k:up,ctrl-d:preview-half-page-down,ctrl-u:preview-half-page-up,alt-b:abort,k:execute-silent($SELF --accept-all)+reload($SELF --colorize)")
     [ -n "$out" ] || exit 0
     pane=$(printf '%s' "$out" | cut -f2)
     target=$(printf '%s' "$out" | cut -f3)
@@ -87,7 +87,7 @@ case "${1:-}" in
   *)
     origin=$(tmux display -p '#{client_name}')
     border=$(tmux show -gqv @color-inactive); [ -n "$border" ] || border="#a9b1d6"
-    tmux display-popup -E -w 80% -h 70% -b rounded -S "fg=$border" \
+    tmux display-popup -E -K -w 80% -h 70% -b rounded -S "fg=$border" \
       "ORIGIN_CLIENT='$origin' '$SELF' --inner"
     ;;
 esac

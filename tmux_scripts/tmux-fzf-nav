@@ -1,0 +1,669 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SELF="$HOME/.config/tmux_scripts/tmux-fzf-nav"
+SEP=$'\x1f'
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+notify() {
+  tmux display-message "$*"
+}
+
+focus_pane() {
+  local pane_id="${1:-}"
+  local target="${2:-}"
+
+  [ -n "$pane_id" ] || exit 0
+
+  if [ -z "$target" ]; then
+    target=$(tmux display-message -p -t "$pane_id" '#{session_id}:#{window_index}' 2>/dev/null || true)
+  fi
+
+  [ -n "$target" ] || exit 0
+
+  if [ -n "${ORIGIN_CLIENT:-}" ]; then
+    tmux switch-client -c "$ORIGIN_CLIENT" -t "$target"
+  else
+    tmux switch-client -t "$target"
+  fi
+
+  tmux select-pane -t "$pane_id" 2>/dev/null || true
+}
+
+focus_match() {
+  local pane_id="${1:-}"
+  local target="${2:-}"
+  local line="${3:-}"
+  local match_text="${4:-}"
+  local jumped=0
+
+  focus_pane "$pane_id" "$target"
+
+  tmux copy-mode -t "$pane_id" 2>/dev/null || true
+  tmux send-keys -t "$pane_id" -X history-top 2>/dev/null || true
+
+  if [ -n "$line" ] && [[ "$line" =~ ^[0-9]+$ ]]; then
+    if tmux send-keys -t "$pane_id" -X goto-line "$line" 2>/dev/null; then
+      jumped=1
+    fi
+  fi
+
+  if [ -n "$match_text" ]; then
+    if [ "$jumped" -eq 1 ]; then
+      tmux send-keys -t "$pane_id" -X search-forward-text "$match_text" 2>/dev/null || true
+    else
+      tmux send-keys -t "$pane_id" -X history-bottom 2>/dev/null || true
+      tmux send-keys -t "$pane_id" -X search-backward-text "$match_text" 2>/dev/null || true
+    fi
+  fi
+}
+
+preview_pane() {
+  local pane_id="${1:-}"
+
+  if [ -z "$pane_id" ]; then
+    printf '(no pane)\n'
+    exit 0
+  fi
+
+  if ! tmux display-message -p -t "$pane_id" '#{pane_id}' >/dev/null 2>&1; then
+    printf '(pane no longer exists)\n'
+    exit 0
+  fi
+
+  tmux capture-pane -p -e -N -t "$pane_id" -S -260 -E - 2>/dev/null || true
+}
+
+preview_grep_match() {
+  local dataset="$1"
+  local dataset_line="${2:-}"
+  local query="${3:-}"
+  local pane
+  local session
+  local winpane
+  local wname
+  local line
+  local start
+  local end
+  local hl
+  local tmp
+
+  [ -f "$dataset" ] || { printf '(no dataset)\n'; exit 0; }
+  [[ "$dataset_line" =~ ^[0-9]+$ ]] || { printf '(no match)\n'; exit 0; }
+
+  IFS=$'\t' read -r pane _target session winpane wname line _text < <(
+    awk -F'\t' -v n="$dataset_line" 'NR == n { print $1 "\t" $2 "\t" $3 "\t" $4 "\t" $5 "\t" $6 "\t" $7; exit }' "$dataset"
+  )
+
+  [ -n "$pane" ] || { printf '(match not available)\n'; exit 0; }
+
+  start=$((line - 120))
+  [ "$start" -lt 1 ] && start=1
+  end=$((line + 120))
+  hl=$((line - start + 1))
+
+  printf 'session: %s  window: %s (%s)  line: %s\n\n' "$session" "$winpane" "$wname" "$line"
+
+  tmp=$(mktemp "${TMPDIR:-/tmp}/tmux-fzf-rg-preview.XXXXXX")
+  awk -F'\t' -v pane="$pane" -v start="$start" -v end="$end" '
+    $1 == pane && $6 >= start && $6 <= end {
+      print $7
+    }' "$dataset" >"$tmp"
+
+  if have_cmd bat; then
+    if [ -n "$query" ] && have_cmd rg; then
+      if ! bat --color=always --style=numbers --paging=never --theme=ansi \
+          --highlight-line "$hl" --terminal-width="${FZF_PREVIEW_COLUMNS:-80}" "$tmp" \
+          | rg --passthru --color=always --smart-case -- "$query" 2>/dev/null; then
+        bat --color=always --style=numbers --paging=never --theme=ansi \
+          --highlight-line "$hl" --terminal-width="${FZF_PREVIEW_COLUMNS:-80}" "$tmp"
+      fi
+    else
+      bat --color=always --style=numbers --paging=never --theme=ansi \
+        --highlight-line "$hl" --terminal-width="${FZF_PREVIEW_COLUMNS:-80}" "$tmp"
+    fi
+  else
+    awk '{ print }' "$tmp"
+  fi
+
+  rm -f "$tmp"
+}
+
+scope_label() {
+  case "$1" in
+    current-session) printf 'current session' ;;
+    all-sessions) printf 'all sessions' ;;
+    other-sessions) printf 'other sessions' ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+
+list_windows() {
+  local current_session_id
+  current_session_id=$(tmux display-message -p '#{session_id}')
+
+  tmux list-panes -a -F "#{?pane_active,1,0}${SEP}#{pane_id}${SEP}#{session_id}${SEP}#{session_name}${SEP}#{window_index}${SEP}#{window_name}${SEP}#{window_panes}${SEP}#{pane_index}${SEP}#{pane_current_command}${SEP}#{pane_title}${SEP}#{pane_current_path}" \
+    | awk -F "$SEP" -v home="$HOME" -v current_id="$current_session_id" '
+      function trunc(s, n) {
+        if (length(s) <= n) return s
+        return substr(s, 1, n - 3) "..."
+      }
+      BEGIN {
+        OFS = "\t"
+        print "PANE", "TARGET", sprintf("%-24s %-14s %s", "WINDOW", "CMD", "CWD")
+      }
+      $3 == current_id {
+        pane = $2
+        sid = $3
+        win = $5
+        wname = $6
+        cmd = $9
+        cwd = $11
+
+        if (cmd == "") cmd = "-"
+        if (wname == "") wname = "-"
+        sub("^" home, "~", cwd)
+
+        print pane, sid ":" win, sprintf("%-24s %-14s %s", trunc(wname, 24), trunc(cmd, 14), cwd)
+      }'
+}
+
+list_sessions() {
+  local current_session_id
+  current_session_id=$(tmux display-message -p '#{session_id}')
+
+  {
+    tmux list-sessions -O creation -F "S${SEP}#{session_id}${SEP}#{session_name}${SEP}#{session_windows}${SEP}#{session_attached}"
+    tmux list-panes -a -F "P${SEP}#{session_id}${SEP}#{pane_id}${SEP}#{window_index}${SEP}#{window_name}${SEP}#{pane_index}${SEP}#{?pane_active,1,0}${SEP}#{?window_active,1,0}${SEP}#{pane_current_command}${SEP}#{pane_current_path}"
+  } | awk -F "$SEP" -v home="$HOME" -v current_id="$current_session_id" '
+    function trunc(s, n) {
+      if (length(s) <= n) return s
+      return substr(s, 1, n - 3) "..."
+    }
+    BEGIN {
+      OFS = "\t"
+      print "PANE", "TARGET", sprintf("%-16s %-26s %-12s %s", "SESSION", "ACTIVE", "CMD", "CWD")
+    }
+    $1 == "S" {
+      sid = $2
+      sname = $3
+
+      if (!(sid in seen_session)) {
+        seen_session[sid] = 1
+        session_name[sid] = sname
+        session_windows[sid] = $4
+        session_attached[sid] = $5
+
+        if (sname ~ /^float/) {
+          float_order[++float_count] = sid
+        } else {
+          other_order[++other_count] = sid
+        }
+      }
+      next
+    }
+    $1 == "P" {
+      sid = $2
+      pane = $3
+      win = $4
+      wname = $5
+      pane_idx = $6
+      pane_active = $7
+      window_active = $8
+      cmd = $9
+      cwd = $10
+
+      sub("^" home, "~", cwd)
+
+      if (!(sid in fallback_seen)) {
+        fallback_seen[sid] = 1
+        fallback_pane[sid] = pane
+        fallback_win[sid] = win
+        fallback_wname[sid] = wname
+        fallback_pane_idx[sid] = pane_idx
+        fallback_cmd[sid] = cmd
+        fallback_cwd[sid] = cwd
+      }
+
+      if (pane_active == 1 && window_active == 1) {
+        active_pane[sid] = pane
+        active_win[sid] = win
+        active_wname[sid] = wname
+        active_pane_idx[sid] = pane_idx
+        active_cmd[sid] = cmd
+        active_cwd[sid] = cwd
+      }
+    }
+    function print_session(sid, marker, pane, win, wname, cmd, cwd, sess, display) {
+      marker = (sid == current_id) ? "*" : ""
+
+      if (sid in active_pane) {
+        pane = active_pane[sid]
+        win = active_win[sid]
+        wname = active_wname[sid]
+        cmd = active_cmd[sid]
+        cwd = active_cwd[sid]
+      } else {
+        pane = fallback_pane[sid]
+        win = fallback_win[sid]
+        wname = fallback_wname[sid]
+        cmd = fallback_cmd[sid]
+        cwd = fallback_cwd[sid]
+      }
+
+      if (pane == "") {
+        pane = "-"
+        win = "-"
+        wname = "-"
+        cmd = "-"
+        cwd = "-"
+      }
+
+      sess = session_name[sid]
+      if (marker == "*") {
+        sess = "*" sess
+      }
+
+      display = sprintf("%-16s %-26s %-12s %s", trunc(sess, 16), trunc(win ":" wname, 26), trunc(cmd, 12), cwd)
+
+      print pane, sid ":" win, display
+    }
+    END {
+      for (i = 1; i <= float_count; i++) {
+        sid = float_order[i]
+        print_session(sid)
+      }
+      for (i = 1; i <= other_count; i++) {
+        sid = other_order[i]
+        print_session(sid)
+      }
+    }'
+}
+
+list_other_panes() {
+  local current_session_id
+  current_session_id=$(tmux display-message -p '#{session_id}')
+
+  {
+    tmux list-sessions -O creation -F "S${SEP}#{session_id}${SEP}#{session_name}"
+    tmux list-panes -a -F "P${SEP}#{pane_id}${SEP}#{session_id}${SEP}#{session_name}${SEP}#{window_index}${SEP}#{window_name}${SEP}#{pane_index}${SEP}#{pane_current_command}${SEP}#{pane_title}${SEP}#{pane_current_path}"
+  } | awk -F "$SEP" -v home="$HOME" -v current_id="$current_session_id" '
+    function trunc(s, n) {
+      if (length(s) <= n) return s
+      return substr(s, 1, n - 3) "..."
+    }
+    BEGIN {
+      OFS = "\t"
+      print "PANE", "TARGET", sprintf("%-16s %-10s %-18s %-12s %s", "SESSION", "WIN.PANE", "WINDOW", "CMD", "CWD")
+    }
+    $1 == "S" {
+      sid = $2
+      sname = $3
+
+      if (!(sid in seen_session)) {
+        seen_session[sid] = 1
+        if (sname ~ /^float/) {
+          float_order[++float_count] = sid
+        } else {
+          other_order[++other_count] = sid
+        }
+      }
+      next
+    }
+    $1 == "P" {
+      pane = $2
+      sid = $3
+      sname = $4
+
+      if (sid == current_id) {
+        next
+      }
+
+      win = $5
+      wname = $6
+      pane_idx = $7
+      cmd = $8
+      cwd = $10
+
+      if (cmd == "") cmd = "-"
+      if (wname == "") wname = "-"
+      sub("^" home, "~", cwd)
+
+      row = pane OFS sid ":" win OFS sprintf("%-16s %-10s %-18s %-12s %s", trunc(sname, 16), trunc(win "." pane_idx, 10), trunc(wname, 18), trunc(cmd, 12), cwd)
+      rows[sid, ++row_count[sid]] = row
+    }
+    function print_rows(sid, i) {
+      for (i = 1; i <= row_count[sid]; i++) {
+        print rows[sid, i]
+      }
+    }
+    END {
+      for (i = 1; i <= float_count; i++) {
+        sid = float_order[i]
+        print_rows(sid)
+      }
+      for (i = 1; i <= other_count; i++) {
+        sid = other_order[i]
+        print_rows(sid)
+      }
+    }'
+}
+
+list_scope_panes() {
+  local scope="$1"
+  local seed_pane="${2:-}"
+  local seed_session
+  local current_session_id
+
+  case "$scope" in
+    current-session)
+      seed_session=""
+      if [ -n "$seed_pane" ]; then
+        seed_session=$(tmux display-message -p -t "$seed_pane" '#{session_id}' 2>/dev/null || true)
+      fi
+      [ -n "$seed_session" ] || seed_session=$(tmux display-message -p '#{session_id}')
+      tmux list-panes -a -F "#{pane_id}${SEP}#{session_id}${SEP}#{session_name}${SEP}#{window_index}${SEP}#{window_name}${SEP}#{pane_index}" \
+        | awk -F "$SEP" -v sid="$seed_session" '$2 == sid'
+      ;;
+
+    all-sessions)
+      tmux list-panes -a -F "#{pane_id}${SEP}#{session_id}${SEP}#{session_name}${SEP}#{window_index}${SEP}#{window_name}${SEP}#{pane_index}"
+      ;;
+
+    other-sessions)
+      current_session_id=$(tmux display-message -p '#{session_id}')
+      tmux list-panes -a -F "#{pane_id}${SEP}#{session_id}${SEP}#{session_name}${SEP}#{window_index}${SEP}#{window_name}${SEP}#{pane_index}" \
+        | awk -F "$SEP" -v current_id="$current_session_id" '$2 != current_id'
+      ;;
+
+    *)
+      exit 1
+      ;;
+  esac
+}
+
+build_grep_dataset() {
+  local scope="$1"
+  local seed_pane="${2:-}"
+  local dataset="$3"
+
+  : >"$dataset"
+
+  list_scope_panes "$scope" "$seed_pane" \
+    | while IFS="$SEP" read -r pane_id session_id session_name window_index window_name pane_index; do
+        [ -n "$pane_id" ] || continue
+
+        tmux capture-pane -p -N -t "$pane_id" -S - -E - 2>/dev/null \
+          | awk -v pane="$pane_id" -v target="$session_id:$window_index" -v sname="$session_name" -v wp="$window_index.$pane_index" -v wname="$window_name" '
+              BEGIN { OFS = "\t" }
+              {
+                gsub(/\t/, "    ", $0)
+                print pane, target, sname, wp, wname, NR, $0
+              }' >>"$dataset"
+      done
+}
+
+rg_dataset() {
+  local dataset="$1"
+  local query="${2:-}"
+
+  printf 'PANE\tTARGET\tLINE\tDATASET\tSESSION\tWINDOW\tMATCH\n'
+
+  [ -n "$query" ] || exit 0
+
+  { rg --line-number --no-heading --color=always --smart-case -a -- "$query" "$dataset" 2>/dev/null || true; } \
+    | awk -F'\t' '
+      function strip_ansi(s) {
+        gsub(/\033\[[0-9;]*m/, "", s)
+        return s
+      }
+      function trunc(s, n) {
+        if (length(s) <= n) return s
+        return substr(s, 1, n - 3) "..."
+      }
+      {
+        raw = $0
+        clean = strip_ansi(raw)
+
+        if (clean ~ /^[0-9]+:/) {
+          dataset_line = clean
+          sub(/:.*/, "", dataset_line)
+          sub(/^[^:]*:/, "", raw)
+        } else {
+          line_info = clean
+          sub(/^[^:]*:/, "", line_info)
+          dataset_line = line_info
+          sub(/:.*/, "", dataset_line)
+          if (dataset_line !~ /^[0-9]+$/) {
+            next
+          }
+          sub(/^[^:]*:[^:]*:/, "", raw)
+        }
+
+        if (length(raw) == 0) {
+          next
+        }
+
+        nplain = split(strip_ansi(raw), plain, "\t")
+        ncolor = split(raw, color, "\t")
+        if (nplain < 7 || ncolor < 7) {
+          next
+        }
+
+        pane = plain[1]
+        target = plain[2]
+        session = plain[3]
+        wname = plain[5]
+        line = plain[6]
+        match_text = color[7]
+
+        session_col = sprintf("%-16s", trunc(strip_ansi(session), 16))
+        window_col = sprintf("%-22s", trunc(strip_ansi(wname), 22))
+
+        print pane "\t" target "\t" line "\t" dataset_line "\t" session_col "\t" window_col "\t" "L" line " " match_text
+      }'
+}
+
+run_picker() {
+  local mode="$1"
+  local list_flag
+  local scope
+  local prompt
+  local header
+  local with_nth
+  local empty_msg
+  local row_count
+  local out
+  local pane_id
+  local target
+  local bind
+  local close_bind
+
+  case "$mode" in
+    windows)
+      list_flag='--list-windows'
+      scope='current-session'
+      prompt='panes > '
+      header='enter focus pane - ctrl-g ripgrep current session - ctrl-r reload - esc close'
+      with_nth='3'
+      empty_msg='No panes found in current session'
+      close_bind='alt-w:abort'
+      ;;
+
+    sessions)
+      list_flag='--list-sessions'
+      scope='all-sessions'
+      prompt='sessions > '
+      header='enter switch session/pane - ctrl-g ripgrep all sessions - ctrl-r reload - esc close'
+      with_nth='3'
+      empty_msg='No tmux sessions found'
+      close_bind='alt-s:abort'
+      ;;
+
+    other-panes)
+      list_flag='--list-other-panes'
+      scope='other-sessions'
+      prompt='other panes > '
+      header='enter focus pane - ctrl-g ripgrep other sessions - ctrl-r reload - esc close'
+      with_nth='3'
+      empty_msg='No panes found outside the current session'
+      close_bind='alt-t:abort,alt-T:abort'
+      ;;
+
+    *)
+      exit 1
+      ;;
+  esac
+
+  bind="tab:down,btab:up,ctrl-j:down,ctrl-k:up,alt-j:down,alt-k:up,ctrl-d:preview-half-page-down,ctrl-u:preview-half-page-up,ctrl-r:reload($SELF $list_flag),ctrl-g:execute($SELF --grep '$scope' {1})+abort,alt-g:execute($SELF --grep '$scope' {1})+abort,$close_bind"
+
+  row_count=$("$SELF" "$list_flag" | awk 'END { print NR }')
+  if [ "${row_count:-0}" -le 1 ]; then
+    notify "$empty_msg"
+    exit 0
+  fi
+
+  out=$(
+    "$SELF" "$list_flag" \
+      | fzf --delimiter=$'\t' --with-nth="$with_nth" --header-lines=1 --no-sort \
+        --layout=reverse-list --cycle --prompt="$prompt" --header="$header" \
+        --preview "$SELF --preview-pane {1}" \
+        --preview-window 'right,58%,nowrap,follow,+999999,<90(down,55%)' --preview-wrap-sign='' \
+        --bind "$bind"
+  ) || exit 0
+
+  pane_id=$(printf '%s' "$out" | cut -f1)
+  target=$(printf '%s' "$out" | cut -f2)
+
+  focus_pane "$pane_id" "$target"
+}
+
+run_grep() {
+  local scope="$1"
+  local seed_pane="${2:-}"
+  local label
+  local tmpdir
+  local dataset
+  local out
+  local pane_id
+  local target
+  local line
+  local match_text
+
+  if ! have_cmd rg; then
+    notify 'ripgrep (rg) is not installed'
+    exit 0
+  fi
+
+  if ! have_cmd fzf; then
+    notify 'fzf is not installed'
+    exit 0
+  fi
+
+  label=$(scope_label "$scope")
+  tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/tmux-fzf-grep.XXXXXX")
+  dataset="$tmpdir/dataset.tsv"
+
+  trap 'rm -rf "$tmpdir"' EXIT INT TERM
+
+  build_grep_dataset "$scope" "$seed_pane" "$dataset"
+
+  if [ ! -s "$dataset" ]; then
+    notify "No pane content available for $label"
+    exit 0
+  fi
+
+  out=$(fzf --ansi --disabled --delimiter=$'\t' --with-nth='5,6,7' --header-lines=1 \
+      --layout=reverse-list --cycle --prompt="rg ($label) > " \
+      --header='type to ripgrep - enter focus pane - esc close' \
+      --preview "$SELF --preview-rg '$dataset' {4} {q}" \
+      --preview-window 'right,58%,nowrap,follow,+999999,<90(down,55%)' --preview-wrap-sign='' \
+      --bind "start:reload($SELF --rg '$dataset' {q}),change:reload($SELF --rg '$dataset' {q}),tab:down,btab:up,ctrl-j:down,ctrl-k:up,alt-j:down,alt-k:up,ctrl-d:preview-half-page-down,ctrl-u:preview-half-page-up") || exit 0
+
+  pane_id=$(printf '%s' "$out" | cut -f1)
+  target=$(printf '%s' "$out" | cut -f2)
+  line=$(printf '%s' "$out" | cut -f3)
+  match_text=$(printf '%s' "$out" | cut -f7)
+
+  focus_match "$pane_id" "$target" "$line" "$match_text"
+}
+
+open_popup() {
+  local mode="$1"
+  local origin
+  local border
+  local popup_width
+
+  if ! have_cmd fzf; then
+    notify 'fzf is not installed'
+    exit 0
+  fi
+
+  popup_width=$(tmux display-message -p '#{popup_width}')
+  if [ -n "$popup_width" ]; then
+    tmux display-popup -C
+    exit 0
+  fi
+
+  origin=$(tmux display-message -p '#{client_name}')
+  border=$(tmux show -gqv @color-inactive)
+  [ -n "$border" ] || border='#a9b1d6'
+
+  tmux display-popup -E -K -w 84% -h 74% -b rounded -S "fg=$border" \
+    "ORIGIN_CLIENT='$origin' '$SELF' --inner '$mode'"
+}
+
+case "${1:-}" in
+  windows)
+    open_popup windows
+    ;;
+
+  sessions)
+    open_popup sessions
+    ;;
+
+  other-panes)
+    open_popup other-panes
+    ;;
+
+  --inner)
+    run_picker "${2:-}"
+    ;;
+
+  --preview-pane)
+    preview_pane "${2:-}"
+    ;;
+
+  --preview-rg)
+    preview_grep_match "${2:-}" "${3:-}" "${4:-}"
+    ;;
+
+  --list-windows)
+    list_windows
+    ;;
+
+  --list-sessions)
+    list_sessions
+    ;;
+
+  --list-other-panes)
+    list_other_panes
+    ;;
+
+  --grep)
+    run_grep "${2:-}" "${3:-}"
+    ;;
+
+  --rg)
+    rg_dataset "${2:-}" "${3:-}"
+    ;;
+
+  *)
+    printf 'usage: %s [windows|sessions|other-panes|--inner MODE|--grep SCOPE [PANE]]\n' "$SELF" >&2
+    exit 1
+    ;;
+esac

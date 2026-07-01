@@ -43,9 +43,17 @@ SPLITSIZE=60                               # preview pane width % (explorer gets
 # ansi theme (inherits the terminal palette). Image/video previewers left unset
 # so those heavy branches never fire.
 BATSTYLE=numbers
-BATTHEME=vague
+BATTHEME=ansi
 
 PAGER_CMD='moor --no-linenumbers --mousemode=scroll --statusbar=plain'
+
+FZF_OPTS="${FZF_DEFAULT_OPTS:-}"
+if [ -z "$FZF_OPTS" ]; then
+    FZF_OPTS=$(tmux show-environment -g FZF_DEFAULT_OPTS 2>/dev/null || true)
+    FZF_OPTS=${FZF_OPTS#FZF_DEFAULT_OPTS=}
+fi
+
+RG_THEME_COLORS="${RG_COLORS:-match:fg:216,100,126:style:bold}"
 
 # fresh session each launch (reaps any lingering detached one), start in origin cwd
 tmux kill-session -t nnn 2>/dev/null || true
@@ -58,4 +66,4 @@ else
 fi
 
 tmux popup "${GEO[@]}" -S "fg=$BORDER_COLOR" -E \
-    "tmux new-session -s nnn -e NNN_ORIGIN_PANE='$ORIGIN_PANE' -e NNN_PLUG='$PLUG' -e NNN_SPLIT=v -e NNN_SPLITSIZE=$SPLITSIZE -e NNN_BATSTYLE=$BATSTYLE -e NNN_BATTHEME=$BATTHEME -e NNN_COLORS='$COLORS' -e NNN_FCOLORS='$FCOLORS' -e NNN_PAGER='$PAGER_CMD' -c '$CWD' nnn -aH -l 1 -P p" || true
+    "tmux new-session -s nnn -e NNN_ORIGIN_PANE='$ORIGIN_PANE' -e NNN_PLUG='$PLUG' -e NNN_SPLIT=v -e NNN_SPLITSIZE=$SPLITSIZE -e NNN_BATSTYLE=$BATSTYLE -e NNN_BATTHEME=$BATTHEME -e NNN_COLORS='$COLORS' -e NNN_FCOLORS='$FCOLORS' -e NNN_PAGER='$PAGER_CMD' -e FZF_DEFAULT_OPTS='$FZF_OPTS' -e RG_COLORS='$RG_THEME_COLORS' -c '$CWD' nnn -aH -l 1 -P p" || true

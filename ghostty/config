@@ -54,13 +54,13 @@ resize-overlay = never
 font-size = 14
 # adjust-cell-width = 2%
 # adjust-font-baseline = 0
-adjust-cell-height = 2%
+# adjust-cell-height = 4%
 # font-feature = -calt
 # font-thicken = true
 # font-thicken-strength = 0
 # font-family = "JetBrainsMono"
 # font-family = "ComicShanns Nerd Font"
-font-family = "0xProto"
+# font-family = "0xProto"
 
 
 # lilex-specific config
@@ -79,7 +79,7 @@ font-family = "0xProto"
 # font-thicken = true
 # font-thicken-strength = 0
 # adjust-cell-height = 22%
-# font-family = "CommitMono-m1v1"
+font-family = "CommitMono-m1v1"
 # weight: 450, spacing: 0%, line height: 1.2
 # enabled: ss01/02/03
 # alternate: cv02/04/06/08

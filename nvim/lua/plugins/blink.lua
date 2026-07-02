@@ -104,9 +104,7 @@ return {
         },
         completion = {
           menu = {
-            auto_show = function()
-              return vim.fn.getcmdtype() == ":"
-            end,
+            auto_show = false,
           },
         },
       },

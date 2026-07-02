@@ -200,7 +200,7 @@ return {
             "diagnostics",
           },
         },
-        lualine_z = { { "progress" } },
+        lualine_z = { { "location" }, { "searchcount" }, { "progress" } },
       },
       inactive_sections = {
         lualine_a = {},

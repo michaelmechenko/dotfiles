@@ -1,6 +1,6 @@
 # Keybinds
 
-Reference for all active keybinds across AeroSpace (`aerospace/aerospace.toml`), Hammerspoon (`hammerspoon/init.lua`), and tmux (`.tmux.conf`). Modifier order: `cmd` > `ctrl` > `alt` > `shift`.
+Reference for all active keybinds across AeroSpace (`aerospace/aerospace.toml`), Hammerspoon (`hammerspoon/init.lua`), and tmux (`tmux.conf`). Modifier order: `cmd` > `ctrl` > `alt` > `shift`.
 
 ## AeroSpace — main mode
 
@@ -152,7 +152,7 @@ Prefix is `C-Space`. Root-level binds (`bind-key -n`, no prefix) are marked **ro
 ### Core
 | Key | Scope | Action |
 | --- | --- | --- |
-| `prefix r` | — | Reload `.tmux.conf` |
+| `prefix r` | — | Reload `tmux.conf` |
 | `prefix c` | — | New window in pane's cwd |
 | `prefix t` | — | `choose-tree` (session/window picker) |
 
@@ -287,11 +287,15 @@ Lists panes outside the current session in an fzf popup with fixed columns (incl
 Surfaces URLs **and** file paths/bare filenames (via a custom path regex) from the visible pane content into fzf. Records the origin pane in `TMUX_OPEN_PANE` so the shared opener can resolve relative paths + split off it.
 - **select a file** → nvim split (via `tmux-open-target`)
 - **select a URL / non-file** → `open`
+- **M-j/M-k** — navigate up/down
+- **M-o** — toggle close/open (press again to close active popup)
 
 ### `M-K` — extrakto (`tmux-extrakto-launch`)
 Extract words/lines/URLs from pane content (default grab area = window full) into fzf. Records the origin pane in `TMUX_OPEN_PANE`; `@extrakto_open_tool` routes ctrl-o opens through the shared `tmux-open-target` (files → nvim split, else `open`). Keeps `FZF_DEFAULT_OPTS` palette (`@extrakto_fzf_unset_default_opts "false"`).
 - **ctrl-o** — open selected via `tmux-open-target` (files → nvim split, else `open`)
 - **extrakto's built-in grab keys** — grab word/line, etc. (see extrakto docs)
+- **M-j/M-k** — navigate up/down
+- **M-q / M-K** — close
 
 ### `M-b` — Claude Code session menu (`tmux-claude-menu`)
 Cross-tmux fzf menu of every Claude session, color-coded by state (permission/waiting = rose, thinking = dusty_pink, idle = inactive). Preview shows prev response → your last message → latest response (+ plan excerpt if any), bat-highlighted.

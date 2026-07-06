@@ -73,7 +73,7 @@ Two places drift by one hex digit. The fixes are mechanical — pick one of the 
 
 ### Recommended normalization (not yet applied)
 
-- Lavender accent (`c9b1c9` vs `c9b1ca`): pick **`#c9b1ca`** (Ghostty's value, since the palette is the larger contract). Update the tmux pane-border-format on line 254 of `~/.config/.tmux.conf` to use `#c9b1ca`.
+- Lavender accent (`c9b1c9` vs `c9b1ca`): pick **`#c9b1ca`** (Ghostty's value, since the palette is the larger contract). Update the tmux pane-border-format on line 254 of `~/.config/tmux.conf` to use `#c9b1ca`.
 - Warm sand (`F5CC96` vs `f5cb96`): pick **`#f5cb96`** (Ghostty's value). Update `~/.config/ohmyposh/base.json` git template — both occurrences of `#F5CC96` become `#f5cb96`.
 
 ### Tmux-only colors (not in Ghostty's palette)
@@ -136,7 +136,7 @@ Per-component overrides in the same file (the `buffers_color` block, the zero-wi
 
 ## fzf
 
-`FZF_DEFAULT_OPTS` in `~/.config/.zshrc` sets a `--color` scheme matching the palette (applies to all fzf: fzcd, tmux-fzf-url, fzf-tab, shell). Mapping:
+`FZF_DEFAULT_OPTS` in `~/.config/zshrc` sets a `--color` scheme matching the palette (applies to all fzf: fzcd, tmux-fzf-url, fzf-tab, shell). Mapping:
 
 - `fg` `#656a80` (`text-muted` gray — unselected rows) · `fg+` `#bebebe` (`text` — selected row text, normal brightness) · `query` `#bebedb` (`accent-highlight`, typed text) · `bg`/`bg+`/`gutter`/`preview-bg` `-1` (all transparent)
 - Selection indicated by `▌` pointer in `#d8647e` (`accent-primary` rose) on the left; selected row text is `text` `#bebebe`. No full-row bg tint.
@@ -145,7 +145,7 @@ Per-component overrides in the same file (the `buffers_color` block, the zero-wi
 - `prompt` `#aeaed1` (`accent-secondary`) · `marker` `#bb9dbd` (`accent-tertiary`) · `spinner` `#f3be7c` (`accent-amber`) · `info` `#656a80` (`text-muted` — the preview scroll-position "N/M" indicator)
 - `header`/`disabled`/`label` `#656a80` (`text-muted`)
 
-Note: `~/.config/.zshrc` is the tracked source of truth; the live `~/.zshrc` is synced manually (they have diverged — see future persona/work-profile split).
+Note: `~/.config/zshrc` is the tracked source of truth; the live `~/.zshrc` is synced manually (they have diverged — see future persona/work-profile split).
 
 ## How to add new colors
 

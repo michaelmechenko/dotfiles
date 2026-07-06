@@ -52,34 +52,37 @@ macos-icon-screen-color = #9893a5
 resize-overlay = never
 
 font-size = 14
-# adjust-cell-width = 2%
 # adjust-font-baseline = 0
+# adjust-cell-width = 4%
 # adjust-cell-height = 4%
 # font-feature = -calt
 # font-thicken = true
 # font-thicken-strength = 0
+# font-family = "Rec Mono"
 # font-family = "JetBrainsMono"
 # font-family = "ComicShanns Nerd Font"
 # font-family = "0xProto"
 
 
 # lilex-specific config
-# font-family = "Lilex"
-# adjust-cell-height = 2%
+font-family = "Lilex"
+alpha-blending = linear-corrected
+font-variation = wght=425
+adjust-cell-height = 4%
 # font-thicken = true
 # font-thicken-strength = 0
 # font-feature = -calt
-# font-feature = +cv01
-# font-feature = +cv02
-# font-feature = +cv09
-# font-feature = +zero
+font-feature = +cv01
+font-feature = +cv02
+font-feature = +cv09
+font-feature = +zero
 
 # commitmono-specific config
 # font-family = "CommitMono"
 # font-thicken = true
 # font-thicken-strength = 0
 # adjust-cell-height = 22%
-font-family = "CommitMono-m1v1"
+# font-family = "CommitMono-m1v1"
 # weight: 450, spacing: 0%, line height: 1.2
 # enabled: ss01/02/03
 # alternate: cv02/04/06/08

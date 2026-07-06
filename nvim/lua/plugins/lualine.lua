@@ -69,10 +69,10 @@ local filetype_spacing = {
 -- here to own the statusline colors. Section mapping is fixed: a+z -> .a,
 -- b+y -> .b, c+x -> .c. Whole bar is surface-chrome #1C1C24; only a/z (status
 -- and location) carry the per-mode accent.
-local chrome = "#1C1C24"       -- surface-chrome (whole bar bg)
-local chrome_fg = "#BEBEBE"    -- text
-local block_fg = "#100E11"     -- canvas (dark text on accent block)
-local inactive_fg = "#656a80"  -- text-muted
+local chrome = "#1C1C24"      -- surface-chrome (whole bar bg)
+local chrome_fg = "#BEBEBE"   -- text
+local block_fg = "#100E11"    -- canvas (dark text on accent block)
+local inactive_fg = "#656a80" -- text-muted
 
 local function mode(accent)
   return {
@@ -179,9 +179,15 @@ return {
             --   fg = "c9c7cd",
             --   bg = "None"
             -- }
-          },
+          }
         },
         lualine_x = {
+          -- {
+          --   "location",
+          --   color = {
+          --     fg = inactive_fg
+          --   }
+          -- },
           {
             "diff",
             -- color = {
@@ -200,7 +206,7 @@ return {
             "diagnostics",
           },
         },
-        lualine_z = { { "location" }, { "searchcount" }, { "progress" } },
+        lualine_z = { { "searchcount" }, { "progress" } },
       },
       inactive_sections = {
         lualine_a = {},

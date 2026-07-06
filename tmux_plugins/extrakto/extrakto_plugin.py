@@ -389,10 +389,25 @@ class ExtraktoPlugin:
                     f"--layout={self.fzf_layout}",
                     "--no-info",
                 ]
-                query, key, *selection = fzf_sel(
-                    fzf_cmd,
-                    get_cap(sel_filter, self.capture_panes()),
-                )
+                # Local patch: inject global meta keybinds via FZF_DEFAULT_OPTS.
+                # FZF_DEFAULT_OPTS is used instead of --bind in fzf_cmd because
+                # --bind=alt-q:abort causes fzf to exit with zero output (abort
+                # doesn't emit an --expect key), which triggers ValueError. The
+                # empty-return case is handled below as a clean exit.
+                _saved_fzf_opts = os.environ.get("FZF_DEFAULT_OPTS", "")
+                os.environ["FZF_DEFAULT_OPTS"] = _saved_fzf_opts + " --bind=alt-q:abort,alt-K:abort,alt-j:down,alt-k:up"
+                try:
+                    _result = fzf_sel(
+                        fzf_cmd,
+                        get_cap(sel_filter, self.capture_panes()),
+                    )
+                finally:
+                    os.environ["FZF_DEFAULT_OPTS"] = _saved_fzf_opts
+
+                # abort (alt-q / alt-K) produces zero output — clean exit
+                if len(_result) < 2:
+                    return 0
+                query, key, *selection = _result
             except Exception as e:
                 msg = (
                     str(fzf_cmd)

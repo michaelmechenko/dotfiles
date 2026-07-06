@@ -18,14 +18,16 @@ fzf_filter() {
     fzf_version="$(fzf --version 2>/dev/null | awk '{print $1}')"
     fzf_options="$(tmux show -gqv '@fzf-url-fzf-options')"
     copy_bind="ctrl-y:execute-silent(printf '%s\n' {+} | awk '{print \$2}' | $_copy_cmd)"
+    # Local patch: global meta keybinds (alt-q abort, alt-j/k nav, alt-o toggle-close)
+    meta_bind="alt-q:abort,alt-j:down,alt-k:up,alt-o:abort"
 
     if [ -n "$fzf_options" ]; then
         # Custom options are fzf-tmux flags — always use fzf-tmux
-        eval "fzf-tmux $fzf_options --bind $(printf '%q' "$copy_bind")"
+        eval "fzf-tmux $fzf_options --bind $(printf '%q' "$copy_bind") --bind $(printf '%q' "$meta_bind")"
     elif version_ge "$fzf_version" "0.53.0"; then
-        fzf --tmux center,100%,50% --multi --exit-0 --no-preview --bind "$copy_bind"
+        fzf --tmux center,100%,50% --multi --exit-0 --no-preview --bind "$copy_bind" --bind "$meta_bind"
     else
-        fzf-tmux -w 100% -h 50% --multi --exit-0 --no-preview --bind "$copy_bind"
+        fzf-tmux -w 100% -h 50% --multi --exit-0 --no-preview --bind "$copy_bind" --bind "$meta_bind"
     fi
 }
 

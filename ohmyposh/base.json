@@ -14,7 +14,7 @@
           "options": {
             "cache_duration": "none"
           },
-          "template": "\udb85\udd45 {{ .UserName }} ",
+          "template": "\udb85\udd45 {{ if eq .UserName \"mishka\" }}{{ .UserName }}{{ else }}mm{{ end }} ",
           "foreground": "#AEAED1",
           "type": "session",
           "style": "plain"

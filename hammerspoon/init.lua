@@ -1,6 +1,7 @@
 require("hs.ipc")
 local window = require("window")
 local bar = require("bar")
+local display = require("display")
 -- local rectangle = require("rectangle-keybinds")
 
 -- Globals for `hs -c "..."` callers (aerospace.toml, etc.)
@@ -28,3 +29,4 @@ hs.hotkey.bind({ "cmd", "ctrl", "alt" }, "p", bar.toggleMode)
 hs.hotkey.bind({ "cmd", "ctrl", "alt" }, "o", bar.reload)
 hs.hotkey.bind({ "cmd", "ctrl", "alt", "shift" }, "o", bar.toggleAerospace)
 hs.hotkey.bind({ "cmd", "ctrl", "alt" }, "space", window.center)
+hs.hotkey.bind({ "cmd", "ctrl", "alt" }, "l", display.toggleDpi)

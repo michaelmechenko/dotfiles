@@ -1,5 +1,7 @@
 # AGENTS.md
 
+> This is the single canonical guidance doc for this repo. `CLAUDE.md` is a symlink to it, so Claude Code and any AGENTS-aware tool read the same content. **Edit this file** — never `CLAUDE.md` directly (it has no independent content).
+
 ## What this repo is
 
 A personal macOS dotfiles tree mounted at `~/.config`. The `README.md` lists the tools at a high level (tmux, ghostty, zsh+ohmyposh, nvim, aerospace, sketchybar, jankyborders, raycast). There is no build / test / lint pipeline — work happens by editing configs and reloading the live tool.
@@ -11,6 +13,9 @@ A personal macOS dotfiles tree mounted at `~/.config`. The `README.md` lists the
 ## Source-of-truth files (not obvious from directory layout)
 
 - **`COLORS.md`** — palette guide and the canonical source of truth for every color used across tools. Lists semantic roles (`canvas`, `surface-active`, `surface-chrome`, `surface-highlight`, `divider-subtle`, `text`, `text-muted`, accent-*) with hex values and per-tool usage. Also has a `Cross-tool consistency` section flagging known near-misses, a `Claude Code integration` section documenting the custom theme, and a `Git colors (cross-tool)` table. **When changing any color anywhere, consult this file first.** When introducing a new color, add or extend a role rather than scattering inline hex.
+- **`claude/themes/vague-aligned.json`** — custom Claude Code theme (requires Claude ≥ 2.1.118). Bases on `dark-ansi` and overrides ~11 semantic tokens to lock Claude's UI to the palette. Activated via `"theme": "custom:vague-aligned"` in `claude/settings.json`. Tokens not listed here intentionally inherit from `dark-ansi` (Ghostty's ANSI palette) — **including code-block syntax highlighting**, which is not themeable via the JSON (see the Claude Code integration section).
+- **`claude/statusline-command.sh`** — custom Claude Code statusline. Emits 24-bit ANSI escape codes; uses 6 palette colors keyed off the same roles `COLORS.md` defines.
+- **`claude/plans/`** — Claude Code plan-mode session artifacts (gitignored). Safe to read for context on prior planning; do not treat as authoritative documentation.
 - **`ghostty/themes/vague`** — the base color palette file. **Do not edit this when adjusting the user's effective palette** — instead override the specific keys (`background`, `foreground`, etc.) in `ghostty/config`. Keeps the theme file reusable.
 - **`tmux_scripts/`** — referenced from `tmux.conf` for popup / session / pane management. Not a tool directory; it's a script bundle.
 - **`tmux_scripts/tsave` + `tmux_scripts/tload`** — session snapshot/restore. `tsave [name]` walks every session → window → pane to `~/.config/tmux_sessions/<name>.{json,md}` (the `.md` is the human-readable `SESSIONS:` tree; Claude Code panes are recorded with their `sessionId`, recovered via the pane's process tree → `claude/sessions/<pid>.json`). `tload <name|path>` recreates them — skipping sessions that already exist, restoring pane geometry from the saved `window_layout` string, and relaunching only `claude` panes via `claude --resume <id>` (every other pane returns as a plain shell in its saved cwd, no command replay). Snapshots live in `~/.config/tmux_sessions/`, gitignored via `.git/info/exclude` (not the tracked `.gitignore`).
@@ -23,7 +28,7 @@ A personal macOS dotfiles tree mounted at `~/.config`. The `README.md` lists the
 
 ## Cross-tool palette discipline (the main "architecture")
 
-The palette is enforced *by convention*, not tooling. Eight surfaces share colors:
+The palette is enforced *by convention*, not tooling. Nine surfaces share colors:
 
 - Ghostty (`ghostty/config` overrides + `themes/vague` ANSI palette)
 - tmux (`tmux.conf` — `@color-*` user options + inline hex)
@@ -32,6 +37,8 @@ The palette is enforced *by convention*, not tooling. Eight surfaces share color
 - nvim chrome (`nvim/lua/plugins/lualine.lua`, `nvim/lua/plugins/dropbar.lua`, `nvim/lua/plugins/devicons.lua`)
 - nvim diagnostics / gitsigns (via `vague.lua` `on_highlights`)
 - nvim FoldColumn / NonText / FloatBorder / render-md heading backgrounds (also via `vague.lua` `on_highlights`, see the `surface-fold`, `surface-extend`, `surface-heading-h1/h2/h3`, `text-ui` roles in `COLORS.md`)
+- Claude Code UI (`claude/themes/vague-aligned.json`)
+- Claude Code statusline (`claude/statusline-command.sh`)
 
 When a user asks to change a color, the change usually touches **2–4 of these surfaces**. Default workflow:
 
@@ -86,6 +93,7 @@ When in doubt, check the AeroSpace guide: callbacks spawn a process from argv; b
 - **`vague.lua` `NonText` override has cascading side effects.** `listchars.extends`/`precedes` use the `NonText` highlight group, which is also inherited by path-like UI surfaces, end-of-buffer tildes, and other nontext elements. Setting `hl["NonText"] = { fg = ..., bold = true }` to make `»/«` more visible will recolor all of those. The decision was to **not** override `NonText` and instead rely on the glyph choice in `listchars` alone. The override line is left commented in `vague.lua` (line ~101) with a one-line note; the dim reset groups (`BlinkCmpGhostText`, `LspInlayHint`, `GitSignsCurrentLineBlame`, `ComplHint`) below it are intentional restoration styling and should stay even if the override stays commented.
 - **render-markdown keeps fence/dash lines visible by config, not by default.** `render-md.lua` sets `code.conceal_delimiters = false`, `code.border = "none"`, `code.background_inset = 0`, and `dash.enabled = false`. The plugin defaults conceal ` ``` ` fence lines, replace `---` with a virtual text line, and skip the fence lines from the background highlight — all of which the user has explicitly overridden. If you're asked to "make code blocks look nicer" or "tweak rendering," don't reset these to defaults; the user has already decided raw ` ``` ` and `---` lines should stay visible. `background_inset = 0` extends the `RenderMarkdownCode` background to cover the fence lines so they match the code body.
 - **`<leader>pl` preview float is a non-focusable, close-on-action float.** Defined in `vim-keymaps.lua`, tracked via a module-local `preview_float_win` variable. It is opened with `enter = false`, `focusable = false`, anchored to the cursor (`relative = "cursor"`), and closes on any next action (`CursorMoved` / `InsertEnter` / `BufLeave` autocmd, `once = true`). Buffer-local `q`/`<Esc>` maps don't work because the float never takes focus — the close-on-action autocmds are the only dismissal path. The line content is trimmed of leading indentation via `:gsub("^%s+", "")` before display width calculation and buffer write. Re-pressing `<leader>pl` closes any existing preview first.
+- **snacks.nvim `image` module must stay explicitly disabled.** `nvim/lua/plugins/snacks.lua` sets `image = { enabled = false }`. Do not remove or change to `nil` — snacks' attach guards check `== false` strictly, so `nil` passes them and `Terminal.detect()` emits an XTVERSION probe (`\e[>q`) whenever the picker previews a markdown file. tmux mangles the DCS reply (tmux#4386), leaking `>|ghostty 1.3.1` as literal text into the picker input. Inline images are not used; this must stay off.
 
 ## Notable conventions you'll meet
 
@@ -117,6 +125,36 @@ When in doubt, check the AeroSpace guide: callbacks spawn a process from argv; b
 - **rg preview must not use visible prefixes** (`>>` shifts nvim/opencode rows and breaks background colors). Use zero-width ANSI styling (`\e[4m…\e[24m`) around the matched snapshot row, re-applying after each embedded `\e[0m` reset.
 - **`bat --theme=ansi` is the global bat theme** for all tmux/nnn fzf previews (`NNN_BATTHEME=ansi` in `zshrc` + `tmux-nnn-explorer`). Keeps syntax colors aligned with the active terminal palette. The old `vague` TextMate theme is no longer used.
 
+## Claude ↔ tmux session integration (`tmux_scripts/tmux-claude-*`)
+
+A set of scripts gives tmux-native control over the many concurrent Claude Code sessions running across panes. Bound in `.tmux.conf` (lines ~137–145): **`M-b`** = cross-tmux session menu, **`M-G`** = open current session's last response in a split, **`M-P`** = open current session's plan in a split, **prefix `.`** = cycle to the next session needing input.
+
+- **Pane↔session join is via the process tree, not cwd.** A `claude` process's **ppid equals its owning pane's `pane_pid`** — this is the only reliable key (many sessions share one cwd, e.g. all the `~/.config` ones). `tmux-claude-ls` is the shared gatherer: it reads `claude/sessions/<pid>.json` (live, accurate: `pid`, `sessionId`, `status`, `name`), resolves each `pid`→`ppid` via `ps`, and matches `ppid` against the `pane_pid` of every live pane. Every other script calls `tmux-claude-ls` and filters its output — don't re-derive the join.
+- **`tmux-claude-ls` emits 8 tab-separated fields**: `sessionId pane_id target session_name state name transcript window_name` (the header comment lists 7 — `window_name` was appended later). `state` ∈ `awaiting-permission | waiting | thinking | idle`, mapped from the session JSON's `status` (`busy`→thinking, `waiting`→waiting, `idle`→idle).
+- **BSD-awk constraint shapes `tmux-claude-ls`.** It feeds three tagged, tab-delimited streams (`T`=transcript map, `P`=pane map, `S`=session) into a single awk on **stdin** — passing the multi-line pane map via `-v` breaks on BSD awk. Preserve the tagged-record pattern if you extend it.
+- **Transcripts are located by `find`, not slug derivation.** `find ~/.config/claude/projects -maxdepth 2 -name '<sessionId>.jsonl'`. The `projects/<slug>` dir name collapses `/`, `.`, **and `_`** to `-`, so substituting the cwd into a slug is unreliable across path types. Transcript JSON keys have **no spaces** (`"type":"assistant"`); extract text with `jq -r '.message.content[] | select(.type=="text") | .text'`.
+- **`tmux-claude-menu` is one script with five modes** dispatched on `$1`: outer (no arg → `display-popup` running `--inner`, capturing `ORIGIN_CLIENT` so Enter can `switch-client -c` the *originating* client, since the popup is its own client), `--colorize` (awk-prefixes each row with a 24-bit ANSI color by state — rose/dusty-pink/muted per COLORS.md), `--preview`, `--accept-all` (`k` → sends `Enter` to every `waiting`/`awaiting-permission` pane to approve), `--inner` (the fzf invocation).
+- **The `--preview` pane assembles markdown, then pipes through `bat`.** It builds a doc with `## prev claude` / `## you` / `## claude` / `## plan` sections (prev response via `tail -2 | head -1`, guarded against duplicating the latest; plan path grepped from the transcript) and renders it with `bat -l md --style=plain --theme=ansi --terminal-width="${FZF_PREVIEW_COLUMNS:-80}"`. `--theme=ansi` keeps highlight colors on the terminal's vague ANSI palette (same discipline as `nnn/plugins/preview-tui`'s `NNN_BATTHEME=ansi`) — **don't introduce a named bat theme with new hex.** The fzf preview window is responsive: `--preview-window 'right,58%,wrap,<80(down,55%)'` stacks list-on-top/preview-on-bottom under 80 columns; `--preview-wrap-sign=''` suppresses the `↳` wrap glyph.
+- **Split placement is centralized in `tmux-claude-open-split`.** `M-G`/`M-P` both call it: 1 pane → split right (`-h`); 2+ panes → split *above the rightmost* pane (`-v -b` targeting the max `pane_left`). Reuse it for any new "open in a split" action rather than re-deriving direction.
+- **Plan-path extraction**: `grep -ho 'claude/plans/[a-z0-9-]*\.md' "$transcript" | grep -v -- '-agent-' | tail -1` — subagent plans carry an `-agent-<hash>` suffix and are filtered out; prefix with `~/.config/` for the absolute path.
+- **`claude/hooks/session-state.sh` is now wired** into `claude/settings.json`'s `hooks` block — `Notification` (matcher `permission_prompt`) → `awaiting-permission`; `PreToolUse`/`Stop`/`UserPromptSubmit` → `clear`. It writes/clears `/tmp/claude-session-state/<sessionId>`, so `tmux-claude-ls` reports `awaiting-permission` (distinct from question-`waiting`) and the menu tags it PERMISSION + sorts it first. The hook receives the event JSON on stdin (`jq -r '.session_id'`) plus the literal `$1` action from the command string. Changes to the `hooks` block need a Claude restart; edit it as its **own** settings.json change (the auto-mode self-modification classifier can block widening `settings.json`).
+- **ctrl+g uses the default editor (no shim).** An earlier `$EDITOR`-to-tmux-split shim (`tmux-editor-split`) was abandoned — redirecting the editor out of Claude's own pane left that pane blank during the edit. `.zshrc`'s `claude()` is now just `command claude "$@"; printf '\e[4 q'`, so the global `EDITOR=nvim` takes over Claude's pane directly. The shim script is deleted and unreferenced; don't reintroduce it.
+- **Window auto-naming detects Claude by its version string.** `.tmux.conf`'s `automatic-rename-format` maps a version-like `pane_current_command` (Claude Code sets its process `comm` to its version, e.g. `2.1.160`) to the label `claude`. If pane names stop showing `claude`, check whether the version-number pattern still matches.
+
+## Claude Code config is itself managed in this repo (skills + smap)
+
+`claude/` is not just cache — it holds hand-authored, user-scope skills (`claude/skills/<name>/SKILL.md`) and `claude/settings.json`. Editing these is real work on this repo, distinct from the session/cache artifacts listed under "Files Claude should not edit".
+
+- **Project-slug scheme (source-of-truth convention).** Several skills derive a per-project slug from the project root by replacing **both `/` and `.`** with `-` (e.g. `/Users/michael.mechenko/.config` → `-Users-michael-mechenko--config`). This must match Claude Code's own `claude/projects/<slug>/` directory naming. Compute it in pure bash (no subprocess, so it never prompts): `tmp="${root//\//-}"; slug="${tmp//./-}"`. Do **not** use `sed 's#[/.]#-#g'` — the substitution form isn't covered by the `Bash(sed -n *)` allow rule and prompts every run.
+- **Session map (smap).** Two artifacts track work across sessions:
+  - **Durable log** — `~/.config/smap/<slug>.md` (outside the repo, under `~/.config/smap/`, not `claude/`). A pinned `## Findings & Directives` section at the top (durable project notes — one flat list of `- [directive|finding] [id8] <text>`; standing directives flagged `(candidate: CLAUDE.md)` for *manual* promotion), then one markdown block per session, newest first, recording Goal / Done / Open / Files. Session-keyed. Session blocks are detected by the date-prefixed heading `## YYYY-MM-DD — …`, not the first `## ` (which is the pinned section).
+  - **In-repo working list** — `SMAP-TODOS.md` at the repo root. Brief open-task list, each task tagged `sessions: <id8>[, ...]`, plus a `## Notes` mirror of the findings/directives. Task-keyed.
+  - Skills: `/smap-read` (read-only), `/smap-update` (overwrites the current session's block by `sessionId`, refreshes `SMAP-TODOS.md`), `/smap-backfill` (recursively reconstructs blocks for *all* past sessions of a project — including git worktrees, which it canonicalizes to the main repo toplevel so they fold into one log — from their transcripts; idempotent, preserve-existing), `/session-review` (propose-only config-improvement review).
+- **`SMAP-TODOS.md` is intentionally gitignored locally** via `.git/info/exclude` (not the tracked `.gitignore`), so it survives branch switches and never shows in `git status`. It exists even though git appears unaware of it — do not recreate or "restore" it on that basis; `/smap-update` owns it.
+- **`sessionId` is stable across restarts**, while `claude/sessions/<pid>.json` filenames change per launch. smap keys on `sessionId`, so re-running `/smap-update` after a restart updates the same block rather than duplicating it.
+- **Widening `permissions.allow` in `settings.json` can be blocked by the auto-mode self-modification classifier**, even right after a plan was approved. Split narrowing edits (pruning rules) from widening edits (new allows), and keep read-only `Read(...)` additions separate from `Bash(...)` additions.
+- **Code-block syntax highlighting is not themeable via the theme JSON.** The custom theme bases on `dark-ansi`, so Claude's syntax colors (and any token not explicitly overridden) inherit the terminal's 16 ANSI colors. To recolor Claude's syntax-highlight blue, override the ANSI slot in `ghostty/config`, **not** the theme — ANSI 12 is currently remapped `#8ba9c1`→`#aeaed1` (accent-secondary lavender) for exactly this. Blast radius: every ANSI-12 consumer (e.g. `bat --theme=ansi`), not Claude alone. See `COLORS.md`.
+- **"★ Insight" educational blocks are injected by the `explanatory-output-style` plugin's `SessionStart` hook — not a native output style.** Disable by setting `"explanatory-output-style@claude-plugins-official": false` in `claude/settings.json` `enabledPlugins` (no `outputStyle` key needed; default is already "Default"). Restart Claude to take effect.
 
 ## "Building" / reloading
 
@@ -128,6 +166,7 @@ When in doubt, check the AeroSpace guide: callbacks spawn a process from argv; b
 - **AeroSpace**: `prefix r` (= `C-Space r`) — reloads `~/.config/aerospace/aerospace.toml`. (Service mode `r` also reloads; bind is `cmd-shift-enter` → `mode service` → `r`.)
 - **SketchyBar**: `cmd-ctrl-alt-o` (Hammerspoon keybind — the sole reload path), or `brew services restart sketchybar` / `sketchybar --reload` from a shell. On monitor attach/detach SketchyBar destroys and recreates all bars and re-runs `sketchybarrc` — that's why startup cost matters there.
 - **Hammerspoon**: reload its config (Hammerspoon menu → Reload Config, or `hs.reload()` via CLI). `hs -c "..."` invocations from AeroSpace use the live globals; a config reload picks up new `_G` exports.
+- **Claude Code**: changes to `settings.json`, `themes/`, `statusline-command.sh`, or skills (`claude/skills/`) require a Claude restart to take effect (renamed skills, new permission rules, etc.).
 
 ## Files Claude should not edit unprompted
 
@@ -136,5 +175,6 @@ When in doubt, check the AeroSpace guide: callbacks spawn a process from argv; b
 - Any `*.bak` file.
 - `nvim/lazy-lock.json` — managed by the Lazy plugin manager.
 - Anything under `disabled-plugins/` in the nvim config — kept for reference, not loaded.
+- Anything under `claude/sessions/`, `claude/projects/`, `claude/file-history/`, `claude/backups/`, `claude/cache/`, `claude/telemetry/`, `claude/shell-snapshots/`, `claude/paste-cache/`, `claude/session-env/`, `claude/todos/`, `claude/tasks/` — Claude Code session/cache artifacts.
 - `nvim/lua/utils/trouble.lua` — load-bearing helper; the folding and focus behavior of every `<leader>x*` keymap depends on it. If you must change it, do so deliberately and verify all mode keymaps still fold correctly.
 - `sketchybar/sketchybarrc` (the bare file) — it's a plain-file copy that gets overwritten on each `cmd-ctrl-alt-p` toggle. Edit `sketchybarrc.full` / `sketchybarrc.performance` (the profile sources) instead.

@@ -298,9 +298,12 @@ Extract words/lines/URLs from pane content (default grab area = window full) int
 - **M-q / M-K** — close
 
 ### `M-b` — Claude Code session menu (`tmux-claude-menu`)
-Cross-tmux fzf menu of every Claude session, color-coded by state (permission/waiting = rose, thinking = dusty_pink, idle = inactive). Preview shows prev response → your last message → latest response (+ plan excerpt if any), bat-highlighted.
+Cross-tmux fzf menu of every Claude session, color-coded by state (permission/waiting = rose, thinking = dusty_pink, idle = inactive). **Rows are sorted actionable-first** (permission → waiting → thinking → idle) with a **relative activity age** per row (e.g. `2m`, `1h`). Preview shows prev response → your last message → latest response (+ plan excerpt if any), bat-highlighted.
 - **enter** — focus that session's pane (across any tmux session)
-- **k** — send Enter to **every** session blocked on a permission prompt (approve all highlighted defaults)
+- **k** — approve **all** waiting/permission sessions (send Enter to each)
+- **ctrl-y** — approve the **selected** session (send Enter to its pane)
+- **ctrl-s** — send a typed message to the selected session (`msg>` prompt in the popup)
+- **ctrl-x** — kill the selected session's pane (**destructive**)
 - **esc / M-b** — close
 
 ### `M-G` — Claude Code last response (`tmux-claude-last-response`)

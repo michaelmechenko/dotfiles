@@ -148,6 +148,53 @@
     ],
     "defaultMode": "plan"
   },
+  "model": "claude-opus-4-8[1m]",
+  "hooks": {
+    "Notification": [
+      {
+        "matcher": "permission_prompt",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /Users/michael.mechenko/.config/claude/hooks/session-state.sh awaiting-permission"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /Users/michael.mechenko/.config/claude/hooks/session-state.sh clear"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /Users/michael.mechenko/.config/claude/hooks/session-state.sh clear"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /Users/michael.mechenko/.config/claude/hooks/session-state.sh clear"
+          }
+        ]
+      }
+    ]
+  },
   "worktree": {
     "baseRef": "head"
   },
@@ -179,6 +226,12 @@
         "source": "github",
         "repo": "tulip/claude-plugins"
       }
+    },
+    "tulip-ai-resources": {
+      "source": {
+        "source": "github",
+        "repo": "tulip/seed-bank"
+      }
     }
   },
   "spinnerTipsEnabled": false,
@@ -198,6 +251,7 @@
   "autoMemoryEnabled": true,
   "theme": "custom:vague-aligned",
   "editorMode": "normal",
+  "switchModelsOnFlag": true,
   "mcpServers": {
     "context7": {
       "command": "npx",

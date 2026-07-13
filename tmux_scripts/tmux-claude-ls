@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Emit one TSV row per live, tmux-attached Claude session:
-#   sessionId <TAB> pane_id <TAB> target <TAB> session_name <TAB> state <TAB> name <TAB> transcript
-# state ∈ awaiting-permission | waiting | thinking | idle
+# Emit one TSV row per live, tmux-attached Claude session (9 fields):
+#   sessionId <TAB> pane_id <TAB> target <TAB> session_name <TAB> state <TAB> name <TAB> transcript <TAB> window_name <TAB> statusUpdatedAt
+# statusUpdatedAt = epoch ms of the last status change (0 if unknown); used by the
+# M-b menu for the relative activity age. state ∈ awaiting-permission | waiting | thinking | idle
 #   awaiting-permission : optional Notification-hook signal (state file present)
 #   waiting             : Claude's live `status` == "waiting" (blocked on user input)
 #   thinking            : status == "busy" (generating)
@@ -35,17 +36,17 @@ panes=$(tmux list-panes -a -F '#{pane_pid}|#{pane_id}|#{session_name}:#{window_i
 
   for f in "$SESS_DIR"/*.json; do
     [ -e "$f" ] || continue
-    IFS=$'\t' read -r sid cpid status name < <(jq -r '[.sessionId, .pid, .status, (.name // "-")] | @tsv' "$f" 2>/dev/null)
+    IFS=$'\t' read -r sid cpid status name ts < <(jq -r '[.sessionId, .pid, .status, (.name // "-"), (.statusUpdatedAt // .updatedAt // 0)] | @tsv' "$f" 2>/dev/null)
     [ -n "$cpid" ] || continue
     ppid=$(ps -o ppid= -p "$cpid" 2>/dev/null | tr -d ' ')
     [ -n "$ppid" ] || continue
-    printf 'S\t%s\t%s\t%s\t%s\n' "$ppid" "$sid" "$status" "$name"
+    printf 'S\t%s\t%s\t%s\t%s\t%s\n' "$ppid" "$sid" "$status" "$name" "$ts"
   done
 } | awk -F'\t' -v sd="$STATE_DIR" '
 $1 == "T" { TR[$2]=$3; next }
 $1 == "P" { PID[$2]=$3; TGT[$2]=$4; SN[$2]=$5; WN[$2]=$6; next }
 $1 == "S" {
-  ppid=$2; sid=$3; status=$4; name=$5;
+  ppid=$2; sid=$3; status=$4; name=$5; ts=$6;
   if (!(ppid in PID)) next;                      # session not in any live pane
   sf = sd "/" sid;
   has_hook = ((getline line < sf) > 0);
@@ -54,5 +55,5 @@ $1 == "S" {
   else if (status == "busy")    state = "thinking";
   else if (status == "waiting") state = "waiting";
   else                          state = "idle";
-  printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", sid, PID[ppid], TGT[ppid], SN[ppid], state, name, TR[sid], WN[ppid];
+  printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", sid, PID[ppid], TGT[ppid], SN[ppid], state, name, TR[sid], WN[ppid], ts;
 }'

@@ -104,6 +104,38 @@ Other Claude tokens (subagent colors, fullscreen backgrounds, `bashBorder`, `ide
 
 The statusline script at `~/.config/claude/statusline-command.sh` uses six colors: `text-muted` (dir/model/ctx), `divider-subtle` (separators), and four accent roles (`accent-tertiary` branch + added, `accent-amber` modified, `accent-primary` deleted).
 
+## pi coding agent integration
+
+pi (the coding agent TUI) uses a custom theme at `~/.config/pi-config/agent/themes/vague.json`, activated via `"theme": "vague"` in `~/.config/pi-config/agent/settings.json`. Unlike the Claude Code theme (which overrides 11 tokens on top of a `dark-ansi` base), pi themes are self-contained — all 51 tokens are defined directly against palette roles (via a `vars` block):
+
+| Token | Hex | Palette role |
+|---|---|---|
+| `accent` | `#d8647e` | accent-primary |
+| `border` / `borderMuted` | `#383848` | divider-subtle |
+| `borderAccent` | `#aeaed1` | accent-secondary |
+| `success` | `#bb9dbd` | accent-tertiary |
+| `error` | `#d8647e` | accent-primary |
+| `warning` | `#f3be7c` | accent-amber |
+| `muted` | `#656a80` | text-muted |
+| `dim` | `#606079` | copy-mode-indicator |
+| `text` | `#BEBEBE` | text |
+| `selectedBg` | `#2A2A35` | surface-highlight |
+| `userMessageBg` | `#16141a` | surface-active |
+| `customMessageBg` / `toolPendingBg` | `#1C1C24` | surface-chrome |
+| `customMessageLabel` | `#aeaed1` | accent-secondary |
+| `toolSuccessBg` | `#352f37` | surface-heading-h1 (dusty-pink tint, reused) |
+| `toolErrorBg` | `#381f27` | new rose tint — same ~20%-on-canvas recipe as the `surface-heading-*` roles, using accent-primary |
+| `mdHeading` | `#bb9dbd` | accent-tertiary |
+| `mdLink` | `#aeaed1` | accent-secondary |
+| `mdCode` / `mdListBullet` | `#9b9bcc` | accent-periwinkle |
+| `toolDiffAdded` | `#bb9dbd` | accent-tertiary |
+| `toolDiffRemoved` | `#d8647e` | accent-primary |
+| `thinkingLow`/`Medium`/`High`/`Xhigh`/`Max` | `#8ba9c1` → `#aeaed1` → `#bb9dbd` → `#f3be7c` → `#d8647e` | slate → lavender → dusty-pink → amber → rose (subtle-to-prominent ramp) |
+| `bashMode` | `#f3be7c` | accent-amber |
+| `export.pageBg` / `cardBg` / `infoBg` | `#100E11` / `#1C1C24` / `#40362a` | canvas / surface-chrome / surface-heading-h3 |
+
+Syntax tokens (`syntax*`) map to the same accents used elsewhere for consistency: comments/punctuation → `text-muted`, keywords → `accent-secondary`, functions/bullets → `accent-periwinkle`, strings → `accent-tertiary`, numbers → `accent-amber`, types → `accent-info`.
+
 ## Git colors (cross-tool)
 
 | Operation | Hex | Used in |

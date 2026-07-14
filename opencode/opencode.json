@@ -67,7 +67,9 @@
         "websearch": "allow",
         "codesearch": "allow",
         "bash": {
-          "*": "ask",
+          "*": "allow",
+          "git push *": "ask",
+          "rm *": "ask",
           "git diff *": "allow",
           "grep *": "allow",
           "git status *": "allow",

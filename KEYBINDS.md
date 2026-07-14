@@ -309,14 +309,17 @@ Cross-tmux fzf menu of every Claude session, color-coded by state (permission/wa
 ### `M-G` — Claude Code last response (`tmux-claude-last-response`)
 Opens the current pane's Claude session's last assistant text response in an nvim split (always to the right; placement via `tmux-claude-open-split`). Errors with a tmux message if no Claude session / transcript in this pane.
 
-### `M-P` — Claude Code plan (`tmux-claude-plan`)
-Opens the current pane's Claude session's plan file (`claude/plans/*.md`) in an nvim split (same right-side placement as `M-G`). Subagent plans (`…-agent-<hash>.md`) are filtered out. Errors with a tmux message if no plan.
+### `M-P` — Claude Code plan / pi last response (`tmux-M-P-dispatch`)
+Dispatches based on the current pane: if it's a live Claude Code session, opens its plan file (`claude/plans/*.md`, same as before — subagent plans `…-agent-<hash>.md` filtered out). Otherwise falls back to `tmux-pi-last-response`, which opens the pane's pi session's last assistant response instead. Both open in an nvim split, right-side placement via `tmux-claude-open-split`. Errors with a tmux message if neither applies.
 
 ### `prefix .` — Claude Code next permission (`tmux-claude-next-permission`)
 Cycle to the next Claude session needing user input (awaiting-permission / waiting), sorted ascending by target; wraps to the first. Switches client + selects the pane. Errors with a tmux message if none need input.
 
 ### `M-g` — lazygit popup (`tmux-lazygit-popup`)
 Full-screen `tmux popup` running `lazygit` in the pane's cwd. Border uses `@color-inactive`.
+
+### `M-p` — scratch prompt editor (`tmux-pi-prompt`)
+Opens an empty scratch buffer in an nvim split directly underneath the triggering pane (horizontal split). Not tool-specific — works for any pane that accepts pasted text (pi, Claude Code, opencode, a shell). Write and quit (`:wq` / `ZZ`) to paste the buffer's contents back into the pane that triggered `M-p`, as a single bracketed paste (populates the prompt/input — does not submit). Quit without writing (`:q` / `:cq`), or leave the buffer empty, and nothing is sent back.
 
 ## tmux — nnn file explorer (`tmux-nnn-explorer`)
 nnn in a tmux popup; in-nnn plugins (pressed as `;<key>`) spawn splits back in the **origin window** via `NNN_ORIGIN_PANE`. Toggle: pressing the launch key from inside the explorer closes it. **Standard nnn keys apply throughout** (arrows/`h`/`j`/`k`/`l` navigate, `enter` opens, `/` search, `q` quit, etc.) — only the custom `;`-prefixed plugin keys are listed below.

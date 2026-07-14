@@ -1,29 +1,25 @@
 -- display.lua
--- Toggle the main 5K display between HiDPI (5K framebuffer, UI 2560x1440)
--- and LoDPI (native 2560x1440) for gaming. LoDPI cuts windowserver
--- compositing from ~14.7M to ~3.7M pixels/frame (4x less GPU overhead).
--- Uses BetterDisplay CLI (enabled by default in BD v4.4.0+).
+-- Toggle all displays between HiDPI and LoDPI for gaming.
+-- Primary (XZ322QU): 5K HiDPI -> 2560x1440 LoDPI (4x less compositing).
+-- Secondary (DELL P2419H): 4K HiDPI -> 1920x1080 LoDPI (4x less compositing).
+-- Both must be LoDPI when gaming — windowserver composites all displays.
 local M = {}
 
--- Absolute path: Hammerspoon is a GUI app and its hs.execute env typically lacks
--- PATH, so a bare `BetterDisplay` is "command not found". Matches the convention
--- in bar.lua (which uses /opt/homebrew/bin/sketchybar for the same reason).
 local BETTERDISPLAY = "/Applications/BetterDisplay.app/Contents/MacOS/BetterDisplay"
-local DISPLAY_NAME = "XZ322QU"
+local DISPLAYS = { "XZ322QU", "P2419H" }
 
--- cmd-ctrl-alt-l: toggle HiDPI on the main gaming display.
--- Probes current state first (matching bar.lua's toggleAerospace pattern)
--- so we can report the NEW state accurately.
 function M.toggleDpi()
-  local out, ok = hs.execute(BETTERDISPLAY .. " get -nameLike=" .. DISPLAY_NAME .. " -hiDPI", false)
-  if not ok or not out then
+  local firstOut, ok = hs.execute(BETTERDISPLAY .. " get -nameLike=" .. DISPLAYS[1] .. " -hiDPI", false)
+  if not ok or not firstOut then
     hs.alert.show("display: query failed")
     return
   end
-  local isOn = out:match("on") ~= nil
+  local isOn = firstOut:match("on") ~= nil
   local newState = isOn and "off" or "on"
-  hs.execute(BETTERDISPLAY .. " set -nameLike=" .. DISPLAY_NAME .. " -hiDPI=" .. newState, false)
-  hs.alert.show(newState == "on" and "display: HiDPI" or "display: LoDPI (gaming)")
+  for _, name in ipairs(DISPLAYS) do
+    hs.execute(BETTERDISPLAY .. " set -nameLike=" .. name .. " -hiDPI=" .. newState, false)
+  end
+  hs.alert.show(newState == "on" and "displays: HiDPI" or "displays: LoDPI (gaming)")
 end
 
 return M

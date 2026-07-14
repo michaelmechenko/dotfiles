@@ -153,6 +153,7 @@ alias config="cd ~/.config"
 alias projects="cd ~/_main/projects"
 alias resources="cd ~/_main/resources"
 alias general="cd ~/_main/vault-general/"
+alias gr="cd ~/_main/projects/grimoire/"
 
 # mkdir and cd into
 mkcd () {
@@ -200,6 +201,7 @@ nvim()   { command nvim "$@"; printf '\e[4 q'; }
 claude() { command claude "$@"; printf '\e[4 q'; }
 
 export CLAUDE_CONFIG_DIR=~/.config/claude
+export PI_CODING_AGENT_DIR=~/.config/pi-config/agent
 
 # Hammerspoon is a GUI app and can't see this shell env, so its config dir is set via the
 # MJConfigFile default (not an env var). Verify on shell start; correct if it drifted.

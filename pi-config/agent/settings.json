@@ -1,0 +1,11 @@
+{
+  "lastChangelogVersion": "0.80.6",
+  "theme": "vague",
+  "defaultProvider": "anthropic",
+  "defaultModel": "claude-sonnet-5",
+  "warnings": {
+    "anthropicExtraUsage": true
+  },
+  "enableInstallTelemetry": false,
+  "defaultProjectTrust": "always"
+}

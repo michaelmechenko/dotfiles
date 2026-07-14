@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# M-p: compose a prompt in a scratch nvim split, then paste it back into the
+# originating pane as a single bracketed paste once the buffer is written and
+# closed (:wq / ZZ). Not pi-specific — works for any pane that accepts pasted
+# text (pi, Claude Code, opencode, a shell) — but modeled on pi's native
+# ctrl+g external-editor flow for cases where you want a full split instead
+# of taking over the pane. Nothing is sent back if the scratch file is left
+# empty (:q / :cq to cancel), mirroring pibuf.nvim's `:cq` semantics.
+#
+# Opens directly underneath the triggering pane (a horizontal split).
+
+if [ "$1" = "--send-back" ]; then
+  tmp="$2"
+  origin="$3"
+  content=$(cat "$tmp" 2>/dev/null)
+  rm -f "$tmp"
+  [ -n "$content" ] || exit 0
+  printf '%s' "$content" | tmux load-buffer -b pi-prompt -
+  tmux paste-buffer -p -d -b pi-prompt -t "$origin"
+  exit 0
+fi
+
+origin="$1"
+[ -n "$origin" ] || origin=$(tmux display -p '#{pane_id}')
+cwd=$(tmux display -p -t "$origin" '#{pane_current_path}')
+
+tmp=$(mktemp "${TMPDIR:-/tmp}/tmux-pi-prompt.XXXXXX.md")
+printf -v qtmp '%q' "$tmp"
+printf -v qself '%q' "$0"
+cmd="nvim -- $qtmp; $qself --send-back $qtmp '$origin'"
+
+tmux split-window -v -t "$origin" -c "$cwd" "$cmd"

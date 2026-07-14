@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# M-P dispatch: prioritize an active Claude Code session in this pane (opens
+# its plan, unchanged); otherwise fall back to pi's last response.
+cur=$(tmux display -p '#{pane_id}')
+row=$("$HOME/.config/tmux_scripts/tmux-claude-ls" | awk -F'\t' -v p="$cur" '$2==p{print; exit}')
+if [ -n "$row" ]; then
+  exec "$HOME/.config/tmux_scripts/tmux-claude-plan"
+else
+  exec "$HOME/.config/tmux_scripts/tmux-pi-last-response"
+fi

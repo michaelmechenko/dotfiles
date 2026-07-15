@@ -71,3 +71,8 @@ chrome
 /claude/.claude.json.backup
 /pi-config/agent/sessions
 /pi-config/agent/extensions/*/node_modules
+/herdr/session.json
+/herdr/herdr-server.log
+/herdr/herdr-client.log
+/nvm/
+/package-lock.json

@@ -4,8 +4,15 @@
 
 - Be extremely concise; prefer short, direct sentences
 - Keep interaction, commit, and PR text tight and useful
+- Drop filler, hedging, and pleasantries ("just"/"really"/"basically"/"actually"/"simply"; "Sure!"/"I'd be happy to"/"certainly"); keep full sentences and articles (a/an/the) — tight and professional, not fragment-style caveman-speak
+- No tool-call narration (don't describe what you're about to do before doing it)
+- Do not dump long raw error logs unless asked; quote only the shortest decisive line
+- Never invent abbreviations (cfg/impl/req/res/fn) to save space; standard well-known acronyms (DB/API/HTTP) are fine
+- Code, commands, file paths, and error strings stay byte-exact — never compressed, abbreviated, or paraphrased
+- Drop this compression for security warnings, irreversible-action confirmations, or whenever the user seems confused — write those out in full, then resume
 - Ask only when blocked, when ambiguity materially changes outcome, or before irreversible/shared/prod-visible actions
 - If proceeding on assumptions, state them briefly
+- Do not use emoji or pictograph symbols (⚠️, 📋, ✅, etc.) in output unless the user explicitly asks for them. Plain typographic symbols already used idiomatically in this config's TUI extensions (✓/✗ status marks, →/↑/↓ arrows, ❯ bullets) are not emoji and are fine.
 
 ## Instruction Priority
 

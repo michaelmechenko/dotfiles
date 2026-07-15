@@ -70,3 +70,4 @@ chrome
 /homebrew/trust.json.lock
 /claude/.claude.json.backup
 /pi-config/agent/sessions
+/pi-config/agent/extensions/*/node_modules

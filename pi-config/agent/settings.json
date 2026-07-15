@@ -1,5 +1,5 @@
 {
-  "lastChangelogVersion": "0.80.6",
+  "lastChangelogVersion": "0.80.7",
   "theme": "vague",
   "defaultProvider": "anthropic",
   "defaultModel": "claude-sonnet-5",
@@ -7,5 +7,14 @@
     "anthropicExtraUsage": true
   },
   "enableInstallTelemetry": false,
-  "defaultProjectTrust": "always"
+  "defaultProjectTrust": "always",
+  "packages": [
+    "npm:@ff-labs/pi-fff",
+    "npm:@dreki-gg/pi-lsp",
+    "npm:pi-ast-grep"
+  ],
+  "extensions": [
+    "-extensions/permission-gate/index.ts"
+  ],
+  "defaultThinkingLevel": "medium"
 }

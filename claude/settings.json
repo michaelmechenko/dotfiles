@@ -148,7 +148,12 @@
     ],
     "defaultMode": "plan"
   },
-  "model": "claude-opus-4-8[1m]",
+  "model": "opus[1m]",
+  "deniedMcpServers": [
+    {
+      "serverName": "chrome-devtools"
+    }
+  ],
   "hooks": {
     "Notification": [
       {
@@ -251,68 +256,5 @@
   "autoMemoryEnabled": true,
   "theme": "custom:vague-aligned",
   "editorMode": "normal",
-  "switchModelsOnFlag": true,
-  "mcpServers": {
-    "context7": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@upstash/context7-mcp"
-      ]
-    },
-    "atlassian": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "mcp-remote",
-        "https://mcp.atlassian.com/v1/sse"
-      ]
-    },
-    "n8n-mcp": {
-      "command": "npx",
-      "args": [
-        "n8n-mcp"
-      ],
-      "env": {
-        "MCP_MODE": "stdio",
-        "LOG_LEVEL": "error",
-        "DISABLE_CONSOLE_OUTPUT": "true",
-        "N8N_API_URL": "{env:N8N_API_URL}",
-        "N8N_API_KEY": "{env:N8N_API_KEY}"
-      }
-    },
-    "kubernetes": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "kubernetes-mcp-server@latest"
-      ]
-    },
-    "aws-documentation-mcp-server": {
-      "command": "uvx",
-      "args": [
-        "awslabs.aws-documentation-mcp-server@latest"
-      ]
-    },
-    "slack": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "slack-mcp-server@latest",
-        "--transport",
-        "stdio"
-      ]
-    },
-    "chrome-devtools": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "chrome-devtools-mcp@latest"
-      ]
-    },
-    "figma": {
-      "type": "http",
-      "url": "https://mcp.figma.com/mcp"
-    }
-  }
+  "switchModelsOnFlag": true
 }

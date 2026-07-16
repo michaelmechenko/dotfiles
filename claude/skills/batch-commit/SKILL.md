@@ -1,6 +1,7 @@
 ---
 name: batch-commit
-description: "Split work into logical, well-scoped commits and group those commits into reviewable PR-sized batches, using clear Conventional Commits messages. Never pushes. Use when the user asks to commit, craft a commit message, stage changes, split work into multiple commits, or batch commits for separate PRs."
+description: "Split work into logical, well-scoped commits and group those commits into reviewable PR-sized batches, using clear Conventional Commits messages. Never pushes. Use when the user asks to commit, craft a commit message, stage changes, split work into multiple commits, or batch commits for separate PRs. Pass --pr to also copy a ready `gh pr create` command to the clipboard."
+argument-hint: "[--pr]"
 ---
 
 # Batch Commit
@@ -47,10 +48,10 @@ are always a separate, explicit user action.
    - If you cannot describe it cleanly, the commit is probably too big; go back to step 2
 
 6. **Write the commit message**
-   - Use Conventional Commits: `type(scope): short summary`
-   - Blank line, body (what/why), footer (BREAKING CHANGE) if needed
-   - See `references/commit-message-template.md` if helpful
-   - Do not use emojis
+   - Follow `references/commit-conventions.md` (the canonical spec): Conventional Commits
+     `type(scope): summary`, imperative mood, no emojis, no fluff, subject ≤72 chars, body =
+     what/why. These conventions are consistent across every session unless a repo rule
+     (CONTRIBUTING / commit-msg hook / existing history) dictates otherwise.
 
 7. **Run the smallest relevant verification**
    - Run the repo's fastest meaningful check (unit tests, lint, or build)
@@ -66,9 +67,32 @@ are always a separate, explicit user action.
    - **Stop here.** Do not push, do not create branches for the batches, do not open PRs.
      Hand off to the user (or `/pr-create`) for anything beyond local commits.
 
+10. **`--pr` flag (optional) — copy a ready PR command to the clipboard**
+    - Only when `--pr` is in `$ARGUMENTS`. Still never pushes and never runs `gh`.
+    - Pick the batch to target: if there's one batch use it; if several, use the one the user
+      names (default: the first) and note that the rest are available on request.
+    - Write a PR **title** (one Conventional Commit line for the whole batch) and **body**
+      (`## Summary` + `## Test plan` bullets) per `references/commit-conventions.md`.
+    - Assemble a runnable `gh pr create` command and pipe it to `pbcopy` (build the full string
+      in a variable, then `printf '%s' "$cmd" | pbcopy` — do **not** execute it):
+      ```bash
+      gh pr create \
+        --title "<conventional title>" \
+        --body "$(cat <<'EOF'
+      ## Summary
+      - ...
+      ## Test plan
+      - ...
+      EOF
+      )"
+      ```
+    - Echo the `git push -u origin <current-branch>` hint in-chat (user pushes first, then pastes
+      the copied command). Confirm the title that was copied.
+
 ## Deliverable
 
 - the final commit message(s)
 - a short summary per commit (what/why)
 - the commands used to stage/review
 - the proposed PR-sized batches (commit groupings + rationale), with no push/PR performed
+- with `--pr`: a `gh pr create` command on the clipboard + the `git push` hint (nothing executed)

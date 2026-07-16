@@ -15,17 +15,25 @@ appending duplicates.
 
 - **Durable log** — `~/.config/smap/<project-slug>.md`. A pinned `## Findings & Directives`
   section at the top (durable project-level notes), then one block per session, newest first.
-- **In-repo working list** — `SMAP-TODOS.md` at the repo root. Brief major todos across the
-  project + a short `## Notes` mirror of the findings/directives, gitignored locally so it
+- **In-repo working list** — `SMAP-TODOS.md` at the **main** repo root. Brief major todos across
+  the project + a short `## Notes` mirror of the findings/directives, gitignored locally so it
   survives branch switches without being committed.
 
 ## Identity & paths
 
+Canonicalize to the **main** repo toplevel (so worktree sessions fold into one log and
+`SMAP-TODOS.md` lands in the main checkout, never a worktree). Same logic as `/smap-backfill`:
+
 ```bash
 root=$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")
-tmp="${root//\//-}"; slug="${tmp//./-}"   # / and . → - (matches Claude's projects/ scheme; pure bash, no subprocess/prompt)
+cdir=$(git -C "$root" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
+case "$cdir" in */.git) main=$(dirname "$cdir") ;; *) main="$root" ;; esac       # worktree → main checkout
+case "$main" in *"/.claude/worktrees/"*) main="${main%%/.claude/worktrees/*}" ;; esac  # string fallback
+tmp="${main//\//-}"; slug="${tmp//./-}"   # / and . → - (matches Claude's projects/ scheme; pure bash, no subprocess/prompt)
 log=~/.config/smap/"$slug".md
 ```
+
+Use `$main` everywhere below (log slug, `SMAP-TODOS.md` location, `.git/info/exclude`).
 
 Session id: use `$CLAUDE_SESSION_ID` if set; otherwise the newest
 `~/.config/claude/sessions/*.json` whose `cwd` equals `$root`. Use `jq` (not `node`):
@@ -43,7 +51,7 @@ Date: `date +%F`.
 ## File layout
 
 ```
-# Session Map — <root>
+# Session Map — <main>
 
 ## Findings & Directives
 <!-- durable, project-level; survives session blocks. [kind]=directive|finding, [id8]=origin session -->
@@ -51,12 +59,16 @@ Date: `date +%F`.
 - [finding] [bc376060] settings.json permission-widening is blocked by the self-mod classifier.
 
 ## <YYYY-MM-DD> — <sessionId> — <short-title>
+ctx: <one sentence — what this session was about / why, for scannability>
 - Goal: ...
 - Done: ...
 - Open: ...
 - Files: comma,separated,paths
 - Notes: (optional, session-ephemeral)
 ```
+
+The `ctx:` line sits directly under the heading (before `- Goal:`) — a single plain sentence so
+a reader can scan block headings and know each session's purpose without expanding it.
 
 - The pinned `## Findings & Directives` section sits directly under the `# Session Map` H1, above
   all session blocks. It is durable project knowledge; it does **not** scroll away with sessions.
@@ -67,17 +79,20 @@ Date: `date +%F`.
 
 ## Workflow
 
-1. Gather this session's content: goal(s), what was accomplished, what's still open, key files
-   touched. Keep each field to a few lines.
-2. `mkdir -p ~/.config/smap`.
+1. **Read current state first.** `mkdir -p ~/.config/smap`, then `cat` the existing `$log` and
+   `$main/SMAP-TODOS.md` if present. Parse them before writing so the pinned Findings/Directives,
+   every *other* session block, and carried-over todos are preserved — this skill edits, it does
+   not clobber.
+2. Gather this session's content: a one-line `ctx:`, goal(s), what was accomplished, what's still
+   open, key files touched. Keep each field to a few lines.
 3. Update the durable log (**overwrite semantics**):
    - **Detect the latest session block by the date-prefixed pattern** `^## [0-9]{4}-[0-9]{2}-[0-9]{2} `
      — NOT the first `## ` (that may be the pinned `## Findings & Directives` section). If the
      latest *session block's* `<sessionId>` matches the current session, rewrite that block in
-     place (Read + Edit).
-   - Otherwise prepend a fresh block **after** the pinned `## Findings & Directives` section (or
-     directly after the `# Session Map` H1 if no pinned section exists yet). Create the file if
-     absent.
+     place (Read + Edit), including its `ctx:` line.
+   - Otherwise prepend a fresh block (heading + `ctx:` line + fields) **after** the pinned
+     `## Findings & Directives` section (or directly after the `# Session Map` H1 if no pinned
+     section exists yet). Create the file if absent.
 4. Update the pinned `## Findings & Directives` section (durable notes):
    - Gather this session's **directives** (user rules stated this session — "don't do X",
      "remember Y") and **findings** (important project facts discovered — source-of-truth files,
@@ -89,7 +104,7 @@ Date: `date +%F`.
      **offer** to promote those to the project `CLAUDE.md` — propose the exact edit but do **not**
      write `CLAUDE.md` without explicit confirmation. Once the user confirms a promotion, change
      that entry's marker to `(in CLAUDE.md)`. Findings are never promoted / never get the marker.
-5. Refresh `SMAP-TODOS.md` at `$root`:
+5. Refresh `SMAP-TODOS.md` at `$main`:
    - Write/update a brief, scannable list of the project's *major* open todos (not a full log —
      just the handful that matter). Pull from this session's Open items plus any still-open
      items already listed.
@@ -105,13 +120,14 @@ Date: `date +%F`.
    - Mirror a brief `## Notes` section into `SMAP-TODOS.md` carrying the same flat
      `- [kind] [id8] <text>` list as the durable log's pinned section (keep it short — the
      durable log is the full record). Keep the two in sync.
-6. Ensure `SMAP-TODOS.md` is gitignored locally (only when inside a git repo):
+6. Ensure `SMAP-TODOS.md` is gitignored locally (only when inside a git repo). Resolve the main
+   checkout's git dir so this works from a worktree too:
    ```bash
-   ex="$root/.git/info/exclude"
+   ex="$(git -C "$main" rev-parse --git-common-dir 2>/dev/null)/info/exclude"
    grep -qxF 'SMAP-TODOS.md' "$ex" 2>/dev/null || echo 'SMAP-TODOS.md' >> "$ex"
    ```
    Use `.git/info/exclude` (not the tracked `.gitignore`) so the ignore is local and never
-   committed. Skip this step if `$root` is not a git repo.
+   committed. Skip this step if `$main` is not a git repo.
 7. Confirm to the user what was written (paths + the session id), briefly. If any directives are
    `(candidate: CLAUDE.md)`, offer promotion now.
 

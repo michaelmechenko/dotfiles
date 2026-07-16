@@ -1,13 +1,4 @@
-# Commit Message Template (Conventional Commits)
+# Commit Message Template
 
-```text
-<type>(<scope>): <summary>
-
-<What changed.>
-<Why it changed.>
-```
-
-Notes:
-- Keep the summary imperative and specific ("Add", "Fix", "Remove", "Refactor")
-- Avoid implementation minutiae; focus on behavior and intent
-- If breaking: use `!` in header and/or add `BREAKING CHANGE:` footer
+Moved. See **`commit-conventions.md`** in this directory — the canonical source of truth for both
+commit messages and PR title/body (Conventional Commits, no emojis, no fluff, imperative mood).

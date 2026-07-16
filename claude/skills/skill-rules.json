@@ -118,6 +118,28 @@
         ]
       }
     },
+    "tldr": {
+      "priority": "medium",
+      "promptTriggers": {
+        "keywords": ["tldr", "tl;dr", "where was i", "where am i", "catch me up", "what am i doing", "what was i doing", "orient", "remind me"],
+        "intentPatterns": [
+          "(where|what) (was|am) i (doing|working|at)",
+          "(catch me up|get me up to speed|remind me).*?(project|session|working)",
+          "(quick|short) (recap|orientation|summary).*?(project|session)"
+        ]
+      }
+    },
+    "cx-handoff": {
+      "priority": "medium",
+      "promptTriggers": {
+        "keywords": ["handoff", "hand off", "hand-off", "continue in new session", "continuation prompt", "review prompt", "context handoff", "prompt for a review", "prompt to continue"],
+        "intentPatterns": [
+          "(hand ?off|transfer|pass).*?(session|agent|context|work)",
+          "(prompt|context) (for|to).*(review|continue|resume|another session|fresh session)",
+          "(continue|resume).*(fresh|new|compacted) session"
+        ]
+      }
+    },
     "diff-summary": {
       "priority": "medium",
       "promptTriggers": {

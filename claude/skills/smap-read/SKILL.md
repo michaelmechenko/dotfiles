@@ -13,22 +13,26 @@ forgotten side-tasks and open items resurface.
 
 - **Durable log** — `~/.config/smap/<project-slug>.md`. A pinned `## Findings & Directives`
   section at the top (durable project notes), then one block per session, newest first.
-- **In-repo working list** — `SMAP-TODOS.md` at the repo root (git toplevel). Brief, current
-  open todos across the project, plus a `## Notes` mirror of the findings/directives.
+- **In-repo working list** — `SMAP-TODOS.md` at the **main** repo root. Brief, current open
+  todos across the project, plus a `## Notes` mirror of the findings/directives.
 
-`<project-slug>` = the project directory with every `/` and `.` replaced by `-` (matches
-Claude's own `projects/` scheme). Derive it from `$PWD` (or the git toplevel). Example:
-`/Users/michael.mechenko/.config` → `-Users-michael-mechenko--config`.
+`<project-slug>` = the **main** repo directory with every `/` and `.` replaced by `-` (matches
+Claude's own `projects/` scheme). Example: `/Users/michael.mechenko/.config` →
+`-Users-michael-mechenko--config`.
 
 ## Workflow
 
-1. Compute the slug and resolve the repo root:
+1. Canonicalize to the **main** repo toplevel (so reading from a worktree surfaces the shared
+   log/todos, not a per-worktree copy) and compute the slug — same logic as `/smap-update`:
    ```bash
    root=$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")
-   tmp="${root//\//-}"; slug="${tmp//./-}"   # / and . → - (pure bash, no subprocess/prompt)
+   cdir=$(git -C "$root" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
+   case "$cdir" in */.git) main=$(dirname "$cdir") ;; *) main="$root" ;; esac
+   case "$main" in *"/.claude/worktrees/"*) main="${main%%/.claude/worktrees/*}" ;; esac
+   tmp="${main//\//-}"; slug="${tmp//./-}"   # / and . → - (pure bash, no subprocess/prompt)
    ```
 2. Print the durable log if present: `cat ~/.config/smap/"$slug".md`
-3. Print the repo working list if present: `cat "$root"/SMAP-TODOS.md`
+3. Print the repo working list if present: `cat "$main"/SMAP-TODOS.md`
 4. Summarize for the user, leading with the **`## Findings & Directives`** section if present —
    call out **directives** prominently (they are standing rules: "don't do X" / "remember Y"),
    then findings. After that, surface the **most recent session's Open items** plus the

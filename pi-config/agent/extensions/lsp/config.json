@@ -1,0 +1,23 @@
+{
+  "lsp": {
+    "typescript": {
+      "command": ["typescript-language-server", "--stdio"],
+      "extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts"]
+    },
+    "pyright": {
+      "command": ["pyright-langserver", "--stdio"],
+      "extensions": [".py"],
+      "disabled": true
+    },
+    "rust": {
+      "command": ["rust-analyzer"],
+      "extensions": [".rs"],
+      "disabled": true
+    },
+    "gopls": {
+      "command": ["gopls"],
+      "extensions": [".go"],
+      "disabled": true
+    }
+  }
+}

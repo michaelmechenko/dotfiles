@@ -7,7 +7,8 @@ local M = {}
 local HOME = os.getenv("HOME") or ""
 local AEROSPACE = "/opt/homebrew/bin/aerospace"
 local SKETCHYBAR = "/opt/homebrew/bin/sketchybar"
-local BORDERS_RC = HOME .. "/.config/borders/bordersrc"
+local SKETCHYBAR_RC = HOME .. "/.config/sketchybar/sketchybarrc"
+local BORDERS = "/opt/homebrew/bin/borders"
 
 -- pgrep works for CLI processes (hs.application.find only finds .app bundles).
 local function isRunning(name)
@@ -16,9 +17,7 @@ local function isRunning(name)
 end
 
 function M.toggleGamingMode()
-  local bordersOn = isRunning("borders")
-  local sketchybarOn = isRunning("sketchybar")
-  local uiActive = bordersOn or sketchybarOn
+  local uiActive = isRunning("borders") or isRunning("sketchybar")
 
   if uiActive then
     -- Enter gaming mode: kill UI helpers, disable aerospace
@@ -28,9 +27,13 @@ function M.toggleGamingMode()
     hs.alert.show("gaming mode: UI killed")
   else
     -- Exit gaming mode: restart UI helpers, enable aerospace.
-    -- nohup + disown so os.execute returns immediately.
-    os.execute("nohup " .. SKETCHYBAR .. " > /dev/null 2>&1 & disown")
-    os.execute("nohup bash " .. BORDERS_RC .. " > /dev/null 2>&1 & disown")
+    -- hs.task launches properly detached processes (os.execute with & gets killed
+    -- when the Lua call returns). Pass -c so sketchybar finds its config.
+    hs.task.new(SKETCHYBAR, nil, {"-c", SKETCHYBAR_RC}):start()
+    hs.task.new(BORDERS, nil, {
+      "style=round", "width=4.0", "hidpi=on", "ax_focus=off",
+      "active_color=0xffaeaed1", "inactive_color=0xff1c1c24"
+    }):start()
     os.execute(AEROSPACE .. " enable on 2>/dev/null")
     hs.alert.show("normal mode: UI restored")
   end

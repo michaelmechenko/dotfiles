@@ -151,6 +151,8 @@ keybind = alt+right=csi:1;3C
 # encoding for Alt+Enter (13 = CR keycode, 3 = Alt modifier) -- same recipe pi's own
 # terminal-setup docs give for WezTerm/Alacritty/Windows Terminal.
 keybind = alt+enter=csi:13;3u
+keybind = shift+enter=csi:13;2u
+keybind = ctrl+enter=csi:13;5u
 
 # ctrl+tab -> F13 (^[[25~): an unmodified key so tmux forwards it verbatim
 # (a modified key like ctrl+shift+e gets downgraded by tmux without extended-keys).

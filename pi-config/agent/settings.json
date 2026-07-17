@@ -1,8 +1,8 @@
 {
-  "lastChangelogVersion": "0.80.7",
+  "lastChangelogVersion": "0.80.9",
   "theme": "vague",
-  "defaultProvider": "anthropic",
-  "defaultModel": "claude-sonnet-5",
+  "defaultProvider": "opencode",
+  "defaultModel": "gpt-5.5",
   "warnings": {
     "anthropicExtraUsage": true
   },
@@ -14,7 +14,8 @@
     "npm:pi-ast-grep"
   ],
   "extensions": [
-    "-extensions/permission-gate/index.ts"
+    "-extensions/permission-gate/index.ts",
+    "-extensions/titlebar-spinner/index.ts"
   ],
   "defaultThinkingLevel": "medium"
 }

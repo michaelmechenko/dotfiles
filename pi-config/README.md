@@ -18,7 +18,7 @@ agent/
 ├── extensions/         # <name>/index.ts, auto-discovered. Uniform naming: no `pi-` prefix, no `.ts` suffix
 ├── agents/             # subagent definitions (*.md with YAML frontmatter), used by extensions/subagent
 ├── prompts/            # prompt templates (/name expansion), used by extensions/subagent
-├── skills/             # SKILL.md-based skills (not yet populated)
+├── skills/             # SKILL.md-based skills, see Skills section below
 ├── auth.json           # provider credentials — do not inspect/print/edit
 └── sessions/            # per-project transcript logs — session/cache artifact, do not edit
 ```
@@ -138,9 +138,85 @@ Project-local `.pi/agents/*.md` only load if a subagent call passes `agentScope:
 
 ## Skills (`agent/skills/`)
 
-Not yet populated. When skills are added, document them here following the same table format as
-extensions above (name, source/provenance, one-line purpose), and note any project-local
-`.pi/skills/` or `.agents/skills/` interplay.
+27 skills, migrated from three cloned skill repos and adapted for pi. Flat layout — one
+`skills/<name>/SKILL.md` per skill, no source-grouping subfolders (discovery is recursive either
+way, so this is purely organizational, matching the flat `extensions/` convention). Each skill is
+self-contained per the [Agent Skills standard](https://agentskills.io/specification); some also
+carry a `references/` subdir or other support files (scripts, templates) alongside `SKILL.md`.
+
+### Adaptation conventions applied during migration
+
+None of the source repos targeted pi, so every skill was swept for harness-specific mechanics
+before landing here:
+
+- **Cross-skill references are prose, not slash commands.** `/tdd`, `/code-review`, etc. in a
+  skill's body were rewritten to "the tdd skill", "the code-review skill" — pi's `/skill:name`
+  commands are parsed from typed user input, not reliably invocable from the model's own
+  generated text, so a literal slash-command cross-reference would silently do nothing. Where a
+  skill's text describes what a *user* types (e.g. `/skill:triage`), the real pi command syntax
+  is used instead.
+- **Agent-delegation mechanics map onto the `subagent` tool.** Claude/Codex-specific "Agent
+  tool", "Task tool", `subagent_type=Explore`, and "general-purpose subagent" became the
+  `subagent` tool's single/parallel modes, using the `scout` agent for read-only recon and the
+  `worker` agent for anything that writes.
+- **Frontmatter trimmed to what pi recognizes.** `argument-hint` (a Claude-only field) was
+  dropped; `disable-model-invocation` was kept as-is (pi implements it identically — hides the
+  skill from the system prompt, reachable only via `/skill:name`); `allowed-tools` was kept where
+  present, translated to pi's tool names (`Bash`→`bash`, `Read`→`read`, `Grep`→`grep`,
+  `Glob`→`find`).
+- **Repo-bootstrap dependencies on skills that weren't migrated were inlined.** Several
+  engineering skills assumed a `setup-matt-pocock-skills` skill (excluded from migration) had
+  already configured the project's issue tracker / triage labels; those now ask the user directly
+  and once, with a suggestion to save the answer to `docs/agents/issue-tracker.md`, instead of
+  pointing at a command that doesn't exist here.
+- **Claude Code-only artifacts were generalized or dropped.** `index-knowledge` now targets
+  `AGENTS.md` (this repo's own canonical convention) instead of `CLAUDE.md`, while still detecting
+  either. `cx-handoff`/`tldr` treat the `~/.config/smap/` session-map log as an optional,
+  best-effort read (it's written only by Claude's own unmigrated `smap-update` skill) rather than
+  an authoritative source, and `tldr` drops the Claude-specific `.claude/worktrees/` path special
+  case (no pi equivalent). `skill-rules.json` (Claude Code's keyword/regex activation config) was
+  not migrated — pi decides skill loading from `description` alone.
+
+### Migrated skills
+
+| Skill | Source | Purpose |
+|---|---|---|
+| `batch-commit` | claude/skills | Split work into scoped commits, group into PR-sized batches, Conventional Commits. Never pushes. |
+| `cc-clipboard` | claude/skills | Pipe file/command-output/search-result content to the clipboard via `pbcopy`. |
+| `cx-handoff` | claude/skills | Paste-ready handoff prompt to the clipboard; `--review`/`--continue` modes. |
+| `index-knowledge` | claude/skills | Generate a hierarchical `AGENTS.md` knowledge base (root + scored subdirs). |
+| `tldr` | claude/skills | Ultra-short "where was I" project orientation: goal, worktrees, todos, PR state. |
+| `code-review` | mattpocock-skills/engineering | Two-axis (Standards + Spec) review of a diff, run as parallel sub-agents. |
+| `codebase-design` | mattpocock-skills/engineering | Vocabulary + principles for designing deep modules (module, interface, seam, adapter). |
+| `diagnosing-bugs` | mattpocock-skills/engineering | Disciplined reproduce → minimise → hypothesise → instrument → fix loop for hard bugs. |
+| `domain-modeling` | mattpocock-skills/engineering | Actively build/sharpen a project's domain model; maintains `CONTEXT.md` + ADRs. |
+| `grill-with-docs` | mattpocock-skills/engineering | A grilling session that also builds the domain model as it goes. |
+| `implement` | mattpocock-skills/engineering | Build the work described by a spec/tickets, driving `tdd`, closing with `code-review`. |
+| `improve-codebase-architecture` | mattpocock-skills/engineering | Scan for deepening opportunities, present as an HTML report, grill through the pick. |
+| `prototype` | mattpocock-skills/engineering | Throwaway prototype (terminal app for logic, or UI variations) to answer a design question. |
+| `research` | mattpocock-skills/engineering | Investigate against primary sources, capture cited findings as a Markdown file. |
+| `resolving-merge-conflicts` | mattpocock-skills/engineering | Work an in-progress merge/rebase conflict hunk by hunk by intent; never `--abort`. |
+| `tdd` | mattpocock-skills/engineering | Red-green-refactor loop; what a good test is, seams, anti-patterns. |
+| `to-spec` | mattpocock-skills/engineering | Synthesize the current conversation into a spec/PRD, publish to the issue tracker. |
+| `to-tickets` | mattpocock-skills/engineering | Break a plan/spec into blocking-edge-declared tracer-bullet tickets. |
+| `triage` | mattpocock-skills/engineering | Move issues/PRs through a triage-role state machine; writes agent-ready briefs. |
+| `wayfinder` | mattpocock-skills/engineering | Plan oversized work as a shared map of decision tickets, resolved one at a time. |
+| `grill-me` | mattpocock-skills/productivity | User-invoked entry point into the `grilling` skill. |
+| `grilling` | mattpocock-skills/productivity | Relentless one-question-at-a-time interview to resolve a decision tree. |
+| `handoff` | mattpocock-skills/productivity | Compact the current conversation into a handoff document for another agent. |
+| `teach` | mattpocock-skills/productivity | Teach the user a topic over multiple sessions using the cwd as a stateful workspace. |
+| `writing-great-skills` | mattpocock-skills/productivity | Reference for writing/editing skills well — the vocabulary behind predictable skills. |
+| `last-20-percent` | juliusbrusse-skills | Finds and finishes the experiential last 20% of a build (the magic moment, golden artifacts). |
+| `terminate-slop` | juliusbrusse-skills (renamed from `fuck-slop`, de-vulgarized) | Detects and erases AI-writing tells; rewrites text into its target register. |
+
+Project-local `.pi/skills/` or `.agents/skills/` (if a project adds either) layer on top of these
+user-level skills — no interplay to note beyond pi's normal name-collision-keeps-first-found rule.
+
+Not migrated, and out of scope unless separately requested: `claude/skills/{code-review, diff-summary,
+plan-review, smap-backfill, smap-read, smap-review, smap-summarize, smap-update, skill-rules.json}`,
+`mattpocock-skills/skills/{engineering/ask-matt, engineering/setup-matt-pocock-skills, deprecated/,
+in-progress/, misc/, personal/}`, `juliusbrusse-skills/skills/{caveman, context-canary, grill-me,
+interface-kit, junior-to-senior, loop-factory}`.
 
 ## Web search/browse tooling
 

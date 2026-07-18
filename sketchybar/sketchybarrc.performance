@@ -19,6 +19,7 @@ bar=(
   notch_offset=0
   sticky=false
   font_smoothing=on
+  drawing=on
 )
 
 sketchybar --bar "${bar[@]}"

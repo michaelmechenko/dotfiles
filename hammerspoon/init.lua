@@ -3,6 +3,7 @@ local window = require("window")
 local bar = require("bar")
 local display = require("display")
 local gaming = require("gaming")
+require("drag")
 -- local rectangle = require("rectangle-keybinds")
 
 -- Globals for `hs -c "..."` callers (aerospace.toml, etc.)

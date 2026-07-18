@@ -130,6 +130,15 @@ All `cmd-ctrl-alt-*` (bound in `init.lua`). Frames computed directly, no Rectang
 | `cmd-ctrl-alt-shift-v` | Full maximize — same left/right as `v`, top inset = bottom so window covers the SketchyBar strip |
 | `cmd-ctrl-alt-space` | Center focused window (no resize) |
 
+## Hammerspoon — window drag (`drag.lua`)
+Not a `hs.hotkey.bind` — a global mouse eventtap, active as long as Hammerspoon is running.
+
+| Key | Action |
+| --- | --- |
+| `cmd-ctrl` + left-click-drag | Move the window under the cursor (any app, not just Ghostty) |
+
+Added because `ghostty/config`'s `window-decoration = false` removes all native titlebar/frame drag handles. Only verified against a floating window; AeroSpace derives tiled window position from the layout tree, so dragging a tiled window is expected to get reverted on the next layout event (use `cmd-shift-s` / `toggleFloatKeepPos` to float first if that happens) — not independently confirmed in this session.
+
 ## Hammerspoon — bar & system (`bar.lua`)
 All `cmd-ctrl-alt-*` (bound in `init.lua`).
 

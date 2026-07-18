@@ -44,6 +44,13 @@ function getTextContent(message: AssistantMessage): string {
 		.join("\n");
 }
 
+// Whether an assistant message made any tool calls. A message with none is a
+// genuine stopping point (the model finished responding), not a mid-tool-cycle
+// pause - used to detect "model believes it's done" even without [DONE:n] tags.
+function hasToolCalls(message: AssistantMessage): boolean {
+	return message.content.some((block) => block.type === "toolCall");
+}
+
 export default function planModeExtension(pi: ExtensionAPI): void {
 	let planModeEnabled = false;
 	let executionMode = false;
@@ -272,7 +279,54 @@ After completing a step, include a [DONE:n] tag in your response.`,
 				todoItems = [];
 				updateStatus(ctx);
 				persistState(); // Save cleared state so resume doesn't restore old execution mode
+				return;
 			}
+
+			// Not all steps carry a [DONE:n] tag. If the run actually stopped (the
+			// last assistant message made no tool calls), the model has finished
+			// responding - it likely completed the work but didn't emit the tags.
+			// Without this check, execution state gets stuck forever: no
+			// completion message ever shows, and before_agent_start keeps
+			// re-injecting "execute the plan" on every future turn/resume, which
+			// can make the model think it needs to redo already-finished work.
+			if (!ctx.hasUI) return;
+			const lastAssistant = [...event.messages].reverse().find(isAssistantMessage);
+			if (!lastAssistant || hasToolCalls(lastAssistant)) return;
+
+			const remaining = todoItems.filter((t) => !t.completed);
+			const choice = await ctx.ui.select(
+				`Plan execution stopped without [DONE:n] tags for ${remaining.length} step(s). What happened?`,
+				["All steps are actually done", "Resume execution", "Stop and exit"],
+			);
+
+			if (choice === "All steps are actually done") {
+				for (const t of todoItems) t.completed = true;
+				const completedList = todoItems.map((t) => `~~${t.text}~~`).join("\n");
+				pi.sendMessage(
+					{ customType: "plan-complete", content: `**Plan Complete!** ✓\n\n${completedList}`, display: true },
+					{ triggerTurn: false },
+				);
+				executionMode = false;
+				todoItems = [];
+				updateStatus(ctx);
+				persistState();
+			} else if (choice === "Stop and exit") {
+				executionMode = false;
+				todoItems = [];
+				updateStatus(ctx);
+				persistState();
+			} else if (choice === "Resume execution") {
+				const remainingList = remaining.map((t) => `${t.step}. ${t.text}`).join("\n");
+				pi.sendMessage(
+					{
+						customType: "plan-mode-execute",
+						content: `Resume the plan.\n\nRemaining steps:\n${remainingList}\n\nAfter completing a step, include a [DONE:n] tag in your response.`,
+						display: true,
+					},
+					{ triggerTurn: true, deliverAs: "followUp" },
+				);
+			}
+			// No selection (dismissed): leave state as-is.
 			return;
 		}
 

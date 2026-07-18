@@ -325,7 +325,7 @@
         }
       }
     ],
-    "checkedAt": 1784259141719
+    "checkedAt": 1784403133936
   },
   "opencode": {
     "models": [
@@ -1718,7 +1718,7 @@
         "maxTokens": 65536
       }
     ],
-    "checkedAt": 1784259141961
+    "checkedAt": 1784403133846
   },
   "opencode-go": {
     "models": [
@@ -2111,7 +2111,7 @@
         "maxTokens": 65536
       }
     ],
-    "checkedAt": 1784259141797
+    "checkedAt": 1784403133794
   },
   "openai": {
     "models": [
@@ -3221,6 +3221,6 @@
         "maxTokens": 100000
       }
     ],
-    "checkedAt": 1784259141792
+    "checkedAt": 1784403133797
   }
 }

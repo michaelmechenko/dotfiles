@@ -76,3 +76,5 @@ chrome
 /herdr/herdr-client.log
 /nvm/
 /package-lock.json
+/herdr/release-notes.json
+/zed/prompts/prompts-library-db.0.mdb

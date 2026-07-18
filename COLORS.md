@@ -120,7 +120,7 @@ pi (the coding agent TUI) uses a custom theme at `~/.config/pi-config/agent/them
 | `dim` | `#606079` | copy-mode-indicator |
 | `text` | `#BEBEBE` | text |
 | `selectedBg` | `#2A2A35` | surface-highlight |
-| `userMessageBg` | `#16141a` | surface-active |
+| `userMessageBg` | `#2A2A35` | surface-highlight (previously `surface-active` `#16141a`, changed so the message bubble reads as visibly lighter than the surrounding tmux active-pane bg it otherwise matches exactly) |
 | `customMessageBg` / `toolPendingBg` | `#1C1C24` | surface-chrome |
 | `customMessageLabel` | `#aeaed1` | accent-secondary |
 | `toolSuccessBg` | `#352f37` | surface-heading-h1 (dusty-pink tint, reused) |

@@ -33,7 +33,7 @@
 		"thinkingText": "textMuted",
 
 		"selectedBg": "surfaceHighlight",
-		"userMessageBg": "surfaceActive",
+		"userMessageBg": "surfaceHighlight",
 		"userMessageText": "text",
 		"customMessageBg": "surfaceChrome",
 		"customMessageText": "text",

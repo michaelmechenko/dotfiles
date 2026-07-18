@@ -1,8 +1,8 @@
 {
-  "lastChangelogVersion": "0.80.9",
+  "lastChangelogVersion": "0.80.10",
   "theme": "vague",
   "defaultProvider": "opencode",
-  "defaultModel": "gpt-5.5",
+  "defaultModel": "claude-sonnet-5",
   "warnings": {
     "anthropicExtraUsage": true
   },
@@ -14,8 +14,20 @@
     "npm:pi-ast-grep"
   ],
   "extensions": [
-    "-extensions/permission-gate/index.ts",
-    "-extensions/titlebar-spinner/index.ts"
+    "-extensions/hidden-thinking-label/index.ts",
+    "-extensions/minimal-mode/index.ts",
+    "+extensions/permission-gate/index.ts",
+    "+extensions/titlebar-spinner/index.ts"
   ],
-  "defaultThinkingLevel": "medium"
+  "defaultThinkingLevel": "minimal",
+  "skills": [
+    "-skills/handoff/SKILL.md",
+    "-skills/last-20-percent/SKILL.md",
+    "-skills/resolving-merge-conflicts/SKILL.md",
+    "-skills/tdd/SKILL.md",
+    "-skills/teach/SKILL.md",
+    "-skills/terminate-slop/SKILL.md",
+    "-skills/to-spec/SKILL.md",
+    "-skills/to-tickets/SKILL.md"
+  ]
 }

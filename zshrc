@@ -143,6 +143,7 @@ t() {
 
 alias tx="tmux kill-server"
 alias td="tmux detach-client"
+alias bu="brew upgrade && brew update"
 alias c="clear"
 alias k="kubecli"
 alias tf="terraform"
@@ -202,6 +203,7 @@ claude() { command claude "$@"; printf '\e[4 q'; }
 
 export CLAUDE_CONFIG_DIR=~/.config/claude
 export PI_CODING_AGENT_DIR=~/.config/pi-config/agent
+export PI_FFF_MODE=override
 
 # Hammerspoon is a GUI app and can't see this shell env, so its config dir is set via the
 # MJConfigFile default (not an env var). Verify on shell start; correct if it drifted.

@@ -30,10 +30,31 @@ function M.toggleMode()
   hs.alert.show(mode)
 end
 
--- cmd-ctrl-alt-o: reload the active SketchyBar config from disk.
+-- cmd-ctrl-alt-o: restart SketchyBar. `--reload` replays the config on the SAME running
+-- process, so a wedged daemon (e.g. a stray `drawing=off` from an earlier session, or a hung
+-- IPC state) silently survives every reload — the bar stays at raw defaults (height=25,
+-- color=0x44000000). A kill + relaunch always recovers it, so this keybind does a full
+-- restart, not `--reload`. nohup + `&` so the new daemon isn't tied to Hammerspoon's shell.
+-- PATH export is load-bearing: sketchybarrc calls bare `sketchybar` internally, and
+-- Hammerspoon's GUI env lacks /opt/homebrew/bin on PATH, so without this the daemon launches
+-- but every config command silently fails (command not found) and the bar comes up at raw
+-- defaults — same PATH gotcha as window.lua/bordersrc.
 function M.reload()
-  hs.execute(SKETCHYBAR .. " --reload", false)
-  hs.alert.show("bar: reloaded")
+  local RC = HOME .. "/.config/sketchybar/sketchybarrc"
+  -- Backgrounded subshell so hs.execute returns immediately (Hammerspoon isn't blocked by the
+  -- sleep). A fresh `-c` launch is the ONLY step: do NOT chase it with a `--reload` --- reload
+  -- replays the config on the running process, re-adding the right-block items (date/battery/
+  -- sep) and stacking them on top of each other. A cold `-c` launch builds them cleanly.
+  --  * sleep 1 after pkill: let the killed daemon release its mach service port (a shorter wait
+  --    races teardown and the new instance comes up at raw defaults).
+  --  * PATH export: sketchybarrc calls bare `sketchybar` internally and HS's GUI env lacks
+  --    /opt/homebrew/bin, so without it every config command silently fails -> raw defaults.
+  hs.execute(
+    "( export PATH=/opt/homebrew/bin:$PATH; /usr/bin/pkill -x sketchybar; sleep 1; " ..
+    "nohup " .. SKETCHYBAR .. " -c " .. RC .. " >/dev/null 2>&1 & ) >/dev/null 2>&1 &",
+    false
+  )
+  hs.alert.show("bar: restarted")
 end
 
 -- cmd-ctrl-alt-shift-o: toggle the AeroSpace server on/off. AeroSpace's `enable toggle` flips

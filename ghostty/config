@@ -41,7 +41,18 @@ palette = 12=#aeaed1
 # bold-is-bright = true
 
 # macos-titlebar-style = tabs
-macos-titlebar-style = hidden
+# macos-titlebar-style = hidden
+# hidden triggers a tip-build regression on macOS 26/27 betas + AeroSpace:
+# new windows start with a rendering desync (content painted opaque/blank
+# until a config reload or split forces a redraw). transparent didn't have
+# the bug but left the reserved titlebar row as empty space even with the
+# buttons/title hidden. window-decoration=none removes the row entirely
+# via a different code path (untested against the hidden-titlebar bug).
+# See: github.com/ghostty-org/ghostty/discussions/13320
+# macos-titlebar-style = transparent
+window-decoration = false
+# macos-window-buttons = hidden  # no effect when window-decoration=none
+# title = " "  # no titlebar to show a title in when window-decoration=none
 # macos-window-shadow = false
 macos-titlebar-proxy-icon = hidden
 macos-icon = custom-style

@@ -11,9 +11,10 @@
  *    configured upstream (`git rev-parse --abbrev-ref --symbolic-full-name @{u}`),
  *    falling back to the plain branch name if there's no upstream; the worktree
  *    segment only appears when cwd is actually inside a linked git worktree.
- * 2. The top line's right side shows the `lsp` extension's status text (if any)
- *    instead of leaving that space empty -- and that status is excluded from
- *    the generic bottom extension-status lines so it isn't shown twice.
+ * 2. The top line's right side shows the `lsp` and `plan-mode` extensions'
+ *    status text (if any) instead of leaving that space empty -- and those
+ *    statuses are excluded from the generic bottom extension-status lines
+ *    so they aren't shown twice.
  *
  * Everything else (token/cache/cost math, right-aligned model/provider/thinking,
  * extension status lines) matches the built-in footer's logic and formatting
@@ -128,7 +129,7 @@ export default function footer(pi: ExtensionAPI) {
 				dispose: unsub,
 				invalidate() {},
 				render(width: number): string[] {
-					// --- Top line: directory (origin/branch) (worktree/name) ... lsp status ---
+					// --- Top line: directory (origin/branch) (worktree/name) ... lsp/plan-mode status ---
 					let pwd = formatCwdForFooter(ctx.sessionManager.getCwd(), process.env.HOME || process.env.USERPROFILE);
 
 					const branch = footerData.getGitBranch();
@@ -146,8 +147,13 @@ export default function footer(pi: ExtensionAPI) {
 
 					const statuses = footerData.getExtensionStatuses();
 					const lspStatus = statuses.get("lsp");
+					const planStatus = statuses.get("plan-mode");
+					const topRight = [lspStatus, planStatus]
+						.filter((s): s is string => Boolean(s))
+						.map(sanitizeStatusText)
+						.join(" \u2022 ");
 					const topLine = truncateToWidth(
-						theme.fg("dim", columns(pwd, lspStatus ? sanitizeStatusText(lspStatus) : "", width)),
+						theme.fg("dim", columns(pwd, topRight, width)),
 						width,
 						theme.fg("dim", "..."),
 					);
@@ -249,7 +255,7 @@ export default function footer(pi: ExtensionAPI) {
 					const lines = [topLine, theme.fg("dim", statsLine)];
 
 					const statusLines = Array.from(statuses.entries())
-						.filter(([key]) => key !== "lsp")
+						.filter(([key]) => key !== "lsp" && key !== "plan-mode")
 						.sort(([a], [b]) => a.localeCompare(b))
 						.map(([, text]) => sanitizeStatusText(text));
 					if (statusLines.length > 0) {

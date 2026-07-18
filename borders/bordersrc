@@ -1,7 +1,7 @@
 #!/bin/bash
 
 options=(
-	style=round
+	style=square
 	width=4.0
 	hidpi=off
   ax_focus=off

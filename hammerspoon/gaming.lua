@@ -29,11 +29,10 @@ function M.toggleGamingMode()
     -- Exit gaming mode: restart UI helpers, enable aerospace.
     -- hs.task launches properly detached processes (os.execute with & gets killed
     -- when the Lua call returns). Pass -c so sketchybar finds its config.
+    -- borders is launched via bordersrc (not a hardcoded args list here) so its
+    -- style/colors stay in sync with the canonical config -- don't duplicate args.
     hs.task.new(SKETCHYBAR, nil, {"-c", SKETCHYBAR_RC}):start()
-    hs.task.new(BORDERS, nil, {
-      "style=round", "width=4.0", "hidpi=on", "ax_focus=off",
-      "active_color=0xffaeaed1", "inactive_color=0xff1c1c24"
-    }):start()
+    hs.task.new("/bin/bash", nil, {HOME .. "/.config/borders/bordersrc"}):start()
     os.execute(AEROSPACE .. " enable on 2>/dev/null")
     hs.alert.show("normal mode: UI restored")
   end

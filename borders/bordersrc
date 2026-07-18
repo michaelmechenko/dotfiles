@@ -9,4 +9,6 @@ options=(
 	inactive_color=0xff1c1c24
 )
 
-borders "${options[@]}"
+# Absolute path: this script can be sourced from environments without
+# /opt/homebrew/bin on $PATH (e.g. Hammerspoon's GUI process env).
+/opt/homebrew/bin/borders "${options[@]}"

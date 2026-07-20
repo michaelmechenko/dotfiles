@@ -1,7 +1,7 @@
 {
   "lastChangelogVersion": "0.80.10",
   "theme": "vague",
-  "defaultProvider": "opencode",
+  "defaultProvider": "anthropic",
   "defaultModel": "claude-sonnet-5",
   "warnings": {
     "anthropicExtraUsage": true
@@ -9,15 +9,15 @@
   "enableInstallTelemetry": false,
   "defaultProjectTrust": "always",
   "packages": [
-    "npm:@ff-labs/pi-fff",
     "npm:@dreki-gg/pi-lsp",
     "npm:pi-ast-grep"
   ],
   "extensions": [
     "-extensions/hidden-thinking-label/index.ts",
     "-extensions/minimal-mode/index.ts",
-    "+extensions/permission-gate/index.ts",
-    "+extensions/titlebar-spinner/index.ts"
+    "+extensions/titlebar-spinner/index.ts",
+    "-extensions/permission-gate/index.ts",
+    "-extensions/plan-mode/index.ts"
   ],
   "defaultThinkingLevel": "minimal",
   "skills": [

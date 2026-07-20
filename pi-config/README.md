@@ -51,6 +51,7 @@ file extension isn't part of the extension's identity), plain `kebab-case` names
 | `hidden-thinking-label/` | `/thinking-label [text]` — customize the label shown for collapsed thinking blocks |
 | `plan-mode/` | `/plan` read-only planning mode: disables write/edit, allowlists safe bash, tracks `Plan:` steps with `[DONE:n]` markers and a progress widget. De-emoji'd: status/widget glyphs (📋, ⏸, ☑, ☐) replaced with plain text/`[x]`/`[ ]` |
 | `subagent/` | Delegate tasks to isolated `pi` subprocess agents (single/parallel/chain modes); see [Agents & Prompts](#agents--prompts) |
+| `prompt-stash/` | Claude Code-style Ctrl+S "stash or restore prompt": stashes and clears a non-empty editor, restores it on the next Ctrl+S press when the editor is empty. In-memory only (per pi process, cleared on `session_shutdown`); no cursor-position or pasted-image restore since pi's extension API doesn't expose those. Not vendored from anywhere — written directly against pi's `registerShortcut` + `ctx.ui.getEditorText`/`setEditorText` API. Ctrl+S collides with two built-in shortcuts: `app.models.save` (only live inside the `/scoped-models` picker) and `app.session.toggleSort` (only live inside the `/resume` session picker); `agent/keybindings.json` rebinds them to `ctrl+shift+s` and `ctrl+shift+r` respectively to resolve it — prompt-stash keeps the Claude Code-matching key |
 
 These were originally flat `<name>.ts` files (pi's own convention for simple examples); each was
 moved to `<name>/index.ts` here to match this repo's uniform extension-directory naming.
@@ -113,13 +114,32 @@ enabled/disabled extension summary (above) reuses the same `DefaultPackageManage
 resolution this extension uses internally. To pick up upstream changes, diff against
 `npm view @petechu/pi-extension-toggle` and re-copy `index.ts`/`utils.ts` by hand.
 
+### Forked locally from `heyhuynhgiabuu/pi-pretty` and `heyhuynhgiabuu/pi-diff` (no longer npm-managed)
+
+| Extension | What it does |
+|---|---|
+| `pretty/` | Replaces built-in `read`/`bash`/`ls`/`find`/`grep` rendering: Shiki-highlighted `read` previews (+ inline images on supported terminals), colored `bash` exit summaries, Nerd Font tree `ls`, and FFF-backed `find`/`grep` (bundles its own `@ff-labs/fff-node`, independent of the now-removed `@ff-labs/pi-fff` package below). `/fff-health` / `/fff-rescan` maintenance commands included |
+| `diff/` | Replaces built-in `write`/`edit` tool output with Shiki-powered syntax-highlighted diffs (split side-by-side + unified stacked views, word-level emphasis). Also registers an edit guard (`tool_call` handler) that blocks `edit` calls whose `oldText` is stale, forcing a re-read instead of a fuzzy-retry loop |
+
+Both are real published npm packages (`@heyhuynhgiabuu/pi-pretty`, `@heyhuynhgiabuu/pi-diff`) with their
+own runtime dependencies (Shiki, `@ff-labs/fff-node`, `diff`, `xxhash-wasm`), so — like `ask-user/` and
+`web-tools/` — each has its own `package.json` + `npm install`-ed `node_modules/` (gitignored). Unlike a
+plain `pi install npm:...`, they're vendored as source under `extensions/pretty/src/` and
+`extensions/diff/src/` with a top-level `index.ts` shim re-exporting the real entry point — same
+manifest-precedence workaround as `skill-toggle/` (a `package.json` `"pi": { "extensions": [...] }`
+field pointing at a built `dist/` would win discovery over the shim, and neither package ships without
+a build step otherwise). Each `package.json` intentionally omits that `pi.extensions` manifest field so
+discovery falls through to the shim. `pretty/`'s bundled FFF is why the standalone `@ff-labs/pi-fff`
+package was removed — running both would double-register `find`/`grep`. To pick up upstream changes,
+re-clone each repo's `src/` and re-copy by hand (drop `*.test.ts`, keep the shim and trimmed
+`package.json`) — there's no `pi update` path for a forked-local extension.
+
 ## Packages (`agent/settings.json` → `packages`, npm-managed)
 
 Installed via `pi install npm:<name>` (writes here automatically; `pi update --extensions` reconciles):
 
 | Package | Purpose |
 |---|---|
-| `@ff-labs/pi-fff` | Replaces built-in `find`/`grep` with FFF (Rust-native, SIMD-accelerated, frecency-ranked, git-aware, no subprocess spawn) |
 | `@dreki-gg/pi-lsp` | Generic LSP integration — one `lsp` tool with 11 operations (diagnostics, hover, go-to-definition, references, symbols, call hierarchy, code actions). Config-driven; all servers **disabled by default** — enable per-project in `.pi/lsp.json` or globally in `agent/extensions/lsp/config.json` |
 | `pi-ast-grep` | Generic AST search — one `ast_grep` tool wrapping the `ast-grep` CLI (`run`/`scan`). **Read-only in v0**, no rewrite mode. For structural rewrites, invoke the `ast-grep` CLI directly via `bash` (`ast-grep run -p '<pattern>' -r '<rewrite>' -U`) |
 

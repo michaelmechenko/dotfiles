@@ -1,4 +1,6 @@
 {
   "tui.input.newLine": ["alt+enter", "shift+enter", "ctrl+j"],
-  "app.message.followUp": ["ctrl+enter"]
+  "app.message.followUp": ["ctrl+enter"],
+  "app.models.save": ["ctrl+shift+s"],
+  "app.session.toggleSort": ["ctrl+shift+r"]
 }

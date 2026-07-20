@@ -40,6 +40,13 @@ function M.toggleGamingMode()
     -- style/colors stay in sync with the canonical config -- don't duplicate args.
     hs.task.new("/bin/bash", nil, {HOME .. "/.config/borders/bordersrc"}):start()
     os.execute(AEROSPACE .. " enable on 2>/dev/null")
+    -- bordersrc clears frontapps.sh's tint cache on every cold start, but nothing re-runs
+    -- frontapps.sh here -- without this trigger the focused window stays at bordersrc's
+    -- static gray until the next real focus/workspace change. Delay so the borders daemon
+    -- (started async above) is actually up before frontapps.sh calls `borders apply-to=`.
+    hs.timer.doAfter(1, function()
+      os.execute("/opt/homebrew/bin/sketchybar --trigger aerospace_focus_change 2>/dev/null")
+    end)
     hs.alert.show("normal mode: UI restored")
   end
 end

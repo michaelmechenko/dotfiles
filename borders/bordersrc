@@ -9,6 +9,16 @@ options=(
 	inactive_color=0xff1c1c24
 )
 
+# frontapps.sh caches per-window tint colors in /tmp/aerospace_border_colors and only
+# re-applies via `borders apply-to=` when a window's color CHANGED since the cache, to
+# avoid redundant calls. Every borders cold start (this script) resets every window back
+# to the static active_color/inactive_color above, but the cache doesn't know that -- so
+# without this clear, a restarted borders daemon silently keeps the focused window gray
+# until its focus/layout actually changes. Clear it here so the daemon coming up is the
+# single trigger point for a full re-tint, regardless of which caller restarted it
+# (AeroSpace after-startup-command, gaming.lua exit).
+rm -f /tmp/aerospace_border_colors
+
 # Absolute path: this script can be sourced from environments without
 # /opt/homebrew/bin on $PATH (e.g. Hammerspoon's GUI process env).
 /opt/homebrew/bin/borders "${options[@]}"

@@ -24,21 +24,10 @@ to the receiving session — not a summary for the current user.
 
 ## Gather context
 
-Check for two cheap, already-summarized sources before falling back to raw git/transcript digging:
+Check for a cheap, already-summarized source before falling back to raw git/transcript digging:
 
 - **A pi goal, if one is active** — call `get_goal` for its objective/state; it's cheaper than
   re-deriving the same ground from the conversation.
-- **A session-map log, if this project has one** — this is a cross-tool convention some projects
-  keep at `~/.config/smap/<slug>.md` (not pi-specific, and not guaranteed to exist or be current
-  for a pi-only session — treat it as one optional input, never as authoritative):
-  ```bash
-  root=$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")
-  cdir=$(git -C "$root" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
-  case "$cdir" in */.git) main=$(dirname "$cdir") ;; *) main="$root" ;; esac
-  tmp="${main//\//-}"; slug="${tmp//./-}"
-  log=~/.config/smap/"$slug".md
-  [ -f "$log" ] && cat "$log"
-  ```
 
 Then sample the working tree:
 

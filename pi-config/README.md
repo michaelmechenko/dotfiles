@@ -191,11 +191,12 @@ before landing here:
   pointing at a command that doesn't exist here.
 - **Claude Code-only artifacts were generalized or dropped.** `index-knowledge` now targets
   `AGENTS.md` (this repo's own canonical convention) instead of `CLAUDE.md`, while still detecting
-  either. `cx-handoff`/`tldr` treat the `~/.config/smap/` session-map log as an optional,
-  best-effort read (it's written only by Claude's own unmigrated `smap-update` skill) rather than
-  an authoritative source, and `tldr` drops the Claude-specific `.claude/worktrees/` path special
-  case (no pi equivalent). `skill-rules.json` (Claude Code's keyword/regex activation config) was
-  not migrated — pi decides skill loading from `description` alone.
+  either. `cx-handoff`/`tldr` no longer read the `~/.config/smap/` session-map log — smap is a
+  Claude-only convention (written by Claude's own `smap-update` skill), disregarded entirely on the
+  pi side rather than treated as an optional input. `tldr` also drops the Claude-specific
+  `.claude/worktrees/` path special case (no pi equivalent). `skill-rules.json` (Claude Code's
+  keyword/regex activation config) was not migrated — pi decides skill loading from `description`
+  alone.
 
 ### Migrated skills
 

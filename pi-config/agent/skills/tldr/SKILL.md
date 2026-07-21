@@ -1,6 +1,6 @@
 ---
 name: tldr
-description: "Ultra-short 'where was I' orientation for the current project: what you're working on, the repos/worktrees in play, outstanding todos, and PR state (open, pushed-no-PR, or unpushed). Use when returning to a session and needing a quick catch-up, when asked to orient, catch me up, or remind me what I'm doing."
+description: "Ultra-short 'where was I' orientation for the current project: what you're working on, the repos/worktrees in play, and PR state (open, pushed-no-PR, or unpushed). Use when returning to a session and needing a quick catch-up, when asked to orient, catch me up, or remind me what I'm doing."
 allowed-tools: bash read grep find
 ---
 
@@ -11,22 +11,16 @@ re-deriving from scratch. Do **not** modify anything.
 
 ## Sources
 
-1. **Canonicalize to the main repo**, so a worktree resolves to the shared log/todos:
+1. **Canonicalize to the main repo**, so a worktree resolves to the shared todos:
    ```bash
    root=$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")
    cdir=$(git -C "$root" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
    case "$cdir" in */.git) main=$(dirname "$cdir") ;; *) main="$root" ;; esac
-   tmp="${main//\//-}"; slug="${tmp//./-}"
-   log=~/.config/smap/"$slug".md
    ```
 2. **What you're doing**:
    - If a pi goal is active, call `get_goal` for its objective/state first — cheapest source.
-   - If `$log` exists, read the newest session block's `ctx:` (or Goal) + its Open items, plus
-     `$main/SMAP-TODOS.md` open todos. This log is a cross-tool convention some projects keep
-     under `~/.config/smap/` — treat it as one optional input, not guaranteed to exist or be
-     current for a pi-only session.
    - Otherwise fall back to recent `git log --oneline -5` + working-tree state and say there's
-     no session log to draw on.
+     no session context to draw on.
 3. **Repos / worktrees in play** — `git -C "$main" worktree list` (each worktree + its branch);
    note the current branch (`git branch --show-current`) and current worktree if inside one.
 4. **PR state** per relevant branch:
@@ -42,7 +36,6 @@ re-deriving from scratch. Do **not** modify anything.
 project: <name> (<main>)   branch: <branch>   worktree: <name|—>
 doing:   <ctx / goal one-liner>
 worktrees: <name (branch)>, <name (branch)> …   (omit line if only main)
-todo:    <top 2–3 open items>
 prs:     #<n> <title> (<branch>)  ·  <branch>: N unpushed, no PR  ·  <branch>: pushed, no PR
 ```
 

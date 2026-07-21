@@ -273,7 +273,11 @@ fifo_pager() {
             else
                 brange=""
             fi
-            bat --terminal-width="$cols" --decorations=always --color=always \
+            # --wrap=never: don't pre-wrap long lines into the rendered file (the earlier default
+            # caused word-wrap in the preview pane that couldn't be undone downstream). moor still
+            # supports live wrap toggling ('w' key) for genuinely long lines - see ../toggle-wrap
+            # (bound to nnn ;w).
+            bat --terminal-width="$cols" --decorations=always --color=always --wrap=never \
                 --paging=never $brange --style="$NNN_BATSTYLE" --theme="$NNN_BATTHEME" "$@" \
                 < /dev/null > "$PREVIEWFILE" 2>/dev/null
         else
@@ -543,7 +547,7 @@ preview_fifo() {
     while read -r selection; do
         # Debounce: while more selections keep arriving within the window (fast
         # scrolling), skip ahead to the latest and don't preview the items passed over.
-        while read -r -t 0.01 newer; do
+        while read -r -t 0 newer; do
             selection="$newer"
         done
         if [ -n "$selection" ]; then

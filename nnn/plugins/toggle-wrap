@@ -1,0 +1,18 @@
+#!/usr/bin/env sh
+# nnn plugin: toggle word-wrap in the sibling preview-tui pane, without leaving the
+# explorer pane. Invoked via ;w. Preview defaults to no-wrap (see ../preview-tui's
+# `bat --wrap=never`); this sends the pager's own live wrap-toggle keystroke to the
+# other pane in the same tmux window.
+#
+# moor: 'w' toggles wrap live for the running instance.
+# less (fallback pager): '-S' toggles chop-long-lines live (no Enter needed).
+
+[ -z "$TMUX_PANE" ] && exit 0
+
+other=$(tmux list-panes -F '#{pane_id}' | grep -v -- "$TMUX_PANE" | head -1)
+[ -z "$other" ] && exit 0
+
+case "$NNN_PAGER" in
+    moor*) tmux send-keys -t "$other" 'w' ;;
+    *)     tmux send-keys -t "$other" -l -- '-S' ;;
+esac

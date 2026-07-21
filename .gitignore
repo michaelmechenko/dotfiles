@@ -80,3 +80,5 @@ chrome
 /zed/prompts/prompts-library-db.0.mdb
 /pi-config/agent/pi-pretty/fff/frecency.mdb
 /pi-config/agent/pi-pretty/fff/history.mdb
+/pi-config/agent/models-store.json
+/linearmouse

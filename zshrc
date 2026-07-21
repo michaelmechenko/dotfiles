@@ -35,6 +35,9 @@ plugins=(macos zsh-syntax-highlighting zsh-autosuggestions)
 
 source $ZSH/oh-my-zsh.sh
 
+# Tab inserts the first match immediately instead of listing candidates first.
+setopt menu_complete
+
 (( ${+ZSH_HIGHLIGHT_STYLES} )) || typeset -A ZSH_HIGHLIGHT_STYLES
 ZSH_HIGHLIGHT_STYLES[path]=none
 ZSH_HIGHLIGHT_STYLES[path_prefix]=none
@@ -117,7 +120,7 @@ alias ef='nvim "+lua require(\"snacks\").picker.files({ hidden = true, ignored =
 alias er='nvim "+lua require(\"snacks\").picker.recent({ hidden = true, ignored = true })"'
 alias eg='nvim "+lua require(\"snacks\").picker.grep({ hidden = true, ignored = true })"'
 alias ej="nvim tmp.json"
-alias em="nvim tmp.md"
+alias em="nvim +startinsert tmp.md"
 alias cc="claude"
 alias oc="opencode"
 alias ocp="opencode --port"

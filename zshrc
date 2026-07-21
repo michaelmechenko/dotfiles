@@ -35,8 +35,50 @@ plugins=(macos zsh-syntax-highlighting zsh-autosuggestions)
 
 source $ZSH/oh-my-zsh.sh
 
-# Tab inserts the first match immediately instead of listing candidates first.
-setopt menu_complete
+# Tab: insert the first match immediately when there are fewer than
+# TAB_MENU_THRESHOLD candidates (skip the list); at or above the threshold, fall
+# back to oh-my-zsh's default completion behavior (list first, select on
+# repeated Tab) - blindly picking "whichever sorts first" isn't useful once the
+# match set is huge. Implemented as a custom completion widget (rather than
+# `setopt menu_complete`, which can't be made conditional on match count) that
+# wraps the same `_main_complete` the stock Tab binding uses, then forces menu
+# completion via `compstate[insert]=menu` only when under threshold.
+TAB_MENU_THRESHOLD=65
+
+typeset -g _PRE_TAB_BUFFER="" _PRE_TAB_CURSOR=0
+
+_tab_complete_threshold() {
+  _PRE_TAB_BUFFER=$BUFFER
+  _PRE_TAB_CURSOR=$CURSOR
+  _main_complete "$@"
+  if (( compstate[nmatches] > 0 && compstate[nmatches] < TAB_MENU_THRESHOLD )); then
+    compstate[insert]=menu
+  fi
+}
+zle -C tab-complete-threshold complete-word _tab_complete_threshold
+bindkey '^I' tab-complete-threshold
+
+# Backspace immediately after Tab restores the buffer to its pre-Tab state
+# (undoes the completion) instead of deleting a single character. $LASTWIDGET
+# is zsh's own read-only "name of the previously executed widget" parameter,
+# so this is naturally one-shot: a second consecutive Backspace sees
+# $LASTWIDGET as this same widget and falls through to a normal delete.
+# Compares against whatever is *currently* bound to Tab rather than the
+# hardcoded widget name, since fzf's shell integration (sourced below) wraps
+# it in its own `fzf-completion` widget and becomes the one ZLE actually
+# dispatches on Tab.
+_tab_undo_backspace() {
+  local tab_widget=${${(z)$(bindkey '^I')}[2]}
+  if [[ $LASTWIDGET == $tab_widget ]]; then
+    BUFFER=$_PRE_TAB_BUFFER
+    CURSOR=$_PRE_TAB_CURSOR
+  else
+    zle backward-delete-char
+  fi
+}
+zle -N _tab_undo_backspace
+bindkey '^?' _tab_undo_backspace
+bindkey '^H' _tab_undo_backspace
 
 (( ${+ZSH_HIGHLIGHT_STYLES} )) || typeset -A ZSH_HIGHLIGHT_STYLES
 ZSH_HIGHLIGHT_STYLES[path]=none

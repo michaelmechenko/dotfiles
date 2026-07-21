@@ -200,6 +200,48 @@ function M.almostMaximizeAll()
   snapByIds(ids, ALMOST)
 end
 
+-- Ghostty/Firefox side-by-side auto-snap: cmd-shift-s's app-pair companion behavior. Half-screen
+-- each, using the same ALMOST gap insets as almostMaximize, with a 16px gap between them
+-- (matches aerospace.toml gaps.inner.horizontal). Ordering follows current on-screen position so
+-- whichever window is already further left stays left.
+local PAIR_APPS = { Ghostty = true, Firefox = true }
+local PAIR_INNER_GAP = 16
+
+local function snapSideBySide(winA, winB)
+  local scr = winA:screen()
+  local s = scr:frame()
+  local top = topInset(ALMOST, scr)
+  local totalW = s.w - ALMOST.left - ALMOST.right - PAIR_INNER_GAP
+  local halfW = totalW / 2
+  local leftFrame = { x = s.x + ALMOST.left, y = s.y + top, w = halfW, h = s.h - top - ALMOST.bottom }
+  local rightFrame = { x = leftFrame.x + halfW + PAIR_INNER_GAP, y = leftFrame.y, w = halfW, h = leftFrame.h }
+  local aCenter = winA:frame().x + winA:frame().w / 2
+  local bCenter = winB:frame().x + winB:frame().w / 2
+  if aCenter <= bCenter then
+    winA:setFrame(leftFrame, 0); winB:setFrame(rightFrame, 0)
+  else
+    winA:setFrame(rightFrame, 0); winB:setFrame(leftFrame, 0)
+  end
+end
+
+-- If `w` is Ghostty/Firefox and its counterpart is also floating on the same workspace, snap
+-- both side-by-side. No-op if there's no such counterpart (or it isn't floating).
+local function snapPairIfBothFloating(w)
+  local app = w:application() and w:application():name()
+  if not app or not PAIR_APPS[app] then return end
+  local out = runAerospace("list-windows --workspace focused --format '%{window-id}||%{app-name}||%{window-layout}'")
+  local wid = w:id()
+  for line in out:gmatch("[^\r\n]+") do
+    local id, otherApp, layout = line:match("^(%d+)||(.-)||(.-)$")
+    id = tonumber(id)
+    if id and id ~= wid and PAIR_APPS[otherApp] and layout and layout:match("floating") then
+      local other = hs.window.get(id)
+      if other then snapSideBySide(w, other) end
+      return
+    end
+  end
+end
+
 -- Toggle the focused window tiling<->floating, preserving its on-screen frame when it
 -- becomes floating (AeroSpace otherwise repositions it). Going to tiling lets the tree own it.
 function M.toggleFloatKeepPos()
@@ -207,11 +249,14 @@ function M.toggleFloatKeepPos()
   local before = w and w:frame()
   runAerospace("layout floating tiling")
   hs.timer.doAfter(0.06, function()
+    local becameFloating = false
     if w and before then
       local layout = runAerospace("list-windows --focused --format '%{window-layout}'")
-      if layout:match("floating") then w:setFrame(before, 0) end
+      becameFloating = layout:match("floating") ~= nil
+      if becameFloating then w:setFrame(before, 0) end
     end
     os.execute([[/opt/homebrew/bin/sketchybar --trigger aerospace_focus_change]])
+    if becameFloating and w then snapPairIfBothFloating(w) end
   end)
 end
 

@@ -244,9 +244,18 @@ end
 
 -- Toggle the focused window tiling<->floating, preserving its on-screen frame when it
 -- becomes floating (AeroSpace otherwise repositions it). Going to tiling lets the tree own it.
+--
+-- Force-syncs AeroSpace's internal focused-window to Hammerspoon's (real-time, notification-free)
+-- focusedWindow() before toggling. AeroSpace tracks focus via async accessibility notifications,
+-- which can lag briefly behind the true OS focus (e.g. right after switching apps) - without this,
+-- `layout floating tiling` can silently act on AeroSpace's stale focused window instead of the one
+-- Hammerspoon (and the user) actually sees focused, e.g. toggling Ghostty could flip Firefox's
+-- float state instead, or toggling Firefox could silently do nothing to it.
 function M.toggleFloatKeepPos()
   local w = hs.window.focusedWindow()
-  local before = w and w:frame()
+  if not w then return end
+  local before = w:frame()
+  runAerospace("focus --window-id " .. w:id())
   runAerospace("layout floating tiling")
   hs.timer.doAfter(0.06, function()
     local becameFloating = false

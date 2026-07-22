@@ -17,7 +17,6 @@ Single source of truth for colors used across tmux, Ghostty, and zsh (via ohmypo
 | `surface-heading-h1` | `#352f37` | nvim render-md H1 heading bg + underline fg (via `bg_as_fg`). Faint dusty pink tint at ~20% on canvas. Uses `accent-tertiary` hue. |
 | `surface-heading-h2` | `#33333a` | nvim render-md H2 heading bg + underline fg. Faint lavender tint at ~20% on canvas. Uses `accent-secondary` hue. |
 | `surface-heading-h3` | `#40362a` | nvim render-md H3 heading bg + underline fg. Faint amber tint at ~20% on canvas. Uses `accent-amber` hue. |
-| `border-neutral` | `#808080` | jankyborders `active_color` in `borders/bordersrc` — plain neutral gray, deliberately outside the palette. Only visible when `frontapps.sh`'s per-window layout tint (`accent-secondary` lavender for floating, `#bb9dbd` dusty for tiling — applied dynamically via `borders apply-to=`, not in `bordersrc`) hasn't yet run for a window; `inactive_color` reuses `surface-chrome` `#1C1C24`. |
 | `copy-mode-indicator` | `#606079` | tmux `copy-mode-position-style` block bg (top-right time/scroll box shown in copy mode); indicator text is `text-default` `#a9b1d6`. Also Ghostty ANSI 14 override (`ghostty/config`) — deliberately dims Claude Code's hardcoded session-rename label, which has no theme token (see Claude Code integration notes). |
 | `divider-subtle` | `#383848` | nvim `SnacksIndent` + `NeoTreeIndentMarker` fg (indent guides); Claude statusline ` * ` separators |
 
@@ -162,6 +161,33 @@ Lualine's section→color mapping is fixed: `lualine_a` + `lualine_z` use `.a`, 
 - **Inactive** (`a`/`b`/`c`) = bg `#1C1C24`, fg `text-muted` `#656a80`.
 
 Per-component overrides in the same file (the `buffers_color` block, the zero-width `#1c1c24` spacer in `lualine_b`, and the `filetype_spacing` extension) pin buffers to `#1c1c24` so they don't inherit the mode accent — consistent with the theme bg.
+
+## Window borders (JankyBorders)
+
+Border color/width for every window is driven by two files that must stay in lockstep:
+
+- `borders/bordersrc` — daemon defaults: `width`, plus a static `active_color`/`inactive_color`
+  fallback that only renders for a window before `frontapps.sh` has tinted it at least once (e.g.
+  right after the daemon restarts, before the next focus/workspace event).
+- `sketchybar/plugins/frontapps.sh` — per-window color override by AeroSpace layout, applied via
+  `borders apply-to=` on every focus/workspace change. Always wins over `bordersrc`'s static
+  default once it has run.
+
+Locked values — apply to every instance of borders in both files; don't reintroduce the old hexes
+(`#808080`, `#aeaed1`, `#bb9dbd`) or the old width (`6.0`):
+
+| State | Hex | Where set |
+|---|---|---|
+| Inactive (any layout) | `#1c1c24` (`surface-chrome`) | `bordersrc` `inactive_color`; `frontapps.sh` `INACT` |
+| Active, floating | `#8b8494` | `frontapps.sh` floating branch |
+| Active, tiled/sticky | `#75758D` | `bordersrc` `active_color` (static fallback — tiling is the default layout); `frontapps.sh` tiling branch |
+| Width | `5.0` | `bordersrc` `width` (per-window `apply-to=` calls never set width) |
+
+`#8b8494` and `#75758D` are dedicated border colors, not reused from `accent-secondary`/
+`accent-tertiary` — the previous scheme reused those two general-purpose accents for border
+tinting, which conflicted with their other uses elsewhere (tmux, Ghostty ANSI, ohmyposh, nvim) and
+made "the lavender accent" ambiguous depending on context. Borders now has its own two-color
+identity, independent of the rest of the palette.
 
 ## nnn preview (bat)
 

@@ -1,11 +1,16 @@
 #!/bin/bash
 
+# Locked border values (see COLORS.md "Window borders" section) - keep in lockstep with
+# sketchybar/plugins/frontapps.sh, which overrides active_color per-window by AeroSpace layout.
+# active_color here is only the static fallback for a window before frontapps.sh has tinted it at
+# least once (e.g. right after this daemon restarts); it uses the tiled color since tiling is the
+# default layout. inactive_color and width apply to every window regardless of layout.
 options=(
 	style=round
-	width=6.0
+	width=5.0
 	hidpi=off
   ax_focus=off
-  active_color=0xff808080
+  active_color=0xff75758D
 	inactive_color=0xff1c1c24
 )
 
@@ -13,8 +18,8 @@ options=(
 # re-applies via `borders apply-to=` when a window's color CHANGED since the cache, to
 # avoid redundant calls. Every borders cold start (this script) resets every window back
 # to the static active_color/inactive_color above, but the cache doesn't know that -- so
-# without this clear, a restarted borders daemon silently keeps the focused window gray
-# until its focus/layout actually changes. Clear it here so the daemon coming up is the
+# without this clear, a restarted borders daemon silently keeps stale per-window colors
+# until each window's focus/layout actually changes. Clear it here so the daemon coming up is the
 # single trigger point for a full re-tint, regardless of which caller restarted it
 # (AeroSpace after-startup-command, gaming.lua exit).
 rm -f /tmp/aerospace_border_colors

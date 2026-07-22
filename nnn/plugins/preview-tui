@@ -277,9 +277,24 @@ fifo_pager() {
             # caused word-wrap in the preview pane that couldn't be undone downstream). moor still
             # supports live wrap toggling ('w' key) for genuinely long lines - see ../toggle-wrap
             # (bound to nnn ;w).
+            #
+            # Dim the line-number gutter: bat's --theme=ansi emits no color/style at all for the
+            # number column (verified: zero escape codes around it, even with --color=always), so
+            # it renders at full terminal-foreground brightness. Wrap it in SGR 2 (dim)/22 (un-dim)
+            # instead of a new hardcoded color, consistent with not introducing a named bat theme
+            # with new hex. Only applies when NNN_BATSTYLE includes "numbers" (the gutter format
+            # this regex assumes); other styles (plain/full/grid) pass through unchanged.
+            case "$NNN_BATSTYLE" in
+                *numbers*)
+                    ESC=$'\x1b'
+                    DIM_NUM_SED="s/^( *[0-9]+ )/${ESC}[2m\\1${ESC}[22m/" ;;
+                *) DIM_NUM_SED='' ;;
+            esac
             bat --terminal-width="$cols" --decorations=always --color=always --wrap=never \
                 --paging=never $brange --style="$NNN_BATSTYLE" --theme="$NNN_BATTHEME" "$@" \
-                < /dev/null > "$PREVIEWFILE" 2>/dev/null
+                < /dev/null 2>/dev/null | {
+                if [ -n "$DIM_NUM_SED" ]; then sed -E "$DIM_NUM_SED"; else cat; fi
+            } > "$PREVIEWFILE"
         else
             cat "$@" < /dev/null > "$PREVIEWFILE" 2>/dev/null
         fi

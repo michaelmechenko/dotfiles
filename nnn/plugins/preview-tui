@@ -280,14 +280,14 @@ fifo_pager() {
             #
             # Dim the line-number gutter: bat's --theme=ansi emits no color/style at all for the
             # number column (verified: zero escape codes around it, even with --color=always), so
-            # it renders at full terminal-foreground brightness. Wrap it in SGR 2 (dim)/22 (un-dim)
-            # instead of a new hardcoded color, consistent with not introducing a named bat theme
-            # with new hex. Only applies when NNN_BATSTYLE includes "numbers" (the gutter format
+            # it renders at full terminal-foreground brightness. Wrap it in copy-mode-indicator
+            # #606079 (24-bit true color) to match nvim's dim/muted text color, instead of a new
+            # hardcoded color. Only applies when NNN_BATSTYLE includes "numbers" (the gutter format
             # this regex assumes); other styles (plain/full/grid) pass through unchanged.
             case "$NNN_BATSTYLE" in
                 *numbers*)
                     ESC=$'\x1b'
-                    DIM_NUM_SED="s/^( *[0-9]+ )/${ESC}[2m\\1${ESC}[22m/" ;;
+                    DIM_NUM_SED="s/^( *[0-9]+ )/${ESC}[38;2;96;96;121m\\1${ESC}[0m/" ;;
                 *) DIM_NUM_SED='' ;;
             esac
             bat --terminal-width="$cols" --decorations=always --color=always --wrap=never \

@@ -2,7 +2,7 @@ return {
   {
     "MeanderingProgrammer/render-markdown.nvim",
     dependencies = { "nvim-treesitter/nvim-treesitter", "echasnovski/mini.icons" }, -- if you use standalone mini plugins
-    ft = { "markdown", "codecompanion" },
+    ft = { "markdown" },
     config = function()
       require("render-markdown").setup({
         enabled = true,

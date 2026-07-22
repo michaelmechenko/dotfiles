@@ -17,7 +17,7 @@ export default function piSkillToggle(pi: ExtensionAPI) {
   const planner = new DefaultSkillTogglePlanner(fs, codec, patcher);
   const writer = new AtomicSkillChangeWriter(fs);
 
-  pi.registerCommand("toggle-skills", {
+  pi.registerCommand("skill-toggle", {
     description: "Toggle whether skills are agent-invocable or manual-only",
     handler: async (_args, ctx) => {
       await runToggleSkillsCommand(ctx, { inventory, planner, writer });

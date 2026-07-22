@@ -1,6 +1,7 @@
 ---
 name: bc-batch-commit
 description: "Split work into logical, well-scoped commits and group those commits into reviewable PR-sized batches, using clear Conventional Commits messages. Never pushes. Use when the user asks to commit, craft a commit message, stage changes, split work into multiple commits, or batch commits for separate PRs. Pass --pr to also copy a ready `gh pr create` command to the clipboard."
+disable-model-invocation: true
 ---
 
 # Batch Commit

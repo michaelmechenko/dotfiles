@@ -2,6 +2,7 @@
 name: cx-handoff
 description: "Generate a paste-ready handoff prompt for a separate session and copy it to the clipboard. Default is a general handoff; --review/-r writes a prompt for a review agent verifying a PR's changes; --continue/-c writes a full-context continuation prompt for a fresh/compacted session. Use when handing work to another session or agent, prepping a review, or before compacting a high-context session."
 allowed-tools: bash read grep find
+disable-model-invocation: true
 ---
 
 # cx-handoff — handoff prompt to clipboard

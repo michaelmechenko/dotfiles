@@ -1,12 +1,12 @@
 /**
  * Tools Extension
  *
- * Provides a /tools command to enable/disable tools interactively.
+ * Provides a /tool-toggle command to enable/disable tools interactively.
  * Tool selection persists across session reloads and respects branch navigation.
  *
  * Usage:
  * 1. Copy this file to ~/.pi/agent/extensions/ or your project's .pi/extensions/
- * 2. Use /tools to open the tool selector
+ * 2. Use /tool-toggle to open the tool selector
  */
 
 import type { ExtensionAPI, ExtensionContext, ToolInfo } from "@earendil-works/pi-coding-agent";
@@ -63,12 +63,12 @@ export default function toolsExtension(pi: ExtensionAPI) {
 		}
 	}
 
-	// Register /tools command
-	pi.registerCommand("tools", {
+	// Register /tool-toggle command
+	pi.registerCommand("tool-toggle", {
 		description: "Enable/disable tools",
 		handler: async (_args, ctx) => {
 			if (ctx.mode !== "tui") {
-				ctx.ui.notify("/tools requires TUI mode", "error");
+				ctx.ui.notify("/tool-toggle requires TUI mode", "error");
 				return;
 			}
 

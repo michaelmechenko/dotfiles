@@ -105,7 +105,13 @@ return {
         hl["LspInlayHint"]               = { fg = "#606079", italic = true }
         hl["GitSignsCurrentLineBlame"]   = { fg = "#606079" }
         hl["ComplHint"]                  = { fg = "#606079" }
-        hl["RenderMarkdownH1Bg"]         = { fg = "#bb9dbd", bg = "None" }
+        hl["RenderMarkdownH1"]         = { fg = "#f3be7c", bg = "None" }
+        hl["RenderMarkdownH2"]         = { fg = "#bb9dbd", bg = "None" }
+        hl["RenderMarkdownH3"]         = { fg = "#aeaed1", bg = "None" }
+        hl["RenderMarkdownH4"]         = { fg = "#f3be7c", bg = "None" }
+        hl["RenderMarkdownH5"]         = { fg = "#bb9dbd", bg = "None" }
+        hl["RenderMarkdownH6"]         = { fg = "#aeaed1", bg = "None" }
+        hl["RenderMarkdownH1Bg"]         = { fg = "#f3be7c", bg = "None" }
         hl["RenderMarkdownH2Bg"]         = { fg = "#bb9dbd", bg = "None" }
         hl["RenderMarkdownH3Bg"]         = { fg = "#aeaed1", bg = "None" }
         hl["RenderMarkdownH4Bg"]         = { fg = "#f3be7c", bg = "None" }

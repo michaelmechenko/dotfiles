@@ -4,10 +4,10 @@
  * Duplicated from the dashboard header in davis7dotsh/my-pi-setup
  * (extensions/ui-customization/index.ts), simplified to a plain "pi"
  * wordmark (not upstream's block-drawing "PI" art, and no companion
- * git-info/model-info dashboard), a directory subtitle, and an
- * enabled/disabled extension-count summary line. Colors come from the
- * active theme's `accent`/`muted`/`dim` roles (no hardcoded hex),
- * consistent with this repo's palette discipline.
+ * git-info/model-info dashboard), a directory subtitle, and
+ * enabled/disabled extension-count and skill-count summary lines. Colors
+ * come from the active theme's `accent`/`muted`/`dim` roles (no hardcoded
+ * hex), consistent with this repo's palette discipline.
  */
 
 import { homedir } from "node:os";
@@ -35,57 +35,67 @@ function center(text: string, width: number): string {
 	return truncateToWidth(`${" ".repeat(padding)}${text}`, width);
 }
 
-interface ExtensionSummary {
+interface ResourceSummary {
 	enabledCount: number;
 	totalCount: number;
 	disabledNames: string[];
 }
 
 /**
- * Human-readable name for a resolved extension resource. Top-level (bare,
- * auto-discovered) extensions always live at `<...>/extensions/<name>/...`,
- * so the segment right after "extensions" is the extension's own directory
+ * Human-readable name for a resolved extension or skill resource. Top-level
+ * (bare, auto-discovered) resources always live at
+ * `<...>/<containerName>/<name>/...` (`extensions` or `skills`), so the
+ * segment right after the container name is the resource's own directory
  * name -- this works even when the entry point is nested (e.g.
  * `skill-toggle/src/index.ts`), where naively taking the immediate parent
  * directory would wrongly report "src".
  */
-function extensionDisplayName(resource: ResolvedResource): string {
+function resourceDisplayName(resource: ResolvedResource, containerName: string): string {
 	if (resource.metadata.origin === "package") return resource.metadata.source;
 	const segments = resource.path.split(path.sep);
-	const extensionsIndex = segments.lastIndexOf("extensions");
-	if (extensionsIndex !== -1 && extensionsIndex + 1 < segments.length) {
-		return segments[extensionsIndex + 1] as string;
+	const containerIndex = segments.lastIndexOf(containerName);
+	if (containerIndex !== -1 && containerIndex + 1 < segments.length) {
+		return segments[containerIndex + 1] as string;
 	}
 	const base = path.basename(resource.path, path.extname(resource.path));
 	return base === "index" ? path.basename(path.dirname(resource.path)) : base;
 }
 
-/** Resolve enabled/disabled extension counts the same way the extension-toggle extension does. */
-async function summarizeExtensions(cwd: string): Promise<ExtensionSummary | undefined> {
+function summarizeResources(resources: ResolvedResource[], containerName: string): ResourceSummary {
+	const totalCount = resources.length;
+	const enabledCount = resources.filter((r) => r.enabled).length;
+	const disabledNames = resources
+		.filter((r) => !r.enabled)
+		.map((r) => resourceDisplayName(r, containerName))
+		.sort((a, b) => a.localeCompare(b));
+
+	return { enabledCount, totalCount, disabledNames };
+}
+
+/** Resolve enabled/disabled extension and skill counts the same way the extension-toggle extension does. */
+async function summarizeResourcesForCwd(
+	cwd: string,
+): Promise<{ extensions: ResourceSummary; skills: ResourceSummary } | undefined> {
 	try {
 		const agentDir = getAgentDir();
 		const settingsManager = SettingsManager.create(cwd, agentDir);
 		const packageManager = new DefaultPackageManager({ cwd, agentDir, settingsManager });
 		const resolved = await packageManager.resolve();
 
-		const totalCount = resolved.extensions.length;
-		const enabledCount = resolved.extensions.filter((r) => r.enabled).length;
-		const disabledNames = resolved.extensions
-			.filter((r) => !r.enabled)
-			.map(extensionDisplayName)
-			.sort((a, b) => a.localeCompare(b));
-
-		return { enabledCount, totalCount, disabledNames };
+		return {
+			extensions: summarizeResources(resolved.extensions, "extensions"),
+			skills: summarizeResources(resolved.skills, "skills"),
+		};
 	} catch {
 		return undefined;
 	}
 }
 
-function formatExtensionSummaryLine(summary: ExtensionSummary): string {
+function formatSummaryLine(summary: ResourceSummary, label: string): string {
 	if (summary.disabledNames.length === 0) {
-		return `${summary.totalCount} extensions enabled`;
+		return `${summary.totalCount} ${label}`;
 	}
-	return `${summary.enabledCount}/${summary.totalCount} extensions enabled \u00b7 disabled: ${summary.disabledNames.join(", ")}`;
+	return `${summary.enabledCount}/${summary.totalCount} ${label} \u00b7 disabled: ${summary.disabledNames.join(", ")}`;
 }
 
 export default function header(pi: ExtensionAPI) {
@@ -93,7 +103,7 @@ export default function header(pi: ExtensionAPI) {
 		if (ctx.mode !== "tui") return;
 
 		const subtitle = formatDirectory(ctx.cwd);
-		const summary = await summarizeExtensions(ctx.cwd);
+		const summary = await summarizeResourcesForCwd(ctx.cwd);
 
 		ctx.ui.setHeader((_tui, theme) => {
 			return {
@@ -104,7 +114,8 @@ export default function header(pi: ExtensionAPI) {
 						center(theme.fg("muted", subtitle), width),
 					];
 					if (summary) {
-						lines.push(center(theme.fg("dim", formatExtensionSummaryLine(summary)), width));
+						lines.push(center(theme.fg("dim", formatSummaryLine(summary.extensions, "extensions")), width));
+						lines.push(center(theme.fg("dim", formatSummaryLine(summary.skills, "skills")), width));
 					}
 					lines.push("");
 					return lines;

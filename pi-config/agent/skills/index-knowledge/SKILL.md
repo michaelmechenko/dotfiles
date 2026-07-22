@@ -1,6 +1,7 @@
 ---
 name: index-knowledge
 description: "Generate hierarchical AGENTS.md knowledge base for a codebase. Creates root + complexity-scored subdirectory documentation."
+disable-model-invocation: true
 ---
 
 # index-knowledge

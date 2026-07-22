@@ -200,50 +200,38 @@ function M.almostMaximizeAll()
   snapByIds(ids, ALMOST)
 end
 
--- Ghostty/Firefox side-by-side auto-snap: cmd-shift-s's app-pair companion behavior. Half-screen
--- each, using the same ALMOST gap insets as almostMaximize, with a 16px gap between them
--- (matches aerospace.toml gaps.inner.horizontal). Ordering follows current on-screen position so
--- whichever window is already further left stays left.
+-- Ghostty/Firefox pair: cmd-shift-s's app-pair companion behavior.
+--   both floating              -> tile BOTH (real AeroSpace tiles, side-by-side)
+--   one tiled, other floating  -> plain single-window toggle (default), only the focused one
+--   both tiled                 -> plain single-window toggle (default), only the focused one
+-- Only the "both floating" case is special-cased; every other combination (including when only
+-- one of the pair is open, or the focused app isn't Ghostty/Firefox) falls through unchanged.
 local PAIR_APPS = { Ghostty = true, Firefox = true }
-local PAIR_INNER_GAP = 16
 
-local function snapSideBySide(winA, winB)
-  local scr = winA:screen()
-  local s = scr:frame()
-  local top = topInset(ALMOST, scr)
-  local totalW = s.w - ALMOST.left - ALMOST.right - PAIR_INNER_GAP
-  local halfW = totalW / 2
-  local leftFrame = { x = s.x + ALMOST.left, y = s.y + top, w = halfW, h = s.h - top - ALMOST.bottom }
-  local rightFrame = { x = leftFrame.x + halfW + PAIR_INNER_GAP, y = leftFrame.y, w = halfW, h = leftFrame.h }
-  local aCenter = winA:frame().x + winA:frame().w / 2
-  local bCenter = winB:frame().x + winB:frame().w / 2
-  if aCenter <= bCenter then
-    winA:setFrame(leftFrame, 0); winB:setFrame(rightFrame, 0)
-  else
-    winA:setFrame(rightFrame, 0); winB:setFrame(leftFrame, 0)
-  end
-end
-
--- If `w` is Ghostty/Firefox and its counterpart is also floating on the same workspace, snap
--- both side-by-side. No-op if there's no such counterpart (or it isn't floating).
-local function snapPairIfBothFloating(w)
+-- Returns (w's own layout, other window's id, other window's layout) for `w`'s Ghostty/Firefox
+-- counterpart on the same workspace, or nil if `w` isn't a pair app or has no counterpart open.
+local function findPairState(w)
   local app = w:application() and w:application():name()
-  if not app or not PAIR_APPS[app] then return end
+  if not app or not PAIR_APPS[app] then return nil end
   local out = runAerospace("list-windows --workspace focused --format '%{window-id}||%{app-name}||%{window-layout}'")
   local wid = w:id()
+  local wLayout, otherId, otherLayout
   for line in out:gmatch("[^\r\n]+") do
-    local id, otherApp, layout = line:match("^(%d+)||(.-)||(.-)$")
+    local id, lineApp, layout = line:match("^(%d+)||(.-)||(.-)$")
     id = tonumber(id)
-    if id and id ~= wid and PAIR_APPS[otherApp] and layout and layout:match("floating") then
-      local other = hs.window.get(id)
-      if other then snapSideBySide(w, other) end
-      return
+    if id == wid then
+      wLayout = layout
+    elseif id and PAIR_APPS[lineApp] then
+      otherId = id
+      otherLayout = layout
     end
   end
+  if not otherId then return nil end
+  return wLayout, otherId, otherLayout
 end
 
--- Toggle the focused window tiling<->floating, preserving its on-screen frame when it
--- becomes floating (AeroSpace otherwise repositions it). Going to tiling lets the tree own it.
+-- Toggle the focused window tiling<->floating, preserving its on-screen frame when it becomes
+-- floating (AeroSpace otherwise repositions it). Going to tiling lets the tree own it.
 --
 -- Force-syncs AeroSpace's internal focused-window to Hammerspoon's (real-time, notification-free)
 -- focusedWindow() before toggling. AeroSpace tracks focus via async accessibility notifications,
@@ -254,18 +242,30 @@ end
 function M.toggleFloatKeepPos()
   local w = hs.window.focusedWindow()
   if not w then return end
+
+  local wLayout, otherId, otherLayout = findPairState(w)
+  if otherId and wLayout == "floating" and otherLayout and otherLayout:match("floating") then
+    -- Both floating -> tile both. AeroSpace inserts the second freshly-tiled window next to the
+    -- first automatically (verified live), so no explicit join-with/positioning is needed. Focus
+    -- ends back on `w`, the window the user actually pressed the key on.
+    runAerospace("focus --window-id " .. w:id())
+    runAerospace("layout tiling")
+    runAerospace("focus --window-id " .. otherId)
+    runAerospace("layout tiling")
+    runAerospace("focus --window-id " .. w:id())
+    hs.timer.doAfter(0.06, function()
+      os.execute([[/opt/homebrew/bin/sketchybar --trigger aerospace_focus_change]])
+    end)
+    return
+  end
+
   local before = w:frame()
   runAerospace("focus --window-id " .. w:id())
   runAerospace("layout floating tiling")
   hs.timer.doAfter(0.06, function()
-    local becameFloating = false
-    if w and before then
-      local layout = runAerospace("list-windows --focused --format '%{window-layout}'")
-      becameFloating = layout:match("floating") ~= nil
-      if becameFloating then w:setFrame(before, 0) end
-    end
+    local layout = runAerospace("list-windows --focused --format '%{window-layout}'")
+    if layout:match("floating") then w:setFrame(before, 0) end
     os.execute([[/opt/homebrew/bin/sketchybar --trigger aerospace_focus_change]])
-    if becameFloating and w then snapPairIfBothFloating(w) end
   end)
 end
 

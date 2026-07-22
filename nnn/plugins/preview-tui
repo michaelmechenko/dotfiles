@@ -191,7 +191,16 @@ start_preview() {
         tmux) # tmux splits are inverted
             ENVVARS=("${ENVVARS[@]/#/-e}")
             if [ "$NNN_SPLIT" = "v" ]; then split="h"; else split="v"; fi
-            tmux split-window -l"$NNN_SPLITSIZE"% "${ENVVARS[@]}" -d"$split" -p"$NNN_SPLITSIZE" "$0" "$1" ;;
+            # Record origin-pane -> preview-pane so M-u/M-n (nnn/plugins/.nnn-preview-scroll) can
+            # find the *actual* preview pane instead of guessing "any other pane in the window" -
+            # that guess breaks once a 3rd unrelated pane (e.g. a pi/claude pane above the nnn
+            # pane) shares the same window. $TMUX_PANE (not `tmux display-message -p`, which
+            # resolves to the window's currently *active* pane - not necessarily this one) is the
+            # only reliable way to name the pane this script is actually running in.
+            origin_pane="$TMUX_PANE"
+            new_pane="$(tmux split-window -l"$NNN_SPLITSIZE"% "${ENVVARS[@]}" -d"$split" -p"$NNN_SPLITSIZE" -P -F '#{pane_id}' "$0" "$1")"
+            mkdir -p "$TMPDIR/nnn-preview-panes" 2>/dev/null
+            printf '%s' "$new_pane" > "$TMPDIR/nnn-preview-panes/$origin_pane" 2>/dev/null ;;
         kitty) # Setting the layout for the new window. It will be restored after the script ends.
             ENVVARS=("${ENVVARS[@]/#/--env=}")
             kitty @ goto-layout splits

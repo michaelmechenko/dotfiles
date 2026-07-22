@@ -1,12 +1,24 @@
 #!/usr/bin/env sh
-# Shared helper for M-u/M-n while the nnn tmux session's listing pane is focused: sends scroll
-# keys to the sibling preview pane directly, since nnn and its pager (moor/less) don't understand
-# M-u/M-n themselves. Only invoked when the current pane's command is actually "nnn" (see
-# tmux.conf's M-u/M-n bindings) - never called while the preview pane itself is focused.
+# Shared helper for M-u/M-n while an nnn pane is focused: sends scroll keys to nnn's own preview
+# pane directly, since nnn and its pager (moor/less) don't understand M-u/M-n themselves. Only
+# invoked when the current pane's command is actually "nnn" (see tmux.conf's M-u/M-n bindings) -
+# never called while the preview pane itself is focused.
 # $1 = up|down
 dir="$1"
 self="$(tmux display-message -p '#{pane_id}')"
-other="$(tmux list-panes -F '#{pane_id}' | grep -v -- "$self" | head -1)"
+
+# preview-tui records origin-pane -> preview-pane at split time (see ../preview-tui's tmux
+# branch of start_preview()) - read that instead of guessing "any other pane in the window",
+# which breaks once a 3rd unrelated pane (e.g. a pi/claude pane) shares the same window.
+map="${TMPDIR:-/tmp}/nnn-preview-panes/$self"
+other="$(cat "$map" 2>/dev/null)"
+
+# Fall back to the naive "other pane in the window" guess if there's no mapping yet, or the
+# mapped pane no longer exists (stale from a previous preview session).
+if [ -z "$other" ] || ! tmux list-panes -F '#{pane_id}' | grep -qx -- "$other"; then
+    other="$(tmux list-panes -F '#{pane_id}' | grep -v -- "$self" | head -1)"
+fi
+
 [ -z "$other" ] && exit 0
 case "$dir" in
     up)   tmux send-keys -t "$other" -N 10 Up ;;

@@ -10,7 +10,7 @@ options=(
 	width=5.0
 	hidpi=off
   ax_focus=off
-  active_color=0xff75758D
+  active_color=0xffAEAED1
 	inactive_color=0xff1c1c24
 )
 

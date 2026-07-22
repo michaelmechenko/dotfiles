@@ -174,20 +174,21 @@ Border color/width for every window is driven by two files that must stay in loc
   default once it has run.
 
 Locked values — apply to every instance of borders in both files; don't reintroduce the old hexes
-(`#808080`, `#aeaed1`, `#bb9dbd`) or the old width (`6.0`):
+(`#808080`, `#bb9dbd`, `#75758D`) or the old width (`6.0`):
 
 | State | Hex | Where set |
 |---|---|---|
 | Inactive (any layout) | `#1c1c24` (`surface-chrome`) | `bordersrc` `inactive_color`; `frontapps.sh` `INACT` |
-| Active, floating | `#8b8494` | `frontapps.sh` floating branch |
-| Active, tiled/sticky | `#75758D` | `bordersrc` `active_color` (static fallback — tiling is the default layout); `frontapps.sh` tiling branch |
+| Active, floating | `#8B8692` | `frontapps.sh` floating branch |
+| Active, tiled/sticky | `#AEAED1` (`accent-secondary` lavender) | `bordersrc` `active_color` (static fallback — tiling is the default layout); `frontapps.sh` tiling branch |
 | Width | `5.0` | `bordersrc` `width` (per-window `apply-to=` calls never set width) |
 
-`#8b8494` and `#75758D` are dedicated border colors, not reused from `accent-secondary`/
-`accent-tertiary` — the previous scheme reused those two general-purpose accents for border
-tinting, which conflicted with their other uses elsewhere (tmux, Ghostty ANSI, ohmyposh, nvim) and
-made "the lavender accent" ambiguous depending on context. Borders now has its own two-color
-identity, independent of the rest of the palette.
+Active-tiled deliberately reuses `accent-secondary` lavender (the same hex as tmux's active-pane
+border, Ghostty ANSI 6/12, etc.) — ties tiled-window borders to the same lavender identity used
+elsewhere. Active-floating (`#8B8692`) stays a dedicated border-only color: a light desaturation of
+an earlier `#8b8494` gray (blended ~30% toward its own average-channel gray) so floating windows
+read as a *slightly* grayer, less saturated variant next to the tiled lavender — not tied to any
+other palette role.
 
 ## nnn preview (bat)
 

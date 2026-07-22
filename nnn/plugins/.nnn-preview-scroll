@@ -1,0 +1,14 @@
+#!/usr/bin/env sh
+# Shared helper for M-u/M-n while the nnn tmux session's listing pane is focused: sends scroll
+# keys to the sibling preview pane directly, since nnn and its pager (moor/less) don't understand
+# M-u/M-n themselves. Only invoked when the current pane's command is actually "nnn" (see
+# tmux.conf's M-u/M-n bindings) - never called while the preview pane itself is focused.
+# $1 = up|down
+dir="$1"
+self="$(tmux display-message -p '#{pane_id}')"
+other="$(tmux list-panes -F '#{pane_id}' | grep -v -- "$self" | head -1)"
+[ -z "$other" ] && exit 0
+case "$dir" in
+    up)   tmux send-keys -t "$other" -N 10 Up ;;
+    down) tmux send-keys -t "$other" -N 10 Down ;;
+esac

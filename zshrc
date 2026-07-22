@@ -117,9 +117,8 @@ export NNN_COLORS='63256325'
 export NNN_FCOLORS='060606020005030801050201'
 
 # in-nnn plugin keys (pressed as ;<key>): ;l horizontal split, ;j vertical split,
-# ;i send a cd command to the origin pane's prompt, ;s git status of the hovered dir (scoped to
-# that dir via `-- .`, not the whole repo; no-op output if it isn't a git repo)
-export NNN_PLUG='l:tmux-split-h;j:tmux-split-v;i:cd-origin;p:preview-tui;s:-!|git -C "$nnn" status --short -- . 2>&1'
+# ;i send a cd command to the origin pane's prompt
+export NNN_PLUG='l:tmux-split-h;j:tmux-split-v;i:cd-origin;p:preview-tui'
 export NNN_SPLIT=v
 export NNN_SPLITSIZE=60
 

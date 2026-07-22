@@ -194,6 +194,8 @@ other palette role.
 
 `M-d` nnn previews (including `;f`/`fzcd` and `;g`/`fzrg`) and tmux fzf previews use bat with `--theme=ansi` (`NNN_BATTHEME=ansi`). This keeps syntax colors aligned with the active terminal palette instead of pinning a separate TextMate theme.
 
+`--theme=ansi` emits no color/style at all for bat's line-number gutter (`--style=numbers`), so `nnn/plugins/preview-tui` pipes bat's output through `sed` to explicitly wrap the gutter in `copy-mode-indicator` `#606079` — matches nvim's dim/muted text color rather than leaving the numbers at full terminal-foreground brightness.
+
 ## fzf
 
 `FZF_DEFAULT_OPTS` in `~/.config/zshrc` sets a `--color` scheme matching the palette (applies to all fzf: fzcd, tmux-fzf-url, fzf-tab, shell). Mapping:

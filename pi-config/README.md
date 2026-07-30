@@ -79,6 +79,7 @@ discipline (see `~/.config/COLORS.md`).
 | `skill-toggle/` | UI for enabling/disabling discovered skills by patching their frontmatter. Upstream's actual entry point is `src/index.ts`. A top-level `index.ts` shim re-exporting it (`export { default } from "./src/index.ts";`) exists for pi's directory auto-discovery (`extensions/*/index.ts`), but pi's `resolveExtensionEntries()` checks a directory's `package.json` `pi.extensions` manifest *first* and uses that path unconditionally if present — the shim never actually took effect while `package.json` still declared `"pi": { "extensions": ["./src/index.ts"] }`. That meant pi resolved the extension via `src/index.ts` directly, and pi core's own compact-label algorithm (visible in the startup `[Extensions]` context panel) strips the trailing `index.ts` and reports the immediate parent dir as the label — `src`, since it happened to be unique — instead of `skill-toggle`. Fixed by removing the manifest field from `package.json`, so discovery now falls through to the top-level shim and resolves to `skill-toggle/index.ts`, correctly labeled `skill-toggle` everywhere (not just in the `header` extension's own smarter labeling, which already special-cased this) |
 | `save-md/` | `/save-md name` — saves the latest assistant response as `name.md` |
 | `web-tools/` | `webfetch` (fetch a URL as markdown/text/html, SSRF-guarded) and `websearch` (Exa-backed web search) tools. **Forked, not a straight copy** — see [Web search/browse tooling](#web-searchbrowse-tooling) below |
+| `whimsical/` | Randomizes the TUI's working-message text (`turn_start`/`turn_end`). Message list trimmed to 3, lowercase: `hmm...`, `erm...`, `uhh...` — upstream's ~300-entry whimsical list not used |
 
 ### Vendored from `davis7dotsh/my-pi-setup`
 
@@ -118,21 +119,45 @@ resolution this extension uses internally. To pick up upstream changes, diff aga
 
 | Extension | What it does |
 |---|---|
-| `pretty/` | Replaces built-in `read`/`bash`/`ls`/`find`/`grep` rendering: Shiki-highlighted `read` previews (+ inline images on supported terminals), colored `bash` exit summaries, Nerd Font tree `ls`, and FFF-backed `find`/`grep` (bundles its own `@ff-labs/fff-node`, independent of the now-removed `@ff-labs/pi-fff` package below). `/fff-health` / `/fff-rescan` maintenance commands included |
-| `diff/` | Replaces built-in `write`/`edit` tool output with Shiki-powered syntax-highlighted diffs (split side-by-side + unified stacked views, word-level emphasis). Also registers an edit guard (`tool_call` handler) that blocks `edit` calls whose `oldText` is stale, forcing a re-read instead of a fuzzy-retry loop |
+| `pretty/` | Replaces built-in `read`/`bash`/`ls`/`find`/`grep` rendering: Shiki-highlighted `read` previews (+ inline images on supported terminals), colored `bash` exit summaries, Nerd Font tree `ls`. `find`/`grep` are thin renderers over Pi's own built-in SDK tools, which are themselves fd/rg-backed — **FFF integration removed** (see below) |
+| `diff/` | Replaces built-in `write`/`edit` tool output with Shiki-powered syntax-highlighted diffs (split side-by-side + unified stacked views, word-level emphasis). Also registers an edit guard (`tool_call` handler) that blocks `edit` calls whose `oldText` is stale, forcing a re-read instead of a fuzzy-retry loop. `apply_patch` is transactional (prepare-then-commit-with-rollback across multiple files, symlink/duplicate-path guards) |
 
-Both are real published npm packages (`@heyhuynhgiabuu/pi-pretty`, `@heyhuynhgiabuu/pi-diff`) with their
-own runtime dependencies (Shiki, `@ff-labs/fff-node`, `diff`, `xxhash-wasm`), so — like `ask-user/` and
+Both are real published npm packages (`@heyhuynhgiabuu/pi-pretty` v0.6.21, `@heyhuynhgiabuu/pi-diff`
+v0.7.6) with their own runtime dependencies (Shiki, `diff`, `xxhash-wasm`), so — like `ask-user/` and
 `web-tools/` — each has its own `package.json` + `npm install`-ed `node_modules/` (gitignored). Unlike a
 plain `pi install npm:...`, they're vendored as source under `extensions/pretty/src/` and
 `extensions/diff/src/` with a top-level `index.ts` shim re-exporting the real entry point — same
 manifest-precedence workaround as `skill-toggle/` (a `package.json` `"pi": { "extensions": [...] }`
 field pointing at a built `dist/` would win discovery over the shim, and neither package ships without
 a build step otherwise). Each `package.json` intentionally omits that `pi.extensions` manifest field so
-discovery falls through to the shim. `pretty/`'s bundled FFF is why the standalone `@ff-labs/pi-fff`
-package was removed — running both would double-register `find`/`grep`. To pick up upstream changes,
-re-clone each repo's `src/` and re-copy by hand (drop `*.test.ts`, keep the shim and trimmed
-`package.json`) — there's no `pi update` path for a forked-local extension.
+discovery falls through to the shim. To pick up upstream changes, re-clone each repo's `src/` and
+re-copy by hand (drop `*.test.ts`, keep the shim and trimmed `package.json`) — there's no `pi update`
+path for a forked-local extension.
+
+**`pretty/`'s FFF integration was removed entirely** (`src/fff.ts`, `src/fff-helpers.ts`,
+`src/autocomplete.ts`, `src/find-glob.ts` deleted; `@ff-labs/fff-node` dropped from `package.json` and
+`node_modules/`; `/fff-health`/`/fff-rescan` commands, the FFF `session_start`/`session_shutdown`
+lifecycle, and the `"FFF indexed"` footer status line all removed). `find`/`grep` now always call
+through to Pi's built-in SDK `find`/`grep` tools, which already shell out to `fd`/`rg` directly
+(verified in `@earendil-works/pi-coding-agent`'s own `dist/core/tools/{find,grep}.js`) — no daemon, no
+new dependency, and this is also why the now-removed `@ff-labs/pi-fff` package (below) was never
+needed for fd/rg-backed search. `src/tools/bash.ts` still carries an **undocumented local patch**
+(reactive width-aware header re-render on terminal resize + indented multi-line command display) that
+predates this note — preserve it when re-syncing from upstream; don't overwrite the file wholesale.
+
+## Keybindings (`agent/keybindings.json`)
+
+Only remaps pi's own closed, built-in `KEYBINDINGS` registry (namespaced ids like `tui.input.newLine`,
+`app.session.toggleSort` — see `docs/keybindings.md`). Extensions that call `pi.registerShortcut(shortcut, ...)`
+take a literal raw key combo (`KeyId`), not a namespaced id, so **there is no way to remap an
+extension's shortcut via `keybindings.json`** — verified against `@earendil-works/pi-coding-agent`'s
+`dist/core/extensions/types.d.ts` (`registerShortcut(shortcut: KeyId, ...)`) and `dist/core/keybindings.js`
+(a closed table extensions can't add entries to). Documented here instead, as a plain reference:
+
+| Extension | Hardcoded shortcut |
+|---|---|
+| `extension-toggle/` | `ctrl+shift+e` |
+| `prompt-stash/` | `ctrl+s` |
 
 ## Packages (`agent/settings.json` → `packages`, npm-managed)
 
@@ -155,6 +180,14 @@ and the repo-root `.gitignore` entry for `agent/extensions/*/node_modules`).
 - **Prompts** (workflow presets): `/implement` (scout → planner → worker), `/scout-and-plan` (scout → planner), `/implement-and-review` (worker → reviewer → worker).
 
 Project-local `.pi/agents/*.md` only load if a subagent call passes `agentScope: "both"` or `"project"` — see `extensions/subagent/README.md`.
+
+**`heyhuynhgiabuu/pi-task` was evaluated and not vendored.** It adds background (non-blocking) tasks
+with tmux/HerdR pane observability, restart-recovery, and durable resumable `conversation_id` subagent
+threads — real capability `subagent/` doesn't have (foreground-only single/parallel/chain). Not vendored
+because it would register a second, competing delegation tool (`task` alongside `subagent`) with no
+integration into this repo's `agents/`/`prompts/` workflow-preset system — same double-registration
+concern that ruled out running `@ff-labs/pi-fff` alongside `pretty/`'s find/grep. Revisit only if
+background/async subagents with tmux pane observability become a real need.
 
 ## Skills (`agent/skills/`)
 

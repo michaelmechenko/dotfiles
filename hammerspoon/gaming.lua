@@ -27,18 +27,25 @@ function M.toggleGamingMode()
     hs.alert.show("gaming mode: UI killed")
   else
     -- Exit gaming mode: restart UI helpers, enable aerospace.
-    -- hs.task launches properly detached processes (os.execute with & gets killed
-    -- when the Lua call returns). Pass -c so sketchybar finds its config.
-    -- PATH export is load-bearing: sketchybarrc calls bare `sketchybar` internally and
-    -- Hammerspoon's GUI env lacks /opt/homebrew/bin, so a direct hs.task launch brings the
-    -- bar up at raw defaults (every config command silently fails). Wrap in bash with PATH,
-    -- same fix as bar.lua's reload. (bordersrc hardcodes borders' absolute path, so it's fine.)
-    hs.task.new("/bin/bash", nil,
-      {"-c", "export PATH=/opt/homebrew/bin:$PATH; exec " .. SKETCHYBAR .. " -c " .. SKETCHYBAR_RC}
-    ):start()
+    -- Launched via hs.execute + nohup/&, NOT hs.task: an hs.task object is killed by its own
+    -- GC finalizer if nothing keeps a Lua reference to it, and an anonymous
+    -- hs.task.new(...):start() with no assignment is eligible for GC immediately. A Hammerspoon
+    -- config reload forces a GC pass over the old Lua state, which collected these and killed
+    -- sketchybar/borders as a side effect. hs.execute's backgrounded subshell isn't tracked by
+    -- any Lua object, so nothing can GC-kill it -- same fix as bar.lua's M.reload(). PATH export
+    -- is load-bearing: sketchybarrc calls bare `sketchybar` internally and Hammerspoon's GUI env
+    -- lacks /opt/homebrew/bin.
+    hs.execute(
+      "( export PATH=/opt/homebrew/bin:$PATH; nohup " .. SKETCHYBAR .. " -c " .. SKETCHYBAR_RC ..
+      " >/dev/null 2>&1 & ) >/dev/null 2>&1 &",
+      false
+    )
     -- borders is launched via bordersrc (not a hardcoded args list here) so its
     -- style/colors stay in sync with the canonical config -- don't duplicate args.
-    hs.task.new("/bin/bash", nil, {HOME .. "/.config/borders/bordersrc"}):start()
+    hs.execute(
+      "( nohup /bin/bash " .. HOME .. "/.config/borders/bordersrc >/dev/null 2>&1 & ) >/dev/null 2>&1 &",
+      false
+    )
     os.execute(AEROSPACE .. " enable on 2>/dev/null")
     -- bordersrc clears frontapps.sh's tint cache on every cold start, but nothing re-runs
     -- frontapps.sh here -- without this trigger the focused window stays at bordersrc's

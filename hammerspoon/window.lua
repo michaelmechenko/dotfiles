@@ -269,4 +269,17 @@ function M.toggleFloatKeepPos()
   end)
 end
 
+
+-- Toggle-hide the frontmost app (native macOS hide/unhide, same as cmd-h —
+-- not minimize/close; dock icon dims and clicking it unhides).
+function M.toggleHideFrontmost()
+  local app = hs.application.frontmostApplication()
+  if not app then return end
+  if app:isHidden() then
+    app:unhide()
+  else
+    app:hide()
+  end
+end
+
 return M

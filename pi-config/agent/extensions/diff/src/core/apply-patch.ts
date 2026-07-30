@@ -7,7 +7,7 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { replace } from "./replace.js";
+import { replaceForPatch } from "./replace.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -53,114 +53,138 @@ export interface ApplyPatchError {
 // Atomic file write
 // ---------------------------------------------------------------------------
 
-async function atomicWriteFile(filePath: string, content: string): Promise<void> {
+async function atomicWriteFile(filePath: string, content: string, mode?: number): Promise<void> {
 	const dir = path.dirname(filePath);
 	const tmp = path.join(dir, `.${path.basename(filePath)}.pi-apply-patch.${process.pid}.tmp`);
-	await fs.promises.writeFile(tmp, content, "utf8");
+	await fs.promises.writeFile(tmp, content, { encoding: "utf8", mode });
 	await fs.promises.rename(tmp, filePath);
 }
 
-// ---------------------------------------------------------------------------
-// Individual change handlers
-// ---------------------------------------------------------------------------
+interface PreparedChange {
+	change: ApplyPatchChange;
+	applied: AppliedChange;
+	commit(): Promise<void>;
+	rollback(): Promise<void>;
+}
 
-async function handleAdd(change: ApplyPatchChange): Promise<AppliedChange> {
+interface FileSnapshot {
+	content: string;
+	mode: number;
+}
+
+async function readRegularFile(filePath: string, label: string): Promise<FileSnapshot> {
+	let stats: fs.Stats;
+	try {
+		stats = await fs.promises.lstat(filePath);
+	} catch {
+		throw new Error(`${label} not found: ${filePath}`);
+	}
+	if (stats.isSymbolicLink()) throw new Error(`${label} must not be a symbolic link: ${filePath}`);
+	if (!stats.isFile()) throw new Error(`${label} must be a regular file: ${filePath}`);
+	return { content: await fs.promises.readFile(filePath, "utf8"), mode: stats.mode };
+}
+
+async function pathExists(filePath: string): Promise<boolean> {
+	try {
+		await fs.promises.lstat(filePath);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+async function prepareAdd(change: ApplyPatchChange): Promise<PreparedChange> {
+	if (await pathExists(change.path)) throw new Error(`add target already exists: ${change.path}`);
 	const content = change.content ?? "";
-	// Ensure trailing newline
 	const final = content.endsWith("\n") ? content : `${content}\n`;
 
-	// Create parent directories
-	const dir = path.dirname(change.path);
-	await fs.promises.mkdir(dir, { recursive: true });
-
-	await atomicWriteFile(change.path, final);
-
 	return {
-		path: change.path,
-		action: "add",
-		bytes: Buffer.byteLength(final, "utf8"),
-		newContent: final,
+		change,
+		applied: { path: change.path, action: "add", bytes: Buffer.byteLength(final, "utf8"), newContent: final },
+		async commit() {
+			await fs.promises.mkdir(path.dirname(change.path), { recursive: true });
+			await atomicWriteFile(change.path, final);
+		},
+		async rollback() {
+			await fs.promises.unlink(change.path);
+		},
 	};
 }
 
-async function handleUpdate(change: ApplyPatchChange): Promise<AppliedChange> {
-	if (!change.oldText) {
-		throw new Error(`update requires oldText`);
-	}
-	if (change.oldText === change.newText) {
-		throw new Error(`oldText and newText are identical — no change`);
-	}
+async function prepareUpdate(change: ApplyPatchChange): Promise<PreparedChange> {
+	if (!change.oldText) throw new Error("update requires oldText");
+	if (change.oldText === change.newText) throw new Error("oldText and newText are identical — no change");
 
-	// Read current content
-	let content: string;
-	try {
-		content = await fs.promises.readFile(change.path, "utf8");
-	} catch (err) {
-		const msg = err instanceof Error ? err.message : String(err);
-		throw new Error(`cannot read ${change.path}: ${msg}`);
-	}
+	const original = await readRegularFile(change.path, "update target");
+	const result = replaceForPatch(original.content, change.oldText, change.newText ?? "");
+	if (!result.changed) throw new Error(`oldText not found in ${change.path}`);
 
-	// Apply replacement using our cascading replacer
-	const result = replace(content, change.oldText, change.newText ?? "");
-	if (!result.changed) {
-		throw new Error(`oldText not found in ${change.path}`);
-	}
 	const newContent = result.content;
-
-	// Generate simple diff
-	const diff = generateDiff(change.path, content, newContent);
-
-	// Write atomically
-	await atomicWriteFile(change.path, newContent);
-
 	return {
-		path: change.path,
-		action: "update",
-		diff,
-		bytes: Buffer.byteLength(newContent, "utf8"),
-		oldContent: content,
-		newContent,
+		change,
+		applied: {
+			path: change.path,
+			action: "update",
+			diff: generateDiff(change.path, original.content, newContent),
+			bytes: Buffer.byteLength(newContent, "utf8"),
+			oldContent: original.content,
+			newContent,
+		},
+		async commit() {
+			await atomicWriteFile(change.path, newContent, original.mode);
+		},
+		async rollback() {
+			await atomicWriteFile(change.path, original.content, original.mode);
+		},
 	};
 }
 
-async function handleDelete(change: ApplyPatchChange): Promise<AppliedChange> {
-	// Verify file exists
-	try {
-		await fs.promises.access(change.path);
-	} catch {
-		throw new Error(`file not found: ${change.path}`);
-	}
-
-	const oldContent = await fs.promises.readFile(change.path, "utf8");
-	await fs.promises.unlink(change.path);
-
+async function prepareDelete(change: ApplyPatchChange): Promise<PreparedChange> {
+	const original = await readRegularFile(change.path, "delete target");
 	return {
-		path: change.path,
-		action: "delete",
-		oldContent,
+		change,
+		applied: { path: change.path, action: "delete", oldContent: original.content },
+		async commit() {
+			await fs.promises.unlink(change.path);
+		},
+		async rollback() {
+			await atomicWriteFile(change.path, original.content, original.mode);
+		},
 	};
 }
 
-async function handleMove(change: ApplyPatchChange): Promise<AppliedChange> {
-	if (!change.movePath) {
-		throw new Error(`move requires movePath`);
+async function prepareMove(change: ApplyPatchChange): Promise<PreparedChange> {
+	const movePath = change.movePath;
+	if (!movePath) throw new Error("move requires movePath");
+	await readRegularFile(change.path, "move source");
+	if (await pathExists(movePath)) throw new Error(`move destination already exists: ${movePath}`);
+
+	return {
+		change,
+		applied: { path: change.path, action: "move", movePath },
+		async commit() {
+			await fs.promises.mkdir(path.dirname(movePath), { recursive: true });
+			await fs.promises.rename(change.path, movePath);
+		},
+		async rollback() {
+			await fs.promises.rename(movePath, change.path);
+		},
+	};
+}
+
+async function prepareChange(change: ApplyPatchChange): Promise<PreparedChange> {
+	switch (change.action) {
+		case "add":
+			return prepareAdd(change);
+		case "update":
+			return prepareUpdate(change);
+		case "delete":
+			return prepareDelete(change);
+		case "move":
+			return prepareMove(change);
+		default:
+			throw new Error(`unknown action: ${(change as { action: string }).action}`);
 	}
-
-	// Verify source exists
-	try {
-		await fs.promises.access(change.path);
-	} catch {
-		throw new Error(`source file not found: ${change.path}`);
-	}
-
-	// Create parent directories for destination
-	const dir = path.dirname(change.movePath);
-	await fs.promises.mkdir(dir, { recursive: true });
-
-	// Move file
-	await fs.promises.rename(change.path, change.movePath);
-
-	return { path: change.path, action: "move", movePath: change.movePath };
 }
 
 // ---------------------------------------------------------------------------
@@ -198,46 +222,64 @@ function generateDiff(_filePath: string, oldContent: string, newContent: string)
 // ---------------------------------------------------------------------------
 
 export async function executeApplyPatch(changes: ApplyPatchChange[]): Promise<ApplyPatchResult> {
-	const applied: AppliedChange[] = [];
+	const prepared: PreparedChange[] = [];
 	const errors: ApplyPatchError[] = [];
+	const claimedPaths = new Set<string>();
 
 	for (const change of changes) {
-		try {
-			let result: AppliedChange;
-
-			switch (change.action) {
-				case "add":
-					result = await handleAdd(change);
-					break;
-				case "update":
-					result = await handleUpdate(change);
-					break;
-				case "delete":
-					result = await handleDelete(change);
-					break;
-				case "move":
-					result = await handleMove(change);
-					break;
-				default:
-					throw new Error(`unknown action: ${(change as any).action}`);
-			}
-
-			applied.push(result);
-		} catch (err) {
-			const msg = err instanceof Error ? err.message : String(err);
+		const paths = [change.path, ...(change.action === "move" && change.movePath ? [change.movePath] : [])].map(
+			(filePath) => path.resolve(filePath),
+		);
+		if (paths.some((filePath) => claimedPaths.has(filePath))) {
 			errors.push({
 				path: change.path,
 				action: change.action,
-				error: msg,
+				error: "each source and destination path may appear only once per patch",
+			});
+			continue;
+		}
+		for (const filePath of paths) claimedPaths.add(filePath);
+
+		try {
+			prepared.push(await prepareChange(change));
+		} catch (err) {
+			errors.push({
+				path: change.path,
+				action: change.action,
+				error: err instanceof Error ? err.message : String(err),
 			});
 		}
 	}
 
-	return {
-		ok: errors.length === 0,
-		applied,
-		errors,
-	};
+	if (errors.length > 0) return { ok: false, applied: [], errors };
+
+	const committed: PreparedChange[] = [];
+	try {
+		for (const change of prepared) {
+			await change.commit();
+			committed.push(change);
+		}
+	} catch (err) {
+		for (const change of committed.reverse()) {
+			try {
+				await change.rollback();
+			} catch (rollbackError) {
+				errors.push({
+					path: change.change.path,
+					action: change.change.action,
+					error: `rollback failed: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`,
+				});
+			}
+		}
+		errors.unshift({
+			path: prepared[committed.length]?.change.path ?? "",
+			action: prepared[committed.length]?.change.action ?? "commit",
+			error: err instanceof Error ? err.message : String(err),
+		});
+		return { ok: false, applied: [], errors };
+	}
+
+	return { ok: true, applied: prepared.map((change) => change.applied), errors: [] };
 }
 
 // ---------------------------------------------------------------------------

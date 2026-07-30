@@ -1,7 +1,7 @@
 {
 	"name": "diff",
 	"private": true,
-	"version": "0.7.5",
+	"version": "0.7.6",
 	"description": "Forked locally from @heyhuynhgiabuu/pi-diff (https://github.com/heyhuynhgiabuu/pi-diff). No 'pi' manifest field on purpose — pi-config's uniform extension-directory convention discovers this via the top-level index.ts shim, not a built dist/.",
 	"type": "module",
 	"dependencies": {

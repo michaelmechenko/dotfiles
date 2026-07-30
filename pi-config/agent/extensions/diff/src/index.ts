@@ -28,7 +28,7 @@ import type { Component } from "@earendil-works/pi-tui";
 import { codeToANSI } from "@shikijs/cli";
 import * as Diff from "diff";
 import { type ApplyPatchChange, executeApplyPatch, formatApplyPatchResult } from "./core/apply-patch.js";
-import { configIndicatorStyle } from "./core/config.js";
+import { configIndicatorStyle, loadPiDiffConfig, type PiDiffToolName } from "./core/config.js";
 import {
 	computeHunkBlocks,
 	type DiffLine,
@@ -67,6 +67,10 @@ const ARROW_PREFIXED_TOOL_HEADERS = new Set(["write", "create", "edit", "apply_p
 
 function formatToolHeaderName(name: string): string {
 	return ARROW_PREFIXED_TOOL_HEADERS.has(name) ? `← ${name}` : name;
+}
+
+function isToolResultError(result: { isError?: boolean }, context: { isError?: boolean }): boolean {
+	return result.isError === true || context.isError === true;
 }
 
 function formatToolHeaderPath(theme: Pick<PiTheme, "fg">, filePath: string): string {
@@ -1348,6 +1352,7 @@ export const __testing = {
 	computeHunkBlocks,
 	formatToolHeaderName,
 	formatToolHeaderPath,
+	isToolResultError,
 	normalizeShikiContrast,
 	getSepStyle,
 	parseDiff,
@@ -1358,11 +1363,6 @@ export const __testing = {
 };
 
 export default async function diffRendererExtension(pi: ExtensionAPI): Promise<void> {
-	// pi-pretty sets toolOutputExpanded:false on session_start; write/edit default expanded.
-	pi.on("session_start", async (_event, ctx) => {
-		ctx.ui.setToolsExpanded(true);
-	});
-
 	// Apply diff theme palette from settings/presets before rendering
 	applySharedDiffPalette();
 	// Resolve hunk separator style from env var
@@ -1409,6 +1409,10 @@ export default async function diffRendererExtension(pi: ExtensionAPI): Promise<v
 	}
 
 	const cwd = process.cwd();
+	const disabledTools = new Set(loadPiDiffConfig().disabledTools ?? []);
+	const registerToolIfEnabled = (toolName: PiDiffToolName, tool: Parameters<ExtensionAPI["registerTool"]>[0]): void => {
+		if (!disabledTools.has(toolName)) pi.registerTool(tool);
+	};
 	const home = process.env.HOME ?? "";
 	const sp = (p: string) => shortPath(cwd, home, p);
 	const TOOL_RESULT_INDENT = " ";
@@ -1818,7 +1822,7 @@ export default async function diffRendererExtension(pi: ExtensionAPI): Promise<v
 
 	const origWrite = createWriteTool(cwd);
 
-	pi.registerTool({
+	registerToolIfEnabled("write", {
 		...origWrite,
 		name: "write",
 
@@ -1907,7 +1911,7 @@ export default async function diffRendererExtension(pi: ExtensionAPI): Promise<v
 
 		renderResult(result: any, _opt: any, theme: any, ctx: any) {
 			const text = getWidthAwareText(ctx.lastComponent);
-			if (ctx.isError) {
+			if (isToolResultError(result, ctx)) {
 				const e =
 					result.content
 						?.filter((c: { type: string; text?: string }) => c.type === "text")
@@ -2009,7 +2013,7 @@ export default async function diffRendererExtension(pi: ExtensionAPI): Promise<v
 		};
 	}
 
-	pi.registerTool({
+	registerToolIfEnabled("edit", {
 		...origEdit,
 		name: "edit",
 		parameters: {
@@ -2304,7 +2308,7 @@ export default async function diffRendererExtension(pi: ExtensionAPI): Promise<v
 		},
 	});
 
-	pi.registerTool({
+	registerToolIfEnabled("apply_patch", {
 		name: "apply_patch",
 		label: "apply_patch",
 		description:
@@ -2397,5 +2401,5 @@ export default async function diffRendererExtension(pi: ExtensionAPI): Promise<v
 		},
 	});
 
-	registerEditGuard(pi);
+	if (!disabledTools.has("edit")) registerEditGuard(pi);
 }

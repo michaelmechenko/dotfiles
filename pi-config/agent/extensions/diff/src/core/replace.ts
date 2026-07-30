@@ -544,3 +544,122 @@ export function replace(
 	// No match found
 	return { content, changed: false, strategy: "none", count: 0 };
 }
+
+/**
+ * Conservative matcher for source mutations: exact text first, then one
+ * unambiguous block whose only difference is a uniform indentation shift.
+ * Unlike `replace`, it never guesses from similar content or normalizes
+ * whitespace inside source tokens.
+ */
+export function replaceForPatch(content: string, oldText: string, newText: string): ReplaceResult {
+	if (oldText.length === 0 || oldText === newText) {
+		return { content, changed: false, strategy: "none", count: 0 };
+	}
+
+	const exactCount = countOccurrences(content, oldText);
+	if (exactCount === 1) {
+		const index = content.indexOf(oldText);
+		const lineStart = content.lastIndexOf("\n", index - 1) + 1;
+		const omittedIndent = content.slice(lineStart, index);
+		const oldIndent = leadingWhitespace(oldText);
+		const newIndent = leadingWhitespace(newText);
+		if (
+			((oldText.includes("\n") || newText.includes("\n")) && index !== lineStart) ||
+			(index !== lineStart && omittedIndent.trim() === "" && oldIndent.length > 0 && oldIndent !== newIndent)
+		) {
+			return { content, changed: false, strategy: "none", count: 0 };
+		}
+		return {
+			content: content.slice(0, index) + newText + content.slice(index + oldText.length),
+			changed: true,
+			strategy: "simple",
+			count: 1,
+		};
+	}
+	if (exactCount > 1) return { content, changed: false, strategy: "none", count: 0 };
+
+	const oldLines = oldText.split("\n");
+	if (oldLines.length > 1 && oldLines.at(-1) === "") oldLines.pop();
+	if (oldLines.length === 0) return { content, changed: false, strategy: "none", count: 0 };
+
+	const contentLines = content.split("\n");
+	const candidates: Array<{ start: number; text: string; indent: IndentAdjustment }> = [];
+	let start = 0;
+	for (let i = 0; i <= contentLines.length - oldLines.length; i++) {
+		const actualLines = contentLines.slice(i, i + oldLines.length);
+		if (!actualLines.every((line, index) => line.trim() === oldLines[index].trim())) {
+			start += contentLines[i].length + 1;
+			continue;
+		}
+
+		const indent = getIndentAdjustment(oldLines, actualLines);
+		const includesTrailingNewline = oldText.endsWith("\n") && i + oldLines.length < contentLines.length;
+		if (indent)
+			candidates.push({ start, text: `${actualLines.join("\n")}${includesTrailingNewline ? "\n" : ""}`, indent });
+		start += contentLines[i].length + 1;
+	}
+
+	if (candidates.length !== 1) return { content, changed: false, strategy: "none", count: 0 };
+
+	const candidate = candidates[0];
+	const adjustedNewText = applyIndentAdjustment(
+		newText,
+		candidate.indent,
+		candidate.text.includes("\r\n") || candidate.text.endsWith("\r") ? "\r\n" : "\n",
+	);
+	if (adjustedNewText === undefined) return { content, changed: false, strategy: "none", count: 0 };
+	const replacement =
+		candidate.text.endsWith("\r") && !adjustedNewText.endsWith("\r") ? `${adjustedNewText}\r` : adjustedNewText;
+
+	return {
+		content: content.slice(0, candidate.start) + replacement + content.slice(candidate.start + candidate.text.length),
+		changed: true,
+		strategy: "indent-adjusted",
+		count: 1,
+	};
+}
+
+type IndentAdjustment = { kind: "add"; whitespace: string } | { kind: "remove"; whitespace: string } | { kind: "none" };
+
+function leadingWhitespace(line: string): string {
+	return line.match(/^[\t ]*/)?.[0] ?? "";
+}
+
+function getIndentAdjustment(expectedLines: string[], actualLines: string[]): IndentAdjustment | undefined {
+	let adjustment: IndentAdjustment | undefined;
+
+	for (let i = 0; i < expectedLines.length; i++) {
+		if (expectedLines[i].trim() === "") continue;
+		const expected = leadingWhitespace(expectedLines[i]);
+		const actual = leadingWhitespace(actualLines[i]);
+		const current =
+			actual === expected
+				? { kind: "none" as const }
+				: actual.endsWith(expected)
+					? { kind: "add" as const, whitespace: actual.slice(0, actual.length - expected.length) }
+					: expected.endsWith(actual)
+						? { kind: "remove" as const, whitespace: expected.slice(0, expected.length - actual.length) }
+						: undefined;
+		if (!current) return undefined;
+		if (!adjustment) {
+			adjustment = current;
+		} else if (
+			adjustment.kind !== current.kind ||
+			(adjustment.kind !== "none" && current.kind !== "none" && adjustment.whitespace !== current.whitespace)
+		) {
+			return undefined;
+		}
+	}
+
+	return adjustment ?? { kind: "none" };
+}
+
+function applyIndentAdjustment(newText: string, adjustment: IndentAdjustment, lineEnding: string): string | undefined {
+	const lines = newText.split(/\r?\n/);
+	const adjusted = lines.map((line) => {
+		if (line.trim() === "" || adjustment.kind === "none") return line;
+		if (adjustment.kind === "add") return adjustment.whitespace + line;
+		return line.startsWith(adjustment.whitespace) ? line.slice(adjustment.whitespace.length) : undefined;
+	});
+	return adjusted.every((line): line is string => line !== undefined) ? adjusted.join(lineEnding) : undefined;
+}

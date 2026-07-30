@@ -77,7 +77,7 @@ export function registerBashTool(
 							: rawCmd;
 				const indentedCmd = cmd.replace(/\n/g, `\n${TOOL_RESULT_INDENT}  `);
 				const commandLabel = theme.fg(ctx.isError ? "error" : "toolTitle", theme.bold(`$ ${indentedCmd}`));
-				return fillToolBackground(`\n${TOOL_RESULT_INDENT}${commandLabel}${t}`, undefined, ctx.expanded ? undefined : tw);
+				return fillToolBackground(`\n${TOOL_RESULT_INDENT}${commandLabel}${t}\n`, undefined, ctx.expanded ? undefined : tw);
 			};
 
 			text.setText(buildHeader(termWidth()));

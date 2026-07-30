@@ -1,14 +1,11 @@
-/* pi-pretty: find tool -- FFF-backed file search with SDK (fd) fallback. */
+/* pi-pretty: find tool -- fd-backed file search via Pi's built-in SDK find tool. */
 
-import { isAbsolute, relative } from "node:path";
 import type { AgentToolResult, ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { BG_ERROR, FG_DIM, RST, resolveBaseBackground, TOOL_RESULT_INDENT } from "../config.js";
-import { isLikelyGlobPattern, normalizeFindGlobPattern } from "../find-glob.js";
 import { shortPath } from "../helpers.js";
-import { NOTICE_PARTIAL_FILE_INDEX } from "../notices.js";
 import { fillToolBackground, renderFindResults, renderToolDuration, renderToolError } from "../render.js";
 import { resolveTextCtor } from "../tui-text.js";
-import type { FffServiceWithCursor, FindDetails, RenderCtxLike, SdkToolDef, TextContent, ThemeLike } from "../types.js";
+import type { FindDetails, RenderCtxLike, SdkToolDef, TextContent, ThemeLike } from "../types.js";
 import { wrapExecuteWithMetrics } from "./metrics.js";
 
 type Result = AgentToolResult<Record<string, unknown>>;
@@ -20,53 +17,10 @@ function getText(result: Result): string {
 		.join("\n");
 }
 
-function buildGlobPattern(pattern: string, path: string | undefined, basePath: string | null): string {
-	const raw = pattern.startsWith("/") ? pattern.slice(1) : pattern;
-	const normalized = normalizeFindGlobPattern(raw);
-	let cleanPath = path ?? "";
-	if (cleanPath && isAbsolute(cleanPath) && basePath) {
-		cleanPath = relative(basePath, cleanPath) || "";
-	}
-	cleanPath = cleanPath.replace(/\/$/, "");
-	if (cleanPath) {
-		if (normalized.startsWith("**/")) {
-			return `${cleanPath}/${normalized}`;
-		}
-		if (normalized.includes("/")) {
-			return `${cleanPath}/${normalized}`;
-		}
-		return `${cleanPath}/**/${normalized}`;
-	}
-	return normalized.startsWith("**/") || normalized.includes("/") ? normalized : `**/${normalized}`;
-}
-
-async function sdkFindAsFindResult(
-	sdkTool: SdkToolDef,
-	tid: string,
-	params: Record<string, unknown>,
-	sig: AbortSignal | undefined,
-	ctx: ExtensionContext,
-	pattern: string,
-	extraNotices: string[],
-): Promise<Result> {
-	const result = (await sdkTool.execute(tid, params, sig, undefined, ctx)) as Result;
-	const tc = getText(result);
-	const prev = (result.details as FindDetails | undefined)?.notices ?? [];
-	const notices = [...(Array.isArray(prev) ? prev : []), ...extraNotices];
-	result.details = {
-		_type: "findResult",
-		text: tc,
-		pattern,
-		matchCount: tc ? tc.trim().split("\n").filter(Boolean).length : 0,
-		notices,
-	};
-	return result;
-}
-
 export function registerFindTool(
 	pi: ExtensionAPI,
 	cwd: string,
-	fffService: FffServiceWithCursor | null | undefined,
+	_fffService: unknown,
 	sdkTool: SdkToolDef,
 	TextComp?: new (t?: string, x?: number, y?: number) => { setText(v: string): void },
 ): void {
@@ -82,59 +36,15 @@ export function registerFindTool(
 
 		execute: wrapExecuteWithMetrics(async (tid, params, sig, _upd, ctx: ExtensionContext) => {
 			const pattern = String(params.pattern ?? "");
-			const path = params.path ? String(params.path) : undefined;
-			const limit = params.limit;
-			const fff = fffService?.isAvailable ? fffService.getFinder() : null;
-
-			if (fff) {
-				try {
-					const effectiveLimit = Math.max(1, typeof limit === "number" ? limit : 100);
-					const basePathResult = fff.getBasePath();
-					const basePath = basePathResult.ok ? basePathResult.value : null;
-					const globPattern = buildGlobPattern(pattern, path, basePath);
-					const searchResult = fff.glob(globPattern, {
-						pageSize: effectiveLimit,
-					});
-
-					if (searchResult.ok) {
-						const items = searchResult.value.items.slice(0, effectiveLimit);
-						const notices: string[] = [];
-						if (fffService?.partialIndex) notices.push(NOTICE_PARTIAL_FILE_INDEX);
-						if (items.length >= effectiveLimit) notices.push(`${effectiveLimit} limit reached`);
-						if (searchResult.value.totalMatched > items.length) {
-							notices.push(`${searchResult.value.totalMatched} total matches`);
-						}
-
-						if (items.length === 0 && isLikelyGlobPattern(pattern)) {
-							return sdkFindAsFindResult(sdkTool, tid, params, sig, ctx, pattern, [
-								"FFF glob returned no matches; results from SDK find (fd).",
-								...notices,
-							]);
-						}
-
-						if (items.length > 0) notices.push("Search engine: FFF glob.");
-						else if (notices.length === 0) notices.push("Search engine: FFF glob (no matches).");
-
-						const paths = items.map((i) => i.relativePath).join("\n");
-						return {
-							content: [{ type: "text" as const, text: paths }],
-							details: {
-								_type: "findResult",
-								text: paths,
-								pattern,
-								matchCount: items.length,
-								notices,
-							},
-						};
-					}
-				} catch {
-					/* fall through to SDK */
-				}
-			}
-
-			return sdkFindAsFindResult(sdkTool, tid, params, sig, ctx, pattern, [
-				fff ? "FFF find unavailable; results from SDK find (fd)." : "Search engine: SDK find (fd).",
-			]);
+			const result = (await sdkTool.execute(tid, params, sig, undefined, ctx)) as Result;
+			const tc = getText(result);
+			result.details = {
+				_type: "findResult",
+				text: tc,
+				pattern,
+				matchCount: tc ? tc.trim().split("\n").filter(Boolean).length : 0,
+			};
+			return result;
 		}),
 
 		renderCall(args: any, theme: ThemeLike, ctx: RenderCtxLike) {
@@ -165,10 +75,7 @@ export function registerFindTool(
 			const d = r.details as FindDetails | undefined;
 			if (d?._type === "findResult") {
 				if (!d.text.trim()) {
-					const noticeStr = d.notices?.length
-						? `\n${TOOL_RESULT_INDENT}${theme.fg("warning", `[${d.notices.join(". ")}]`)}`
-						: "";
-					text.setText(fillToolBackground(`\n${TOOL_RESULT_INDENT}${theme.fg("dim", "0 files")}${noticeStr}\n`));
+					text.setText(fillToolBackground(`\n${TOOL_RESULT_INDENT}${theme.fg("dim", "0 files")}\n`));
 					return text;
 				}
 				if (!ctx.expanded) {
@@ -184,13 +91,10 @@ export function registerFindTool(
 					.split("\n")
 					.map((l) => `${TOOL_RESULT_INDENT}${l}`)
 					.join("\n");
-				const noticeStr = d.notices?.length
-					? `\n${TOOL_RESULT_INDENT}${theme.fg("warning", `[${d.notices.join(". ")}]`)}`
-					: "";
 				const duration = renderToolDuration(r);
 				text.setText(
 					fillToolBackground(
-						`\n${TOOL_RESULT_INDENT}${theme.fg("dim", `${d.matchCount} files`)}${duration ? `${FG_DIM}· ${duration}${RST}` : ""}\n${rendered}${noticeStr}\n`,
+						`\n${TOOL_RESULT_INDENT}${theme.fg("dim", `${d.matchCount} files`)}${duration ? `${FG_DIM}· ${duration}${RST}` : ""}\n${rendered}\n`,
 					),
 				);
 				return text;

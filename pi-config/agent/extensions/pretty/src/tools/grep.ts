@@ -1,13 +1,11 @@
-/* pi-pretty: grep tool -- FFF-backed text search with SDK fallback. */
+/* pi-pretty: grep tool -- rg-backed text search via Pi's built-in SDK grep tool. */
 
 import type { AgentToolResult, ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { BG_ERROR, FG_DIM, RST, resolveBaseBackground, TOOL_RESULT_INDENT } from "../config.js";
-import { fffFormatGrepText } from "../fff-helpers.js";
 import { normalizeLineEndings, shortPath } from "../helpers.js";
-import { NOTICE_PARTIAL_FILE_INDEX } from "../notices.js";
 import { fillToolBackground, renderToolError } from "../render.js";
 import { resolveTextCtor } from "../tui-text.js";
-import type { FffServiceWithCursor, GrepDetails, RenderCtxLike, SdkToolDef, TextContent, ThemeLike } from "../types.js";
+import type { GrepDetails, RenderCtxLike, SdkToolDef, TextContent, ThemeLike } from "../types.js";
 import { wrapExecuteWithMetrics } from "./metrics.js";
 
 const invalidArg = "<missing>";
@@ -17,7 +15,7 @@ type Result = AgentToolResult<Record<string, unknown>>;
 export function registerGrepTool(
 	pi: ExtensionAPI,
 	cwd: string,
-	fffService: FffServiceWithCursor | null | undefined,
+	_fffService: unknown,
 	sdkTool: SdkToolDef,
 	TextComp?: new (t?: string, x?: number, y?: number) => { setText(v: string): void },
 ): void {
@@ -34,50 +32,6 @@ export function registerGrepTool(
 		execute: wrapExecuteWithMetrics(async (tid, params, sig, _upd, ctx: ExtensionContext) => {
 			const p = params as any;
 			const pattern = String(p.pattern ?? "");
-			const path = p.path ? String(p.path) : undefined;
-			const glob = p.glob ? String(p.glob) : undefined;
-			const context = typeof p.context === "number" ? p.context : 0;
-			const limit = typeof p.limit === "number" ? p.limit : 200;
-			const literal = p.literal === true;
-
-			if (fffService?.isAvailable && !path && !glob) {
-				try {
-					const fff = fffService.getFinder();
-					if (!fff) throw new Error("FFF finder not available");
-					const effectiveLimit = Math.max(1, limit);
-					const grepResult = fff.grep(pattern, {
-						pageSize: effectiveLimit,
-						mode: literal ? "plain" : "regex",
-						beforeContext: context,
-						afterContext: context,
-					});
-					if (grepResult.ok) {
-						const grep = grepResult.value;
-						const items = grep.items.slice(0, effectiveLimit);
-						const cursorStore = fffService.getCursorStore();
-						const notices: string[] = [];
-						if (fffService.partialIndex) notices.push(NOTICE_PARTIAL_FILE_INDEX);
-						if (items.length >= effectiveLimit) notices.push(`${effectiveLimit} limit reached`);
-						if (grep.regexFallbackError) notices.push(`Regex failed: ${grep.regexFallbackError}, used literal match`);
-						if (grep.nextCursor) {
-							const cursorId = cursorStore.store(grep.nextCursor);
-							notices.push(`More results available: cursor="${cursorId}"`);
-						}
-						const text = appendNotices(fffFormatGrepText(items, effectiveLimit), notices);
-						return {
-							content: [{ type: "text" as const, text }],
-							details: {
-								_type: "grepResult",
-								text,
-								pattern,
-								matchCount: items.length,
-							} as GrepDetails,
-						};
-					}
-				} catch {
-					/* fall through */
-				}
-			}
 
 			const result = (await sdkTool.execute(tid, p, sig, undefined, ctx)) as Result;
 			for (const c of (result.content ?? []) as any[]) {
@@ -165,8 +119,4 @@ export function registerGrepTool(
 			return text;
 		},
 	} as unknown as ToolDefinition<any, any, any>);
-}
-
-function appendNotices(text: string, notices: string[]): string {
-	return notices.length ? `${text}\n\n[${notices.join(". ")}]` : text;
 }

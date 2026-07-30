@@ -100,7 +100,7 @@ export function registerReadTool(
 
 			const path = String(args.path ?? "");
 			const label = theme.fg("error", theme.bold("→ read"));
-			text.setText(fillToolBackground(`\n${TOOL_RESULT_INDENT}${label} ${theme.fg("toolTitle", path)}`, BG_ERROR));
+			text.setText(fillToolBackground(`\n${TOOL_RESULT_INDENT}${label} ${theme.fg("toolTitle", path)}\n`, BG_ERROR));
 			return text;
 		},
 
@@ -150,7 +150,7 @@ export function registerReadTool(
 				}
 				const maxShow = lines.length;
 				const show = lines.slice(0, maxShow);
-				const nw = Math.max(3, String(total).length);
+				const nw = Math.max(3, String((d.offset || 0) + total).length);
 				const gw = nw + 3;
 				const cw = Math.max(1, tw - gw);
 
@@ -162,7 +162,7 @@ export function registerReadTool(
 				for (let i = 0; i < show.length; i++) {
 					const ln = (d.offset || 0) + i + 1;
 					const code = show[i] ?? "";
-					const display = code.length > cw ? code.slice(0, cw) + `${FG_DIM}›${RST}` : code;
+					const display = code.length > cw ? code.slice(0, Math.max(0, cw - 1)) + `${FG_DIM}›${RST}` : code;
 					const lineNo = String(ln);
 					out.push(
 						`${TOOL_RESULT_INDENT}${FG_LNUM}${" ".repeat(Math.max(0, nw - lineNo.length))}${lineNo}${RST} ${FG_RULE}│${RST} ${display}${RST}`,
@@ -177,11 +177,14 @@ export function registerReadTool(
 				(ctx as any).state._rt = rendered;
 
 				// Async syntax highlighting via Shiki
-				renderFileContent(d.content, d.filePath, d.offset || 0, maxShow, tw)
+				renderFileContent(d.content, d.filePath, d.offset || 0, maxShow, cw)
 					.then((hl) => {
 						const padded = hl
 							.split("\n")
-							.map((l) => `${TOOL_RESULT_INDENT}${l}`)
+							.map((line, index) => {
+								const lineNo = String((d.offset || 0) + index + 1);
+								return `${TOOL_RESULT_INDENT}${FG_LNUM}${" ".repeat(Math.max(0, nw - lineNo.length))}${lineNo}${RST} ${FG_RULE}│${RST} ${line}${RST}`;
+							})
 							.join("\n");
 						const divider = skillName
 							? `${TOOL_RESULT_INDENT}${FG_RULE}${"─".repeat(Math.max(1, tw - 1))}${RST}\n`

@@ -1,11 +1,10 @@
 {
 	"name": "pretty",
 	"private": true,
-	"version": "0.6.19",
-	"description": "Forked locally from @heyhuynhgiabuu/pi-pretty (https://github.com/heyhuynhgiabuu/pi-pretty). No 'pi' manifest field on purpose — pi-config's uniform extension-directory convention discovers this via the top-level index.ts shim, not a built dist/.",
+	"version": "0.6.21",
+	"description": "Forked locally from @heyhuynhgiabuu/pi-pretty (https://github.com/heyhuynhgiabuu/pi-pretty). FFF integration removed (see pi-config/README.md). No 'pi' manifest field on purpose — pi-config's uniform extension-directory convention discovers this via the top-level index.ts shim, not a built dist/.",
 	"type": "module",
 	"dependencies": {
-		"@ff-labs/fff-node": "^0.10.0",
 		"@shikijs/cli": "^4.0.2",
 		"shiki": "4.0.2"
 	}

@@ -6,12 +6,6 @@ import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
 import type { AgentToolResult } from "@earendil-works/pi-coding-agent";
 
 // ---------------------------------------------------------------------------
-// Re-export FFF types needed by tools
-// ---------------------------------------------------------------------------
-
-export type { FileFinder, FileItem, GrepCursor, GrepMatch, GrepResult, SearchResult } from "@ff-labs/fff-node";
-
-// ---------------------------------------------------------------------------
 // Content / Result types
 // ---------------------------------------------------------------------------
 
@@ -138,40 +132,16 @@ export interface SdkToolDef {
 
 export interface SdkTools {
 	createReadTool?: (cwd: string) => SdkToolDef;
+	createReadToolDefinition?: (cwd: string) => SdkToolDef;
 	createBashTool?: (cwd: string) => SdkToolDef;
+	createBashToolDefinition?: (cwd: string) => SdkToolDef;
 	createLsTool?: (cwd: string) => SdkToolDef;
+	createLsToolDefinition?: (cwd: string) => SdkToolDef;
 	createFindTool?: (cwd: string) => SdkToolDef;
+	createFindToolDefinition?: (cwd: string) => SdkToolDef;
 	createGrepTool?: (cwd: string) => SdkToolDef;
+	createGrepToolDefinition?: (cwd: string) => SdkToolDef;
 	getAgentDir?: () => string;
-}
-
-// ---------------------------------------------------------------------------
-// FFF service interfaces
-// ---------------------------------------------------------------------------
-
-/** Minimal FFF service shape for tools that only need fileSearch. */
-export interface FffServiceLike {
-	readonly isAvailable: boolean;
-	readonly partialIndex: boolean;
-	getFinder(): import("@ff-labs/fff-node").FileFinder | null;
-}
-
-/** Full FFF service for grep tools that also need cursor store. */
-export interface FffServiceWithCursor extends FffServiceLike {
-	getCursorStore(): CursorStore;
-}
-
-/** FFF lifecycle interface (used by session lifecycle code). */
-export interface FffService extends FffServiceWithCursor {
-	ensureFinder(cwd: string): Promise<void>;
-	destroy(): void;
-	isModuleLoaded(): boolean;
-	tryLoadModule(): Promise<boolean>;
-}
-
-export interface CursorStore {
-	store(cursor: unknown): string;
-	get(id: string): unknown | undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -181,5 +151,4 @@ export interface CursorStore {
 export interface PiPrettyDeps {
 	sdk?: SdkTools;
 	TextComponent?: new (text?: string, x?: number, y?: number) => ComponentLike;
-	fffModule?: typeof import("@ff-labs/fff-node");
 }

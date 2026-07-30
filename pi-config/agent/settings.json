@@ -1,5 +1,5 @@
 {
-  "lastChangelogVersion": "0.80.10",
+  "lastChangelogVersion": "0.83.0",
   "theme": "vague",
   "defaultProvider": "anthropic",
   "defaultModel": "claude-sonnet-5",

@@ -12,7 +12,7 @@
 - Drop this compression for security warnings, irreversible-action confirmations, or whenever the user seems confused — write those out in full, then resume
 - Ask only when blocked, when ambiguity materially changes outcome, or before irreversible/shared/prod-visible actions
 - If proceeding on assumptions, state them briefly
-- Do not use emoji or pictograph symbols (⚠️, 📋, ✅, etc.) in output unless the user explicitly asks for them. Plain typographic symbols already used idiomatically in this config's TUI extensions (✓/✗ status marks, →/↑/↓ arrows, ❯ bullets) are not emoji and are fine.
+- Do not use emoji or pictograph symbols in output unless the user explicitly asks for them. Plain typographic symbols already used idiomatically in this config's TUI extensions (✓/✗ status marks, →/↑/↓ arrows, ❯ bullets) are not emoji and are fine.
 
 ## Instruction Priority
 

@@ -211,8 +211,8 @@ Type a query; every matching substring in the current viewport gets a single-key
 | `M-X` | root | Kill window (double confirm) |
 | `M-Up` | root | Resize pane up |
 | `M-Down` | root | Resize pane down |
-| `M-Right` | root | Popup layout cycle forward (float/ephemeral only, `tmux-popup-resize cycle-next`); else forward raw key (zsh Alt+Right word-jump) |
-| `M-Left` | root | Popup layout cycle backward (float/ephemeral only, `tmux-popup-resize cycle-prev`); else forward raw key (zsh Alt+Left word-jump) |
+| `M-Right` | root | Forward raw key (zsh Alt+Right word-jump). Popup layout cycling disabled — see below. |
+| `M-Left` | root | Forward raw key (zsh Alt+Left word-jump). Popup layout cycling disabled — see below. |
 
 ### Pane — move / break / send
 | Key | Scope | Action |
@@ -257,22 +257,15 @@ Type a query; every matching substring in the current viewport gets a single-key
 | `prefix C` | — | New session (prompt) |
 | `M-C` | root | New session (prompt) |
 | `M-s` | root | Session picker fzf popup (`tmux-session-ls`) |
+| `M-Tab` | root | Toggle left sidebar pane (`tmux-sidebar-toggle`; see tmux sidebar section) |
 | `M-:` | root | Switch client to prev session (by index) |
 | `M-[` | root | Switch client to prev session |
 | `M-"` | root | Switch client to next session (by index) |
 | `M-]` | root | Switch client to next session |
 | `prefix S` | — | Rename session (prompt) |
 
-### Popup layout cycle (float / ephemeral, `tmux-popup-resize`)
-`M-Right`/`M-Left` (see the Pane — scroll/resize table above) cycle a float or ephemeral popup through 5 fixed layouts. Index is tracked per popup type, and reset to the start whenever the popup is freshly opened via `M-f`/`M-c` (not on a resize-triggered reopen) — so it never remembers a previous session's cycle position. `M-f`/`M-c` still close the popup correctly from any point in the cycle.
-
-| Layout | Geometry |
-| --- | --- |
-| fullscreen | Centred, 100% × 100% |
-| top | Full width, docked to the top, 40% height |
-| bottom | Full width, docked to the bottom, 40% height |
-| left | Docked to the left, 50% width, full height |
-| right | Docked to the right, 50% width, full height |
+### Popup layout cycle (disabled)
+`tmux_scripts/tmux-popup-resize` still implements a 5-layout cycle (fullscreen/top/bottom/left/right), but `M-Right`/`M-Left` are currently unbound from it — reopening a popup with new geometry right after `detach-client` reliably races tmux's own popup teardown and makes the popup vanish instead of resizing (confirmed live against a real tmux server; the same bug pre-dates this work, in the old maximize/restore/`M-m` toggle). See `AGENTS.md`.
 
 ### Rename / status-left
 | Key | Scope | Action |

@@ -60,13 +60,20 @@ esac
 # M-c close-check reads the session name directly, so it doesn't need this and
 # is left untouched to avoid any global-flag cross-talk between the two popup
 # types when both happen to be open on different clients at once.
+# Reopening a popup immediately after detach-client races the server's own
+# popup teardown: the session briefly reports "can't find session" even
+# though it still exists (confirmed live -- not destroyed, just a timing gap
+# before the new popup's attach can see it). Retry a few short attempts
+# instead of chasing the exact race.
+RETRY_ATTACH="for i in 1 2 3 4 5 6 7 8 9 10; do tmux attach -t '$SESSION' && break; sleep 0.05; done"
+
 if [ "$KEY" = "float" ]; then
     tmux set-option -g @in_float_popup 1
     tmux detach-client
     tmux popup -E "${GEO[@]}" -S "fg=$BORDER_COLOR" \
-        "tmux set -g @in_float_popup 1; { tmux attach -t '$SESSION' || tmux new -s '$SESSION'; }; tmux set -g @in_float_popup 0" || true
+        "tmux set -g @in_float_popup 1; { $RETRY_ATTACH; }; tmux set -g @in_float_popup 0" || true
 else
     tmux detach-client
     tmux popup -E "${GEO[@]}" -S "fg=$BORDER_COLOR" \
-        "tmux attach -t '$SESSION' || tmux new -s '$SESSION'" || true
+        "$RETRY_ATTACH" || true
 fi

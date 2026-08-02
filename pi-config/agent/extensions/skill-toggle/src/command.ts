@@ -1,8 +1,8 @@
-import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { SkillInventory } from "./inventory/loader.ts";
 import type { SkillTogglePlanner } from "./apply/planner.ts";
 import type { SkillChangeWriter } from "./apply/writer.ts";
-import { showSkillToggleUi } from "./ui/overlay.ts";
+import { showSkillToggleUi, type ShowSkillToggleUiOptions } from "./ui/overlay.ts";
 import type { ApplyResult } from "./types.ts";
 
 export interface ToggleSkillsCommandDeps {
@@ -11,7 +11,11 @@ export interface ToggleSkillsCommandDeps {
   writer: SkillChangeWriter;
 }
 
-export async function runToggleSkillsCommand(ctx: ExtensionCommandContext, deps: ToggleSkillsCommandDeps): Promise<void> {
+export async function runToggleSkillsCommand(
+  ctx: ExtensionContext,
+  deps: ToggleSkillsCommandDeps,
+  uiOptions: ShowSkillToggleUiOptions = {},
+): Promise<void> {
   if (!ctx.hasUI) {
     ctx.ui.notify("/skill-toggle requires interactive mode", "error");
     return;
@@ -30,7 +34,7 @@ export async function runToggleSkillsCommand(ctx: ExtensionCommandContext, deps:
     return;
   }
 
-  const result = await showSkillToggleUi(ctx, skills);
+  const result = await showSkillToggleUi(ctx, skills, uiOptions);
   if (result.action !== "apply") return;
 
   let changes;
@@ -47,14 +51,23 @@ export async function runToggleSkillsCommand(ctx: ExtensionCommandContext, deps:
   }
 
   const applied = await deps.writer.apply(changes);
-  ctx.ui.notify(formatApplyResult(applied), applied.errors.length > 0 ? "warning" : "info");
 
-  if (applied.applied.length > 0) {
-    await ctx.reload();
+  // ctx.reload() is only available on ExtensionCommandContext (command
+  // invocations), not the plain ExtensionContext passed to shortcut
+  // handlers — same conditional-reload pattern as extension-toggle's
+  // floating-window path.
+  const reload = (ctx as { reload?: () => Promise<void> }).reload;
+  const canReload = applied.applied.length > 0 && typeof reload === "function";
+  ctx.ui.notify(formatApplyResult(applied, canReload), applied.errors.length > 0 ? "warning" : "info");
+
+  if (canReload) {
+    await reload();
+  } else if (applied.applied.length > 0) {
+    ctx.ui.notify("Reload later (/reload) to apply the change.", "info");
   }
 }
 
-function formatApplyResult(result: ApplyResult): string {
+function formatApplyResult(result: ApplyResult, reloaded: boolean): string {
   const lines = [`Pi Skill Toggle applied ${result.applied.length} change${result.applied.length === 1 ? "" : "s"}.`];
   for (const change of result.applied.slice(0, 6)) {
     lines.push(`- ${change.skill.name}: ${change.from} → ${change.to}`);
@@ -68,7 +81,7 @@ function formatApplyResult(result: ApplyResult): string {
       lines.push(`- ${error.message}`);
     }
   }
-  if (result.applied.length > 0) {
+  if (reloaded) {
     lines.push("Reloaded skills, prompts, extensions, and themes.");
   }
   return lines.join("\n");

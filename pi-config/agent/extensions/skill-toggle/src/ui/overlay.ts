@@ -1,13 +1,23 @@
 import type { ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
-import { Key, matchesKey, type TUI } from "@earendil-works/pi-tui";
+import { Key, matchesKey, type OverlayHandle, type TUI } from "@earendil-works/pi-tui";
 import type { SkillInvocationMode, SkillRecord, SkillToggleUiResult } from "../types.ts";
 import { formatSourceKind } from "../inventory/classifier.ts";
 import { bottomBorder, combineColumns, divider, fit, frameLine, topBorder } from "./render.ts";
 import { filterSkills, modeLabel, toggleMode } from "./view-model.ts";
 
-export async function showSkillToggleUi(ctx: ExtensionContext, skills: SkillRecord[]): Promise<SkillToggleUiResult> {
+export interface ShowSkillToggleUiOptions {
+  onHandle?: (handle: OverlayHandle) => void;
+  onToggleShortcut?: () => void;
+}
+
+export async function showSkillToggleUi(
+  ctx: ExtensionContext,
+  skills: SkillRecord[],
+  options: ShowSkillToggleUiOptions = {},
+): Promise<SkillToggleUiResult> {
   return ctx.ui.custom<SkillToggleUiResult>(
-    (tui, theme, _keybindings, done) => new SkillToggleOverlay(tui, theme, skills, done),
+    (tui, theme, _keybindings, done) =>
+      new SkillToggleOverlay(tui, theme, skills, done, options.onToggleShortcut),
     {
       overlay: true,
       overlayOptions: {
@@ -16,6 +26,7 @@ export async function showSkillToggleUi(ctx: ExtensionContext, skills: SkillReco
         maxHeight: "88%",
         minWidth: 86,
       },
+      onHandle: options.onHandle,
     },
   );
 }
@@ -30,11 +41,17 @@ class SkillToggleOverlay {
     private readonly theme: Theme,
     private readonly skills: SkillRecord[],
     private readonly done: (result: SkillToggleUiResult) => void,
+    private readonly onToggleShortcut: (() => void) | undefined = undefined,
   ) {
     for (const skill of skills) this.desired.set(skill.id, skill.mode);
   }
 
   handleInput(data: string): void {
+    if (matchesKey(data, Key.ctrlShift("e"))) {
+      this.onToggleShortcut?.();
+      return;
+    }
+
     if (matchesKey(data, Key.escape) || matchesKey(data, Key.ctrl("c"))) {
       this.done({ action: "cancel", drafts: this.getDrafts() });
       return;

@@ -186,7 +186,7 @@ export function registerReadTool(
 				(ctx as any).state._rt = rendered;
 
 				// Async syntax highlighting via Shiki
-				renderFileContent(d.content, d.filePath, d.offset || 0, maxShow, cw)
+				renderFileContent(d.content, d.filePath, d.offset || 0, maxShow, cw, theme)
 					.then((hl) => {
 						const padded = hl
 							.split("\n")

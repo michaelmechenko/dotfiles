@@ -136,6 +136,8 @@ pi (the coding agent TUI) uses a custom theme at `~/.config/pi-config/agent/them
 
 Syntax tokens (`syntax*`) map to the same accents used elsewhere for consistency: comments/punctuation → `text-muted`, keywords → `accent-secondary`, functions/bullets → `accent-periwinkle`, strings → `accent-tertiary`, numbers → `accent-amber`, types → `accent-info`.
 
+The `md*` tokens (`mdHeading`, `mdQuote`/`mdQuoteBorder`, `mdLink`, `mdCode`/`mdListBullet`, `mdHr`, `mdCodeBlockBorder`) aren't just for pi's own chat markdown rendering — `pi-config/agent/extensions/pretty`'s `read` tool renders `.md`/`.mdx` file previews through these same tokens directly (`renderMarkdownBlock()` in `pretty/src/render.ts`), bypassing Shiki entirely for markdown. Shiki has no bundled theme matching pi's own semantic themes (there is no Shiki theme literally named `vague`), so it can never render markdown in the active palette's colors — asking it to try either throws (falling back to unhighlighted text) or silently uses an unrelated bundled theme's colors (e.g. `github-dark`'s blue headings/green quotes), neither of which match this file. Non-markdown languages read via `pretty` still go through Shiki with a real bundled theme (`PRETTY_THEME` env, else `settings.json`'s `theme` if it's an actual Shiki theme name, else `github-dark`) — those syntax colors are Shiki's own palette, not `COLORS.md`'s.
+
 ## Git colors (cross-tool)
 
 | Operation | Hex | Used in |

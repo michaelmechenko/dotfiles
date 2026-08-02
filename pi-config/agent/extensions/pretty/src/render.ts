@@ -9,8 +9,9 @@ import { basename, dirname } from "node:path";
 import type { AgentToolResult } from "@earendil-works/pi-coding-agent";
 // Top-level value import so jiti's pi-tui alias applies (it only rewrites
 // static top-level import/require, not function-body require — see tui-text.ts).
-import { Text as TuiText, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { Text as TuiText, truncateToWidth } from "@earendil-works/pi-tui";
 import { codeToANSI } from "@shikijs/cli";
+import { bundledThemes } from "shiki";
 import type { BundledLanguage, BundledTheme } from "shiki";
 import {
 	BG_BASE,
@@ -51,16 +52,24 @@ function _truncateToWidth(text: string, maxWidth: number, ellipsis?: string, pad
 
 const DEFAULT_THEME: BundledTheme = "github-dark";
 
+/**
+ * pi's own theme names (e.g. "vague") are semantic-token themes, not Shiki
+ * TextMate themes — Shiki has no bundled theme by that name and throws if
+ * asked for one. Only accept a settings `theme` value that's an actual
+ * Shiki-known theme; otherwise fall back to DEFAULT_THEME explicitly rather
+ * than relying on hlBlock's try/catch to paper over an invalid theme string
+ * (which silently disables all syntax highlighting, not just markdown).
+ */
 function resolveTheme(): BundledTheme {
 	const env = process.env.PRETTY_THEME as BundledTheme | undefined;
-	if (env) return env;
+	if (env && env in bundledThemes) return env;
 	try {
 		const home = process.env.HOME;
-		if (!home) return DEFAULT_THEME;
-		const settings = JSON.parse(
-			require("node:fs").readFileSync(require("node:path").join(home, ".pi/agent/settings.json"), "utf8"),
-		);
-		return (settings.theme as BundledTheme) ?? DEFAULT_THEME;
+		const agentDir = process.env.PI_CODING_AGENT_DIR ?? (home ? require("node:path").join(home, ".pi/agent") : undefined);
+		if (!agentDir) return DEFAULT_THEME;
+		const settings = JSON.parse(require("node:fs").readFileSync(require("node:path").join(agentDir, "settings.json"), "utf8"));
+		const themeName = settings.theme as string | undefined;
+		return themeName && themeName in bundledThemes ? (themeName as BundledTheme) : DEFAULT_THEME;
 	} catch {
 		return DEFAULT_THEME;
 	}
@@ -238,6 +247,53 @@ export function renderToolError(error: string, theme: ThemeLike): string {
 }
 
 // ---------------------------------------------------------------------------
+// Markdown — rendered via theme tokens, not Shiki
+// ---------------------------------------------------------------------------
+
+// Shiki has no bundled theme matching pi's own semantic theme (e.g. "vague"),
+// so it can never render markdown headings/quotes/etc. in the active
+// palette's colors — at best it falls back to an arbitrary bundled theme
+// (see resolveTheme() above). Markdown gets its own lightweight renderer that
+// goes straight through the active theme's `md*` tokens (documented in
+// COLORS.md's "pi coding agent integration" section), guaranteeing headings,
+// quotes, links, and inline code always match the rest of the UI.
+const MD_HEADING_RE = /^(#{1,6})(\s+)(.*)$/;
+const MD_QUOTE_RE = /^(\s*>\s?)(.*)$/;
+const MD_LIST_RE = /^(\s*)([-*+]|\d+[.)])(\s+)(.*)$/;
+const MD_HR_RE = /^\s*(-{3,}|\*{3,}|_{3,})\s*$/;
+const MD_FENCE_RE = /^\s*```/;
+const MD_LINK_RE = /\[([^\]]*)\]\([^)]*\)/g;
+const MD_INLINE_CODE_RE = /`([^`]+)`/g;
+const MD_BOLD_RE = /\*\*([^*]+)\*\*/g;
+
+function renderMarkdownInline(text: string, theme: ThemeLike): string {
+	return text
+		.replace(MD_LINK_RE, (_m, label) => theme.fg("mdLink", label || ""))
+		.replace(MD_INLINE_CODE_RE, (_m, code) => theme.fg("mdCode", code))
+		.replace(MD_BOLD_RE, (_m, inner) => theme.bold(inner));
+}
+
+export function renderMarkdownBlock(code: string, theme: ThemeLike): string[] {
+	return code.split("\n").map((line) => {
+		const heading = line.match(MD_HEADING_RE);
+		if (heading) {
+			return theme.fg("mdHeading", theme.bold(`${heading[1]}${heading[2]}${renderMarkdownInline(heading[3], theme)}`));
+		}
+		const quote = line.match(MD_QUOTE_RE);
+		if (quote) {
+			return theme.fg("mdQuoteBorder", quote[1]) + theme.fg("mdQuote", renderMarkdownInline(quote[2], theme));
+		}
+		const list = line.match(MD_LIST_RE);
+		if (list) {
+			return `${list[1]}${theme.fg("mdListBullet", list[2])}${list[3]}${renderMarkdownInline(list[4], theme)}`;
+		}
+		if (MD_FENCE_RE.test(line)) return theme.fg("mdCodeBlockBorder", line);
+		if (MD_HR_RE.test(line)) return theme.fg("mdHr", line);
+		return renderMarkdownInline(line, theme);
+	});
+}
+
+// ---------------------------------------------------------------------------
 // Read — syntax-highlighted file content
 // ---------------------------------------------------------------------------
 
@@ -247,12 +303,13 @@ export async function renderFileContent(
 	offset = 0,
 	maxLines = MAX_PREVIEW_LINES,
 	width?: number,
+	theme?: ThemeLike,
 ): Promise<string> {
 	const normalizedContent = normalizeLineEndings(content);
 	const lines = normalizedContent.split("\n");
 	const show = lines.slice(0, maxLines);
 	const lg = detectLang(filePath);
-	const hl = await hlBlock(show.join("\n"), lg);
+	const hl = theme && (lg === "markdown" || lg === "mdx") ? renderMarkdownBlock(show.join("\n"), theme) : await hlBlock(show.join("\n"), lg);
 
 	const tw = width ?? termWidth();
 

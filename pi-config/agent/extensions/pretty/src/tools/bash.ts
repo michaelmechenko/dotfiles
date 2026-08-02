@@ -81,7 +81,7 @@ export function registerBashTool(
 					status: ctx.isError ? "error" : "pending",
 					theme,
 				});
-				return fillToolBackground(`\n${headerLine}\n`, undefined, ctx.expanded ? undefined : tw);
+				return fillToolBackground(`\n${headerLine}`, undefined, ctx.expanded ? undefined : tw);
 			};
 
 			text.setText(buildHeader(termWidth()));

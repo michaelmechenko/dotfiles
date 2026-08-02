@@ -165,7 +165,6 @@ export function registerReadTool(
 							title: `${theme.fg("toolTitle", theme.bold("read"))} ${theme.fg("toolTitle", p2)}${theme.fg("dim", off2)}`,
 							status: "success",
 							theme,
-							width: tw,
 						});
 				const out: string[] = ["", header];
 				out.push(`${TOOL_RESULT_INDENT}${FG_RULE}${"─".repeat(tw - 1)}${RST}`);

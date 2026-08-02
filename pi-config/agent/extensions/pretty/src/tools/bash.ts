@@ -80,7 +80,6 @@ export function registerBashTool(
 					title: `$ ${indentedCmd}${t}`,
 					status: ctx.isError ? "error" : "pending",
 					theme,
-					width: tw,
 				});
 				return fillToolBackground(`\n${headerLine}\n`, undefined, ctx.expanded ? undefined : tw);
 			};

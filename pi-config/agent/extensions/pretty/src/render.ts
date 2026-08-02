@@ -199,7 +199,7 @@ export function renderToolDuration(result: AgentToolResult<Record<string, unknow
 }
 
 // ---------------------------------------------------------------------------
-// Card framing — rule-line header, oh-my-pi style: "── ✓ title · 238ms ──────"
+// Card framing — status icon + title + duration
 // ---------------------------------------------------------------------------
 
 export type CardStatus = "success" | "error" | "pending";
@@ -211,41 +211,19 @@ function cardStatusIcon(status: CardStatus | undefined, theme: ThemeLike): strin
 }
 
 /**
- * Rule-framed card header: status icon + title + optional dim duration,
- * followed by a dim rule filling the rest of the terminal width. `title`
- * should already carry any theme coloring the caller wants (bold/toolTitle).
+ * Card header: status icon + title + optional dim duration. `title` should
+ * already carry any theme coloring the caller wants (bold/toolTitle).
  */
 export function renderCardHeader(opts: {
 	title: string;
 	status?: CardStatus;
 	duration?: string;
 	theme: ThemeLike;
-	width?: number;
 }): string {
 	const { title, status, duration, theme } = opts;
-	const tw = Math.max(1, opts.width ?? termWidth());
 	const icon = cardStatusIcon(status, theme);
 	const durationPart = duration ? ` ${theme.fg("dim", `· ${duration}`)}` : "";
-	const headerText = `${icon} ${title}${durationPart}`;
-	const lead = `${theme.fg("dim", "──")} `;
-	const used = visibleWidth(`${TOOL_RESULT_INDENT}${lead}${headerText} `);
-	const ruleLen = Math.max(0, tw - used);
-	const tail = ruleLen > 0 ? ` ${theme.fg("dim", "─".repeat(ruleLen))}` : "";
-	return `${TOOL_RESULT_INDENT}${lead}${headerText}${tail}`;
-}
-
-/**
- * Sub-header rule separating a card's call/code region from its result
- * region, e.g. "── Output ──────". Purely a divider; no status icon.
- */
-export function renderSectionRule(label: string, theme: ThemeLike, width?: number): string {
-	const tw = Math.max(1, width ?? termWidth());
-	const lead = `${theme.fg("dim", "──")} `;
-	const labelText = theme.fg("dim", label);
-	const used = visibleWidth(`${TOOL_RESULT_INDENT}${lead}${labelText} `);
-	const ruleLen = Math.max(0, tw - used);
-	const tail = ruleLen > 0 ? ` ${theme.fg("dim", "─".repeat(ruleLen))}` : "";
-	return `${TOOL_RESULT_INDENT}${lead}${labelText}${tail}`;
+	return `${TOOL_RESULT_INDENT}${icon} ${title}${durationPart}`;
 }
 
 // ---------------------------------------------------------------------------

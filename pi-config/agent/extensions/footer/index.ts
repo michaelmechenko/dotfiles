@@ -152,16 +152,11 @@ export default function footer(pi: ExtensionAPI) {
 						.filter((s): s is string => Boolean(s))
 						.map(sanitizeStatusText)
 						.join(" \u2022 ");
-					// Frame the top line with a dim rule filling any unused trailing width,
-					// matching oh-my-pi's flowing-line footer look instead of leaving a
-					// ragged blank tail when there's no right-side status text.
-					const topLineContent = columns(pwd, topRight, width);
-					const topLineVisible = visibleWidth(topLineContent);
-					const topLineWithRule =
-						topLineVisible < width
-							? `${topLineContent} ${"─".repeat(Math.max(0, width - topLineVisible - 1))}`
-							: topLineContent;
-					const topLine = truncateToWidth(theme.fg("dim", topLineWithRule), width, theme.fg("dim", "..."));
+					const topLine = truncateToWidth(
+						theme.fg("dim", columns(pwd, topRight, width)),
+						width,
+						theme.fg("dim", "..."),
+					);
 
 					// --- Bottom-left stats, grouped with separators ---
 					let totalInput = 0;

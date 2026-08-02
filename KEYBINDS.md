@@ -163,7 +163,7 @@ Prefix is `C-Space`. Root-level binds (`bind-key -n`, no prefix) are marked **ro
 | --- | --- | --- |
 | `prefix r` | — | Reload `tmux.conf` |
 | `prefix c` | — | New window in pane's cwd |
-| `prefix t` | — | `choose-tree` (session/window picker) |
+| `prefix t` | — | Prompt for per-pane border label (shows in top border; empty clears) |
 
 ### Copy mode (vi keys)
 Entered via `M-u`/`M-U` or mouse scroll. `setw -g mode-keys vi`.

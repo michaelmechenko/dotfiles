@@ -5,11 +5,11 @@
  * When enabled, built-in write tools are disabled.
  *
  * Features:
- * - /plan command or Ctrl+Alt+P to toggle
+ * - /plan command or Ctrl+P to toggle
  * - Bash restricted to allowlisted read-only commands
- * - Extracts numbered plan steps from "Plan:" sections
+ * - Extracts numbered plan steps from "Plan:" sections and writes them to a plan file
  * - plan_step tool for the agent to mark steps complete/skipped during execution
- * - Progress widget during execution, collapsible via /plan-widget or Ctrl+Alt+T
+ * - Progress widget during execution, collapsible via /plan-widget, Ctrl+Alt+P, or Ctrl+Alt+T
  * - /todos opens an interactive view to manually toggle any step's status
  * - /plan-edit lets you add/remove/reword steps mid-execution
  */
@@ -18,6 +18,7 @@ import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage, TextContent } from "@earendil-works/pi-ai";
 import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { Key, matchesKey, Text as UiText, truncateToWidth } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import {
@@ -27,6 +28,7 @@ import {
 	parsePlanEditText,
 	type TodoItem,
 } from "./utils.ts";
+import { deletePlanFile, readPlanFile, writePlanFile } from "./plan-file.ts";
 
 // Tools
 const PLAN_MODE_TOOLS = ["read", "bash", "grep", "find", "ls", "questionnaire"];
@@ -86,6 +88,8 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 	let todoItems: TodoItem[] = [];
 	let toolsBeforePlanMode: string[] | undefined;
 	let widgetCollapsed = true;
+	let sessionId = "";
+	const agentDir = getAgentDir();
 
 	pi.registerFlag("plan", {
 		description: "Start in plan mode (read-only exploration)",
@@ -179,23 +183,116 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 			toolsBeforePlanMode,
 			widgetCollapsed,
 		});
+		// Persist to file for survival across restarts and model switches
+		if (todoItems.length > 0 && sessionId) {
+			writePlanFile(agentDir, sessionId, todoItems);
+		}
 	}
 
-	function togglePlanMode(ctx: ExtensionContext): void {
-		planModeEnabled = !planModeEnabled;
-		executionMode = false;
-		todoItems = [];
+	async function planModeResumeDialog(ctx: ExtensionContext): Promise<void> {
+		if (!ctx.hasUI) return;
+		const todoListText = todoItems.map((t, i) => `${i + 1}. [${stepStatusChar(t)}] ${t.text}`).join("\n");
+		const planTodoListMessage = {
+			customType: "plan-todo-list",
+			content: `**Plan Steps (${todoItems.length}):**\n\n${todoListText}`,
+			display: true,
+		};
 
+		const choice = await ctx.ui.select("Saved plan found. What next?", [
+			"Execute the plan (resume execution)",
+			"Stay in plan mode",
+			"Refine the plan",
+			"Discard and start new plan",
+		]);
+
+		if (choice?.startsWith("Execute")) {
+			const firstTodoItem = todoItems.find((t) => !isStepDone(t)) ?? todoItems[0];
+			if (!firstTodoItem) return;
+
+			planModeEnabled = false;
+			executionMode = true;
+			enableExecutionTools();
+			updateStatus(ctx);
+			persistState();
+
+			const remaining = todoItems.filter((t) => !isStepDone(t));
+			const remainingList = remaining.length > 0
+				? remaining.map((t) => `${t.step}. ${t.text}`).join("\n")
+				: todoItems.map((t) => `${t.step}. ${t.text}`).join("\n");
+			const execMessage = `Resume the plan.\n\nRemaining steps:\n${remainingList}\n\nImmediately after finishing a step, call the plan_step tool with action "complete" and that step's number.`;
+			pi.sendMessage(planTodoListMessage, { deliverAs: "followUp" });
+			pi.sendMessage(
+				{ customType: "plan-mode-execute", content: execMessage, display: true },
+				{ triggerTurn: true, deliverAs: "followUp" },
+			);
+		} else if (choice === "Stay in plan mode") {
+			ctx.ui.notify("Plan loaded. Ask the agent to refine or review it.", "info");
+		} else if (choice === "Refine the plan") {
+			const refinement = await ctx.ui.editor("Refine the plan:", "");
+			if (refinement?.trim()) {
+				pi.sendMessage(planTodoListMessage, { deliverAs: "followUp" });
+				pi.sendUserMessage(refinement.trim(), { deliverAs: "followUp" });
+			}
+		} else if (choice === "Discard and start new plan") {
+			todoItems = [];
+			if (sessionId) {
+				deletePlanFile(agentDir, sessionId);
+			}
+			updateStatus(ctx);
+			persistState();
+			ctx.ui.notify("Plan discarded. Ask the agent to create a new one.", "info");
+		}
+	}
+
+	async function togglePlanMode(ctx: ExtensionContext): Promise<void> {
 		if (planModeEnabled) {
-			enablePlanModeTools();
-			ctx.ui.notify("Plan mode enabled. Built-in write tools disabled.");
-		} else {
+			// Exit plan mode — discard the plan
+			planModeEnabled = false;
+			executionMode = false;
+			todoItems = [];
 			disableExecutionTools();
 			restoreNormalModeTools();
+			if (sessionId) {
+				deletePlanFile(agentDir, sessionId);
+			}
+			updateStatus(ctx);
+			persistState();
 			ctx.ui.notify("Plan mode disabled. Full access restored.");
+			return;
 		}
+
+		if (executionMode) {
+			// Pause execution — preserve plan, exit to idle so model/model can be changed
+			executionMode = false;
+			planModeEnabled = false;
+			restoreNormalModeTools();
+			if (sessionId) {
+				writePlanFile(agentDir, sessionId, todoItems);
+			}
+			updateStatus(ctx);
+			persistState();
+			ctx.ui.notify("Plan paused. Run /plan to resume, or switch models as needed.", "info");
+			return;
+		}
+
+		// Entering plan mode
+		planModeEnabled = true;
+		enablePlanModeTools();
+
+		// Check for saved plan from file (paused execution resume)
+		if (todoItems.length > 0) {
+			ctx.ui.notify("Plan mode enabled. Saved plan loaded.", "info");
+			updateStatus(ctx);
+			persistState();
+			if (ctx.hasUI) {
+				await planModeResumeDialog(ctx);
+			}
+			return;
+		}
+
 		updateStatus(ctx);
 		persistState();
+		ctx.ui.notify("Plan mode enabled. Built-in write tools disabled.");
 	}
 
 	function toggleWidgetCollapsed(ctx: ExtensionContext): void {
@@ -206,6 +303,10 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 
 	function endExecution(ctx: ExtensionContext): void {
 		executionMode = false;
+		// Delete the plan file since the plan is complete
+		if (sessionId) {
+			deletePlanFile(agentDir, sessionId);
+		}
 		todoItems = [];
 		disableExecutionTools();
 		updateStatus(ctx);
@@ -214,7 +315,7 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 
 	pi.registerCommand("plan", {
 		description: "Toggle plan mode (read-only exploration)",
-		handler: async (_args, ctx) => togglePlanMode(ctx),
+		handler: async (_args, ctx) => { await togglePlanMode(ctx); },
 	});
 
 	pi.registerCommand("plan-widget", {
@@ -222,6 +323,26 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 		handler: async (_args, ctx) => {
 			toggleWidgetCollapsed(ctx);
 			ctx.ui.notify(widgetCollapsed ? "Plan widget collapsed." : "Plan widget expanded.", "info");
+		},
+	});
+
+	pi.registerCommand("pause", {
+		description: "Pause execution and exit plan mode (change model, edit plan, then /plan to resume)",
+		handler: async (_args, ctx) => {
+			if (!executionMode || todoItems.length === 0) {
+				ctx.ui.notify("No active execution to pause.", "info");
+				return;
+			}
+			executionMode = false;
+			planModeEnabled = false;
+			restoreNormalModeTools();
+			// Write plan file before pausing so /plan can resume
+			if (sessionId) {
+				writePlanFile(agentDir, sessionId, todoItems);
+			}
+			updateStatus(ctx);
+			persistState();
+			ctx.ui.notify("Plan paused. Run /plan to resume, or switch models as needed.", "info");
 		},
 	});
 
@@ -356,17 +477,17 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 		handler: async (_args, ctx) => showTodoEditor(ctx),
 	});
 
-	pi.registerShortcut(Key.ctrlAlt("p"), {
+	pi.registerShortcut(Key.ctrl("p"), {
 		description: "Toggle plan mode",
-		handler: async (ctx) => togglePlanMode(ctx),
+		handler: async (ctx) => { await togglePlanMode(ctx); },
 	});
 
-	pi.registerShortcut(Key.ctrlAlt("t"), {
+	pi.registerShortcut(Key.ctrlAlt("p"), {
 		description: "Toggle collapsed/expanded plan progress widget",
 		handler: async (ctx) => toggleWidgetCollapsed(ctx),
 	});
 
-	pi.registerShortcut(Key.ctrl("p"), {
+	pi.registerShortcut(Key.ctrlAlt("t"), {
 		description: "Toggle collapsed/expanded plan progress widget",
 		handler: async (ctx) => toggleWidgetCollapsed(ctx),
 	});
@@ -593,15 +714,24 @@ Execute each step in order. Immediately after finishing a step, call the plan_st
 		if (!planModeEnabled || !ctx.hasUI) return;
 
 		// Extract todos from last assistant message
+		const hadPreExistingTodos = todoItems.length > 0;
+		let freshlyExtracted = false;
 		const lastAssistant = [...event.messages].reverse().find(isAssistantMessage);
 		if (lastAssistant) {
 			const extracted = extractTodoItems(getTextContent(lastAssistant));
 			if (extracted.length > 0) {
 				todoItems = extracted;
+				freshlyExtracted = true;
 			}
 		}
 
 		if (todoItems.length === 0) return;
+
+		// If todos were pre-loaded from a plan file (paused plan), the resume
+		// dialog was already shown by togglePlanMode — don't show it again here.
+		// Only show the dialog for freshly extracted plans.
+		if (!freshlyExtracted && hadPreExistingTodos) return;
+
 		persistState();
 
 		// Show plan steps and prompt for next action
@@ -656,9 +786,18 @@ Immediately after finishing a step, call the plan_step tool with action "complet
 			planModeEnabled = true;
 		}
 
+		// Capture session id for plan file persistence
+		sessionId = ctx.sessionManager.getSessionId();
+
+		// Try reading from plan file first (survives restarts, model switches)
+		const fileTodos = readPlanFile(agentDir, sessionId);
+		if (fileTodos.length > 0) {
+			todoItems = fileTodos;
+		}
+
 		const entries = ctx.sessionManager.getEntries();
 
-		// Restore persisted state
+		// Restore persisted state from session entries (overrides file-based state)
 		const planModeEntry = entries
 			.filter((e: { type: string; customType?: string }) => e.type === "custom" && e.customType === "plan-mode")
 			.pop() as { data?: PlanModeState } | undefined;

@@ -12,7 +12,14 @@ BORDER_COLOR=${BORDER_COLOR:-"#a9b1d6"}
 # The popup runs `tmux attach` inside `tmux popup` (modal); the wrapper sets @in_float_popup=1
 # while that attach is live and clears it on exit. Popups are modal, so @in_float_popup=1 means
 # "you are currently inside the popup" → close it (detach ONLY the popup client; outer untouched).
-if [ "$(tmux show-options -gqv @in_float_popup)" = "1" ]; then
+#
+# Also require the session name to start with "float": @in_float_popup is a global flag that can
+# get stuck at 1 forever if the popup's shell command is ever interrupted abnormally (killed
+# client, crash, disconnect) before it reaches its own "set ... 0" cleanup -- confirmed live, this
+# happened and every subsequent M-f silently detached instead of opening until the flag was
+# cleared by hand. Cross-checking the session name means a stuck flag can no longer break M-f
+# from a normal pane; full self-heal (clearing the flag itself) happens on reload -- see tmux.conf.
+if [ "$(tmux show-options -gqv @in_float_popup)" = "1" ] && echo "$CURRENT_PANE" | grep -q '^float'; then
     tmux detach-client -t "$(tmux display-message -p -F '#{client_name}')"
     exit 0
 fi

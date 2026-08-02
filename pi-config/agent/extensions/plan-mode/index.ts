@@ -326,6 +326,17 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 		},
 	});
 
+	pi.registerCommand("plan-review", {
+		description: "Review the current plan and execute, refine, or discard it",
+		handler: async (_args, ctx) => {
+			if (todoItems.length === 0) {
+				ctx.ui.notify("No plan to review. Create one first with /plan or ask the agent.", "info");
+				return;
+			}
+			await planModeResumeDialog(ctx);
+		},
+	});
+
 	pi.registerCommand("pause", {
 		description: "Pause execution and exit plan mode (change model, edit plan, then /plan to resume)",
 		handler: async (_args, ctx) => {

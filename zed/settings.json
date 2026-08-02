@@ -1,0 +1,46 @@
+// Zed settings
+//
+// For information on how to configure Zed, see the Zed
+// documentation: https://zed.dev/docs/configuring-zed
+//
+// To see all of Zed's default settings without changing your
+// custom settings, run `zed: open default settings` from the
+// command palette (cmd-shift-p / ctrl-shift-p)
+{
+  "tabs": {
+    "git_status": true,
+    "file_icons": true
+  },
+  "title_bar": {
+    "show_menus": false
+  },
+  "status_bar": {
+    "line_endings_button": false
+  },
+  "buffer_font_weight": 425.0,
+  "agent_buffer_font_size": 14.0,
+  "buffer_font_family": "Lilex",
+  "terminal": {
+    "font_weight": 425.0,
+    "font_size": 14.0,
+    "font_family": "Lilex"
+  },
+  "ui_font_family": "Lilex",
+  "telemetry": {
+    "diagnostics": false,
+    "metrics": false,
+    "anthropic_retention": false
+  },
+  "session": {
+    "trust_all_worktrees": true
+  },
+  "vim_mode": true,
+  "icon_theme": "Zed (Default)",
+  "ui_font_size": 14.0,
+  "buffer_font_size": 14.0,
+  "theme": {
+    "mode": "dark",
+    "light": "Vague",
+    "dark": "Vague",
+  },
+}

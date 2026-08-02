@@ -156,8 +156,20 @@ extension's shortcut via `keybindings.json`** — verified against `@earendil-wo
 
 | Extension | Hardcoded shortcut |
 |---|---|
-| `extension-toggle/` | `ctrl+shift+e` |
+| `extension-toggle/` | `ctrl+e` |
+| `skill-toggle/` | `ctrl+shift+e` |
 | `prompt-stash/` | `ctrl+s` |
+| `plan-mode/` | `ctrl+alt+p` (toggle plan mode), `ctrl+alt+t` and `ctrl+p` (toggle widget collapsed) |
+
+`plan-mode/`'s `ctrl+p` widget-toggle shortcut and `extension-toggle/`'s `ctrl+e` picker shortcut both
+collide with core defaults, so `keybindings.json` frees those keys up:
+
+- `app.model.cycleForward` (default `ctrl+p`) and `app.model.cycleBackward` (default `shift+ctrl+p`)
+  are cleared (`[]`) — model cycling is dropped in favor of `plan-mode/`'s widget toggle on `ctrl+p`.
+- `app.model.select` (default `ctrl+l`) gets `ctrl+shift+p` added, so the freed-up `ctrl+shift+p` opens
+  the model selector (same UI as `/model`) instead of cycling models.
+- `tui.editor.cursorLineEnd` (default `["end", "ctrl+e"]`) drops the `ctrl+e` alias, keeping only `end`,
+  so `extension-toggle/`'s `ctrl+e` picker shortcut doesn't collide with moving the cursor to line end.
 
 ## Packages (`agent/settings.json` → `packages`, npm-managed)
 

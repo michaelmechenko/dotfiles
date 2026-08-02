@@ -2,5 +2,9 @@
   "tui.input.newLine": ["alt+enter", "shift+enter", "ctrl+j"],
   "app.message.followUp": ["ctrl+enter"],
   "app.models.save": ["ctrl+shift+s"],
-  "app.session.toggleSort": ["ctrl+shift+r"]
+  "app.session.toggleSort": ["ctrl+shift+r"],
+  "app.model.cycleForward": [],
+  "app.model.cycleBackward": [],
+  "app.model.select": ["ctrl+l", "ctrl+shift+p"],
+  "tui.editor.cursorLineEnd": ["end"]
 }

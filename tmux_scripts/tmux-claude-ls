@@ -55,5 +55,11 @@ $1 == "S" {
   else if (status == "busy")    state = "thinking";
   else if (status == "waiting") state = "waiting";
   else                          state = "idle";
-  printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", sid, PID[ppid], TGT[ppid], SN[ppid], state, name, TR[sid], WN[ppid], ts;
+  # "-", not "": a genuinely empty field here silently collapses in every
+  # downstream tab-delimited bash read (bash treats tab as IFS whitespace no
+  # matter what IFS is set to, so consecutive tabs from an empty field get
+  # collapsed, shifting every later field left by one -- reproduced live in
+  # tmux-sidebar agents tab as an empty [agent] tag with wname/agent shifted).
+  tr = (sid in TR) ? TR[sid] : "-";
+  printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", sid, PID[ppid], TGT[ppid], SN[ppid], state, name, tr, WN[ppid], ts;
 }'

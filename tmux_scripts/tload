@@ -2,9 +2,11 @@
 
 # Recreate tmux sessions/windows/panes from a file written by `tsave`.
 # Sessions that already exist are skipped (additive). Pane geometry is restored
-# via the saved window_layout string; a pane recorded with a Claude sessionId is
-# relaunched with `claude --resume <id>`, every other pane is a plain shell in
-# its saved cwd.
+# via the saved window_layout string. Nothing is auto-resumed: a pane recorded
+# with a Claude or pi session id gets an interactive y/N resume prompt typed
+# into it (claude --resume <id> / pi --session <id>); a pane that was running
+# nvim gets an informational cwd note (no reopen); any other notable foreground
+# command gets a plain "last running here" note; plain shells get nothing.
 #   usage: tload <name|path>
 
 set -e
@@ -25,6 +27,37 @@ expand_home() {
         "~/"*) printf '%s' "$HOME${1#\~}" ;;
         *) printf '%s' "$1" ;;
     esac
+}
+
+# Single-quote a value so it's safe to splice literally into a shell one-liner
+# that gets typed into a pane via send-keys (not re-parsed by tload's own
+# shell, so normal quoting rules don't apply automatically).
+shquote() {
+    printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"
+}
+
+# Build the one-liner sent into a recreated pane instead of auto-running
+# anything: claude/pi panes with a saved session id get an interactive y/N
+# resume prompt (per-pane, non-blocking to tload itself); nvim panes get an
+# informational note (no reopen — no reliable way to recover buffer state
+# without a running nvim RPC server); any other non-shell foreground command
+# gets a plain "last running here" note. Plain shells get nothing (unchanged).
+pane_notice_cmd() {
+    _csid="$1"; _psid="$2"; _cmd="$3"; _cwd="$4"
+    if [ -n "$_csid" ]; then
+        printf 'echo %s; if read -q '"'"'?Resume this session? (y/N) '"'"'; then echo; exec claude --resume %s; else echo; fi' \
+            "$(shquote "last claude session here: $_csid")" "$(shquote "$_csid")"
+    elif [ -n "$_psid" ]; then
+        printf 'echo %s; if read -q '"'"'?Resume this session? (y/N) '"'"'; then echo; exec pi --session %s; else echo; fi' \
+            "$(shquote "last pi session here: $_psid")" "$(shquote "$_psid")"
+    elif [ "$_cmd" = "nvim" ]; then
+        printf 'echo %s' "$(shquote "nvim was running here (cwd: $_cwd)")"
+    else
+        case "$_cmd" in
+            ""|-|sh|bash|zsh|fish|dash) return 0 ;;
+        esac
+        printf 'echo %s' "$(shquote "last running here: $_cmd")"
+    fi
 }
 
 # Restore order: float first (popup session the others may depend on), then saved order.
@@ -75,18 +108,20 @@ for i in $order; do
         [ "$np" -gt 1 ] && tmux select-layout -t "$first_pane" "$layout" >/dev/null 2>&1 || true
 
         # Relaunch commands and locate the active pane id by saved index.
+        # Nothing auto-runs: claude/pi panes get an interactive resume prompt,
+        # nvim/other notable panes get an informational note. See
+        # pane_notice_cmd above.
         active_pane_id=""
         p=0
         for pane in $pane_ids; do
             csid=$(jq -r "$wp.panes[$p].claude_session // empty" "$file")
+            psid=$(jq -r "$wp.panes[$p].pi_session // empty" "$file")
             cmd=$(jq -r "$wp.panes[$p].command" "$file")
+            pcwd=$(expand_home "$(jq -r "$wp.panes[$p].cwd" "$file")")
             pidx=$(jq -r "$wp.panes[$p].index" "$file")
             [ "$pidx" = "$apane" ] && active_pane_id="$pane"
-            if [ -n "$csid" ]; then
-                tmux send-keys -t "$pane" "claude --resume $csid" C-m
-            elif [ "$cmd" = "claude" ]; then
-                tmux send-keys -t "$pane" "claude" C-m
-            fi
+            notice=$(pane_notice_cmd "$csid" "$psid" "$cmd" "$pcwd")
+            [ -n "$notice" ] && tmux send-keys -t "$pane" "$notice" C-m
             p=$((p + 1))
         done
         [ -n "$active_pane_id" ] && tmux select-pane -t "$active_pane_id" >/dev/null 2>&1 || true

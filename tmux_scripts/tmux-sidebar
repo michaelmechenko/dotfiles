@@ -1,0 +1,696 @@
+#!/usr/bin/env bash
+# tmux-sidebar -- the neo-tree-like left sidebar dispatcher TUI.
+# Runs inside the sidebar pane created by tmux-sidebar-toggle. Renders a stack
+# of vertical blocks as ANSI text: header (2 lines) -> navigator (flexible,
+# tab-switchable) -> docked blocks (fixed height, bottom, in
+# SIDEBAR_DOCK_BLOCKS order). Reads keys and re-polls on a 2s read timeout so
+# agent/session state updates without input.
+#
+# Blocks architecture: SIDEBAR_DOCK_BLOCKS is an ordered list of block ids
+# rendered below the navigator, in order. Each block id X needs three
+# functions: fetch_X (expensive, dirty-gated or self-timed), paint_X (cheap,
+# prints from cached state), and height_X (cheap, returns the block's current
+# desired row count so the layout can reserve space / degrade gracefully on a
+# short pane). dock_fetch/dock_paint/dock_height dispatch by block id via a
+# case statement rather than dynamic function-name construction (eval/
+# namerefs), because this repo's default /bin/bash is 3.2 (macOS ships it,
+# licensing), which has neither associative arrays (bash 4+) nor `local -n`
+# namerefs (bash 4.3+). Adding a block = one more case arm + its 3 functions +
+# appending its id to SIDEBAR_DOCK_BLOCKS.
+#
+# Rendering is split into a "fetch" phase (expensive: shells out to
+# tmux-fzf-nav / tmux-agent-ls / find, populates cached state) and a "paint"
+# phase (cheap: prints cached state with the current cursor highlighted, no
+# subprocess spawns beyond a couple of tmux display-message queries). The
+# navigator's fetch only runs when a `dirty` flag is set -- on tab switch,
+# explicit 'r', the 2s poll timeout, or a structural change (filetree
+# up-a-level, scratch return) -- NOT on every keypress; the same flag also
+# gates the agents_glance dock block's fetch. The system_stats dock block
+# fetches on its own independent ~5s wall-clock timer regardless of `dirty`,
+# since machine load doesn't need per-keystroke or even per-2s freshness, and
+# its `ps`-based CPU sample is the most expensive single call in the script.
+# Without the fetch/paint split entirely, every keystroke re-ran the full
+# data-gathering pipeline, which made the sidebar feel laggy/unusable on
+# simple cursor movement.
+#
+# Window-scoped state (owned by tmux-sidebar-toggle):
+#   @sidebar_pane_id / @sidebar_content_pane / @sidebar_source
+# Local state: cursor row, filetree root, dirty flag, dock-block caches.
+#
+# Keymap (sidebar pane focused):
+#   j/Down k/Up   move cursor        1-4 / Tab / S-Tab   switch / cycle tabs
+#   Enter         act on row         r                   force refetch + re-render
+#   q / Esc       close sidebar      ?                   toggle help overlay
+#   (per-tab extra keys documented in each render_* fn below)
+#
+# Docked blocks (agents_glance, system_stats) are read-only glances, not
+# pickers -- no cursor, no Enter action. Interactive agent switching stays on
+# the existing M-b cross-session menu (tmux-claude-menu), which already
+# covers that; agents_glance intentionally doesn't duplicate it.
+
+set -uo pipefail
+
+SELF="$HOME/.config/tmux_scripts/tmux-sidebar"
+TOGGLE="$HOME/.config/tmux_scripts/tmux-sidebar-toggle"
+FZFNAV="$HOME/.config/tmux_scripts/tmux-fzf-nav"
+AGENT_LS="$HOME/.config/tmux_scripts/tmux-agent-ls"
+OPEN_TARGET="$HOME/.config/tmux_scripts/tmux-open-target"
+SCRATCH_DIR="$HOME/.config/tmux_scratch"
+
+# ---- dock block config ---------------------------------------------------
+# Order = render order (top to bottom, below the navigator). Also the
+# degradation priority: when a short pane can't fit everything, blocks are
+# dropped from the END of this list first (system_stats before
+# agents_glance). Reorder/drop/add blocks here + their fetch_X/paint_X/
+# height_X trio; no other layout code needs to change.
+SIDEBAR_DOCK_BLOCKS=(agents_glance system_stats)
+AGENTS_GLANCE_MAX=6
+SYSTEM_STATS_REFRESH=5   # seconds; independent of the dirty flag
+NAV_MIN_HEIGHT=3         # navigator never shrinks below this before blocks degrade
+
+# ---- palette (read once) -----------------------------------------------
+read_palette() {
+  : "${COLOR_INACTIVE:=$(tmux show -gqv @color-inactive)}";   COLOR_INACTIVE=${COLOR_INACTIVE:-#656a80}
+  : "${COLOR_LAVENDER:=$(tmux show -gqv @color-lavender2)}";  COLOR_LAVENDER=${COLOR_LAVENDER:-#aeaed1}
+  : "${COLOR_ROSE:=$(tmux show -gqv @color-rose)}";           COLOR_ROSE=${COLOR_ROSE:-#d8647e}
+  : "${COLOR_PINK:=$(tmux show -gqv @color-dusty_pink)}";     COLOR_PINK=${COLOR_PINK:-#bb9dbd}
+  : "${COLOR_ACTIVE:=$(tmux show -gqv @color-active)}";       COLOR_ACTIVE=${COLOR_ACTIVE:-#bebedb}
+}
+# hex "#aeaed1" -> "174;174;209"
+hex2rgb() {
+  local h="${1#\#}"; printf '%d;%d;%d' "0x${h:0:2}" "0x${h:2:2}" "0x${h:4:2}"
+}
+fg() { printf '\033[38;2;%sm' "$(hex2rgb "$1")"; }
+RST=$'\033[0m'; REV=$'\033[7m'; UNREV=$'\033[27m'; DIM=$'\033[2m'; UNDIM=$'\033[22m'
+
+# visible width of a string with ANSI escapes stripped, truncated to $1 cols.
+trunc() {
+  local max="$1" s="$2" plain len
+  plain=$(printf '%s' "$s" | sed $'s/\033\\[[0-9;]*m//g' | sed 's/[[:space:]]*$//')
+  len=${#plain}
+  if [ "$len" -le "$max" ]; then
+    printf '%s' "$s"
+  else
+    printf '%s...' "${plain:0:$((max-3))}"
+  fi
+}
+
+# ---- window-scoped option helpers --------------------------------------
+win_target() { tmux display-message -p '#{session_id}:#{window_index}'; }
+get_opt() { tmux show-options -wqv -t "$(win_target)" "$1" 2>/dev/null || true; }
+set_opt() { tmux set-option -wt "$(win_target)" "$1" "$2"; }
+unset_opt() { tmux set-option -wqu -t "$(win_target)" "$1"; }
+
+content_pane() {
+  local cp; cp=$(get_opt @sidebar_content_pane)
+  if [ -n "$cp" ] && tmux display-message -p -t "$cp" '#{pane_id}' >/dev/null 2>&1; then
+    printf '%s' "$cp"; return
+  fi
+  # Fallback: the pane immediately to the right of this one by pane_left geometry.
+  local self_id left
+  self_id=$(tmux display-message -p '#{pane_id}')
+  left=$(tmux display-message -p -t "$self_id" '#{pane_left}')
+  cp=$(tmux list-panes -F '#{pane_left} #{pane_id}' 2>/dev/null \
+    | awk -v l="$left" '$1 > l { print $2; exit }')
+  if [ -n "$cp" ]; then set_opt @sidebar_content_pane "$cp"; printf '%s' "$cp"; fi
+}
+
+current_source() { get_opt @sidebar_source || printf sessions; }
+set_source() { set_opt @sidebar_source "$1"; sel=0; dirty=1; }
+
+# ---- focus helper (mirrors tmux-fzf-nav.focus_pane) --------------------
+focus_pane() {
+  local pane_id="${1:-}" target="${2:-}"
+  [ -n "$pane_id" ] || return 0
+  [ -n "$target" ] || target=$(tmux display-message -p -t "$pane_id" '#{session_id}:#{window_index}' 2>/dev/null || true)
+  [ -n "$target" ] || return 0
+  tmux switch-client -t "$target" 2>/dev/null || true
+  tmux select-pane -t "$pane_id" 2>/dev/null || true
+}
+
+# ---- render primitives --------------------------------------------------
+# rows[] = visible line text (ANSI); actions[] = per-row payload (pane_id|target
+# or path); row_count = number of navigator body rows. sel = cursor (0-based).
+# dirty = 1 when the navigator (and agents_glance) need refetching before the
+# next paint.
+declare -a rows actions
+row_count=0
+sel=0
+show_help=0
+dirty=1
+frame_lines=0
+last_frame_lines=0
+
+# Emits one line of the frame, clearing to end-of-line first (so a shorter
+# line never leaves stray characters from a longer previous frame) and counts
+# it so render() knows whether to trim any leftover lines from the last frame.
+print_line() {
+  printf '%s\033[K\n' "$1"
+  frame_lines=$((frame_lines+1))
+}
+
+render_header() {
+  local src names=(sess win tree scr) fulls=(sessions windows filetree scratch) i out="" sep="" active_full=""
+  src=$(current_source)
+  for i in "${!names[@]}"; do
+    if [ "${fulls[$i]}" = "$src" ]; then
+      out+="${sep}$(fg "$COLOR_LAVENDER")${REV}$(($i+1))${names[$i]}${UNREV}${RST}"
+      active_full="${fulls[$i]}"
+    else
+      out+="${sep}$(fg "$COLOR_INACTIVE")$(($i+1))${names[$i]}${RST}"
+    fi
+    sep=" "
+  done
+  print_line "$out"
+  print_line "$(fg "$COLOR_LAVENDER")▸ ${active_full}${RST}"
+}
+
+# fetch_navigator: expensive. Re-populates rows[]/actions[]/row_count for the
+# active navigator tab. Only called from render() when dirty=1.
+fetch_navigator() {
+  local src
+  src=$(current_source)
+  rows=(); actions=(); row_count=0
+  case "$src" in
+    sessions) render_sessions;;
+    windows)  render_windows;;
+    filetree) render_filetree;;
+    scratch)  render_scratch;;
+  esac
+}
+
+# paint_navigator: cheap. Prints a viewport-clipped window of rows[] sized to
+# $1 (the height the layout computed for the navigator this render), with the
+# cursor highlighted. Safe to call on every keypress (no subprocess spawns
+# beyond one pane_width query).
+#
+# Windowed to the computed height, not the raw pane height: without this, a
+# body with more rows than the space it's given just scrolls the terminal,
+# pushing the header off the top of the visible pane on every render -- the
+# header/cursor effectively vanish for any oversized list.
+paint_navigator() {
+  local avail="$1" i prefix pw start end
+  pw=$(tmux display-message -p '#{pane_width}'); pw=$((pw-3))  # -2 prefix, -1 cursor glyph width
+  [ "$avail" -lt 1 ] && avail=1
+  if [ "$row_count" -le "$avail" ]; then
+    start=0
+  else
+    start=$(( sel - avail/2 ))
+    [ "$start" -lt 0 ] && start=0
+    local maxstart=$((row_count - avail))
+    [ "$start" -gt "$maxstart" ] && start=$maxstart
+  fi
+  end=$((start + avail - 1))
+  [ "$end" -ge "$row_count" ] && end=$((row_count-1))
+  i=$start
+  while [ "$i" -le "$end" ]; do
+    if [ "$i" -eq "$sel" ]; then prefix="$(fg "$COLOR_LAVENDER")▶ ${RST}"; else prefix="  "; fi
+    print_line "$prefix$(trunc "$pw" "${rows[$i]}")"
+    i=$((i+1))
+  done
+}
+
+render_help() {
+  print_line ""
+  print_line "$(fg "$COLOR_LAVENDER")keymap${RST}"
+  print_line "$(fg "$COLOR_INACTIVE")j/k or ↑/↓  move      1-4/Tab  switch tab${RST}"
+  print_line "$(fg "$COLOR_INACTIVE")Enter       act       r        force refetch${RST}"
+  print_line "$(fg "$COLOR_INACTIVE")q/Esc       close     ?        toggle this help${RST}"
+  print_line "$(fg "$COLOR_INACTIVE")filetree: Backspace = up one dir${RST}"
+  print_line "$(fg "$COLOR_INACTIVE")agents/system blocks below are read-only glances${RST}"
+}
+
+# ---- dock block dispatch --------------------------------------------------
+# Case-statement dispatch by block id (not dynamic function names via eval or
+# namerefs) -- see the top-of-file note on why: bash 3.2 (macOS default) has
+# neither associative arrays nor `local -n`.
+dock_fetch() {
+  case "$1" in
+    agents_glance) fetch_agents_glance;;
+    system_stats)  fetch_system_stats;;
+  esac
+}
+dock_paint() {
+  case "$1" in
+    agents_glance) paint_agents_glance;;
+    system_stats)  paint_system_stats;;
+  esac
+}
+dock_height() {
+  case "$1" in
+    agents_glance) height_agents_glance;;
+    system_stats)  height_system_stats;;
+  esac
+}
+
+# ---- dock block: agents_glance ------------------------------------------
+# Read-only, always-visible condensed agent status, regardless of which
+# navigator tab is active. Capped to AGENTS_GLANCE_MAX rows, sorted by
+# urgency (awaiting-permission/waiting first, thinking next, idle last) so
+# the rows that most need attention survive truncation, with a trailing
+# "+N more" row when clipped.
+declare -a agents_glance_rows
+agents_glance_row_count=0
+agents_glance_more=0
+
+fetch_agents_glance() {
+  agents_glance_rows=()
+  agents_glance_row_count=0
+  agents_glance_more=0
+  [ -x "$AGENT_LS" ] || return 0
+  local sid pane target sname state name transcript wname agent
+  local -a all_rows=() all_ranks=()
+  local n=0
+  while IFS=$'\t' read -r sid pane target sname state name transcript wname agent; do
+    local rank color tag loc disp
+    case "$state" in
+      awaiting-permission) rank=0; color="$COLOR_ROSE";     tag="!perm";;
+      waiting)              rank=0; color="$COLOR_ROSE";    tag="!wait";;
+      thinking)             rank=1; color="$COLOR_PINK";    tag="…";;
+      *)                    rank=2; color="$COLOR_INACTIVE"; tag=" ";;
+    esac
+    loc="${wname:-}"
+    [ -n "$loc" ] && loc="$loc · "
+    loc="$loc${sname}"
+    disp="$(fg "$color")$tag $(fg "$COLOR_ACTIVE")${loc}${RST}$(fg "$COLOR_INACTIVE") [$agent]${RST}"
+    all_rows[$n]="$disp"; all_ranks[$n]="$rank"
+    n=$((n+1))
+  done < <("$AGENT_LS" 2>/dev/null)
+  [ "$n" -eq 0 ] && return 0
+
+  local r i
+  for r in 0 1 2; do
+    for i in "${!all_rows[@]}"; do
+      [ "${all_ranks[$i]}" = "$r" ] || continue
+      if [ "$agents_glance_row_count" -lt "$AGENTS_GLANCE_MAX" ]; then
+        agents_glance_rows[$agents_glance_row_count]="${all_rows[$i]}"
+        agents_glance_row_count=$((agents_glance_row_count+1))
+      else
+        agents_glance_more=$((agents_glance_more+1))
+      fi
+    done
+  done
+}
+
+height_agents_glance() {
+  local h=$((1 + agents_glance_row_count))  # label + rows
+  [ "$agents_glance_more" -gt 0 ] && h=$((h+1))
+  [ "$h" -lt 2 ] && h=2  # always at least "label + (none)" so the block never vanishes
+  printf '%s' "$h"
+}
+
+paint_agents_glance() {
+  print_line "$(fg "$COLOR_LAVENDER")▸ agents${RST}"
+  if [ "$agents_glance_row_count" -eq 0 ]; then
+    print_line "$(fg "$COLOR_INACTIVE")(none)${RST}"
+    return 0
+  fi
+  local i
+  for i in "${!agents_glance_rows[@]}"; do
+    print_line "  ${agents_glance_rows[$i]}"
+  done
+  [ "$agents_glance_more" -gt 0 ] && print_line "$(fg "$COLOR_INACTIVE")  +${agents_glance_more} more${RST}"
+}
+
+# ---- dock block: system_stats --------------------------------------------
+# Read-only cpu/mem/disk/battery glance, refetched on its own ~5s wall-clock
+# timer independent of `dirty` -- system load doesn't need per-keystroke or
+# even per-2s freshness, and the ps-based CPU sample is the priciest single
+# call in this script. Reuses the same commands already trusted elsewhere in
+# this repo (sketchybar/plugins/cpu.sh's ps-based CPU%, battery.sh's pmset
+# parsing) rather than introducing a new measurement approach.
+ss_cpu=""; ss_mem=""; ss_disk=""; ss_batt=""
+ss_last_fetch=0
+
+fetch_system_stats() {
+  local now
+  now=$(date +%s)
+  if [ -n "$ss_cpu" ] && [ $((now - ss_last_fetch)) -lt "$SYSTEM_STATS_REFRESH" ]; then
+    return 0
+  fi
+  ss_last_fetch=$now
+
+  local core_count cpu_info
+  core_count=$(sysctl -n machdep.cpu.thread_count 2>/dev/null); core_count=${core_count:-1}
+  cpu_info=$(ps -eo pcpu 2>/dev/null)
+  ss_cpu=$(printf '%s\n' "$cpu_info" | awk -v cores="$core_count" 'NR>1{sum+=$1} END{printf "%.0f", sum/cores}')
+  [ -n "$ss_cpu" ] || ss_cpu=0
+
+  local mem_total vmstat_out pagesize free_pages inactive_pages avail_bytes
+  mem_total=$(sysctl -n hw.memsize 2>/dev/null); mem_total=${mem_total:-0}
+  vmstat_out=$(vm_stat 2>/dev/null)
+  pagesize=$(printf '%s\n' "$vmstat_out" | head -1 | grep -oE '[0-9]+' | head -1); pagesize=${pagesize:-4096}
+  free_pages=$(printf '%s\n' "$vmstat_out" | awk -F'[: .]+' '/Pages free/{print $3}'); free_pages=${free_pages:-0}
+  inactive_pages=$(printf '%s\n' "$vmstat_out" | awk -F'[: .]+' '/Pages inactive/{print $3}'); inactive_pages=${inactive_pages:-0}
+  if [ "$mem_total" -gt 0 ]; then
+    avail_bytes=$(( (free_pages + inactive_pages) * pagesize ))
+    ss_mem=$(( 100 - (avail_bytes * 100 / mem_total) ))
+  else
+    ss_mem=0
+  fi
+
+  ss_disk=$(df -H / 2>/dev/null | awk 'NR==2{gsub("%","",$5); print $5}')
+  [ -n "$ss_disk" ] || ss_disk=0
+
+  ss_batt=$(pmset -g batt 2>/dev/null | grep -oE '[0-9]+%' | head -1 | tr -d '%')
+}
+
+height_system_stats() { printf 3; }  # label + 2 stat lines, fixed
+
+paint_system_stats() {
+  print_line "$(fg "$COLOR_LAVENDER")▸ system${RST}"
+  print_line "$(fg "$COLOR_ACTIVE")cpu ${ss_cpu}%  mem ${ss_mem}%${RST}"
+  local line2="disk ${ss_disk}%"
+  [ -n "$ss_batt" ] && line2="$line2  batt ${ss_batt}%"
+  print_line "$(fg "$COLOR_ACTIVE")$line2${RST}"
+}
+
+# ---- layout: header + navigator + degraded dock blocks -------------------
+# Reserves space bottom-up: sums each active dock block's current height,
+# then gives whatever's left to the navigator. If that would push the
+# navigator below NAV_MIN_HEIGHT, drops dock blocks from the END of
+# SIDEBAR_DOCK_BLOCKS (lowest priority first: system_stats before
+# agents_glance) and recomputes, so a short pane protects the primary
+# navigator instead of squeezing everything unusably thin.
+render() {
+  frame_lines=0
+  printf '\033[H'
+  if [ "$dirty" -eq 1 ]; then
+    fetch_navigator
+    fetch_agents_glance
+    dirty=0
+  fi
+  fetch_system_stats  # self-gates internally on its own ~5s timer
+
+  local ph header_lines=2 headroom=1 usable nav_avail
+  ph=$(tmux display-message -p '#{pane_height}')
+  [ "$show_help" -eq 1 ] && header_lines=$((header_lines + 6))
+  # -1 headroom: every printed line ends in \n, and emitting exactly $ph
+  # newline-terminated lines makes the terminal scroll by 1 to advance the
+  # cursor past the last row -- silently shifting the whole frame up by one
+  # line and pushing the header out of the visible pane on every render.
+  usable=$((ph - headroom - header_lines))
+  [ "$usable" -lt 1 ] && usable=1
+
+  local -a active=("${SIDEBAR_DOCK_BLOCKS[@]}")
+  local dock_total b
+  while :; do
+    dock_total=0
+    if [ "${#active[@]}" -gt 0 ]; then
+      for b in "${active[@]}"; do
+        dock_total=$((dock_total + $(dock_height "$b")))
+      done
+    fi
+    nav_avail=$((usable - dock_total))
+    if [ "$nav_avail" -ge "$NAV_MIN_HEIGHT" ] || [ "${#active[@]}" -eq 0 ]; then
+      break
+    fi
+    active=("${active[@]:0:$((${#active[@]}-1))}")
+  done
+  [ "$nav_avail" -lt 1 ] && nav_avail=1
+
+  render_header
+  paint_navigator "$nav_avail"
+  if [ "${#active[@]}" -gt 0 ]; then
+    for b in "${active[@]}"; do
+      dock_paint "$b"
+    done
+  fi
+  [ "$show_help" -eq 1 ] && render_help
+  # Erase any leftover lines from a previous, taller frame.
+  if [ "$frame_lines" -lt "$last_frame_lines" ]; then
+    printf '\033[J'
+  fi
+  last_frame_lines=$frame_lines
+}
+
+# ---- source: sessions ---------------------------------------------------
+render_sessions() {
+  local pane target disp n=0
+  while IFS=$'\t' read -r pane target disp; do
+    [ -n "$pane" ] || continue
+    rows[$n]="$(fg "$COLOR_ACTIVE")$disp${RST}"
+    actions[$n]="$pane|$target"
+    n=$((n+1))
+  done < <("$FZFNAV" --list-sessions 2>/dev/null | tail -n +2)
+  row_count=$n
+  [ "$sel" -ge "$row_count" ] && sel=$((row_count-1)); [ "$sel" -lt 0 ] && sel=0
+}
+
+# ---- source: windows ----------------------------------------------------
+render_windows() {
+  local pane target disp n=0
+  while IFS=$'\t' read -r pane target disp; do
+    [ -n "$pane" ] || continue
+    rows[$n]="$(fg "$COLOR_ACTIVE")$disp${RST}"
+    actions[$n]="$pane|$target"
+    n=$((n+1))
+  done < <("$FZFNAV" --list-windows 2>/dev/null | tail -n +2)
+  row_count=$n
+  [ "$sel" -ge "$row_count" ] && sel=$((row_count-1)); [ "$sel" -lt 0 ] && sel=0
+}
+
+# ---- source: filetree ---------------------------------------------------
+# ft_root is only reset from the content pane's cwd when the content pane
+# actually changes (tracked via ft_last_cp) -- NOT on every fetch -- so
+# Backspace-navigate-up persists across the 2s poll refetch instead of being
+# silently reset back to the content pane's cwd.
+declare -a ft_paths
+ft_root=""
+ft_last_cp=""
+
+# Builds rows[]/actions[]/ft_paths[] for $1 (root dir), 2 levels deep,
+# directories before files at each level, indented by depth. Every row's path
+# comes straight from `find`'s own output -- there is no glyph-stripping or
+# path reconstruction, so Enter-on-a-row always acts on the real path.
+build_filetree_rows() {
+  local root="$1" n=0
+  local -a d1=() f1=()
+  while IFS= read -r -d '' e; do
+    if [ -d "$e" ]; then d1+=("$e"); else f1+=("$e"); fi
+  done < <(find "$root" -mindepth 1 -maxdepth 1 -print0 2>/dev/null | sort -z)
+
+  local d c
+  # Guard every "${arr[@]}" (value) expansion with a length check first: on
+  # macOS's stock /bin/bash (3.2.57), expanding an empty array with [@] under
+  # `set -u` throws "unbound variable" (fixed in bash 4.4+, but this repo's
+  # default bash is 3.2). "${!arr[@]}" (indices) doesn't have this problem,
+  # only "${arr[@]}" (values) does -- so a directory with zero subdirs or zero
+  # files at depth 2 would otherwise kill the dispatcher outright.
+  if [ "${#d1[@]}" -gt 0 ]; then
+    for d in "${d1[@]}"; do
+      rows[$n]="$(fg "$COLOR_LAVENDER")$(basename "$d")/${RST}"
+      ft_paths[$n]="$d"; actions[$n]="$d"; n=$((n+1))
+      local -a d2=() f2=()
+      while IFS= read -r -d '' e2; do
+        if [ -d "$e2" ]; then d2+=("$e2"); else f2+=("$e2"); fi
+      done < <(find "$d" -mindepth 1 -maxdepth 1 -print0 2>/dev/null | sort -z)
+      if [ "${#d2[@]}" -gt 0 ]; then
+        for c in "${d2[@]}"; do
+          rows[$n]="  $(fg "$COLOR_LAVENDER")$(basename "$c")/${RST}"
+          ft_paths[$n]="$c"; actions[$n]="$c"; n=$((n+1))
+        done
+      fi
+      if [ "${#f2[@]}" -gt 0 ]; then
+        for c in "${f2[@]}"; do
+          rows[$n]="  $(fg "$COLOR_ACTIVE")$(basename "$c")${RST}"
+          ft_paths[$n]="$c"; actions[$n]="$c"; n=$((n+1))
+        done
+      fi
+    done
+  fi
+  if [ "${#f1[@]}" -gt 0 ]; then
+    for d in "${f1[@]}"; do
+      rows[$n]="$(fg "$COLOR_ACTIVE")$(basename "$d")${RST}"
+      ft_paths[$n]="$d"; actions[$n]="$d"; n=$((n+1))
+    done
+  fi
+  row_count=$n
+}
+
+render_filetree() {
+  local cp
+  cp=$(content_pane) || cp=""
+  if [ -z "$ft_root" ] || { [ -n "$cp" ] && [ "$cp" != "$ft_last_cp" ]; }; then
+    ft_root=$(tmux display-message -p -t "${cp}" '#{pane_current_path}' 2>/dev/null || printf '%s' "$HOME")
+  fi
+  ft_last_cp="$cp"
+  ft_paths=()
+  build_filetree_rows "$ft_root"
+  [ "$sel" -ge "$row_count" ] && sel=$((row_count-1)); [ "$sel" -lt 0 ] && sel=0
+}
+
+# ---- source: scratch ----------------------------------------------------
+declare -a scratch_files scratch_labels
+slug_of() {
+  local tmp="${1//\//-}"; printf '%s' "${tmp//./-}"
+}
+render_scratch() {
+  local cp cwd slug global_file project_file n=0
+  cp=$(content_pane) || cp=""
+  cwd=$(tmux display-message -p -t "${cp}" '#{pane_current_path}' 2>/dev/null || printf '%s' "$HOME")
+  slug=$(slug_of "$cwd")
+  mkdir -p "$SCRATCH_DIR"
+  global_file="$SCRATCH_DIR/global.md"
+  project_file="$SCRATCH_DIR/$slug.md"
+  scratch_files=(); scratch_labels=()
+  scratch_files[0]="$global_file";   scratch_labels[0]="global"
+  scratch_files[1]="$project_file";  scratch_labels[1]="project: $(basename "$cwd")"
+  for n in 0 1; do
+    local lbl="$(fg "$COLOR_LAVENDER")${scratch_labels[$n]}${RST}"
+    local sz preview=""
+    if [ -f "${scratch_files[$n]}" ]; then
+      sz=$(wc -l <"${scratch_files[$n]}" 2>/dev/null || echo 0)
+      preview="$(fg "$COLOR_INACTIVE")${sz} lines${RST}"
+    else
+      preview="$(fg "$COLOR_INACTIVE")(empty)${RST}"
+    fi
+    rows[$n]="$lbl  $preview"
+    actions[$n]="${scratch_files[$n]}"
+  done
+  row_count=2
+}
+
+# ---- actions ------------------------------------------------------------
+act_on_row() {
+  [ "$row_count" -gt 0 ] || return 0
+  local src payload a1 a2
+  src=$(current_source)
+  payload="${actions[$sel]:-}"
+  [ -n "$payload" ] || return 0
+  case "$src" in
+    sessions|windows)
+      IFS='|' read -r a1 a2 <<<"$payload"
+      focus_pane "$a1" "$a2"
+      ;;
+    filetree)
+      local path="$payload" cp
+      cp=$(content_pane) || cp=""
+      if [ -d "$path" ]; then
+        tmux split-window -h -c "$path" -t "$cp" 2>/dev/null || true
+      elif [ -f "$path" ]; then
+        TMUX_OPEN_PANE="$cp" "$OPEN_TARGET" "$path" 2>/dev/null || true
+      fi
+      ;;
+    scratch)
+      local f="$payload" qf qself
+      printf -v qf '%q' "$f"; printf -v qself '%q' "$SELF"
+      # nvim $f; exec $SELF -- the tmux-pi-prompt return pattern: :wq returns
+      # to a fresh dispatcher process (dirty starts at 1, so state re-fetches).
+      exec bash -c "nvim -- $qf; exec $qself"
+      ;;
+  esac
+}
+
+filetree_up() {
+  [ -z "$ft_root" ] && return 0
+  case "$ft_root" in
+    /) return 0;;
+    *) ft_root="${ft_root%/*}"; [ -z "$ft_root" ] && ft_root="/"; sel=0; dirty=1;;
+  esac
+}
+
+# ---- key loop -----------------------------------------------------------
+# Put the tty into a stable no-echo/non-canonical mode once at startup,
+# instead of relying on bash's per-`read -n1` call to save/restore termios.
+# Under rapid consecutive keypresses (e.g. holding j/k), there's a narrow
+# window between individual read calls where the terminal's default echo can
+# leak a raw keystroke onto the screen (reproduced by sending 40 keys in a
+# tight burst). Restored on exit by cleanup().
+_orig_stty=""
+if [ -t 0 ]; then
+  _orig_stty=$(stty -g 2>/dev/null || true)
+  stty -echo -icanon min 1 time 0 2>/dev/null || true
+fi
+
+cleanup() {
+  local wt; wt=$(win_target)
+  tmux set-option -wqu -t "$wt" @sidebar_pane_id 2>/dev/null || true
+  tmux set-option -wqu -t "$wt" @sidebar_content_pane 2>/dev/null || true
+  [ -n "$_orig_stty" ] && stty "$_orig_stty" 2>/dev/null || true
+  exit 0
+}
+trap cleanup INT TERM
+# EXIT trap only fires on normal exit (q/Esc/nvim-return), not exec-replace.
+trap cleanup EXIT
+
+move() { # $1 = delta
+  [ "$row_count" -le 0 ] && { sel=0; return; }
+  sel=$(( (sel + $1 + row_count) % row_count ))
+}
+
+handle_key() {
+  local k="$1"
+  case "$k" in
+    j|$'\e[B')       move 1;;
+    k|$'\e[A')       move -1;;
+    q|$'\e')         cleanup;;
+    r)               dirty=1;;
+    '?')             show_help=$((1-show_help));;
+    1)               set_source sessions;;
+    2)               set_source windows;;
+    3)               set_source filetree;;
+    4)               set_source scratch;;
+    $'\t')           cycle_source 1;;
+    $'\e[Z')         cycle_source -1;;
+    $'\n'|$'\r')     act_on_row;;
+    '')              :;;  # read timeout (main loop already sets dirty=1)
+    $'\e'[0-9]*)     :;;  # other escape sequences we don't handle
+    *)
+      # Per-tab extras:
+      case "$(current_source)" in
+        filetree) [ "$k" = $'\x7f' -o "$k" = $'\b' ] && filetree_up;;
+      esac
+      ;;
+  esac
+}
+
+cycle_source() {
+  local names=(sessions windows filetree scratch) cur i new=0 idx=0
+  cur=$(current_source)
+  for i in "${!names[@]}"; do [ "${names[$i]}" = "$cur" ] && idx=$i; done
+  new=$(( (idx + $1 + ${#names[@]}) % ${#names[@]} ))
+  set_source "${names[$new]}"
+}
+
+# Reads a single keypress, decoding common escape sequences, into the global
+# KEY variable -- NOT via stdout + $(...) capture. Command substitution
+# unconditionally strips trailing newlines, so a real Enter keypress (a bare
+# "\n") would print correctly but then get silently eaten by `k=$(read_key)`
+# on the way back out, again making Enter indistinguishable from the 2s
+# timeout below despite `read -d ''` correctly preserving it on the read
+# side. Setting a global directly sidesteps the whole class of trailing-
+# whitespace-swallowed bugs, not just this one.
+#
+# -d '' (on every nested read too) disables read -n's default "stop early at
+# a newline" behavior, which would otherwise swallow Enter as an empty read
+# before it even reaches KEY.
+KEY=""
+read_key() {
+  local k
+  IFS= read -rsn1 -t 2 -d '' k 2>/dev/null || { KEY=""; return; }
+  case "$k" in
+    $'\e')
+      # Possibly the start of an escape sequence (arrow/etc.) or bare Esc.
+      local e
+      IFS= read -rsn1 -t 0.1 -d '' e 2>/dev/null || { KEY=$'\e'; return; }
+      case "$e" in
+        '[') IFS= read -rsn1 -t 0.1 -d '' e 2>/dev/null; KEY=$'\e['"$e";;
+        *)   KEY=$'\e'"$e";;
+      esac
+      ;;
+    *) KEY="$k";;
+  esac
+}
+
+# ---- main ---------------------------------------------------------------
+read_palette
+while :; do
+  render
+  read_key
+  if [ -z "$KEY" ]; then
+    dirty=1   # 2s poll timeout: refresh data, then loop back to render
+    continue
+  fi
+  handle_key "$KEY"
+done

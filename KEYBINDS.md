@@ -368,3 +368,39 @@ In-nnn plugin keys (`;` prefix — nnn requires it for plugins):
 | `;f` | fzcd — fuzzy-jump to a subdir (`M-g` jumps into `;g`/fzrg; standard fzf keys + `M-j`/`M-k`/`M-u`/`M-n`/`M-q` apply) |
 | `;g` | fzrg — live ripgrep (syntax + match highlight) → open match in an nvim split in the origin window |
 | `;h` | Keybind cheatsheet popup (nnn native basics + this launch's `;`-plugin keys, read live from `$NNN_PLUG` + the M-* keys meaningful inside `;f`/`;g`). nnn's own native `?` still shows its full compiled-in help/about screen. |
+
+## tmux — sidebar (`tmux-sidebar-toggle` / `tmux-sidebar`)
+
+> Internal plugin name: **mega-michael-sidebar**. Canonical reference:
+> `tmux_scripts/mega-michael-sidebar.md`. This section is the keybind summary;
+> the plugin doc has the full architecture, state, and gotchas.
+
+A leftmost, full-window-height pane toggled by `M-Tab`. Runs a self-contained bash TUI dispatcher (`tmux-sidebar`) inside the pane — not fzf, not nnn. Renders a stack of blocks: a 2-line header, a flexible 4-tab **navigator** (sessions / windows / filetree / scratch), and fixed-height **docked blocks** below it (`agents_glance`, `system_stats`) that stay visible regardless of which navigator tab is active — inspired by [agent-manager](https://github.com/YoanWai/agent-manager)'s session-tree-plus-persistent-gauges layout. Window-scoped state (`@sidebar_pane_id` / `@sidebar_content_pane` / `@sidebar_source`) so each window remembers its own tab and survives re-renders. Guarded like `M-j`/`M-q`: forwards `M-Tab` raw inside any popup or the `nnn` session.
+
+| Key | Scope | Action |
+| --- | --- | --- |
+| `M-Tab` | root | Toggle sidebar (open = `split-window -h -f -b -l 28` leftmost, full window height; close = kill pane + clear options) |
+
+**Inside the sidebar pane** (dispatcher keymap; pane must be focused; docked blocks have no keys of their own — read-only glances, not pickers):
+
+| Key | Action |
+| --- | --- |
+| `1` / `2` / `3` / `4` | Switch to sessions / windows / filetree / scratch tab |
+| `Tab` / `S-Tab` | Cycle tabs forward / back |
+| `j` / `↓` | Move cursor down (navigator only) |
+| `k` / `↑` | Move cursor up (navigator only) |
+| `Enter` | Act on the selected navigator row (tab-specific — see below) |
+| `r` | Force refetch + re-render |
+| `?` | Toggle inline help overlay |
+| `q` / `Esc` | Close the sidebar (kills pane, clears window-scoped options) |
+
+**Per-tab `Enter` actions + extra keys:**
+
+| Tab | Source | `Enter` action | Extra keys |
+| --- | --- | --- | --- |
+| sessions | `tmux-fzf-nav --list-sessions` | `switch-client` + `select-pane` to that session's active pane | — |
+| windows | `tmux-fzf-nav --list-windows` | `switch-client` + `select-pane` to that pane (current session only) | — |
+| filetree | `find`-based 2-level tree over the content pane's cwd | dir → `split-window -h -c <dir>` in the content pane; file → `tmux-open-target` (nvim split) | `Backspace` — navigate root up one level |
+| scratch | `~/.config/tmux_scratch/{global,<slug>}.md` | `exec nvim <file>`; `:wq` returns to the dispatcher loop | — |
+
+`agents` is not a navigator tab — it's the `agents_glance` docked block instead (always visible below the navigator, regardless of tab). It's read-only (no cursor, no `Enter`); rows are colorized by state (rose `#d8647e` for awaiting-permission/waiting, dusty_pink `#bb9dbd` for thinking, inactive `#656a80` for idle — same roles as the `M-b` menu) and capped/urgency-sorted with a `+N more` row when clipped. Interactive agent focus/preview stays on the `M-b` menu below. The `system_stats` docked block shows a cpu/mem/disk/battery glance, refreshed on its own ~5s timer.

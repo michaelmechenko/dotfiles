@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# tmux-agent-ls -- emit one TSV row per live AI-agent pane (Claude Code + pi),
+# schema-compatible so the sidebar agents tab and M-b menu can consume both
+# from one stream.
+#
+# 9 fields:
+#   sessionId <TAB> pane_id <TAB> target <TAB> session_name <TAB> state <TAB>
+#   name <TAB> transcript <TAB> window_name <TAB> agent
+#   agent ∈ claude | pi
+#
+# tmux-claude-ls itself emits 9 fields ending in statusUpdatedAt (not an agent
+# tag) -- this script drops that field and appends the literal "claude" tag in
+# its place, so Claude rows end up with the same 9-field/9-column shape as the
+# pi rows below instead of 10 fields (which would silently misalign the
+# consuming `read` in tmux-sidebar's render_agents, gluing statusUpdatedAt and
+# "claude" into one garbled last field).
+#
+# Claude rows come from tmux-claude-ls (statusUpdatedAt swapped for "claude").
+# pi rows are derived per-pane via the tmux-pi-last-response recipe: a pane whose
+# direct child process is `pi` (pgrep -P <pane_pid> -x pi) -> its cwd (lsof) ->
+# the same / and . -> - slug as pi-config/agent/sessions/<slug>/ -> the newest
+# *.jsonl there is the active session. pi has no live status file, so state is
+# inferred: idle if `pi` is the pane's foreground command, busy otherwise.
+
+set -uo pipefail
+
+CLAUDE_LS="$HOME/.config/tmux_scripts/tmux-claude-ls"
+PI_SESS_DIR="$HOME/.config/pi-config/agent/sessions"
+
+# Claude rows: tmux-claude-ls emits 9 fields ending in statusUpdatedAt (field
+# 9); drop it and append the literal "claude" tag in its place instead of
+# appending a 10th field, so Claude rows stay 9 fields like the pi rows below.
+if [ -x "$CLAUDE_LS" ]; then
+  "$CLAUDE_LS" 2>/dev/null | awk -F'\t' 'NF>=9 {
+    out=$1; for (i=2;i<=8;i++) out=out"\t"$i
+    print out "\tclaude"
+  }'
+fi
+
+# pi rows.
+panes=$(tmux list-panes -a -F '#{pane_pid}|#{pane_id}|#{session_name}:#{window_index}.#{pane_index}|#{session_name}|#{window_name}|#{pane_current_command}' 2>/dev/null)
+[ -n "$panes" ] || exit 0
+
+while IFS='|' read -r pid pane_id target sname wname cmd; do
+  [ -n "$pid" ] || continue
+  pi_pid=$(pgrep -P "$pid" -x pi 2>/dev/null | head -1)
+  [ -n "$pi_pid" ] || continue
+
+  cwd=$(lsof -a -p "$pi_pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | tail -1)
+  [ -n "$cwd" ] || continue
+
+  tmp="${cwd//\//-}"; slug="${tmp//./-}"
+  sess_dir="$PI_SESS_DIR/$slug"
+  transcript=""
+  [ -d "$sess_dir" ] && transcript=$(ls -t "$sess_dir"/*.jsonl 2>/dev/null | head -1)
+  # Never emit a genuinely empty field: bash's `read -r ... <<<"$line"` with
+  # IFS=$'\t' treats tab as "IFS whitespace" regardless of what IFS is set to,
+  # so consecutive tabs (an empty field) get silently collapsed -- shifting
+  # every subsequent field left by one in tmux-sidebar's render_agents
+  # consumer (confirmed live: this exact bug produced the "[]" empty
+  # agent-type tag, with wname/agent silently swapped one field left).
+  [ -n "$transcript" ] || transcript="-"
+
+  # State inference: if the pane's foreground cmd is `pi` itself, it's at the
+  # prompt (idle); a child of pi foregrounded means it's working (busy/thinking).
+  if [ "$cmd" = "pi" ]; then state="idle"; else state="thinking"; fi
+
+  # sessionId: use the pi pid as a stable-enough stand-in (no real id exposed).
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\tpi\n' \
+    "pi:$pi_pid" "$pane_id" "$target" "$sname" "$state" "-" "${transcript:-}" "$wname"
+done <<<"$panes"

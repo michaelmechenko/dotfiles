@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# M-Tab: toggle the left sidebar pane (the neo-tree-like multi-source sidebar).
+# Open  -> split a 28-col, FULL-WINDOW-HEIGHT pane (split-window -f) to the LEFT
+#          of the current (content) pane, run tmux-sidebar (the dispatcher TUI)
+#          inside it, and record both pane ids in window-scoped user options so
+#          the dispatcher can track its content pane and re-toggle can close.
+#          -f is required regardless of how many other panes already exist on
+#          the content side, otherwise the sidebar only spans the height of the
+#          single pane it split from.
+# Close -> kill the sidebar pane and clear the window-scoped options.
+#
+# Window-scoped options (setw -w; per-window so each window remembers its own
+# sidebar state and active source, mirroring neo-tree's per-tab isolation):
+#   @sidebar_pane_id     id of the sidebar pane (unset when closed)
+#   @sidebar_content_pane id of the pane the sidebar navigates/opens into
+#   @sidebar_source      active source: sessions|windows|agents|filetree|scratch
+#
+# MVP uses kill-pane on close (simple). A stash-via-break-pane path (tabby-style
+# instant restore, renderer keeps running) is a known follow-up -- not used now
+# because the holding session's window would get tiled by AeroSpace.
+
+set -euo pipefail
+
+SIDEBAR_WIDTH="${TMUX_SIDEBAR_WIDTH:-28}"
+
+# Double-guard: the M-Tab bind already forwards raw inside popups/nnn, but a
+# direct invocation should still no-op there rather than spawn a sidebar.
+session=$(tmux display-message -p '#{session_name}')
+popup=$(tmux display-message -p '#{popup_width}')
+if [ -n "$popup" ] || [ "$session" = "nnn" ]; then
+  exit 0
+fi
+
+win_target=$(tmux display-message -p '#{session_id}:#{window_index}')
+existing=$(tmux show-options -wqv -t "$win_target" @sidebar_pane_id 2>/dev/null || true)
+
+if [ -n "$existing" ] && tmux display-message -p -t "$existing" '#{pane_id}' >/dev/null 2>&1; then
+  # Close path.
+  tmux kill-pane -t "$existing" 2>/dev/null || true
+  tmux set-option -wqu -t "$win_target" @sidebar_pane_id
+  tmux set-option -wqu -t "$win_target" @sidebar_content_pane
+  exit 0
+fi
+
+# Open path.
+content_pane=$(tmux display-message -p '#{pane_id}')
+cwd=$(tmux display-message -p -t "$content_pane" '#{pane_current_path}')
+
+# -h -f -b -l N: horizontal split, spanning the FULL window height (-f) rather
+# than just content_pane's height, placed to the LEFT of the content pane (-b),
+# N columns wide. Without -f, a content pane that isn't already full-height
+# (e.g. the window already has other panes stacked around it) would produce a
+# sidebar that only spans that one pane's height. -P -F captures the new pane's id.
+sidebar_pane=$(tmux split-window -h -f -b -l "$SIDEBAR_WIDTH" -t "$content_pane" -c "$cwd" \
+  -P -F '#{pane_id}' "$HOME/.config/tmux_scripts/tmux-sidebar")
+
+# Mark the sidebar pane so other scripts can detect it (tsave filter, border
+# coloring) and give it a recognizable title.
+tmux set-option -pt "$sidebar_pane" @sidebar_pane 1
+tmux select-pane -t "$sidebar_pane" -T sidebar
+
+tmux set-option -wt "$win_target" @sidebar_pane_id "$sidebar_pane"
+tmux set-option -wt "$win_target" @sidebar_content_pane "$content_pane"
+# Default source on first open; preserve if already set (e.g. re-open in same window).
+cur_source=$(tmux show-options -wqv -t "$win_target" @sidebar_source 2>/dev/null || true)
+[ -n "$cur_source" ] || tmux set-option -wt "$win_target" @sidebar_source sessions

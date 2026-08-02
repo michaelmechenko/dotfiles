@@ -1,0 +1,30 @@
+#!/bin/zsh
+
+# Move the current ephemeral popup pane into the window it was spawned from
+# (bound to `prefix a`). No-op outside an ephemeral session. Uses join-pane,
+# the same crash-safe pane-move primitive as tmux-pane-to-window/
+# tmux-pane-to-new-window. Moving the pane out empties the ephemeral session
+# (the common case: one pane), which tmux auto-destroys — closing the popup
+# as a side effect, no manual detach needed.
+
+set -e
+
+SESSION="$(tmux display-message -p -F '#{session_name}')"
+case "$SESSION" in
+    ephemeral*) ;;
+    *) exit 0 ;;
+esac
+
+ORIGIN="$(tmux show-options -gqv @ephemeral_origin_pane)"
+if [ -z "$ORIGIN" ]; then
+    tmux display-message "ephemeral: no origin pane recorded"
+    exit 0
+fi
+
+if ! tmux display-message -t "$ORIGIN" -p '#{pane_id}' >/dev/null 2>&1; then
+    tmux display-message "ephemeral: origin pane no longer exists"
+    exit 0
+fi
+
+PANE="$(tmux display-message -p -F '#{pane_id}')"
+tmux join-pane -s "$PANE" -t "$ORIGIN"

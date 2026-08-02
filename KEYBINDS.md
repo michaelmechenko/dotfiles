@@ -174,6 +174,19 @@ Entered via `M-u`/`M-U` or mouse scroll. `setw -g mode-keys vi`.
 | `V` | copy-mode | Select line |
 | `y` | copy-mode | Copy selection → `pbcopy`, exit |
 | `MouseDragEnd1Pane` | copy-mode | Copy → `pbcopy`; cancel if at live bottom, else stay in copy mode |
+| `S` | copy-mode | flash.nvim-style jump (`tmux-flash-jump.py`) — see below |
+
+#### `S` — flash jump (`tmux-flash-jump.py`)
+Type a query; every matching substring in the current viewport gets a single-key label (closest to the cursor gets the easiest/home-row label). Press that label, or `Enter` for the nearest match, to move the copy-mode cursor there — a jump, not a copy. Normal copy-mode operations (`v`, `y`, more movement) continue from the new position.
+
+| Key | Action |
+| --- | --- |
+| *(typing)* | Narrow the search incrementally |
+| *(label key)* | Jump to that match |
+| `Enter` | Jump to the nearest match (by line distance from the current cursor) |
+| `Ctrl-U` | Clear the query |
+| `Ctrl-W` | Clear the last word of the query |
+| `Esc` / `Ctrl-C` | Cancel — cursor unchanged |
 
 ### Pane — scroll / line numbers
 | Key | Scope | Action |
@@ -196,9 +209,10 @@ Entered via `M-u`/`M-U` or mouse scroll. `setw -g mode-keys vi`.
 | `M-z` | root | Zoom pane (`resize-pane -Z`) |
 | `M-x` | root | Kill pane (confirm) |
 | `M-X` | root | Kill window (double confirm) |
-| `M-m` | root | Popup maximize/restore toggle (float/ephemeral sessions only) |
-| `M-Up` | root | Popup maximize (float/ephemeral); else resize pane up |
-| `M-Down` | root | Popup restore (float/ephemeral) |
+| `M-Up` | root | Resize pane up |
+| `M-Down` | root | Resize pane down |
+| `M-Right` | root | Popup layout cycle forward (float/ephemeral only, `tmux-popup-resize cycle-next`); else forward raw key (zsh Alt+Right word-jump) |
+| `M-Left` | root | Popup layout cycle backward (float/ephemeral only, `tmux-popup-resize cycle-prev`); else forward raw key (zsh Alt+Left word-jump) |
 
 ### Pane — move / break / send
 | Key | Scope | Action |
@@ -238,6 +252,7 @@ Entered via `M-u`/`M-U` or mouse scroll. `setw -g mode-keys vi`.
 | `M-f` | root | Floating terminal popup (`tmuxpopup`) |
 | `M-F` | root | Switch to/from `float` session |
 | `M-c` | root | Ephemeral terminal popup (`tmuxpopup-ephemeral`) |
+| `prefix a` | — | From inside an ephemeral popup, join this pane back into the window it was spawned from (`tmux-ephemeral-attach`; no-op outside an ephemeral session) |
 | `prefix f` | — | New window in `float` session from pane cwd, then popup |
 | `prefix C` | — | New session (prompt) |
 | `M-C` | root | New session (prompt) |
@@ -247,6 +262,17 @@ Entered via `M-u`/`M-U` or mouse scroll. `setw -g mode-keys vi`.
 | `M-"` | root | Switch client to next session (by index) |
 | `M-]` | root | Switch client to next session |
 | `prefix S` | — | Rename session (prompt) |
+
+### Popup layout cycle (float / ephemeral, `tmux-popup-resize`)
+`M-Right`/`M-Left` (see the Pane — scroll/resize table above) cycle a float or ephemeral popup through 5 fixed layouts. Index is tracked per popup type, and reset to the start whenever the popup is freshly opened via `M-f`/`M-c` (not on a resize-triggered reopen) — so it never remembers a previous session's cycle position. `M-f`/`M-c` still close the popup correctly from any point in the cycle.
+
+| Layout | Geometry |
+| --- | --- |
+| fullscreen | Centred, 100% × 100% |
+| top | Full width, docked to the top, 40% height |
+| bottom | Full width, docked to the bottom, 40% height |
+| left | Docked to the left, 50% width, full height |
+| right | Docked to the right, 50% width, full height |
 
 ### Rename / status-left
 | Key | Scope | Action |
@@ -348,3 +374,4 @@ In-nnn plugin keys (`;` prefix — nnn requires it for plugins):
 | `;p` | Toggle file preview (bat/moor, `ansi` theme, 60% preview width) |
 | `;f` | fzcd — fuzzy-jump to a subdir (`M-g` jumps into `;g`/fzrg; standard fzf keys + `M-j`/`M-k`/`M-u`/`M-n`/`M-q` apply) |
 | `;g` | fzrg — live ripgrep (syntax + match highlight) → open match in an nvim split in the origin window |
+| `;h` | Keybind cheatsheet popup (nnn native basics + this launch's `;`-plugin keys, read live from `$NNN_PLUG` + the M-* keys meaningful inside `;f`/`;g`). nnn's own native `?` still shows its full compiled-in help/about screen. |

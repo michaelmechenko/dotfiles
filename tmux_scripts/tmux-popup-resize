@@ -2,30 +2,71 @@
 
 set -e
 
-ACTION="${1:-restore}"
+# Cycle a float/ephemeral popup through fixed layouts: fullscreen, top, bottom,
+# left, right. Index is tracked per popup TYPE (float vs ephemeral) in a global
+# option so both popup types can be cycled independently, and so a fresh M-f/
+# M-c open (which clears the option) always starts from the popup's normal
+# geometry rather than wherever the cycle last left off.
+#
+#   usage: tmux-popup-resize cycle-next|cycle-prev
+
+ACTION="${1:-cycle-next}"
 SESSION="$(tmux display-message -p -F "#{session_name}")"
+
+# Normalize to the popup type: tmuxpopup's single-mode fallback can create
+# sessions named "float-<pane>"; treat any float*/ephemeral* session as its type.
+case "$SESSION" in
+    float*) KEY=float ;;
+    ephemeral*) KEY=ephemeral ;;
+    *) exit 0 ;;
+esac
 
 BORDER_COLOR=$(tmux show-options -gqv @color-inactive)
 BORDER_COLOR=${BORDER_COLOR:-"#a9b1d6"}
 
-if [ "$ACTION" = "toggle" ]; then
-    CURRENT="$(tmux show-options -gqv @popup-state)"
-    if [ "$CURRENT" = "maximize" ]; then
-        ACTION="restore"
-    else
-        ACTION="maximize"
-    fi
-fi
+LAYOUTS=(fullscreen top bottom left right)
+n=${#LAYOUTS[@]}
 
-tmux set-option -g @popup-state "$ACTION"
-tmux detach-client
+idx_opt="@popup-layout-idx-$KEY"
+cur="$(tmux show-options -gqv "$idx_opt")"
 
-if [ "$ACTION" = "maximize" ]; then
-    tmux popup -E -xC -yC -w100% -h100% -S "fg=$BORDER_COLOR" "tmux attach -t '$SESSION'"
-elif [ "$ACTION" = "restore" ]; then
-    if echo "$SESSION" | grep -q '^ephemeral'; then
-        tmux popup -E -xC -y100% -w100% -h30% -S "fg=$BORDER_COLOR" "tmux attach -t '$SESSION'"
-    else
-        tmux popup -E -xC -yC -w80% -h75% -S "fg=$BORDER_COLOR" "tmux attach -t '$SESSION'"
-    fi
+case "$ACTION" in
+    cycle-next)
+        if [ -z "$cur" ]; then next=0; else next=$(( (cur + 1) % n )); fi
+        ;;
+    cycle-prev)
+        if [ -z "$cur" ]; then next=$((n - 1)); else next=$(( (cur - 1 + n) % n )); fi
+        ;;
+    *)
+        exit 0
+        ;;
+esac
+
+tmux set-option -g "$idx_opt" "$next"
+
+# zsh arrays are 1-indexed.
+layout="${LAYOUTS[$((next + 1))]}"
+
+case "$layout" in
+    fullscreen) GEO=(-xC -yC -w100% -h100%) ;;
+    top)        GEO=(-xC -y0 -w100% -h40%) ;;
+    bottom)     GEO=(-xC -yP -w100% -h40%) ;;
+    left)       GEO=(-x0 -yC -w50% -h100%) ;;
+    right)      GEO=(-xR -yC -w50% -h100%) ;;
+esac
+
+# Only "float" needs @in_float_popup: its M-f close-check reads that flag
+# (session name alone is ambiguous for float — see tmuxpopup). Ephemeral's
+# M-c close-check reads the session name directly, so it doesn't need this and
+# is left untouched to avoid any global-flag cross-talk between the two popup
+# types when both happen to be open on different clients at once.
+if [ "$KEY" = "float" ]; then
+    tmux set-option -g @in_float_popup 1
+    tmux detach-client
+    tmux popup -E "${GEO[@]}" -S "fg=$BORDER_COLOR" \
+        "tmux set -g @in_float_popup 1; { tmux attach -t '$SESSION' || tmux new -s '$SESSION'; }; tmux set -g @in_float_popup 0" || true
+else
+    tmux detach-client
+    tmux popup -E "${GEO[@]}" -S "fg=$BORDER_COLOR" \
+        "tmux attach -t '$SESSION' || tmux new -s '$SESSION'" || true
 fi

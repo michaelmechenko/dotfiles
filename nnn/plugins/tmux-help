@@ -1,0 +1,38 @@
+#!/usr/bin/env sh
+# nnn plugin: keybind cheatsheet for the tmux-launched explorer. Invoked via ;h.
+# nnn's own native `?` help screen already lists standard nnn keys plus the
+# configured NNN_PLUG entries (by plugin filename) — this supplements it with
+# the tmux-level M-* keys that only matter inside the ;f/;g fzf sub-pickers,
+# which aren't nnn plugins and so never show up in nnn's own help.
+#
+# The PLUGIN KEYS section below is built from the live $NNN_PLUG value, so it
+# stays accurate whether launched from tmux-nnn-explorer (full plugin set) or
+# the plain `n` alias (smaller set) — no hardcoded key list to drift out of
+# sync.
+
+plugin_lines() {
+    [ -z "$NNN_PLUG" ] && return
+    printf '%s' "$NNN_PLUG" | tr ';' '\n' | while IFS=: read -r key name; do
+        [ -n "$key" ] && printf '  ;%-3s %s\n' "$key" "$name"
+    done
+}
+
+{
+    printf '# nnn explorer — keybinds\n\n'
+    printf '## Standard nnn (native)\n'
+    printf '  arrows / hjkl   navigate\n'
+    printf '  enter           open\n'
+    printf '  /               search\n'
+    printf '  q                quit\n'
+    printf '  ?               nnn native help/about (full compiled-in key list)\n\n'
+    printf '## Plugin keys (this launch, from $NNN_PLUG)\n'
+    plugin_lines
+    printf '\n## Inside ;f (fzcd) / ;g (fzrg) fzf sub-pickers\n'
+    printf '  M-j / M-k       move down/up\n'
+    printf '  M-u / M-n       preview scroll up/down\n'
+    printf '  M-q             abort\n'
+    printf '  M-g             enter/reload ripgrep (fzrg)\n\n'
+    printf '## Popup toggle\n'
+    printf '  M-d             centred float popup (press again from inside to close)\n'
+    printf '  M-B             overlay the launching pane instead of floating\n'
+} | bat --style=plain --theme=ansi --language=md --paging=always --pager="${NNN_PAGER:-less -R}"

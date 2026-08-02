@@ -164,6 +164,10 @@ keybind = alt+enter=csi:13;3u
 keybind = shift+enter=csi:13;2u
 keybind = ctrl+enter=csi:13;5u
 
+# alt+tab: CSI-u for Alt+Tab (9 = HT keycode, 3 = Alt modifier). Test bind below in
+# tmux.conf confirms the sequence reaches tmux before we wire the sidebar toggle to it.
+keybind = alt+tab=csi:9;3u
+
 # ctrl+tab -> F13 (^[[25~): an unmodified key so tmux forwards it verbatim
 # (a modified key like ctrl+shift+e gets downgraded by tmux without extended-keys).
 # zsh binds ^[[25~ to accept the whole autosuggestion.

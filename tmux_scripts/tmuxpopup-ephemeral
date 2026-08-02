@@ -12,6 +12,16 @@ BORDER_COLOR=${BORDER_COLOR:-"#a9b1d6"}
 if echo "$CURRENT_PANE" | grep -q '^ephemeral.*'; then
     tmux kill-session
 else
+    # Record the launching pane so `prefix a` (tmux-ephemeral-attach) can join
+    # this popup's pane back into the window it was spawned from. Recorded on
+    # every fresh open (not read here again) so it always reflects the most
+    # recent M-c invocation.
+    ORIGIN_PANE="$(tmux display-message -p -F '#{pane_id}')"
+    tmux set-option -g @ephemeral_origin_pane "$ORIGIN_PANE"
+
+    # Fresh open: reset the M-Right/M-Left layout cycle (see tmux-popup-resize).
+    tmux set-option -gu @popup-layout-idx-ephemeral
+
     if [ "$1" = "single" ]; then
         tmux popup -d '#{pane_current_path}' -xM -yP -w$width -h$height -S "fg=$BORDER_COLOR" -E "tmux attach -t 'ephemeral' || tmux new -s 'ephemeral'" || true
     else

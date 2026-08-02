@@ -26,6 +26,11 @@ else
     TARGET="float"
 fi
 
+# Fresh open (not a resize-triggered reopen): reset the M-Right/M-Left layout
+# cycle so it always starts from this default geometry, not wherever a
+# previous session left the cycle index (see tmux-popup-resize).
+[ "$TARGET" = "float" ] && tmux set-option -gu @popup-layout-idx-float
+
 if [ "$1" = "single" ] && [ "$TARGET" = "float" ]; then
     tmux popup -d '#{pane_current_path}' -xC -yC -w$width -h$height -S "fg=$BORDER_COLOR" -E "tmux set -g @in_float_popup 1; { tmux attach -t 'float' || tmux new -s 'float-$CURRENT_PANE'; }; tmux set -g @in_float_popup 0" || true
 else

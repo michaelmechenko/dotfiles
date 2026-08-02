@@ -196,9 +196,10 @@ Entered via `M-u`/`M-U` or mouse scroll. `setw -g mode-keys vi`.
 | `M-z` | root | Zoom pane (`resize-pane -Z`) |
 | `M-x` | root | Kill pane (confirm) |
 | `M-X` | root | Kill window (double confirm) |
-| `M-m` | root | Popup maximize/restore toggle (float/ephemeral sessions only) |
-| `M-Up` | root | Popup maximize (float/ephemeral); else resize pane up |
-| `M-Down` | root | Popup restore (float/ephemeral) |
+| `M-Up` | root | Resize pane up |
+| `M-Down` | root | Resize pane down |
+| `M-Right` | root | Popup layout cycle forward (float/ephemeral only, `tmux-popup-resize cycle-next`); else forward raw key (zsh Alt+Right word-jump) |
+| `M-Left` | root | Popup layout cycle backward (float/ephemeral only, `tmux-popup-resize cycle-prev`); else forward raw key (zsh Alt+Left word-jump) |
 
 ### Pane — move / break / send
 | Key | Scope | Action |
@@ -238,6 +239,7 @@ Entered via `M-u`/`M-U` or mouse scroll. `setw -g mode-keys vi`.
 | `M-f` | root | Floating terminal popup (`tmuxpopup`) |
 | `M-F` | root | Switch to/from `float` session |
 | `M-c` | root | Ephemeral terminal popup (`tmuxpopup-ephemeral`) |
+| `prefix a` | — | From inside an ephemeral popup, join this pane back into the window it was spawned from (`tmux-ephemeral-attach`; no-op outside an ephemeral session) |
 | `prefix f` | — | New window in `float` session from pane cwd, then popup |
 | `prefix C` | — | New session (prompt) |
 | `M-C` | root | New session (prompt) |
@@ -247,6 +249,17 @@ Entered via `M-u`/`M-U` or mouse scroll. `setw -g mode-keys vi`.
 | `M-"` | root | Switch client to next session (by index) |
 | `M-]` | root | Switch client to next session |
 | `prefix S` | — | Rename session (prompt) |
+
+### Popup layout cycle (float / ephemeral, `tmux-popup-resize`)
+`M-Right`/`M-Left` (see the Pane — scroll/resize table above) cycle a float or ephemeral popup through 5 fixed layouts. Index is tracked per popup type, and reset to the start whenever the popup is freshly opened via `M-f`/`M-c` (not on a resize-triggered reopen) — so it never remembers a previous session's cycle position. `M-f`/`M-c` still close the popup correctly from any point in the cycle.
+
+| Layout | Geometry |
+| --- | --- |
+| fullscreen | Centred, 100% × 100% |
+| top | Full width, docked to the top, 40% height |
+| bottom | Full width, docked to the bottom, 40% height |
+| left | Docked to the left, 50% width, full height |
+| right | Docked to the right, 50% width, full height |
 
 ### Rename / status-left
 | Key | Scope | Action |

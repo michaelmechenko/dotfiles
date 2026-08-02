@@ -29,6 +29,7 @@ export function registerBashTool(
 		promptGuidelines: [
 			"For text search: `rg -n`. If no results, try `rg -u` (respects .gitignore by default).",
 			"In rg: | means alternation, \\| means literal pipe. Opposite of GNU grep. Never use \\| for alternation.",
+			"Prefer the dedicated `grep`/`find` tools, or `rg`/`fd` directly in bash, over the `grep`/`find` binaries.",
 		],
 		parameters: sdkTool.parameters,
 		renderShell: "self",

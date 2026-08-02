@@ -110,7 +110,7 @@ export function createWebSearchTool(composition?: WebSearchToolComposition) {
 		},
 
 		renderCall(args: { query: string; depth?: SearchDepth; maxResults?: number }, theme: RenderTheme) {
-			let text = theme.fg("toolTitle", theme.bold("websearch "));
+			let text = theme.fg("warning", "○ ") + theme.fg("toolTitle", theme.bold("websearch "));
 			text += theme.fg("accent", JSON.stringify(String(args.query)));
 			if (args.depth && args.depth !== "auto") {
 				text += theme.fg("muted", ` (${args.depth})`);

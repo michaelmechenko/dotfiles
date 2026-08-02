@@ -425,7 +425,7 @@ export default function askUser(pi: ExtensionAPI) {
     },
 
     renderCall(args, theme, _context) {
-      let text = theme.fg("toolTitle", theme.bold("ask_user "));
+      let text = theme.fg("warning", "○ ") + theme.fg("toolTitle", theme.bold("ask_user "));
       text += theme.fg(
         "muted",
         typeof args.question === "string" ? args.question : "",

@@ -701,6 +701,7 @@ export default function (pi: ExtensionAPI) {
 			const scope: AgentScope = args.agentScope ?? "user";
 			if (args.chain && args.chain.length > 0) {
 				let text =
+					theme.fg("warning", "○ ") +
 					theme.fg("toolTitle", theme.bold("subagent ")) +
 					theme.fg("accent", `chain (${args.chain.length} steps)`) +
 					theme.fg("muted", ` [${scope}]`);
@@ -721,6 +722,7 @@ export default function (pi: ExtensionAPI) {
 			}
 			if (args.tasks && args.tasks.length > 0) {
 				let text =
+					theme.fg("warning", "○ ") +
 					theme.fg("toolTitle", theme.bold("subagent ")) +
 					theme.fg("accent", `parallel (${args.tasks.length} tasks)`) +
 					theme.fg("muted", ` [${scope}]`);
@@ -734,6 +736,7 @@ export default function (pi: ExtensionAPI) {
 			const agentName = args.agent || "...";
 			const preview = args.task ? (args.task.length > 60 ? `${args.task.slice(0, 60)}...` : args.task) : "...";
 			let text =
+				theme.fg("warning", "○ ") +
 				theme.fg("toolTitle", theme.bold("subagent ")) +
 				theme.fg("accent", agentName) +
 				theme.fg("muted", ` [${scope}]`);

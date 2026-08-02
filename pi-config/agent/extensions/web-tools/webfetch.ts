@@ -110,7 +110,7 @@ export function createWebFetchTool(composition?: WebFetchToolComposition) {
 		},
 
 		renderCall(args: { url: string; format?: WebFetchFormat }, theme: RenderTheme) {
-			let text = theme.fg("toolTitle", theme.bold("webfetch "));
+			let text = theme.fg("warning", "○ ") + theme.fg("toolTitle", theme.bold("webfetch "));
 			text += theme.fg("accent", redactUrlCredentialsForDisplay(args.url));
 			if (args.format && args.format !== "markdown") {
 				text += theme.fg("muted", ` (${args.format})`);

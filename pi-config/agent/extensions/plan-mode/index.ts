@@ -423,7 +423,7 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 		},
 
 		renderCall(args, theme) {
-			let text = theme.fg("toolTitle", theme.bold("plan_step ")) + theme.fg("muted", args.action);
+			let text = theme.fg("warning", "○ ") + theme.fg("toolTitle", theme.bold("plan_step ")) + theme.fg("muted", args.action);
 			if (args.step !== undefined) text += ` ${theme.fg("accent", `#${args.step}`)}`;
 			return new UiText(text, 0, 0);
 		},

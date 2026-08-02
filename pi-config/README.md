@@ -85,7 +85,7 @@ discipline (see `~/.config/COLORS.md`).
 
 | Extension | What it does |
 |---|---|
-| `ask-user/` | `ask_user` tool — lets the model ask a single multiple-choice question (2-5 options + "write my own answer") via a popup UI. Needs its own `node_modules` (depends on `effect`); already installed with `npm install --ignore-scripts` (skips its `effect-tsgo patch` dev-only prepare script) |
+| `ask-user/` | `ask_user` tool — lets the model ask a single multiple-choice question (2-5 options + "write my own answer") via a popup UI. Concurrent calls (tool calls run in parallel) are serialized through a queue so they're shown one at a time instead of racing for overlay focus. Needs its own `node_modules` (depends on `effect`); already installed with `npm install --ignore-scripts` (skips its `effect-tsgo patch` dev-only prepare script) |
 
 ### Forked locally from `@ogulcancelik/pi-extensions` (no longer npm-managed)
 

@@ -104,6 +104,8 @@ export interface TodoItem {
 	step: number;
 	text: string;
 	completed: boolean;
+	/** Step turned out unnecessary; treated as terminal like `completed` but rendered distinctly. */
+	skipped: boolean;
 }
 
 export function cleanStepText(text: string): string {
@@ -139,27 +141,38 @@ export function extractTodoItems(message: string): TodoItem[] {
 		if (text.length > 5 && !text.startsWith("`") && !text.startsWith("/") && !text.startsWith("-")) {
 			const cleaned = cleanStepText(text);
 			if (cleaned.length > 3) {
-				items.push({ step: items.length + 1, text: cleaned, completed: false });
+				items.push({ step: items.length + 1, text: cleaned, completed: false, skipped: false });
 			}
 		}
 	}
 	return items;
 }
 
-export function extractDoneSteps(message: string): number[] {
-	const steps: number[] = [];
-	for (const match of message.matchAll(/\[DONE:(\d+)\]/gi)) {
-		const step = Number(match[1]);
-		if (Number.isFinite(step)) steps.push(step);
-	}
-	return steps;
+/**
+ * Parse the plain-text plan a user typed into the `/plan-edit` editor
+ * (`N. step text` per line, numbering optional/ignored) back into step texts.
+ */
+export function parsePlanEditText(text: string): string[] {
+	return text
+		.split("\n")
+		.map((line) => line.replace(/^\s*\d+[.)]\s*/, "").trim())
+		.filter((line) => line.length > 0);
 }
 
-export function markCompletedSteps(text: string, items: TodoItem[]): number {
-	const doneSteps = extractDoneSteps(text);
-	for (const step of doneSteps) {
-		const item = items.find((t) => t.step === step);
-		if (item) item.completed = true;
-	}
-	return doneSteps.length;
+/**
+ * Rebuild the todo list from edited step texts, preserving completed/skipped
+ * flags for steps whose text is unchanged (case-insensitive, trimmed match).
+ * New/reworded steps start incomplete; removed steps are dropped.
+ */
+export function mergePlanSteps(existing: TodoItem[], newTexts: string[]): TodoItem[] {
+	const byText = new Map(existing.map((t) => [t.text.trim().toLowerCase(), t]));
+	return newTexts.map((text, i) => {
+		const prev = byText.get(text.trim().toLowerCase());
+		return {
+			step: i + 1,
+			text,
+			completed: prev?.completed ?? false,
+			skipped: prev?.skipped ?? false,
+		};
+	});
 }

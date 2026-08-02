@@ -18,6 +18,26 @@ Make commits that are easy to review and safe to ship, grouped into PR-sized bat
 **Never push and never open PRs.** This skill stops at local commits. Pushing and PR creation
 are always a separate, explicit user action.
 
+**Scope: only changes made in the current session, by default.** In a shared/dotfiles-style repo
+another process (a concurrent session, a live app writing its own config) can leave unrelated
+uncommitted changes sitting in the same working tree. Only stage and commit files/hunks this
+session actually authored, even if the working tree has other uncommitted changes visible via
+`git status`. Do not commit changes you didn't make in this session unless the user explicitly
+says to include them (e.g. "commit everything", or names the other files/areas directly). When
+it's not obvious which uncommitted changes are this session's, ask before staging rather than
+guessing.
+
+**Uncommitting on request means uncommitted, not deleted.** If asked to walk back commits this
+skill made (wrong scope, wrong batch, etc.), the files must end up back in their prior
+uncommitted/untracked working-tree state -- never physically removed from disk. Use `git reset
+--soft`/`--mixed` (moves HEAD back, leaves the working tree untouched) or cherry-pick the commits
+to keep onto the target base and fast-forward, not `git reset --hard`/`git checkout -- <path>`
+against a commit that lacks the file -- both delete the working-tree content along with the
+commit. If commits to drop are interleaved with commits to keep, cherry-pick the ones to keep
+onto the pre-session base on a temp branch, then re-apply the dropped commits' diff with `git
+apply` (no `--cached`) so they land back as plain unstaged/untracked changes before moving the
+branch pointer.
+
 ## Inputs to ask for (if missing)
 
 - Single commit or multiple commits? (Default: multiple small commits for unrelated changes)
@@ -30,6 +50,8 @@ are always a separate, explicit user action.
    - `git status`
    - `git diff` (unstaged)
    - If many changes: `git diff --stat`
+   - Identify which of these changes this session actually made. Anything else stays untouched
+     unless the user said otherwise (see Scope above).
 
 2. **Decide commit boundaries (split if needed)**
    - Split by: feature vs refactor, backend vs frontend, formatting vs logic, tests vs prod code, dependency bumps vs behavior changes

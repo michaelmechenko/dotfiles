@@ -6,5 +6,6 @@
   "app.model.cycleForward": [],
   "app.model.cycleBackward": [],
   "app.model.select": ["ctrl+l", "ctrl+shift+p"],
-  "tui.editor.cursorLineEnd": ["end"]
+  "tui.editor.cursorLineEnd": ["end"],
+  "app.models.toggleProvider": []
 }

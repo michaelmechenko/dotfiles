@@ -174,6 +174,19 @@ Entered via `M-u`/`M-U` or mouse scroll. `setw -g mode-keys vi`.
 | `V` | copy-mode | Select line |
 | `y` | copy-mode | Copy selection → `pbcopy`, exit |
 | `MouseDragEnd1Pane` | copy-mode | Copy → `pbcopy`; cancel if at live bottom, else stay in copy mode |
+| `S` | copy-mode | flash.nvim-style jump (`tmux-flash-jump.py`) — see below |
+
+#### `S` — flash jump (`tmux-flash-jump.py`)
+Type a query; every matching substring in the current viewport gets a single-key label (closest to the cursor gets the easiest/home-row label). Press that label, or `Enter` for the nearest match, to move the copy-mode cursor there — a jump, not a copy. Normal copy-mode operations (`v`, `y`, more movement) continue from the new position.
+
+| Key | Action |
+| --- | --- |
+| *(typing)* | Narrow the search incrementally |
+| *(label key)* | Jump to that match |
+| `Enter` | Jump to the nearest match (by line distance from the current cursor) |
+| `Ctrl-U` | Clear the query |
+| `Ctrl-W` | Clear the last word of the query |
+| `Esc` / `Ctrl-C` | Cancel — cursor unchanged |
 
 ### Pane — scroll / line numbers
 | Key | Scope | Action |

@@ -14,7 +14,7 @@ import {
 	termWidth,
 } from "../config.js";
 import { normalizeLineEndings, shortPath } from "../helpers.js";
-import { fillToolBackground, renderFileContent, renderToolError } from "../render.js";
+import { fillToolBackground, renderCardHeader, renderFileContent, renderToolError } from "../render.js";
 import { resolveTextCtor } from "../tui-text.js";
 import type { ReadDetails, RenderCtxLike, SdkToolDef, TextContent, ThemeLike } from "../types.js";
 import { wrapExecuteWithMetrics } from "./metrics.js";
@@ -140,9 +140,14 @@ export function registerReadTool(
 						text.setText(fillToolBackground(`\n${TOOL_RESULT_INDENT}${header}\n`, BG_BASE));
 						return text;
 					}
+					const collapsedHeader = renderCardHeader({
+						title: `${theme.fg("toolTitle", theme.bold("read"))} ${theme.fg("toolTitle", p2)}${theme.fg("dim", off2)}`,
+						status: "success",
+						theme,
+					});
 					text.setText(
 						fillToolBackground(
-							`\n${TOOL_RESULT_INDENT}${theme.fg("toolTitle", theme.bold("→ read"))} ${theme.fg("toolTitle", p2)}${theme.fg("dim", off2)}\n${TOOL_RESULT_INDENT}${FG_DIM}${total} lines — ctrl+o to expand${RST}\n`,
+							`\n${collapsedHeader}\n${TOOL_RESULT_INDENT}${FG_DIM}${total} lines — ctrl+o to expand${RST}\n`,
 							BG_BASE,
 						),
 					);
@@ -155,9 +160,14 @@ export function registerReadTool(
 				const cw = Math.max(1, tw - gw);
 
 				const header = skillName
-					? renderSkillHeader(skillName, true, theme)
-					: `${theme.fg("toolTitle", theme.bold("→ read"))} ${theme.fg("toolTitle", p2)}${theme.fg("dim", off2)}`;
-				const out: string[] = ["", `${TOOL_RESULT_INDENT}${header}`];
+					? `${TOOL_RESULT_INDENT}${renderSkillHeader(skillName, true, theme)}`
+					: renderCardHeader({
+							title: `${theme.fg("toolTitle", theme.bold("read"))} ${theme.fg("toolTitle", p2)}${theme.fg("dim", off2)}`,
+							status: "success",
+							theme,
+							width: tw,
+						});
+				const out: string[] = ["", header];
 				out.push(`${TOOL_RESULT_INDENT}${FG_RULE}${"─".repeat(tw - 1)}${RST}`);
 				for (let i = 0; i < show.length; i++) {
 					const ln = (d.offset || 0) + i + 1;
@@ -189,7 +199,7 @@ export function registerReadTool(
 						const divider = skillName
 							? `${TOOL_RESULT_INDENT}${FG_RULE}${"─".repeat(Math.max(1, tw - 1))}${RST}\n`
 							: "";
-						const rendered = `\n${TOOL_RESULT_INDENT}${header}\n${divider}${padded}\n`;
+						const rendered = `\n${header}\n${divider}${padded}\n`;
 						text.setText(fillToolBackground(rendered, BG_BASE));
 						(ctx as any).state._rt = rendered;
 					})

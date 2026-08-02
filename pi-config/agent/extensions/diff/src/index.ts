@@ -1459,9 +1459,28 @@ export default async function diffRendererExtension(pi: ExtensionAPI): Promise<v
 		return `${"\n".repeat(topPad)}${content}${"\n".repeat(bottomPad)}`;
 	}
 
+	/**
+	 * Rule-line fill appended after a card header's title text, matching the
+	 * "── title ── ──────" convention used by pretty's `renderCardHeader`.
+	 * Kept on top of (not replacing) the existing solid-background `bgLine`
+	 * fill this file already uses for write/edit/apply_patch headers.
+	 */
+	function withHeaderRule(text: string, width: number, theme: any): string {
+		if (!theme?.fg) return text;
+		return text
+			.split("\n")
+			.map((line) => {
+				if (!strip(line).trim()) return line;
+				const ruleLen = Math.max(0, width - strip(line).length - 1);
+				return ruleLen > 0 ? `${line} ${theme.fg("dim", "─".repeat(ruleLen))}` : line;
+			})
+			.join("\n");
+	}
+
 	function formatToolFrameHeader(opts: ToolFrameHeaderOpts): string {
 		const { width, ...rest } = opts;
-		return bgLine(formatToolFrameHeaderText(rest), width);
+		const text = withHeaderRule(formatToolFrameHeaderText(rest), width, rest.theme);
+		return bgLine(text, width);
 	}
 
 	function setToolHeaderBg(text: any) {

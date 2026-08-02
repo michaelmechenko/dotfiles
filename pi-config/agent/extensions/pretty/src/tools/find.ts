@@ -3,7 +3,7 @@
 import type { AgentToolResult, ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { BG_ERROR, FG_DIM, RST, resolveBaseBackground, TOOL_RESULT_INDENT } from "../config.js";
 import { shortPath } from "../helpers.js";
-import { fillToolBackground, renderFindResults, renderToolDuration, renderToolError } from "../render.js";
+import { fillToolBackground, renderCardHeader, renderFindResults, renderToolDuration, renderToolError } from "../render.js";
 import { resolveTextCtor } from "../tui-text.js";
 import type { FindDetails, RenderCtxLike, SdkToolDef, TextContent, ThemeLike } from "../types.js";
 import { wrapExecuteWithMetrics } from "./metrics.js";
@@ -54,13 +54,14 @@ export function registerFindTool(
 			const pattern = a.pattern == null ? "" : String(a.pattern);
 			const pathArg = a.path == null ? "<missing>" : shortPath(cwd, home, String(a.path));
 			const limit = a.limit;
-			const findLabel = theme.fg(ctx.isError ? "error" : "toolTitle", theme.bold("✱ find"));
+			const findLabel = theme.fg("toolTitle", theme.bold("find"));
 			const patternPart = pattern ? theme.fg("toolTitle", pattern) : "";
 			const inPart = theme.fg("dim", " in ");
 			const pathPart = theme.fg("toolOutput", pathArg);
 			const limitPart = limit !== undefined && limit !== null ? theme.fg("dim", ` limit ${limit}`) : "";
-			const out = `${findLabel} ${patternPart}${inPart}${pathPart}${limitPart}`;
-			text.setText(fillToolBackground(`\n${TOOL_RESULT_INDENT}${out}`, ctx.isError ? BG_ERROR : undefined));
+			const title = `${findLabel} ${patternPart}${inPart}${pathPart}${limitPart}`;
+			const headerLine = renderCardHeader({ title, status: ctx.isError ? "error" : "pending", theme });
+			text.setText(fillToolBackground(`\n${headerLine}`, ctx.isError ? BG_ERROR : undefined));
 			return text;
 		},
 

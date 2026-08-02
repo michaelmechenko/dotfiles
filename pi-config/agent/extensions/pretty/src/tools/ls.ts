@@ -3,7 +3,7 @@
 import type { AgentToolResult, ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { BG_ERROR, FG_DIM, RST, resolveBaseBackground, TOOL_RESULT_INDENT } from "../config.js";
 import { shortPath } from "../helpers.js";
-import { fillToolBackground, renderToolError, renderToolMetrics, renderTree } from "../render.js";
+import { fillToolBackground, renderCardHeader, renderToolError, renderToolMetrics, renderTree } from "../render.js";
 import { resolveTextCtor } from "../tui-text.js";
 import type { LsDetails, RenderCtxLike, SdkToolDef, TextContent, ThemeLike } from "../types.js";
 import { wrapExecuteWithMetrics } from "./metrics.js";
@@ -48,10 +48,11 @@ export function registerLsTool(
 					? ""
 					: shortPath(cwd, home, String(rawPath));
 			const limit = args.limit;
-			let out = theme.fg("toolTitle", theme.bold("ls"));
-			if (path) out += ` ${theme.fg("accent", path)}`;
-			if (limit !== undefined && limit !== null) out += theme.fg("toolOutput", ` (limit ${limit})`);
-			text.setText(fillToolBackground(`\n${TOOL_RESULT_INDENT}${out}\n`, ctx.isError ? BG_ERROR : undefined));
+			let title = theme.fg("toolTitle", theme.bold("ls"));
+			if (path) title += ` ${theme.fg("accent", path)}`;
+			if (limit !== undefined && limit !== null) title += theme.fg("toolOutput", ` (limit ${limit})`);
+			const headerLine = renderCardHeader({ title, status: ctx.isError ? "error" : "pending", theme });
+			text.setText(fillToolBackground(`\n${headerLine}\n`, ctx.isError ? BG_ERROR : undefined));
 			return text;
 		},
 

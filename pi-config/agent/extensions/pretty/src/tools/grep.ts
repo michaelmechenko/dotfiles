@@ -3,7 +3,7 @@
 import type { AgentToolResult, ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { BG_ERROR, FG_DIM, RST, resolveBaseBackground, TOOL_RESULT_INDENT } from "../config.js";
 import { normalizeLineEndings, shortPath } from "../helpers.js";
-import { fillToolBackground, renderToolError } from "../render.js";
+import { fillToolBackground, renderCardHeader, renderToolError } from "../render.js";
 import { resolveTextCtor } from "../tui-text.js";
 import type { GrepDetails, RenderCtxLike, SdkToolDef, TextContent, ThemeLike } from "../types.js";
 import { wrapExecuteWithMetrics } from "./metrics.js";
@@ -60,12 +60,13 @@ export function registerGrepTool(
 			const limit = args.limit;
 			const literal = args.literal === true;
 			const caseInsensitive = args.caseInsensitive === true || args.ignoreCase === true;
-			let out = `${theme.fg(ctx.isError ? "error" : "toolTitle", theme.bold("✱ grep"))} ${theme.fg("toolTitle", `/${pattern || ""}/`)}${theme.fg("toolOutput", ` in ${path}`)}`;
-			if (glob) out += theme.fg("dim", ` (${String(glob)})`);
-			if (limit !== undefined && limit !== null) out += theme.fg("dim", ` limit ${limit}`);
-			if (literal) out += theme.fg("dim", ` (literal)`);
-			if (caseInsensitive) out += theme.fg("dim", ` (case-insensitive)`);
-			text.setText(fillToolBackground(`\n${TOOL_RESULT_INDENT}${out}`, ctx.isError ? BG_ERROR : undefined));
+			let title = `${theme.fg("toolTitle", theme.bold("grep"))} ${theme.fg("toolTitle", `/${pattern || ""}/`)}${theme.fg("toolOutput", ` in ${path}`)}`;
+			if (glob) title += theme.fg("dim", ` (${String(glob)})`);
+			if (limit !== undefined && limit !== null) title += theme.fg("dim", ` limit ${limit}`);
+			if (literal) title += theme.fg("dim", ` (literal)`);
+			if (caseInsensitive) title += theme.fg("dim", ` (case-insensitive)`);
+			const headerLine = renderCardHeader({ title, status: ctx.isError ? "error" : "pending", theme });
+			text.setText(fillToolBackground(`\n${headerLine}`, ctx.isError ? BG_ERROR : undefined));
 			return text;
 		},
 

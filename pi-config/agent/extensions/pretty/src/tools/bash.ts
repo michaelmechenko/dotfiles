@@ -3,7 +3,7 @@
 import type { AgentToolResult, ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { resolveBaseBackground, TOOL_RESULT_INDENT, termWidth } from "../config.js";
 import { compactErrorLines, inferBashExitCode, stripBashExitStatusLine } from "../helpers.js";
-import { fillToolBackground, renderToolDuration, renderToolError } from "../render.js";
+import { fillToolBackground, renderCardHeader, renderToolDuration, renderToolError } from "../render.js";
 import { resolveTextCtor } from "../tui-text.js";
 import type { BashDetails, ComponentLike, RenderCtxLike, SdkToolDef, TextContent, ThemeLike } from "../types.js";
 import { wrapExecuteWithMetrics } from "./metrics.js";
@@ -76,8 +76,13 @@ export function registerBashTool(
 							? `${rawCmd.slice(0, Math.max(1, headerBudget))}…`
 							: rawCmd;
 				const indentedCmd = cmd.replace(/\n/g, `\n${TOOL_RESULT_INDENT}  `);
-				const commandLabel = theme.fg(ctx.isError ? "error" : "toolTitle", theme.bold(`$ ${indentedCmd}`));
-				return fillToolBackground(`\n${TOOL_RESULT_INDENT}${commandLabel}${t}\n`, undefined, ctx.expanded ? undefined : tw);
+				const headerLine = renderCardHeader({
+					title: `$ ${indentedCmd}${t}`,
+					status: ctx.isError ? "error" : "pending",
+					theme,
+					width: tw,
+				});
+				return fillToolBackground(`\n${headerLine}\n`, undefined, ctx.expanded ? undefined : tw);
 			};
 
 			text.setText(buildHeader(termWidth()));

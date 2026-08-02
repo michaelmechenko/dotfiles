@@ -361,3 +361,4 @@ In-nnn plugin keys (`;` prefix — nnn requires it for plugins):
 | `;p` | Toggle file preview (bat/moor, `ansi` theme, 60% preview width) |
 | `;f` | fzcd — fuzzy-jump to a subdir (`M-g` jumps into `;g`/fzrg; standard fzf keys + `M-j`/`M-k`/`M-u`/`M-n`/`M-q` apply) |
 | `;g` | fzrg — live ripgrep (syntax + match highlight) → open match in an nvim split in the origin window |
+| `;h` | Keybind cheatsheet popup (nnn native basics + this launch's `;`-plugin keys, read live from `$NNN_PLUG` + the M-* keys meaningful inside `;f`/`;g`). nnn's own native `?` still shows its full compiled-in help/about screen. |

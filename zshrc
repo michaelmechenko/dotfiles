@@ -118,7 +118,7 @@ export NNN_FCOLORS='060606020005030801050201'
 
 # in-nnn plugin keys (pressed as ;<key>): ;l horizontal split, ;j vertical split,
 # ;i send a cd command to the origin pane's prompt
-export NNN_PLUG='l:tmux-split-h;j:tmux-split-v;i:cd-origin;p:preview-tui'
+export NNN_PLUG='l:tmux-split-h;j:tmux-split-v;i:cd-origin;p:preview-tui;h:tmux-help'
 export NNN_SPLIT=v
 export NNN_SPLITSIZE=60
 

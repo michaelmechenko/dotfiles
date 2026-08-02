@@ -17,11 +17,13 @@ import {
   type OverlayOptions,
   type TUI,
 } from "@earendil-works/pi-tui";
+import { bottomBorder, combineColumns, divider, fit, frameLine, topBorder } from "./render";
 import {
   assertToggleableScope,
   buildSourceOptions,
   filterExtensionOptions,
   isSourceEnabled,
+  scopeLabel,
   toggleAllPackageResources,
   toggleTopLevelResourcePaths,
   type ExtensionOption,
@@ -29,7 +31,7 @@ import {
 } from "./utils";
 
 const COMMAND_NAME = "extension-toggle";
-const FLOATING_WINDOW_SHORTCUT = Key.ctrlShift("e");
+const FLOATING_WINDOW_SHORTCUT = Key.ctrl("e");
 
 export interface ExtensionToggleSelection {
   option: ExtensionOption;
@@ -43,133 +45,84 @@ type SelectExtensionTogglesResult =
   | typeof OPEN_FLOATING_WINDOW;
 type VisibleRowCount = number | (() => number);
 
-function fitControlHints(
-  hints: string[],
-  width: number,
-  pinnedHints: string[] = [],
-): string {
-  const safeWidth = Math.max(0, width);
-  const joined = hints.join(" · ");
-  if (visibleWidth(joined) <= safeWidth) {
-    return joined;
-  }
-
-  const pinned = new Set(pinnedHints);
-  const kept = new Set<string>(pinnedHints);
-  for (const hint of hints) {
-    if (pinned.has(hint)) continue;
-
-    const candidate = hints
-      .filter((entry) => kept.has(entry) || entry === hint)
-      .join(" · ");
-    if (visibleWidth(candidate) <= safeWidth) {
-      kept.add(hint);
-    }
-  }
-
-  const fitted = hints.filter((hint) => kept.has(hint)).join(" · ");
-  if (visibleWidth(fitted) <= safeWidth) {
-    return fitted;
-  }
-
-  if (pinned.has("? help")) {
-    return visibleWidth("? help") <= safeWidth
-      ? "? help"
-      : truncateToWidth("?", safeWidth, "");
-  }
-
-  const keptHints: string[] = [];
-  for (const hint of hints) {
-    const candidate = [...keptHints, hint].join(" · ");
-    if (visibleWidth(candidate) <= safeWidth) {
-      keptHints.push(hint);
-    }
-  }
-
-  return keptHints.join(" · ");
+function originLabel(option: ExtensionOption): string {
+  return option.origin === "package" ? "package" : "top-level";
 }
 
-export class ExtensionMultiSelect implements Component {
-  private selectedFilteredIndex = 0;
-  private searchMode = false;
-  private searchQuery = "";
-  private readonly checkedIndexes = new Set<number>();
-  private readonly initialCheckedIndexes = new Set<number>();
+/**
+ * Two-pane list + details picker, styled and driven like skill-toggle's
+ * SkillToggleOverlay: live search-as-you-type (no explicit search mode),
+ * space stages a toggle in a draft map, ctrl+s applies and closes.
+ */
+export class ExtensionToggleList implements Component {
+  private readonly desired = new Map<number, boolean>();
+  private search = "";
+  private selectedIndex = 0;
 
   constructor(
+    private readonly tui: TUI,
+    private readonly theme: Theme,
     private readonly options: ExtensionOption[],
     private readonly done: (result: ExtensionToggleSelection[] | null) => void,
-    private readonly maxVisibleRows: VisibleRowCount = 12,
-    private readonly showHelpHint = false,
+    private readonly bodyHeightHint: VisibleRowCount = 12,
     private readonly floatingShortcutFooterHint: string | undefined = undefined,
   ) {
     for (let i = 0; i < options.length; i++) {
-      if (isSourceEnabled(options[i].resources)) {
-        this.checkedIndexes.add(i);
-        this.initialCheckedIndexes.add(i);
-      }
+      this.desired.set(i, isSourceEnabled(options[i].resources));
     }
   }
 
-  invalidate() {}
+  invalidate(): void {}
 
-  private get filteredOptions(): FilteredExtensionOption[] {
-    return filterExtensionOptions(this.options, this.searchQuery);
-  }
-
-  private get maxVisible(): number {
+  private get bodyHeight(): number {
     const value =
-      typeof this.maxVisibleRows === "function"
-        ? this.maxVisibleRows()
-        : this.maxVisibleRows;
-    return Number.isFinite(value) ? Math.max(1, Math.floor(value)) : 12;
+      typeof this.bodyHeightHint === "function" ? this.bodyHeightHint() : this.bodyHeightHint;
+    return Number.isFinite(value) ? Math.max(4, Math.floor(value)) : 12;
   }
 
-  private clampSelectedIndex(filtered = this.filteredOptions): void {
-    if (filtered.length === 0) {
-      this.selectedFilteredIndex = 0;
+  handleInput(data: string): void {
+    if (matchesKey(data, Key.escape) || matchesKey(data, Key.ctrl("c"))) {
+      this.done(null);
       return;
     }
 
-    this.selectedFilteredIndex = Math.max(
-      0,
-      Math.min(this.selectedFilteredIndex, filtered.length - 1),
-    );
-  }
-
-  private setSearchQuery(query: string): void {
-    this.searchQuery = query;
-    this.selectedFilteredIndex = 0;
-    this.clampSelectedIndex();
-  }
-
-  private getSelectedRow(): FilteredExtensionOption | undefined {
-    const filtered = this.filteredOptions;
-    this.clampSelectedIndex(filtered);
-    return filtered[this.selectedFilteredIndex];
-  }
-
-  private moveSelection(delta: number): void {
-    const filtered = this.filteredOptions;
-    if (filtered.length === 0) {
-      this.selectedFilteredIndex = 0;
+    if (matchesKey(data, Key.ctrl("s"))) {
+      this.submit();
       return;
     }
 
-    this.selectedFilteredIndex = Math.max(
-      0,
-      Math.min(filtered.length - 1, this.selectedFilteredIndex + delta),
-    );
-  }
+    if (matchesKey(data, Key.up)) {
+      this.moveSelection(-1);
+      return;
+    }
 
-  private toggleSelectedRow(): void {
-    const row = this.getSelectedRow();
-    if (!row) return;
+    if (matchesKey(data, Key.down)) {
+      this.moveSelection(1);
+      return;
+    }
 
-    if (this.checkedIndexes.has(row.originalIndex)) {
-      this.checkedIndexes.delete(row.originalIndex);
-    } else {
-      this.checkedIndexes.add(row.originalIndex);
+    if (matchesKey(data, Key.space)) {
+      const row = this.getSelectedOption();
+      if (row) {
+        this.desired.set(row.originalIndex, !(this.desired.get(row.originalIndex) ?? false));
+        this.tui.requestRender();
+      }
+      return;
+    }
+
+    if (matchesKey(data, Key.backspace)) {
+      if (this.search.length > 0) {
+        this.search = Array.from(this.search).slice(0, -1).join("");
+        this.selectedIndex = 0;
+        this.tui.requestRender();
+      }
+      return;
+    }
+
+    if (isPrintableInput(data)) {
+      this.search += data;
+      this.selectedIndex = 0;
+      this.tui.requestRender();
     }
   }
 
@@ -178,210 +131,199 @@ export class ExtensionMultiSelect implements Component {
       this.options
         .map((option, index) => ({
           option,
-          enabled: this.checkedIndexes.has(index),
-          changed:
-            this.checkedIndexes.has(index) !==
-            this.initialCheckedIndexes.has(index),
+          enabled: this.desired.get(index) ?? isSourceEnabled(option.resources),
+          changed: (this.desired.get(index) ?? isSourceEnabled(option.resources)) !== isSourceEnabled(option.resources),
         }))
         .filter((selection) => selection.changed)
         .map(({ option, enabled }) => ({ option, enabled })),
     );
   }
 
-  private isPrintableInput(data: string): boolean {
-    return (
-      data.length === 1 &&
-      data.charCodeAt(0) >= 32 &&
-      data.charCodeAt(0) !== 127
-    );
-  }
-
   render(width: number): string[] {
-    const filtered = this.filteredOptions;
-    this.clampSelectedIndex(filtered);
-    const safeWidth = Math.max(0, width);
-    const maxVisible = this.maxVisible;
-    const fitLine = (line: string): string =>
-      visibleWidth(line) > safeWidth
-        ? truncateToWidth(line, safeWidth, "...")
-        : line;
-    const searchStatus = this.searchMode ? "active" : "inactive";
-    const queryDisplay =
-      this.searchQuery.length > 0 ? this.searchQuery : "(empty)";
-    const controlHints = this.searchMode
-      ? this.showHelpHint
-        ? [
-            "type search",
-            "enter apply",
-            "esc close search",
-            ...(this.floatingShortcutFooterHint
-              ? [this.floatingShortcutFooterHint]
-              : []),
-            "? help",
-          ]
-        : [
-            "type: search",
-            "backspace/delete: remove",
-            "ctrl+u: clear",
-            "esc: close search",
-            "enter: apply",
-          ]
-      : this.showHelpHint
-        ? [
-            "↑/↓ move",
-            "space toggle",
-            "/ search",
-            "enter apply",
-            "esc cancel",
-            ...(this.floatingShortcutFooterHint
-              ? [this.floatingShortcutFooterHint]
-              : []),
-            "? help",
-          ]
-        : [
-            "↑/↓ or j/k: move",
-            "/ or ctrl+f: search",
-            "space: check/uncheck",
-            "enter: apply",
-            "esc: cancel",
-          ];
-    const fitControls = (): string =>
-      fitControlHints(
-        controlHints,
-        safeWidth,
-        this.showHelpHint
-          ? [
-              ...(this.floatingShortcutFooterHint
-                ? [this.floatingShortcutFooterHint]
-                : []),
-              "? help",
-            ]
-          : [],
-      );
-    const lines = [
-      fitLine("Enable or disable sources"),
-      fitLine(`Search (${searchStatus}): ${queryDisplay}`),
-      "",
+    const innerWidth = Math.max(20, width - 2);
+    const bodyHeight = this.bodyHeight;
+    const leftWidth = Math.max(28, Math.floor((innerWidth - 1) * 0.55));
+    const rightWidth = Math.max(24, innerWidth - leftWidth - 1);
+
+    const header = this.renderHeader(innerWidth);
+    const search = frameLine(
+      this.theme,
+      this.theme.fg("muted", `Search: ${this.search || "(type to filter)"}`),
+      innerWidth,
+    );
+    const body = combineColumns(
+      this.renderList(leftWidth, bodyHeight),
+      this.renderDetails(rightWidth, bodyHeight),
+      leftWidth,
+      rightWidth,
+      this.theme.fg("borderMuted", "│"),
+    ).map((line) => frameLine(this.theme, line, innerWidth));
+
+    const controlHints = [
+      "type search",
+      "↑↓ move",
+      "space toggle",
+      "ctrl+s apply + reload",
+      ...(this.floatingShortcutFooterHint ? [this.floatingShortcutFooterHint] : []),
+      "? help",
+    ];
+    const footer = [
+      frameLine(this.theme, this.theme.fg("dim", controlHints.join(" · ")), innerWidth),
+      frameLine(this.theme, this.theme.fg("dim", "esc cancel"), innerWidth),
     ];
 
+    return [
+      topBorder(this.theme, innerWidth),
+      frameLine(this.theme, header, innerWidth),
+      search,
+      divider(this.theme, innerWidth),
+      ...body,
+      divider(this.theme, innerWidth),
+      ...footer,
+      bottomBorder(this.theme, innerWidth),
+    ];
+  }
+
+  private renderHeader(innerWidth: number): string {
+    const title = this.theme.fg("accent", this.theme.bold("Pi Extension Toggle"));
+    const enabled = this.options.filter((_option, index) => this.desired.get(index) ?? false).length;
+    const changed = this.getChangedCount();
+    const summary = this.theme.fg(
+      "muted",
+      `${this.options.length} sources • ${enabled} enabled • ${changed} changed`,
+    );
+    const gap = Math.max(1, innerWidth - visibleLength(title) - visibleLength(summary));
+    return `${title}${" ".repeat(gap)}${summary}`;
+  }
+
+  private renderList(width: number, height: number): string[] {
+    const lines: string[] = [];
+    const filtered = this.getFilteredOptions();
+
     if (filtered.length === 0) {
-      lines.push(fitLine(`No sources match "${this.searchQuery}"`));
-    } else {
-      const startIndex = Math.max(
-        0,
-        Math.min(
-          this.selectedFilteredIndex - Math.floor(maxVisible / 2),
-          filtered.length - maxVisible,
-        ),
-      );
-      const endIndex = Math.min(startIndex + maxVisible, filtered.length);
-
-      for (let i = startIndex; i < endIndex; i++) {
-        const row = filtered[i];
-        const option = row.option;
-        const cursor = i === this.selectedFilteredIndex ? ">" : " ";
-        const checked = this.checkedIndexes.has(row.originalIndex);
-        const selected = checked ? "[x]" : "[ ]";
-        const status = checked ? "Enabled" : "Disabled";
-        lines.push(
-          fitLine(`${cursor} ${selected} ${option.label} · ${status}`),
-        );
-      }
+      lines.push(this.theme.fg("dim", "No matching sources"));
+      return pad(lines, height);
     }
 
-    if (filtered.length > maxVisible) {
+    this.selectedIndex = clamp(this.selectedIndex, 0, filtered.length - 1);
+    const visibleCount = Math.max(4, Math.floor(height / 2));
+    const start = Math.max(
+      0,
+      Math.min(this.selectedIndex - Math.floor(visibleCount / 2), Math.max(0, filtered.length - visibleCount)),
+    );
+    const end = Math.min(filtered.length, start + visibleCount);
+
+    for (let i = start; i < end; i += 1) {
+      const row = filtered[i]!;
+      const option = row.option;
+      const enabledNow = isSourceEnabled(option.resources);
+      const desired = this.desired.get(row.originalIndex) ?? enabledNow;
+      const selected = i === this.selectedIndex;
+      const changed = desired !== enabledNow;
+      const marker = selected ? "›" : " ";
+      const box = desired ? "◼" : "□";
+      const changedMark = changed ? this.theme.fg("accent", " *") : "";
+      const label = `${marker} ${box} ${option.label}${changedMark}`;
+      lines.push(selected ? this.theme.fg("accent", this.theme.bold(fit(label, width))) : fit(label, width));
       lines.push(
-        fitLine(
-          `(${this.selectedFilteredIndex + 1}/${filtered.length} shown, ${this.options.length} total) ${this.checkedIndexes.size} enabled`,
+        this.theme.fg(
+          "dim",
+          fit(`    ${scopeLabel(option.scope)} ${originLabel(option)} — ${desired ? "enabled" : "disabled"}`, width),
         ),
       );
-    } else if (this.searchQuery.trim().length > 0) {
-      lines.push(
-        fitLine(
-          `${filtered.length}/${this.options.length} shown · ${this.checkedIndexes.size} enabled`,
-        ),
-      );
-    } else {
-      lines.push(fitLine(`${this.checkedIndexes.size} enabled`));
     }
 
-    lines.push(fitControls());
-
-    return lines;
+    return pad(lines, height);
   }
 
-  handleInput(data: string): void {
-    if (matchesKey(data, Key.ctrl("c"))) {
-      this.done(null);
-      return;
+  private renderDetails(width: number, height: number): string[] {
+    const option = this.getSelectedOption()?.option;
+    const lines: string[] = [];
+    if (!option) {
+      lines.push(this.theme.fg("dim", "No source selected"));
+      return pad(lines, height);
     }
 
-    if (matchesKey(data, Key.enter)) {
-      this.submit();
-      return;
+    const enabledNow = isSourceEnabled(option.resources);
+    const index = this.getSelectedOption()?.originalIndex ?? -1;
+    const desired = this.desired.get(index) ?? enabledNow;
+
+    lines.push(this.theme.fg("accent", this.theme.bold(option.label)));
+    lines.push("");
+    lines.push(`${this.theme.fg("muted", "Current:")} ${enabledNow ? "enabled" : "disabled"}`);
+    lines.push(
+      `${this.theme.fg("muted", "Desired:")} ${desired ? "enabled" : "disabled"}${desired !== enabledNow ? this.theme.fg("accent", " (changed)") : ""}`,
+    );
+    lines.push(`${this.theme.fg("muted", "Scope:")} ${scopeLabel(option.scope)}`);
+    lines.push(`${this.theme.fg("muted", "Origin:")} ${originLabel(option)}`);
+    if (option.resourceType) {
+      lines.push(`${this.theme.fg("muted", "Type:")} ${option.resourceType}`);
+    }
+    lines.push(`${this.theme.fg("muted", "Source key:")} ${option.sourceKey}`);
+    lines.push("");
+    lines.push(this.theme.fg("muted", `Resource path${option.resources.length > 1 ? "s" : ""}:`));
+    for (const resource of option.resources) {
+      lines.push(...wrap(resource.path, width));
     }
 
-    if (this.searchMode) {
-      if (matchesKey(data, Key.escape)) {
-        this.searchMode = false;
-        return;
-      }
+    return pad(lines, height);
+  }
 
-      if (matchesKey(data, Key.ctrl("u"))) {
-        this.setSearchQuery("");
-        return;
-      }
+  private moveSelection(delta: number): void {
+    const filtered = this.getFilteredOptions();
+    if (filtered.length === 0) return;
+    this.selectedIndex = clamp(this.selectedIndex + delta, 0, filtered.length - 1);
+    this.tui.requestRender();
+  }
 
-      if (matchesKey(data, Key.backspace) || matchesKey(data, Key.delete)) {
-        this.setSearchQuery(this.searchQuery.slice(0, -1));
-        return;
-      }
+  private getFilteredOptions(): FilteredExtensionOption[] {
+    return filterExtensionOptions(this.options, this.search);
+  }
 
-      if (matchesKey(data, Key.up)) {
-        this.moveSelection(-1);
-        return;
-      }
+  private getSelectedOption(): FilteredExtensionOption | undefined {
+    return this.getFilteredOptions()[this.selectedIndex];
+  }
 
-      if (matchesKey(data, Key.down)) {
-        this.moveSelection(1);
-        return;
-      }
+  private getChangedCount(): number {
+    return this.options.filter((option, index) => (this.desired.get(index) ?? isSourceEnabled(option.resources)) !== isSourceEnabled(option.resources)).length;
+  }
+}
 
-      if (this.isPrintableInput(data)) {
-        this.setSearchQuery(`${this.searchQuery}${data}`);
-      }
-      return;
-    }
+function isPrintableInput(data: string): boolean {
+  return data.length > 0 && !data.includes("\x1b") && !data.includes("\r") && !data.includes("\n") && data >= " ";
+}
 
-    if (data === "/" || matchesKey(data, Key.ctrl("f"))) {
-      this.searchMode = true;
-      return;
-    }
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
 
-    if (matchesKey(data, Key.up) || data === "k") {
-      this.moveSelection(-1);
-      return;
-    }
+function pad(lines: string[], height: number): string[] {
+  const padded = [...lines];
+  while (padded.length < height) padded.push("");
+  return padded.slice(0, height);
+}
 
-    if (matchesKey(data, Key.down) || data === "j") {
-      this.moveSelection(1);
-      return;
-    }
-
-    if (matchesKey(data, Key.space)) {
-      this.toggleSelectedRow();
-      return;
-    }
-
-    if (matchesKey(data, Key.escape)) {
-      if (this.searchQuery.length > 0) {
-        this.setSearchQuery("");
-        return;
-      }
-
-      this.done(null);
+function wrap(text: string, width: number): string[] {
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [""];
+  const lines: string[] = [];
+  let current = "";
+  for (const word of words) {
+    if (current.length === 0) {
+      current = word;
+    } else if (`${current} ${word}`.length <= width) {
+      current = `${current} ${word}`;
+    } else {
+      lines.push(current);
+      current = word;
     }
   }
+  if (current) lines.push(current);
+  return lines;
+}
+
+function visibleLength(input: string): number {
+  return input.replace(/\x1b\[[0-9;]*m/g, "").length;
 }
 
 class ExtensionToggleHelpOverlay implements Component {
@@ -405,7 +347,7 @@ class ExtensionToggleHelpOverlay implements Component {
       data === "?" ||
       matchesKey(data, Key.question) ||
       matchesKey(data, Key.escape) ||
-      matchesKey(data, Key.enter) ||
+      matchesKey(data, Key.ctrl("s")) ||
       matchesKey(data, Key.ctrl("c"))
     ) {
       this.onClose();
@@ -431,15 +373,14 @@ class ExtensionToggleHelpOverlay implements Component {
     const content = [
       accent("Extension Toggle Help"),
       "",
-      `${accent("Ctrl+Shift+E")} ${this.shortcutHelp}`,
+      `${accent("Ctrl+E")} ${this.shortcutHelp}`,
       `${accent("?")} close this help overlay`,
-      `${accent("↑/↓")} or ${accent("j/k")} move selection`,
-      `${accent("Space")} check or uncheck a source`,
-      `${accent("/")} or ${accent("Ctrl+F")} enter search mode`,
-      `${accent("Backspace/Delete")} remove search text`,
-      `${accent("Ctrl+U")} clear search text`,
-      `${accent("Enter")} apply selected changes`,
-      `${accent("Esc")} cancel, or close search mode when searching`,
+      `${accent("type")} to search (live filter, no search mode)`,
+      `${accent("↑/↓")} move selection`,
+      `${accent("Space")} stage enable/disable`,
+      `${accent("Backspace")} remove search text`,
+      `${accent("Ctrl+S")} apply staged changes + reload`,
+      `${accent("Esc")} cancel`,
       "",
       dim("This help is a second overlay stacked above the picker."),
     ];
@@ -458,10 +399,9 @@ class ExtensionToggleOverlay implements Component {
   constructor(
     private readonly tui: TUI,
     private readonly theme: Theme,
-    private readonly inner: ExtensionMultiSelect,
+    private readonly inner: ExtensionToggleList,
     private readonly onToggleShortcut: () => void,
     private readonly shortcutHelp: string,
-    private readonly showBorder: boolean,
   ) {}
 
   invalidate(): void {
@@ -512,29 +452,7 @@ class ExtensionToggleOverlay implements Component {
   }
 
   render(width: number): string[] {
-    const safeWidth = Math.max(0, width);
-    if (!this.showBorder) {
-      return this.inner.render(safeWidth);
-    }
-
-    if (safeWidth < 3) {
-      return this.inner.render(safeWidth);
-    }
-
-    const innerWidth = safeWidth - 2;
-    const padLine = (line: string): string => {
-      const fitted =
-        visibleWidth(line) > innerWidth
-          ? truncateToWidth(line, innerWidth, "...")
-          : line;
-      return `${fitted}${" ".repeat(Math.max(0, innerWidth - visibleWidth(fitted)))}`;
-    };
-
-    return [
-      `╭${"─".repeat(innerWidth)}╮`,
-      ...this.inner.render(innerWidth).map((line) => `│${padLine(line)}│`),
-      `╰${"─".repeat(innerWidth)}╯`,
-    ];
+    return this.inner.render(Math.max(0, width));
   }
 }
 
@@ -546,17 +464,16 @@ interface SelectExtensionTogglesOptions {
 
 const extensionToggleOverlayOptions: OverlayOptions = {
   anchor: "center",
-  width: "80%",
-  minWidth: 50,
-  maxHeight: "80%",
-  margin: 2,
+  width: "92%",
+  maxHeight: "88%",
+  minWidth: 86,
 };
 
 function getResponsiveOverlayVisibleRows(termRows: number): number {
   const verticalMargins = 4;
-  const overlayChromeLines = 7;
+  const overlayChromeLines = 8;
   const maxOverlayHeight = Math.min(
-    Math.floor(termRows * 0.8),
+    Math.floor(termRows * 0.82),
     Math.max(1, termRows - verticalMargins),
   );
   return Math.max(1, maxOverlayHeight - overlayChromeLines);
@@ -568,23 +485,18 @@ async function selectExtensionToggles(
   uiOptions: SelectExtensionTogglesOptions = {},
 ): Promise<SelectExtensionTogglesResult> {
   return await ctx.ui.custom<SelectExtensionTogglesResult>(
-    (tui, _theme, _kb, done) => {
-      const showHelpHint =
-        uiOptions.overlay === true || uiOptions.onToggleShortcut !== undefined;
-      const component = new ExtensionMultiSelect(
+    (tui, theme, _kb, done) => {
+      const floatingShortcutFooterHint =
+        !uiOptions.overlay && uiOptions.onToggleShortcut ? "ctrl+e float" : undefined;
+
+      const component = new ExtensionToggleList(
+        tui,
+        theme,
         options,
         done,
-        uiOptions.overlay
-          ? () => getResponsiveOverlayVisibleRows(tui.terminal.rows)
-          : 12,
-        showHelpHint,
-        !uiOptions.overlay && uiOptions.onToggleShortcut
-          ? "ctrl+shift+e float"
-          : undefined,
+        uiOptions.overlay ? () => getResponsiveOverlayVisibleRows(tui.terminal.rows) : 12,
+        floatingShortcutFooterHint,
       );
-      if (!showHelpHint) {
-        return component;
-      }
 
       const handleToggleShortcut = () => {
         if (uiOptions.overlay) {
@@ -598,13 +510,10 @@ async function selectExtensionToggles(
 
       return new ExtensionToggleOverlay(
         tui,
-        _theme,
+        theme,
         component,
         handleToggleShortcut,
-        uiOptions.overlay
-          ? "hide/show the floating window"
-          : "open floating window",
-        uiOptions.overlay === true,
+        uiOptions.overlay ? "hide/show the floating window" : "open floating window",
       );
     },
     uiOptions.overlay

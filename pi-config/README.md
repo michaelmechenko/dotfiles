@@ -105,7 +105,7 @@ there's no `pi update` path for a forked-local extension.
 
 | Extension | What it does |
 |---|---|
-| `extension-toggle/` | `/extension-toggle` (or Ctrl+Shift+E) — interactive picker to enable/disable extensions, skills, prompts, and themes, for both npm/git package sources and bare top-level auto-discovered resources (like everything in this repo's `agent/extensions/`). Writes `-path`/`+path` filter entries into `settings.json` (pi's native resource-array filter syntax); no file renaming involved. This is the "skill-toggle, but for extensions" capability — skill-toggle patches skill frontmatter, this patches settings.json filters, since extensions have no frontmatter equivalent |
+| `extension-toggle/` | `/extension-toggle` (or Ctrl+E) — interactive two-pane list + details picker (styled and driven like `skill-toggle/`: live search-as-you-type, space to stage, Ctrl+S to apply + reload) to enable/disable extensions, skills, prompts, and themes, for both npm/git package sources and bare top-level auto-discovered resources (like everything in this repo's `agent/extensions/`). Writes `-path`/`+path` filter entries into `settings.json` (pi's native resource-array filter syntax); no file renaming involved. This is the "skill-toggle, but for extensions" capability — skill-toggle patches skill frontmatter, this patches settings.json filters, since extensions have no frontmatter equivalent |
 
 Had no runtime dependencies beyond pi's own peer packages, so it copies straight across (`index.ts`,
 `utils.ts`) with no `npm install` step. Its self-exclusion check (hiding itself from its own picker)

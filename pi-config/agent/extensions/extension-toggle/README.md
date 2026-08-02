@@ -17,33 +17,38 @@ After installing, run:
 /extension-toggle
 ```
 
-Or press `Ctrl+Shift+E` to open the picker as a floating window. Pressing `Ctrl+Shift+E` from `/extension-toggle` closes the default picker and opens the floating one; pressing it again from the floating window hides/shows that window without losing pending selections.
+Or press `Ctrl+E` to open the picker as a floating window. Pressing `Ctrl+E` from `/extension-toggle` closes the default picker and opens the floating one; pressing it again from the floating window hides/shows that window without losing pending selections.
 
 Press `?` in either picker to show help, including the floating-window shortcut.
 
-The command shows grouped entries by source with their current state:
+The picker renders a two-pane list + details layout (matching `skill-toggle`'s look): the left pane
+shows each source with a checkbox and a changed-marker, the right pane shows details for the
+currently-selected source (scope, origin, source key, resource paths, current vs. desired state).
 
 ```text
-[x] npm:package-usage (global) · Enabled
-[ ] npm:other-package (project) · Disabled
-[x] ai-commit (global extension) · Enabled
-[ ] answer (global extension) · Disabled
+› ◼ npm:package-usage *
+    global package — enabled
+  □ npm:other-package
+    project package — disabled
 ```
 
-Move through entries with the arrow keys or `j`/`k`. Check or uncheck entries with `space`, then press `enter` to apply changes. Checked sources are enabled; unchecked sources are disabled. Package sources are toggled as a unit; top-level local resources are toggled individually. The extension writes the matching global or project settings changes, then asks whether to reload immediately. Confirm the reload for the changes to take effect right away.
+Move through entries with the arrow keys. Stage a toggle on the selected entry with `space`, then
+press `Ctrl+S` to apply the staged changes. Staged-enabled sources are enabled; staged-disabled
+sources are disabled. Package sources are toggled as a unit; top-level local resources are toggled
+individually. The extension writes the matching global or project settings changes, then (when
+invoked as a command) asks whether to reload immediately. Confirm the reload for the changes to
+take effect right away.
 
 ## Search
 
-Press `/` or Ctrl+F to enter search mode, then type an extension, skill, prompt, theme, package, or path name to filter the list. While searching:
+Search is always live: type any printable character to filter the list by extension, skill,
+prompt, theme, package, or path name — there is no separate search mode to enter or leave.
 
-- type printable characters to update the query;
-- use Backspace/Delete to remove characters;
-- use Ctrl+U to clear the query;
-- use Esc to leave search mode without clearing the filter;
-- press Esc again after leaving search mode to clear the applied filter before cancelling the UI;
-- press Enter to apply selected changes.
+- type printable characters to extend the query;
+- use Backspace to remove characters;
+- use Esc to cancel the picker.
 
-Filtering only changes which rows are visible. Toggle state is remembered by the original source, so checked/unchecked entries stay changed even when the search query hides them.
+Filtering only changes which rows are visible. Toggle state is remembered by the original source, so staged entries stay changed even when the search query hides them.
 
 ## Grouping
 
@@ -66,9 +71,9 @@ The toggle manager excludes itself from this list so you cannot accidentally dis
 
 ### Selection
 
-The command renders an interactive multi-select list. Each row starts checked if any resource in that source is currently enabled, and only rows whose checked state changes are applied when you press Enter.
+The command renders an interactive two-pane list + details picker. Each row's staged state starts equal to whether any resource in that source is currently enabled, and only sources whose staged state differs from their current state are applied when you press Ctrl+S.
 
-Search mode filters rows without losing pending toggle state. The search index includes the visible label, source key, resource type, resource path, and Pi metadata, so queries can match package names, local resource names, nested file names, or paths.
+Live search filters rows without losing pending toggle state. The search index includes the visible label, source key, resource type, resource path, and Pi metadata, so queries can match package names, local resource names, nested file names, or paths.
 
 ### Settings updates
 

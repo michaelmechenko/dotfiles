@@ -85,7 +85,7 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 	let executionMode = false;
 	let todoItems: TodoItem[] = [];
 	let toolsBeforePlanMode: string[] | undefined;
-	let widgetCollapsed = false;
+	let widgetCollapsed = true;
 
 	pi.registerFlag("plan", {
 		description: "Start in plan mode (read-only exploration)",
@@ -362,6 +362,11 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 	});
 
 	pi.registerShortcut(Key.ctrlAlt("t"), {
+		description: "Toggle collapsed/expanded plan progress widget",
+		handler: async (ctx) => toggleWidgetCollapsed(ctx),
+	});
+
+	pi.registerShortcut(Key.ctrl("p"), {
 		description: "Toggle collapsed/expanded plan progress widget",
 		handler: async (ctx) => toggleWidgetCollapsed(ctx),
 	});

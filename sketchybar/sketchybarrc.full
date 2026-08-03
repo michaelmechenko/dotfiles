@@ -101,10 +101,10 @@ CMD+=(--add item space.3* center)
 CMD+=(--set space.3* icon="*" label.drawing=off icon.y_offset=1 icon.padding_left=0 icon.padding_right=4 \
       click_script="aerospace workspace 3*")
 
-# 2^ — right marker (was "^", now "*"). Extra right padding so the center block has a gap
-# before the right block (battery/date) instead of sitting flush against it.
+# 2^ — right marker (was "^", now "*"). Keep the visible center group balanced;
+# the independently-positioned right block does not need padding from this item.
 CMD+=(--add item space.2^ center)
-CMD+=(--set space.2^ icon="*" label.drawing=off icon.y_offset=1 icon.padding_left=4 icon.padding_right=16 \
+CMD+=(--set space.2^ icon="*" label.drawing=off icon.y_offset=1 icon.padding_left=4 icon.padding_right=0 \
       click_script="aerospace workspace 2^")
 
 "${CMD[@]}"

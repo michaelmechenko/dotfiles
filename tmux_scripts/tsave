@@ -5,7 +5,7 @@
 # Claude Code is recorded with its sessionId (recovered via the pane's process
 # tree -> ~/.config/claude/sessions/<pid>.json), and a pane running pi is
 # recorded with its session id (recovered the same way tmux-pi-last-response
-# does: direct `pi` child pid -> cwd via lsof -> slugged sessions dir -> newest
+# does: direct `pi` child pid -> cwd via lsof -> pi's session-dir naming -> newest
 # *.jsonl's uuid). `tload` uses these to OFFER (not auto-run) a resume.
 #   usage: tsave [name]   (name defaults to a timestamp)
 
@@ -56,17 +56,19 @@ claude_session() {
 # Echo the pi session id for a pane (given its pane_pid), or nothing. Mirrors
 # tmux-pi-last-response: pi has no live pid-keyed session file like Claude's,
 # so it's located by process tree + cwd instead. pi is a direct child of the
-# pane's shell (unlike Claude, no BFS needed).
+# pane's shell (unlike Claude, no BFS needed). Pi stores a cwd at
+# `--${cwd-with-slashes-replaced-by-dashes}--`; dots remain literal.
 pi_session() {
     pi_pid=$(pgrep -P "$1" -x pi 2>/dev/null | head -1)
     [ -n "$pi_pid" ] || return 0
     cwd=$(lsof -a -p "$pi_pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | tail -1)
     [ -n "$cwd" ] || return 0
-    tmp_slug="${cwd//\//-}"
-    slug="${tmp_slug//./-}"
+    slug="--$(printf '%s' "${cwd#/}" | tr '/' '-')--"
     sess_dir="$HOME/.config/pi-config/agent/sessions/$slug"
     [ -d "$sess_dir" ] || return 0
-    transcript=$(ls -t "$sess_dir"/*.jsonl 2>/dev/null | head -1)
+    # Globbing is globally disabled above while walking process ids, so enable it
+    # only here to select this project's newest transcript.
+    transcript=$( (set +f; ls -t "$sess_dir"/*.jsonl 2>/dev/null | head -1) )
     [ -f "$transcript" ] || return 0
     printf '%s' "$(basename "$transcript" .jsonl | sed 's/^.*_//')"
 }

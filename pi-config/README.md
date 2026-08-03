@@ -23,6 +23,13 @@ agent/
 └── sessions/            # per-project transcript logs — session/cache artifact, do not edit
 ```
 
+Pi names each project transcript directory by removing the cwd's leading `/`,
+replacing its remaining `/` characters with `-`, and wrapping the result in `--`.
+Dots remain literal. For example, `/Users/mishka/.config` is
+`agent/sessions/--Users-mishka-.config--`. The tmux pi-session helpers derive this
+name from the direct `pi` child process's cwd; do not reuse Claude Code's different
+project-slug convention.
+
 ## Settings (`agent/settings.json`)
 
 - `theme`: `"vague"` — palette-aligned custom theme, see `agent/themes/vague.json` and `~/.config/COLORS.md`.

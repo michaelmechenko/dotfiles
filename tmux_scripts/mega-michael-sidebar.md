@@ -182,9 +182,10 @@ Same RGB triplets as `tmux-claude-menu --colorize`, keyed off `COLORS.md` roles:
 pi has no live pid-keyed session-state file (unlike Claude's
 `claude/sessions/<pid>.json`). Rows are derived per-pane via the
 `tmux-pi-last-response` recipe: a pane whose direct child process is `pi`
-(`pgrep -P <pane_pid> -x pi`) → that process's cwd (`lsof -d cwd`) → slug
-(`/`+`.`→`-`, same as `pi-config/agent/sessions/<slug>/`) → the newest `*.jsonl`
-there is the active session. State is inferred: `idle` if `pi` is the pane's
+(`pgrep -P <pane_pid> -x pi`) → that process's cwd (`lsof -d cwd`) → pi's
+`--<cwd without its leading slash; remaining slashes become dashes>--` session
+directory (dots remain literal) → the newest `*.jsonl` there is the active session.
+State is inferred: `idle` if `pi` is the pane's
 foreground command, `thinking` otherwise. Less rigorous than Claude's
 ppid-based join; good enough for the common case. Note pi's tmux window is
 typically auto-named `node` (pi's own process `comm` is `node`, being a

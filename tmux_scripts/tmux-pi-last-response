@@ -6,9 +6,9 @@
 # pi has no live pid-keyed session-state file like Claude Code's
 # claude/sessions/<pid>.json, so the session is located by process tree +
 # cwd instead: the pane's direct `pi` child process's cwd (via lsof) is
-# slugged the same way as pi's own sessions/<slug> dirs (/ and . -> -), and
-# the most recently modified *.jsonl in that dir is treated as the active
-# session.
+# converted to pi's session-dir name (`--`, then its slash-separated path with
+# dashes, then `--`; dots remain literal). The most recently modified *.jsonl
+# in that directory is treated as the active session.
 
 origin=$(tmux display -p '#{pane_id}')
 pane_pid=$(tmux display -p -t "$origin" '#{pane_pid}')
@@ -19,8 +19,7 @@ pi_pid=$(pgrep -P "$pane_pid" -x pi 2>/dev/null | head -1)
 cwd=$(lsof -a -p "$pi_pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | tail -1)
 [ -n "$cwd" ] || { tmux display-message "couldn't resolve pi session cwd"; exit 0; }
 
-tmp="${cwd//\//-}"
-slug="${tmp//./-}"
+slug="--$(printf '%s' "${cwd#/}" | tr '/' '-')--"
 sess_dir="$HOME/.config/pi-config/agent/sessions/$slug"
 [ -d "$sess_dir" ] || { tmux display-message "no pi sessions for $cwd"; exit 0; }
 

@@ -18,7 +18,7 @@ Single source of truth for colors used across tmux, Ghostty, and zsh (via ohmypo
 | `surface-heading-h2` | `#33333a` | nvim render-md H2 heading bg + underline fg. Faint lavender tint at ~20% on canvas. Uses `accent-secondary` hue. |
 | `surface-heading-h3` | `#40362a` | nvim render-md H3 heading bg + underline fg. Faint amber tint at ~20% on canvas. Uses `accent-amber` hue. |
 | `copy-mode-indicator` | `#606079` | tmux `copy-mode-position-style` block bg (top-right time/scroll box shown in copy mode); indicator text is `text-default` `#a9b1d6`. Also Ghostty ANSI 14 override (`ghostty/config`) — deliberately dims Claude Code's hardcoded session-rename label, which has no theme token (see Claude Code integration notes). |
-| `divider-subtle` | `#383848` | nvim `SnacksIndent` + `NeoTreeIndentMarker` fg (indent guides); Claude statusline ` * ` separators |
+| `divider-subtle` | `#383848` | nvim `SnacksIndent` + `NeoTreeIndentMarker` fg (indent guides); Claude statusline ` * ` separators; tmux second status row separator |
 
 ### Text
 

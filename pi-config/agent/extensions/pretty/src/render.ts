@@ -168,16 +168,11 @@ export function preserveBoxBackground(ansi: string): string {
 }
 
 export function fillToolBackground(text: string, bg = BG_BASE, width?: number): string {
+	const renderWidth = width ?? termWidth();
 	return text
 		.split("\n")
 		.map((line) => {
-			if (!width) {
-				const stripped = preserveBoxBackground(line);
-				return bg ? bg + stripped : stripped;
-			}
-			const plainLead = line.replace(ANSI_CAPTURE_RE, "");
-			const skipPad = line.startsWith(TOOL_RESULT_INDENT) || plainLead.startsWith(TOOL_RESULT_INDENT);
-			const fitted = _truncateToWidth(line, width, "", !skipPad);
+			const fitted = _truncateToWidth(line, renderWidth, "", true);
 			const stripped = preserveBoxBackground(fitted);
 			return bg ? bg + stripped : stripped;
 		})
@@ -229,20 +224,30 @@ export function renderCardHeader(opts: {
 	duration?: string;
 	theme: ThemeLike;
 }): string {
+	return `${TOOL_RESULT_INDENT}${renderFrameStatus(opts)}`;
+}
+
+/** Frame content has no outer indent; frameRow() owns it. */
+export function renderFrameStatus(opts: {
+	title: string;
+	status?: CardStatus;
+	duration?: string;
+	theme: ThemeLike;
+}): string {
 	const { title, status, duration, theme } = opts;
 	const icon = cardStatusIcon(status, theme);
 	const durationPart = duration ? ` ${theme.fg("dim", `· ${duration}`)}` : "";
-	return `${TOOL_RESULT_INDENT}${icon} ${title}${durationPart}`;
+	return `${icon} ${title}${durationPart}`;
 }
 
 /** Neutral call header inside the semantic result card. */
 export function fillToolCallBackground(text: string, theme: ThemeLike, width?: number): string {
-	return fillToolBackground(text, theme.getBgAnsi?.("customMessageBg") ?? "", width);
+	return fillToolBackground(text, theme.getBgAnsi?.("toolSuccessBg") ?? "", width);
 }
 
 /** Visual boundary between a tool invocation and its returned data. */
 export function renderToolResultDivider(theme: ThemeLike, width: number): string {
-	return `${TOOL_RESULT_INDENT}${theme.fg("dim", "─".repeat(Math.max(1, width - 1)))}`;
+	return `${TOOL_RESULT_INDENT}${theme.fg("dim", "─".repeat(Math.max(1, width - 2)))}${TOOL_RESULT_INDENT}`;
 }
 
 // ---------------------------------------------------------------------------

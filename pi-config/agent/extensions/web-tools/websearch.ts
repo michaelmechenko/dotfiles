@@ -7,6 +7,7 @@ import { Redacted } from "./redacted.ts";
 import type { SearchProvider } from "./providers/types.ts";
 import { appendExpandHint, appendExpandedPreview, getTextContent } from "./render.ts";
 import { areToolResultsExpanded } from "../tool-display/state.js";
+import { frameText, toolCallFrame, toolResultFrame } from "../tool-display/frame.js";
 import { SearchWeb, type SearchWebError } from "./search-web.ts";
 import { getWebToolsSettings, SEARCH_DEPTHS, type ToolInputParseError } from "./settings.ts";
 import {
@@ -110,28 +111,25 @@ export function createWebSearchTool(composition?: WebSearchToolComposition) {
 			}
 		},
 
-		renderCall(args: { query: string; depth?: SearchDepth; maxResults?: number }, theme: RenderTheme) {
-			let text = theme.fg("warning", "○ ") + theme.fg("toolTitle", theme.bold("websearch "));
-			text += theme.fg("accent", JSON.stringify(String(args.query)));
-			if (args.depth && args.depth !== "auto") {
-				text += theme.fg("muted", ` (${args.depth})`);
-			}
-			if (args.maxResults) {
-				text += theme.fg("dim", ` limit=${args.maxResults}`);
-			}
-			return new Text(text, 0, 0);
+		renderCall(args: { query: string; depth?: SearchDepth; maxResults?: number }, theme: RenderTheme, ctx: any) {
+			let call = theme.fg("warning", "○ ") + theme.fg("toolTitle", theme.bold("websearch "));
+			call += theme.fg("accent", JSON.stringify(String(args.query)));
+			if (args.depth && args.depth !== "auto") call += theme.fg("muted", ` (${args.depth})`);
+			if (args.maxResults) call += theme.fg("dim", ` limit=${args.maxResults}`);
+			return frameText(ctx?.lastComponent ?? new Text("", 0, 0), (width) => toolCallFrame(theme, width, call, { pending: true }));
 		},
 
 		renderResult(
 			result: { content: Array<{ type: string; text?: string }>; details?: WebSearchDetails; isError?: boolean },
 			options: { expanded: boolean; isPartial: boolean },
 			theme: RenderTheme,
+			ctx: any,
 		) {
 			if (options.isPartial) {
-				return new Text(theme.fg("warning", "Searching..."), 0, 0);
+				return frameText(ctx?.lastComponent ?? new Text("", 0, 0), (width) => toolResultFrame(theme, width, [theme.fg("warning", "Searching...")], { pending: true }));
 			}
 			if (result.isError) {
-				return new Text(theme.fg("error", `✗ ${getTextContent(result.content) || "Search failed"}`), 0, 0);
+				return frameText(ctx?.lastComponent ?? new Text("", 0, 0), (width) => toolResultFrame(theme, width, [theme.fg("error", getTextContent(result.content) || "Search failed")], { error: true }));
 			}
 
 			const details = result.details;
@@ -149,7 +147,7 @@ export function createWebSearchTool(composition?: WebSearchToolComposition) {
 				text += `\n${theme.fg("dim", `Full output: ${details.fullOutputPath}`)}`;
 			}
 
-			return new Text(text, 0, 0);
+			return frameText(ctx?.lastComponent ?? new Text("", 0, 0), (width) => toolResultFrame(theme, width, text.split("\n")));
 		},
 	};
 }

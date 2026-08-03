@@ -15,6 +15,7 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { frameText, toolCallFrame, toolResultFrame } from "../tool-display/frame.js";
 import {
   Editor,
   type EditorTheme,
@@ -424,7 +425,7 @@ export default function askUser(pi: ExtensionAPI) {
       }
     },
 
-    renderCall(args, theme, _context) {
+    renderCall(args, theme, context) {
       let text = theme.fg("warning", "○ ") + theme.fg("toolTitle", theme.bold("ask_user "));
       text += theme.fg(
         "muted",
@@ -437,36 +438,37 @@ export default function askUser(pi: ExtensionAPI) {
         const numbered = opts.map((o, i) => `${i + 1}. ${o.label}`);
         text += `\n${theme.fg("dim", `  ${numbered.join("  ")}`)}`;
       }
-      return new Text(text, 0, 0);
+      return frameText(context?.lastComponent ?? new Text("", 0, 0), (width) =>
+        toolCallFrame(theme, width, text, { pending: true }),
+      );
     },
 
-    renderResult(result, _options, theme, _context) {
+    renderResult(result, _options, theme, context) {
       const details = result.details as AskUserDetails | undefined;
       if (!details) {
         const first = result.content[0];
-        return new Text(first?.type === "text" ? first.text : "", 0, 0);
+        return frameText(context?.lastComponent ?? new Text("", 0, 0), (width) =>
+          toolResultFrame(theme, width, [first?.type === "text" ? first.text : ""]),
+        );
       }
 
       if (details.cancelled || details.answer === null) {
-        return new Text(theme.fg("warning", "✗ dismissed"), 0, 0);
+        return frameText(context?.lastComponent ?? new Text("", 0, 0), (width) =>
+          toolResultFrame(theme, width, [theme.fg("warning", "✗ dismissed")]),
+        );
       }
 
       if (details.wasCustom) {
-        return new Text(
-          theme.fg("success", "✓ ") +
-            theme.fg("muted", "(wrote) ") +
-            theme.fg("accent", details.answer),
-          0,
-          0,
+        const answer = theme.fg("success", "✓ ") + theme.fg("muted", "(wrote) ") + theme.fg("accent", details.answer);
+        return frameText(context?.lastComponent ?? new Text("", 0, 0), (width) =>
+          toolResultFrame(theme, width, [answer]),
         );
       }
 
       const idx = details.options.indexOf(details.answer) + 1;
       const display = idx > 0 ? `${idx}. ${details.answer}` : details.answer;
-      return new Text(
-        theme.fg("success", "✓ ") + theme.fg("accent", display),
-        0,
-        0,
+      return frameText(context?.lastComponent ?? new Text("", 0, 0), (width) =>
+        toolResultFrame(theme, width, [theme.fg("success", "✓ ") + theme.fg("accent", display)]),
       );
     },
   });

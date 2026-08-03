@@ -1,4 +1,4 @@
-import { areToolResultsExpanded, previewResult, RESULT_TOGGLE_HINT } from "../tool-display/state.js";
+import { previewResult, RESULT_TOGGLE_HINT } from "../tool-display/state.js";
 
 export function getTextContent(content: Array<{ type: string; text?: string }> | undefined): string {
 	if (!content) return "";
@@ -21,5 +21,5 @@ export function appendExpandedPreview(
 }
 
 export function appendExpandHint(base: string): string {
-	return `${base} ${RESULT_TOGGLE_HINT} to ${areToolResultsExpanded() ? "collapse" : "expand"} results`;
+	return base;
 }

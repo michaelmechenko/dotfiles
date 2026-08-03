@@ -3,11 +3,12 @@
 import type { AgentToolResult, ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { resolveBaseBackground, TOOL_RESULT_INDENT, termWidth } from "../config.js";
 import { compactErrorLines, inferBashExitCode, stripBashExitStatusLine } from "../helpers.js";
-import { fillToolBackground, fillToolCallBackground, renderCardHeader, renderToolDuration, renderToolError, renderToolResultDivider } from "../render.js";
+import { fillToolBackground, renderFrameStatus, renderToolDuration, renderToolError } from "../render.js";
 import { resolveTextCtor } from "../tui-text.js";
 import type { BashDetails, ComponentLike, RenderCtxLike, SdkToolDef, TextContent, ThemeLike } from "../types.js";
 import { wrapExecuteWithMetrics } from "./metrics.js";
 import { areToolResultsExpanded, previewResult, RESULT_TOGGLE_HINT } from "../../../tool-display/state.js";
+import { frameDivider, framePadding, frameRow, frameRows } from "../../../tool-display/frame.js";
 
 type Result = AgentToolResult<Record<string, unknown>>;
 
@@ -33,6 +34,7 @@ export function registerBashTool(
 			"Prefer the dedicated `grep`/`find` tools, or `rg`/`fd` directly in bash, over the `grep`/`find` binaries.",
 		],
 		parameters: sdkTool.parameters,
+		renderShell: "self",
 
 		execute: wrapExecuteWithMetrics(async (tid, params, sig, _upd, ctx: ExtensionContext) => {
 			try {
@@ -77,12 +79,12 @@ export function registerBashTool(
 							? `${rawCmd.slice(0, Math.max(1, headerBudget))}…`
 							: rawCmd;
 				const indentedCmd = cmd.replace(/\n/g, `\n${TOOL_RESULT_INDENT}  `);
-				const headerLine = renderCardHeader({
+				const headerLine = renderFrameStatus({
 					title: `$ ${indentedCmd}${t}`,
 					status: ctx.isError ? "error" : "pending",
 					theme,
 				});
-				return fillToolCallBackground(`\n${headerLine}`, theme, ctx.expanded ? undefined : tw);
+				return frameRows(["", headerLine], theme.getBgAnsi?.("toolSuccessBg"), tw);
 			};
 
 			text.setText(buildHeader(termWidth()));
@@ -129,20 +131,25 @@ export function registerBashTool(
 				const output = isErr ? compactErrorLines(cleaned).join("\n") : cleaned;
 				const lineCount = output.split("\n").length;
 				const resultsExpanded = areToolResultsExpanded();
-				const info = [`${lineCount} lines`, renderToolDuration(result), `${RESULT_TOGGLE_HINT} to ${resultsExpanded ? "collapse" : "expand"} results`]
+				const info = [`${lineCount} lines`, renderToolDuration(result)]
 					.filter(Boolean)
 					.map((part) => theme.fg("dim", part))
 					.join(theme.fg("dim", " · "));
 				const resultIcon = theme.fg(isErr ? "error" : "success", isErr ? "✗" : "✓");
-				const header = `${TOOL_RESULT_INDENT}${resultIcon} ${info}`;
+				const header = `${resultIcon} ${info}`;
 				const rw = termWidth();
 
 				const renderFn = (w: number) => {
 					if (!output.trim()) return fillToolBackground(`${header}\n`, undefined, w);
 					const preview = previewResult(output, resultsExpanded ? Number.MAX_SAFE_INTEGER : 3);
-					const out = [renderToolResultDivider(theme, w), header, "", ...preview.body.split("\n").map((line: string) => `${TOOL_RESULT_INDENT}${line}`)];
-					if (preview.remaining) out.push(`${TOOL_RESULT_INDENT}${theme.fg("dim", `… ${preview.remaining} more lines (${RESULT_TOGGLE_HINT})`)}`);
-					return fillToolBackground(`${out.join("\n")}\n`, undefined, w);
+					const out = [
+						frameDivider(theme, undefined, w),
+						frameRow(header, undefined, w),
+						...preview.body.split("\n").map((line: string) => frameRow(line, undefined, w)),
+					];
+					if (preview.remaining) out.push(frameRow(theme.fg("dim", `… ${preview.remaining} more lines (${RESULT_TOGGLE_HINT})`), undefined, w));
+					out.push(framePadding(undefined, w));
+					return out.join("\n");
 				};
 
 				text.setText(renderFn(rw));

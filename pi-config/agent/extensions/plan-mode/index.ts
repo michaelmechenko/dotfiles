@@ -21,6 +21,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { Key, matchesKey, Text as UiText, truncateToWidth } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
+import { frameText, toolCallFrame, toolResultFrame } from "../tool-display/frame.js";
 import {
 	extractTodoItems,
 	isSafeCommand,
@@ -559,16 +560,16 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 			};
 		},
 
-		renderCall(args, theme) {
+		renderCall(args, theme, ctx) {
 			let text = theme.fg("warning", "○ ") + theme.fg("toolTitle", theme.bold("plan_step ")) + theme.fg("muted", args.action);
 			if (args.step !== undefined) text += ` ${theme.fg("accent", `#${args.step}`)}`;
-			return new UiText(text, 0, 0);
+			return frameText(ctx?.lastComponent ?? new UiText("", 0, 0), (width) => toolCallFrame(theme, width, text, { pending: true }));
 		},
 
-		renderResult(result, _options, theme) {
+		renderResult(result, _options, theme, ctx) {
 			const first = result.content[0];
 			const text = first?.type === "text" ? first.text : "";
-			return new UiText(theme.fg("success", "✓ ") + theme.fg("muted", text), 0, 0);
+			return frameText(ctx?.lastComponent ?? new UiText("", 0, 0), (width) => toolResultFrame(theme, width, [theme.fg("success", "✓ ") + theme.fg("muted", text)]));
 		},
 	});
 
@@ -692,7 +693,7 @@ Execute each step in order. Immediately after finishing a step, call the plan_st
 			const remaining = todoItems.filter((t) => !isStepDone(t));
 			const choice = await ctx.ui.select(
 				`Plan execution stopped with ${remaining.length} step(s) not marked done. What happened?`,
-				["All steps are actually done", "Resume execution", "Adjust steps manually", "Stop and exit"],
+				["Resume execution", "Adjust steps manually", "All steps are actually done", "Stop and exit"],
 			);
 
 			if (choice === "All steps are actually done") {

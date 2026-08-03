@@ -14,11 +14,12 @@ import {
 	termWidth,
 } from "../config.js";
 import { normalizeLineEndings, shortPath } from "../helpers.js";
-import { fillToolBackground, fillToolCallBackground, renderCardHeader, renderFileContent, renderToolError, renderToolResultDivider } from "../render.js";
+import { fillToolBackground, fillToolCallBackground, renderFrameStatus, renderFileContent, renderToolError, renderToolResultDivider } from "../render.js";
 import { resolveTextCtor } from "../tui-text.js";
 import type { ReadDetails, RenderCtxLike, SdkToolDef, TextContent, ThemeLike } from "../types.js";
 import { wrapExecuteWithMetrics } from "./metrics.js";
 import { areToolResultsExpanded, RESULT_TOGGLE_HINT } from "../../../tool-display/state.js";
+import { frameDivider, framePadding, frameRow, frameRows, frameText } from "../../../tool-display/frame.js";
 
 type Result = AgentToolResult<Record<string, unknown>>;
 
@@ -64,6 +65,7 @@ export function registerReadTool(
 		label: "Read",
 		description: sdkTool.description ?? "Read file contents",
 		parameters: sdkTool.parameters,
+		renderShell: "self",
 
 		execute: wrapExecuteWithMetrics(async (tid, params, sig, _upd, ctx: ExtensionContext) => {
 			const p = params as any;
@@ -96,9 +98,8 @@ export function registerReadTool(
 			const offset = typeof args.offset === "number" ? `:${args.offset}` : "";
 			const limit = typeof args.limit === "number" ? ` +${args.limit}` : "";
 			const title = `${theme.fg("toolTitle", theme.bold("read"))} ${theme.fg("toolTitle", path)}${theme.fg("dim", `${offset}${limit}`)}`;
-			const header = renderCardHeader({ title, status: ctx.isError ? "error" : "pending", theme });
-			text.setText(fillToolCallBackground(`\n${header}\n`, theme));
-			return text;
+			const header = renderFrameStatus({ title, status: ctx.isError ? "error" : "pending", theme });
+			return frameText(text, (width) => frameRows(["", header], theme.getBgAnsi?.("toolSuccessBg"), width));
 		},
 
 		renderResult(result: Result, _opt: unknown, theme: ThemeLike, ctx: RenderCtxLike) {
@@ -138,8 +139,15 @@ export function registerReadTool(
 						return `${TOOL_RESULT_INDENT}${FG_LNUM}${lineNo}${RST} ${FG_RULE}│${RST} ${code}`;
 					});
 					const more = total > previewCount ? `\n${TOOL_RESULT_INDENT}${FG_DIM}… ${total - previewCount} more lines — ${RESULT_TOGGLE_HINT}${RST}` : "";
-					text.setText(fillToolBackground(`${renderToolResultDivider(theme, tw)}\n${TOOL_RESULT_INDENT}${theme.fg("success", "✓")} ${FG_DIM}${total} lines${RST}\n${preview.join("\n")}${more}\n`, BG_BASE));
-					return text;
+					const summary = `${theme.fg("success", "✓")} ${FG_DIM}${total} lines${RST}`;
+					const rows = preview.map((line) => line);
+					if (more) rows.push(more.trimStart());
+					return frameText(text, (width) => [
+						frameDivider(theme, BG_BASE, width),
+						frameRow(summary, BG_BASE, width),
+						...rows.map((line) => frameRow(line, BG_BASE, width)),
+						framePadding(BG_BASE, width),
+					].join("\n"));
 				}
 				const maxShow = lines.length;
 				const show = lines.slice(0, maxShow);

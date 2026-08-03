@@ -671,7 +671,7 @@ export default function sessionRecallExtension(pi: ExtensionAPI) {
 			"Bad example: `build ci c lib dependency ghostty` because that searches for one exact phrase, not separate keywords. " +
 			"Do not combine independent keywords into one search string. If you need multiple unrelated terms, call session_search multiple times. " +
 			"After finding a likely session, use session_query for semantic questions.",
-		renderResult: (result, options, theme) => {
+						renderResult: (result, options, theme) => {
 			const container = new Container();
 			const text = result.content?.[0]?.type === "text" ? result.content[0].text : "";
 			const details = result.details as { matchCount?: number; query?: string; error?: boolean } | undefined;

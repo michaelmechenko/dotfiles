@@ -1,13 +1,14 @@
 /* pi-pretty: ls tool -- directory listing with styled output. */
 
 import type { AgentToolResult, ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
-import { BG_ERROR, FG_DIM, RST, resolveBaseBackground, TOOL_RESULT_INDENT } from "../config.js";
+import { BG_ERROR, FG_DIM, RST, resolveBaseBackground, TOOL_RESULT_INDENT, termWidth } from "../config.js";
 import { shortPath } from "../helpers.js";
-import { fillToolBackground, fillToolCallBackground, renderCardHeader, renderToolError, renderToolMetrics, renderTree, renderToolResultDivider } from "../render.js";
+import { fillToolBackground, fillToolCallBackground, renderFrameStatus, renderToolError, renderToolMetrics, renderTree, renderToolResultDivider } from "../render.js";
 import { resolveTextCtor } from "../tui-text.js";
 import type { LsDetails, RenderCtxLike, SdkToolDef, TextContent, ThemeLike } from "../types.js";
 import { wrapExecuteWithMetrics } from "./metrics.js";
 import { areToolResultsExpanded, RESULT_TOGGLE_HINT } from "../../../tool-display/state.js";
+import { frameResult, frameRows, frameText } from "../../../tool-display/frame.js";
 
 type Result = AgentToolResult<Record<string, unknown>>;
 
@@ -26,6 +27,7 @@ export function registerLsTool(
 		label: "List",
 		description: sdkTool.description ?? "List directory contents",
 		parameters: sdkTool.parameters,
+		renderShell: "self",
 
 		execute: wrapExecuteWithMetrics(async (tid, params, sig, _upd, ctx: ExtensionContext) => {
 			const result = (await sdkTool.execute(tid, params, sig, undefined, ctx)) as Result;
@@ -51,9 +53,8 @@ export function registerLsTool(
 			let title = theme.fg("toolTitle", theme.bold("ls"));
 			if (path) title += ` ${theme.fg("accent", path)}`;
 			if (limit !== undefined && limit !== null) title += theme.fg("toolOutput", ` (limit ${limit})`);
-			const headerLine = renderCardHeader({ title, status: ctx.isError ? "error" : "pending", theme });
-			text.setText(fillToolCallBackground(`\n${headerLine}\n`, theme));
-			return text;
+			const headerLine = renderFrameStatus({ title, status: ctx.isError ? "error" : "pending", theme });
+			return frameText(text, (width) => frameRows(["", headerLine], theme.getBgAnsi?.("toolSuccessBg"), width));
 		},
 
 		renderResult(result: Result, _opt: unknown, theme: ThemeLike, ctx: RenderCtxLike) {
@@ -67,31 +68,21 @@ export function registerLsTool(
 			const d = result.details as LsDetails | undefined;
 			if (d?._type === "lsResult" && d.text) {
 				if (!areToolResultsExpanded()) {
-					text.setText(
-						fillToolBackground(
-							`${renderToolResultDivider(theme, process.stdout.columns ?? 80)}\n${TOOL_RESULT_INDENT}${theme.fg("success", "✓")} ${FG_DIM}${d.entryCount} entries — ${RESULT_TOGGLE_HINT} to expand results${RST}${renderToolMetrics(result)}\n`,
-						),
-					);
-					return text;
+					const summary = `${theme.fg("success", "✓")} ${FG_DIM}${d.entryCount} entries — ${RESULT_TOGGLE_HINT} to expand results${RST}${renderToolMetrics(result)}`;
+					return frameText(text, (width) => frameResult(theme, width, [summary]));
 				}
 				const rendered = renderTree(d.text, d.path)
 					.split("\n")
 					.map((l) => `${TOOL_RESULT_INDENT}${l}`)
 					.join("\n");
-				text.setText(
-					fillToolBackground(
-						`${renderToolResultDivider(theme, process.stdout.columns ?? 80)}\n${TOOL_RESULT_INDENT}${theme.fg("success", "✓")} ${FG_DIM}${d.entryCount} entries${RST}${renderToolMetrics(result)}\n${rendered}\n`,
-					),
-				);
-				return text;
+				const resultLines = [
+					`${theme.fg("success", "✓")} ${FG_DIM}${d.entryCount} entries${RST}${renderToolMetrics(result)}`,
+					...rendered.split("\n"),
+				];
+				return frameText(text, (width) => frameResult(theme, width, resultLines));
 			}
 			const fc = result.content?.[0];
-			text.setText(
-				fillToolBackground(
-					`${TOOL_RESULT_INDENT}${theme.fg("dim", fc && "text" in fc ? String(fc.text).slice(0, 120) : "done")}`,
-				),
-			);
-			return text;
+			return frameText(text, (width) => frameResult(theme, width, [theme.fg("dim", fc && "text" in fc ? String(fc.text).slice(0, 120) : "done")]));
 		},
 	} as unknown as ToolDefinition<any, any, any>);
 }

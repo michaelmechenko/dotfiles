@@ -3,11 +3,12 @@
 import type { AgentToolResult, ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { BG_ERROR, FG_DIM, RST, resolveBaseBackground, TOOL_RESULT_INDENT } from "../config.js";
 import { shortPath } from "../helpers.js";
-import { fillToolBackground, fillToolCallBackground, renderCardHeader, renderFindResults, renderToolDuration, renderToolError, renderToolResultDivider } from "../render.js";
+import { fillToolBackground, fillToolCallBackground, renderFrameStatus, renderFindResults, renderToolDuration, renderToolError, renderToolResultDivider } from "../render.js";
 import { resolveTextCtor } from "../tui-text.js";
 import type { FindDetails, RenderCtxLike, SdkToolDef, TextContent, ThemeLike } from "../types.js";
 import { wrapExecuteWithMetrics } from "./metrics.js";
 import { areToolResultsExpanded, RESULT_TOGGLE_HINT } from "../../../tool-display/state.js";
+import { frameDivider, framePadding, frameRow, frameRows, frameText } from "../../../tool-display/frame.js";
 
 type Result = AgentToolResult<Record<string, unknown>>;
 
@@ -33,6 +34,7 @@ export function registerFindTool(
 		label: "Find",
 		description: sdkTool.description ?? "Find files matching a glob pattern",
 		parameters: sdkTool.parameters,
+		renderShell: "self",
 
 		execute: wrapExecuteWithMetrics(async (tid, params, sig, _upd, ctx: ExtensionContext) => {
 			const pattern = String(params.pattern ?? "");
@@ -60,9 +62,8 @@ export function registerFindTool(
 			const pathPart = theme.fg("toolOutput", pathArg);
 			const limitPart = limit !== undefined && limit !== null ? theme.fg("dim", ` limit ${limit}`) : "";
 			const title = `${findLabel} ${patternPart}${inPart}${pathPart}${limitPart}`;
-			const headerLine = renderCardHeader({ title, status: ctx.isError ? "error" : "pending", theme });
-			text.setText(fillToolCallBackground(`\n${headerLine}`, theme));
-			return text;
+			const headerLine = renderFrameStatus({ title, status: ctx.isError ? "error" : "pending", theme });
+			return frameText(text, (width) => frameRows(["", headerLine], theme.getBgAnsi?.("toolSuccessBg"), width));
 		},
 
 		renderResult(result: Result, _opt: unknown, theme: ThemeLike, ctx: RenderCtxLike) {
@@ -81,24 +82,25 @@ export function registerFindTool(
 				}
 				if (!areToolResultsExpanded()) {
 					const duration = renderToolDuration(r);
-					text.setText(
-						fillToolBackground(
-							`${renderToolResultDivider(theme, process.stdout.columns ?? 80)}\n${TOOL_RESULT_INDENT}${theme.fg("success", "✓")} ${FG_DIM}${d.matchCount} files — ${RESULT_TOGGLE_HINT} to expand results${RST}${duration ? `${FG_DIM}· ${duration}${RST}` : ""}\n`,
-						),
-					);
-					return text;
+					const body = `${theme.fg("success", "✓")} ${FG_DIM}${d.matchCount} files — ${RESULT_TOGGLE_HINT} to expand results${RST}${duration ? `${FG_DIM}· ${duration}${RST}` : ""}`;
+					return frameText(text, (width) => [
+						frameDivider(theme, undefined, width),
+						frameRow(body, undefined, width),
+						framePadding(undefined, width),
+					].join("\n"));
 				}
 				const rendered = renderFindResults(d.text, theme)
 					.split("\n")
 					.map((l) => `${TOOL_RESULT_INDENT}${l}`)
 					.join("\n");
 				const duration = renderToolDuration(r);
-				text.setText(
-					fillToolBackground(
-						`${renderToolResultDivider(theme, process.stdout.columns ?? 80)}\n${TOOL_RESULT_INDENT}${theme.fg("success", "✓")} ${theme.fg("dim", `${d.matchCount} files`)}${duration ? `${FG_DIM}· ${duration}${RST}` : ""}\n${rendered}\n`,
-					),
-				);
-				return text;
+				const summary = `${theme.fg("success", "✓")} ${theme.fg("dim", `${d.matchCount} files`)}${duration ? `${FG_DIM}· ${duration}${RST}` : ""}`;
+				return frameText(text, (width) => [
+					frameDivider(theme, undefined, width),
+					frameRow(summary, undefined, width),
+					...rendered.split("\n").map((line) => frameRow(line, undefined, width)),
+					framePadding(undefined, width),
+				].join("\n"));
 			}
 			const fc = r.content?.[0] as TextContent | undefined;
 			text.setText(

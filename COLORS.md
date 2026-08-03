@@ -26,7 +26,7 @@ Single source of truth for colors used across tmux, Ghostty, and zsh (via ohmypo
 |---|---|---|
 | `text` | `#BEBEBE` | Ghostty `foreground`; nvim editor fg (`vague.lua` `colors.fg`) |
 | `text-ui` | `#9094A0` | nvim WinBar fg (`dropbar.lua`) — slightly dimmer than `text` for chrome/breadcrumb text |
-| `text-muted` | `#656a80` | tmux `@color-inactive` — secondary UI text (border fg, status secondary text, bell-state); tmux copy-mode non-current line numbers (`copy-mode-line-number-style`, dim); nvim devicons, dropbar `DropBarIconKindDefault`, lualine inactive-buffer fg; nvim `FloatBorder` fg; Claude statusline dir/model/ctx text; Claude theme `inactive` token |
+| `text-muted` | `#656a80` | tmux `@color-inactive` — secondary UI text (border fg, inactive footer-label/default-marker fg, status secondary text, bell-state); tmux copy-mode non-current line numbers (`copy-mode-line-number-style`, dim); nvim devicons, dropbar `DropBarIconKindDefault`, lualine inactive-buffer fg; nvim `FloatBorder` fg; Claude statusline dir/model/ctx text; Claude theme `inactive` token |
 | `text-default` | `#a9b1d6` | tmux `@color-default` — window-status text (the colored window names in the status bar). **Not referenced elsewhere.** |
 
 ### Accents

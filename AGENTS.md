@@ -6,6 +6,10 @@
 
 A personal macOS dotfiles tree mounted at `~/.config`. The `README.md` lists the tools at a high level (tmux, ghostty, zsh+ohmyposh, nvim, aerospace, sketchybar, jankyborders, raycast). There is no build / test / lint pipeline — work happens by editing configs and reloading the live tool.
 
+## Rendering changes
+
+For visual/config rendering work, define the intended result for every affected conditional branch before editing. Validate the actual rendered output at representative focus, label, zoom, and size states; parsing and format expansion are supplementary checks only. Do not regress an existing requested state while correcting a neighboring visual defect.
+
 ## Commits
 
 Stage and commit via explicit request (e.g. the `batch-commit` skill) — scoped commits, Conventional Commits, no emojis, no fluff. Never push or open a PR without explicit approval; those stay separate, explicit user actions.

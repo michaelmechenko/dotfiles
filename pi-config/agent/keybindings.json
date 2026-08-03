@@ -8,5 +8,6 @@
   "app.model.select": ["ctrl+l", "ctrl+shift+p"],
   "tui.editor.cursorLineEnd": ["end"],
   "app.models.toggleProvider": [],
-  "app.session.togglePath": []
+  "app.session.togglePath": [],
+  "app.session.rename": []
 }

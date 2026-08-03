@@ -166,8 +166,10 @@ extension's shortcut via `keybindings.json`** — verified against `@earendil-wo
 | `extension-toggle/` | `ctrl+e` |
 | `skill-toggle/` | `ctrl+shift+e` |
 | `prompt-stash/` | `ctrl+s` |
-| `tool-display/` | `ctrl+shift+o` — independently expand/collapse tool results; `ctrl+o` remains Pi's built-in tool-call detail toggle. The shared state survives an extension reload so existing rows update too. Pretty tool calls and results use one Pi-owned rounded frame: neutral call header above a divider, then a `✓`/`✗` result row on Pi's semantic success/error/pending background. Compact results always show a truncated preview. |
+| `tool-display/` | `ctrl+shift+o` — independently expand/collapse tool results; `ctrl+o` remains Pi's built-in tool-call detail toggle. The shared state survives an extension reload so existing rows update too. `tool-display/frame.ts` defines the custom-tool frame contract: top padding, call, divider, result, bottom padding; every row uses ANSI-aware fitting and one outer space on both sides. Migrated renderers must use this adapter rather than adding raw newlines or tool-specific outer indentation. Compact results show a truncated preview. |
 | `plan-mode/` | `ctrl+alt+p` (toggle plan mode), `ctrl+alt+t` and `ctrl+p` (toggle widget collapsed) |
+| `thinking-controls/` | `ctrl+tab` (Ghostty sends F13) — cycle the current model's thinking level backward; `shift+tab` remains Pi's forward cycle |
+| `session-rename/` | `ctrl+r` or `/rename [name]` — rename the current live session |
 
 `plan-mode/`'s `ctrl+p` widget-toggle shortcut and `extension-toggle/`'s `ctrl+e` picker shortcut both
 collide with core defaults, so `keybindings.json` frees those keys up:

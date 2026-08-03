@@ -69,13 +69,13 @@
 		"syntaxOperator": "text",
 		"syntaxPunctuation": "textMuted",
 
-		"thinkingOff": "dividerSubtle",
+		"thinkingOff": "textMuted",
 		"thinkingMinimal": "textMuted",
-		"thinkingLow": "slate",
+		"thinkingLow": "textMuted",
 		"thinkingMedium": "lavender",
 		"thinkingHigh": "dustyPink",
-		"thinkingXhigh": "amber",
-		"thinkingMax": "rose",
+		"thinkingXhigh": "dustyPink",
+		"thinkingMax": "dustyPink",
 
 		"bashMode": "amber"
 	},

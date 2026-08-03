@@ -66,6 +66,10 @@
 - Ask before destructive, irreversible, externally visible, privileged, or costly actions
 - If intent is unclear but a safe default exists, choose it and continue
 
+## Tool Renderer Frames
+
+- Custom tool call/result renderers must use `extensions/tool-display/frame.ts` for outer layout. Do not add raw outer newlines, fixed terminal-width padding, or tool-specific outer indentation; the adapter owns the top/call/divider/result/bottom rows and the one-cell horizontal padding contract.
+
 ## Response Shaping
 
 - Lead with the concrete answer or next action; put context after, not before

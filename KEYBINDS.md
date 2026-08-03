@@ -1,6 +1,15 @@
 # Keybinds
 
-Reference for all active keybinds across AeroSpace (`aerospace/aerospace.toml`), Hammerspoon (`hammerspoon/init.lua`), and tmux (`tmux.conf`). Modifier order: `cmd` > `ctrl` > `alt` > `shift`.
+Reference for all active keybinds across AeroSpace (`aerospace/aerospace.toml`), Hammerspoon (`hammerspoon/init.lua`), tmux (`tmux.conf`), and pi. Modifier order: `cmd` > `ctrl` > `alt` > `shift`.
+
+## Pi
+
+| Key / command | Action |
+| --- | --- |
+| `shift-tab` | Cycle thinking level forward (Pi built-in) |
+| `ctrl-tab` | Cycle thinking level backward (`thinking-controls/`; Ghostty maps it to F13) |
+| `ctrl+r` | Rename the current live pi session (`session-rename/`) |
+| `/rename [name]` | Rename the current live pi session; omit `name` to open a prompt |
 
 ## AeroSpace — main mode
 

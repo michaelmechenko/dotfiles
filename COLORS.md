@@ -130,7 +130,9 @@ pi (the coding agent TUI) uses a custom theme at `~/.config/pi-config/agent/them
 | `mdCode` / `mdListBullet` | `#9b9bcc` | accent-periwinkle |
 | `toolDiffAdded` | `#bb9dbd` | accent-tertiary |
 | `toolDiffRemoved` | `#d8647e` | accent-primary |
-| `thinkingLow`/`Medium`/`High`/`Xhigh`/`Max` | `#8ba9c1` → `#aeaed1` → `#bb9dbd` → `#f3be7c` → `#d8647e` | slate → lavender → dusty-pink → amber → rose (subtle-to-prominent ramp) |
+| `thinkingOff`/`Minimal`/`Low` | `#656A80` | text-muted; one subdued tier for low and lower thinking |
+| `thinkingMedium` | `#AEAED1` | accent-secondary lavender |
+| `thinkingHigh`/`Xhigh`/`Max` | `#BB9DBD` | accent-tertiary dusty pink; one prominent tier for high and greater |
 | `bashMode` | `#f3be7c` | accent-amber |
 | `export.pageBg` / `cardBg` / `infoBg` | `#100E11` / `#1C1C24` / `#40362a` | canvas / surface-chrome / surface-heading-h3 |
 

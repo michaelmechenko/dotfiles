@@ -3,10 +3,11 @@
 import type { AgentToolResult, ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { BG_ERROR, FG_DIM, RST, resolveBaseBackground, TOOL_RESULT_INDENT } from "../config.js";
 import { normalizeLineEndings, shortPath } from "../helpers.js";
-import { fillToolBackground, renderCardHeader, renderToolError } from "../render.js";
+import { fillToolBackground, fillToolCallBackground, renderCardHeader, renderToolError, renderToolResultDivider } from "../render.js";
 import { resolveTextCtor } from "../tui-text.js";
 import type { GrepDetails, RenderCtxLike, SdkToolDef, TextContent, ThemeLike } from "../types.js";
 import { wrapExecuteWithMetrics } from "./metrics.js";
+import { areToolResultsExpanded, RESULT_TOGGLE_HINT } from "../../../tool-display/state.js";
 
 const invalidArg = "<missing>";
 
@@ -27,7 +28,6 @@ export function registerGrepTool(
 		label: "Grep",
 		description: sdkTool.description ?? "Search file contents by pattern",
 		parameters: sdkTool.parameters,
-		renderShell: "self",
 
 		execute: wrapExecuteWithMetrics(async (tid, params, sig, _upd, ctx: ExtensionContext) => {
 			const p = params as any;
@@ -66,7 +66,7 @@ export function registerGrepTool(
 			if (literal) title += theme.fg("dim", ` (literal)`);
 			if (caseInsensitive) title += theme.fg("dim", ` (case-insensitive)`);
 			const headerLine = renderCardHeader({ title, status: ctx.isError ? "error" : "pending", theme });
-			text.setText(fillToolBackground(`\n${headerLine}`, ctx.isError ? BG_ERROR : undefined));
+			text.setText(fillToolCallBackground(`\n${headerLine}`, theme));
 			return text;
 		},
 
@@ -88,10 +88,10 @@ export function registerGrepTool(
 			const d = result.details as GrepDetails | undefined;
 			if (d?._type === "grepResult" && d.text) {
 				const lines = d.text.split("\n");
-				if (!ctx.expanded) {
+				if (!areToolResultsExpanded()) {
 					text.setText(
 						fillToolBackground(
-							`${TOOL_RESULT_INDENT}${FG_DIM}${lines.length} lines — ctrl+o to expand${RST}\n`,
+							`${renderToolResultDivider(theme, process.stdout.columns ?? 80)}\n${TOOL_RESULT_INDENT}${theme.fg("success", "✓")} ${FG_DIM}${lines.length} lines — ${RESULT_TOGGLE_HINT} to expand results${RST}\n`,
 							ctx.isError ? BG_ERROR : undefined,
 						),
 					);
@@ -108,7 +108,7 @@ export function registerGrepTool(
 				if (remaining > 0) {
 					out.push(theme.fg("muted", `… (${remaining} more ${remaining === 1 ? "line" : "lines"}, to expand)`));
 				}
-				const body = `${out.map((l) => `${TOOL_RESULT_INDENT}${l}`).join("\n")}\n\n`;
+				const body = `${renderToolResultDivider(theme, process.stdout.columns ?? 80)}\n${TOOL_RESULT_INDENT}${theme.fg("success", "✓")} ${theme.fg("dim", `${lines.length} lines`)}\n${out.map((l) => `${TOOL_RESULT_INDENT}${l}`).join("\n")}\n`;
 				text.setText(fillToolBackground(body, ctx.isError ? BG_ERROR : undefined));
 				return text;
 			}

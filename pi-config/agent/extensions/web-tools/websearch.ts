@@ -6,6 +6,7 @@ import { FetchHttpTextClient, ExaSearchProvider } from "./providers/exa.ts";
 import { Redacted } from "./redacted.ts";
 import type { SearchProvider } from "./providers/types.ts";
 import { appendExpandHint, appendExpandedPreview, getTextContent } from "./render.ts";
+import { areToolResultsExpanded } from "../tool-display/state.js";
 import { SearchWeb, type SearchWebError } from "./search-web.ts";
 import { getWebToolsSettings, SEARCH_DEPTHS, type ToolInputParseError } from "./settings.ts";
 import {
@@ -141,13 +142,11 @@ export function createWebSearchTool(composition?: WebSearchToolComposition) {
 			if (details?.truncated) {
 				text += theme.fg("warning", " [truncated]");
 			}
-			text = appendExpandHint(text, options.expanded);
+			text = appendExpandHint(text);
 
-			if (options.expanded) {
-				text = appendExpandedPreview(text, getTextContent(result.content), theme, { maxLines: 16, maxColumns: 220 });
-				if (details?.fullOutputPath) {
-					text += `\n${theme.fg("dim", `Full output: ${details.fullOutputPath}`)}`;
-				}
+			text = appendExpandedPreview(text, getTextContent(result.content), theme, { maxLines: 16 });
+			if (areToolResultsExpanded() && details?.fullOutputPath) {
+				text += `\n${theme.fg("dim", `Full output: ${details.fullOutputPath}`)}`;
 			}
 
 			return new Text(text, 0, 0);

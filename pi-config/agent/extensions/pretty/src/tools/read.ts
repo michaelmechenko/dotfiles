@@ -14,10 +14,11 @@ import {
 	termWidth,
 } from "../config.js";
 import { normalizeLineEndings, shortPath } from "../helpers.js";
-import { fillToolBackground, renderCardHeader, renderFileContent, renderToolError } from "../render.js";
+import { fillToolBackground, fillToolCallBackground, renderCardHeader, renderFileContent, renderToolError, renderToolResultDivider } from "../render.js";
 import { resolveTextCtor } from "../tui-text.js";
 import type { ReadDetails, RenderCtxLike, SdkToolDef, TextContent, ThemeLike } from "../types.js";
 import { wrapExecuteWithMetrics } from "./metrics.js";
+import { areToolResultsExpanded, RESULT_TOGGLE_HINT } from "../../../tool-display/state.js";
 
 type Result = AgentToolResult<Record<string, unknown>>;
 
@@ -63,7 +64,6 @@ export function registerReadTool(
 		label: "Read",
 		description: sdkTool.description ?? "Read file contents",
 		parameters: sdkTool.parameters,
-		renderShell: "self",
 
 		execute: wrapExecuteWithMetrics(async (tid, params, sig, _upd, ctx: ExtensionContext) => {
 			const p = params as any;
@@ -91,16 +91,13 @@ export function registerReadTool(
 
 		renderCall(args: any, theme: ThemeLike, ctx: RenderCtxLike) {
 			resolveBaseBackground(theme);
-
 			const text = ctx.lastComponent ?? new TC("", 0, 0);
-			if (!ctx.isError) {
-				text.setText("");
-				return text;
-			}
-
-			const path = String(args.path ?? "");
-			const label = theme.fg("error", theme.bold("→ read"));
-			text.setText(fillToolBackground(`\n${TOOL_RESULT_INDENT}${label} ${theme.fg("toolTitle", path)}\n`, BG_ERROR));
+			const path = shortPath(cwd, home, String(args.path ?? ""));
+			const offset = typeof args.offset === "number" ? `:${args.offset}` : "";
+			const limit = typeof args.limit === "number" ? ` +${args.limit}` : "";
+			const title = `${theme.fg("toolTitle", theme.bold("read"))} ${theme.fg("toolTitle", path)}${theme.fg("dim", `${offset}${limit}`)}`;
+			const header = renderCardHeader({ title, status: ctx.isError ? "error" : "pending", theme });
+			text.setText(fillToolCallBackground(`\n${header}\n`, theme));
 			return text;
 		},
 
@@ -132,25 +129,16 @@ export function registerReadTool(
 				const total = lines.length;
 				const filePath = String(d.filePath ?? "");
 				const skillName = getSkillName(filePath, d.content);
-				const p2 = shortPath(cwd, home, filePath);
-				const off2 = typeof d.offset === "number" ? `:${d.offset}` : "";
-				if (!ctx.expanded) {
-					if (skillName) {
-						const header = renderSkillHeader(skillName, false, theme);
-						text.setText(fillToolBackground(`\n${TOOL_RESULT_INDENT}${header}\n`, BG_BASE));
-						return text;
-					}
-					const collapsedHeader = renderCardHeader({
-						title: `${theme.fg("toolTitle", theme.bold("read"))} ${theme.fg("toolTitle", p2)}${theme.fg("dim", off2)}`,
-						status: "success",
-						theme,
+				if (!areToolResultsExpanded()) {
+					const previewCount = Math.min(total, 3);
+					const width = Math.max(1, tw - 7);
+					const preview = lines.slice(0, previewCount).map((line, index) => {
+						const lineNo = String((d.offset || 0) + index + 1).padStart(3, " ");
+						const code = line.length > width ? `${line.slice(0, Math.max(0, width - 1))}${FG_DIM}›${RST}` : line;
+						return `${TOOL_RESULT_INDENT}${FG_LNUM}${lineNo}${RST} ${FG_RULE}│${RST} ${code}`;
 					});
-					text.setText(
-						fillToolBackground(
-							`\n${collapsedHeader}\n${TOOL_RESULT_INDENT}${FG_DIM}${total} lines — ctrl+o to expand${RST}\n`,
-							BG_BASE,
-						),
-					);
+					const more = total > previewCount ? `\n${TOOL_RESULT_INDENT}${FG_DIM}… ${total - previewCount} more lines — ${RESULT_TOGGLE_HINT}${RST}` : "";
+					text.setText(fillToolBackground(`${renderToolResultDivider(theme, tw)}\n${TOOL_RESULT_INDENT}${theme.fg("success", "✓")} ${FG_DIM}${total} lines${RST}\n${preview.join("\n")}${more}\n`, BG_BASE));
 					return text;
 				}
 				const maxShow = lines.length;
@@ -159,14 +147,8 @@ export function registerReadTool(
 				const gw = nw + 3;
 				const cw = Math.max(1, tw - gw);
 
-				const header = skillName
-					? `${TOOL_RESULT_INDENT}${renderSkillHeader(skillName, true, theme)}`
-					: renderCardHeader({
-							title: `${theme.fg("toolTitle", theme.bold("read"))} ${theme.fg("toolTitle", p2)}${theme.fg("dim", off2)}`,
-							status: "success",
-							theme,
-						});
-				const out: string[] = ["", header];
+				const header = skillName ? `${TOOL_RESULT_INDENT}${renderSkillHeader(skillName, true, theme)}` : "";
+				const out: string[] = [renderToolResultDivider(theme, tw), ...(header ? ["", header] : [])];
 				out.push(`${TOOL_RESULT_INDENT}${FG_RULE}${"─".repeat(tw - 1)}${RST}`);
 				for (let i = 0; i < show.length; i++) {
 					const ln = (d.offset || 0) + i + 1;

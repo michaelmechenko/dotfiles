@@ -3,10 +3,11 @@
 import type { AgentToolResult, ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { BG_ERROR, FG_DIM, RST, resolveBaseBackground, TOOL_RESULT_INDENT } from "../config.js";
 import { shortPath } from "../helpers.js";
-import { fillToolBackground, renderCardHeader, renderFindResults, renderToolDuration, renderToolError } from "../render.js";
+import { fillToolBackground, fillToolCallBackground, renderCardHeader, renderFindResults, renderToolDuration, renderToolError, renderToolResultDivider } from "../render.js";
 import { resolveTextCtor } from "../tui-text.js";
 import type { FindDetails, RenderCtxLike, SdkToolDef, TextContent, ThemeLike } from "../types.js";
 import { wrapExecuteWithMetrics } from "./metrics.js";
+import { areToolResultsExpanded, RESULT_TOGGLE_HINT } from "../../../tool-display/state.js";
 
 type Result = AgentToolResult<Record<string, unknown>>;
 
@@ -32,7 +33,6 @@ export function registerFindTool(
 		label: "Find",
 		description: sdkTool.description ?? "Find files matching a glob pattern",
 		parameters: sdkTool.parameters,
-		renderShell: "self",
 
 		execute: wrapExecuteWithMetrics(async (tid, params, sig, _upd, ctx: ExtensionContext) => {
 			const pattern = String(params.pattern ?? "");
@@ -61,7 +61,7 @@ export function registerFindTool(
 			const limitPart = limit !== undefined && limit !== null ? theme.fg("dim", ` limit ${limit}`) : "";
 			const title = `${findLabel} ${patternPart}${inPart}${pathPart}${limitPart}`;
 			const headerLine = renderCardHeader({ title, status: ctx.isError ? "error" : "pending", theme });
-			text.setText(fillToolBackground(`\n${headerLine}`, ctx.isError ? BG_ERROR : undefined));
+			text.setText(fillToolCallBackground(`\n${headerLine}`, theme));
 			return text;
 		},
 
@@ -79,11 +79,11 @@ export function registerFindTool(
 					text.setText(fillToolBackground(`\n${TOOL_RESULT_INDENT}${theme.fg("dim", "0 files")}\n`));
 					return text;
 				}
-				if (!ctx.expanded) {
+				if (!areToolResultsExpanded()) {
 					const duration = renderToolDuration(r);
 					text.setText(
 						fillToolBackground(
-							`${TOOL_RESULT_INDENT}${FG_DIM}${d.matchCount} files — ctrl+o to expand${RST}${duration ? `${FG_DIM}· ${duration}${RST}` : ""}\n`,
+							`${renderToolResultDivider(theme, process.stdout.columns ?? 80)}\n${TOOL_RESULT_INDENT}${theme.fg("success", "✓")} ${FG_DIM}${d.matchCount} files — ${RESULT_TOGGLE_HINT} to expand results${RST}${duration ? `${FG_DIM}· ${duration}${RST}` : ""}\n`,
 						),
 					);
 					return text;
@@ -95,7 +95,7 @@ export function registerFindTool(
 				const duration = renderToolDuration(r);
 				text.setText(
 					fillToolBackground(
-						`\n${TOOL_RESULT_INDENT}${theme.fg("dim", `${d.matchCount} files`)}${duration ? `${FG_DIM}· ${duration}${RST}` : ""}\n${rendered}\n`,
+						`${renderToolResultDivider(theme, process.stdout.columns ?? 80)}\n${TOOL_RESULT_INDENT}${theme.fg("success", "✓")} ${theme.fg("dim", `${d.matchCount} files`)}${duration ? `${FG_DIM}· ${duration}${RST}` : ""}\n${rendered}\n`,
 					),
 				);
 				return text;

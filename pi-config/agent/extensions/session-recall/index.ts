@@ -25,6 +25,7 @@
 
 import { complete, type Model, type Api, type Message } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { areToolResultsExpanded } from "../tool-display/state.js";
 import {
 	getAgentDir,
 	SessionManager,
@@ -680,10 +681,10 @@ export default function sessionRecallExtension(pi: ExtensionAPI) {
 				return container;
 			}
 
-			const summary = `${details.matchCount} session${details.matchCount > 1 ? "s" : ""} matching "${details.query}"`;
-			container.addChild(new Text(theme.fg("toolOutput", summary), 0, 0));
+			const summary = `✓ ${details.matchCount} session${details.matchCount > 1 ? "s" : ""} matching "${details.query}"`;
+			container.addChild(new Text(theme.fg("success", summary.slice(0, 1)) + theme.fg("toolOutput", summary.slice(1)), 0, 0));
 
-			if (options.expanded) {
+			if (areToolResultsExpanded()) {
 				container.addChild(new Spacer(1));
 				const body = text.replace(/^Found \d+ sessions? matching "[^"]*":\n\n/, "");
 				container.addChild(
@@ -808,7 +809,7 @@ export default function sessionRecallExtension(pi: ExtensionAPI) {
 
 			const [, query, answer] = match;
 
-			if (options.expanded) {
+			if (areToolResultsExpanded()) {
 				container.addChild(new Text(theme.bold("Query: ") + theme.fg("accent", query), 0, 0));
 				container.addChild(new Spacer(1));
 				container.addChild(

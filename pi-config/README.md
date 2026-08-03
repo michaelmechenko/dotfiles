@@ -166,6 +166,7 @@ extension's shortcut via `keybindings.json`** — verified against `@earendil-wo
 | `extension-toggle/` | `ctrl+e` |
 | `skill-toggle/` | `ctrl+shift+e` |
 | `prompt-stash/` | `ctrl+s` |
+| `tool-display/` | `ctrl+shift+o` — independently expand/collapse tool results; `ctrl+o` remains Pi's built-in tool-call detail toggle. The shared state survives an extension reload so existing rows update too. Pretty tool calls and results use one Pi-owned rounded frame: neutral call header above a divider, then a `✓`/`✗` result row on Pi's semantic success/error/pending background. Compact results always show a truncated preview. |
 | `plan-mode/` | `ctrl+alt+p` (toggle plan mode), `ctrl+alt+t` and `ctrl+p` (toggle widget collapsed) |
 
 `plan-mode/`'s `ctrl+p` widget-toggle shortcut and `extension-toggle/`'s `ctrl+e` picker shortcut both

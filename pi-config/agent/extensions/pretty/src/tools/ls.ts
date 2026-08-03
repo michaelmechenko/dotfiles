@@ -3,10 +3,11 @@
 import type { AgentToolResult, ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { BG_ERROR, FG_DIM, RST, resolveBaseBackground, TOOL_RESULT_INDENT } from "../config.js";
 import { shortPath } from "../helpers.js";
-import { fillToolBackground, renderCardHeader, renderToolError, renderToolMetrics, renderTree } from "../render.js";
+import { fillToolBackground, fillToolCallBackground, renderCardHeader, renderToolError, renderToolMetrics, renderTree, renderToolResultDivider } from "../render.js";
 import { resolveTextCtor } from "../tui-text.js";
 import type { LsDetails, RenderCtxLike, SdkToolDef, TextContent, ThemeLike } from "../types.js";
 import { wrapExecuteWithMetrics } from "./metrics.js";
+import { areToolResultsExpanded, RESULT_TOGGLE_HINT } from "../../../tool-display/state.js";
 
 type Result = AgentToolResult<Record<string, unknown>>;
 
@@ -25,7 +26,6 @@ export function registerLsTool(
 		label: "List",
 		description: sdkTool.description ?? "List directory contents",
 		parameters: sdkTool.parameters,
-		renderShell: "self",
 
 		execute: wrapExecuteWithMetrics(async (tid, params, sig, _upd, ctx: ExtensionContext) => {
 			const result = (await sdkTool.execute(tid, params, sig, undefined, ctx)) as Result;
@@ -52,7 +52,7 @@ export function registerLsTool(
 			if (path) title += ` ${theme.fg("accent", path)}`;
 			if (limit !== undefined && limit !== null) title += theme.fg("toolOutput", ` (limit ${limit})`);
 			const headerLine = renderCardHeader({ title, status: ctx.isError ? "error" : "pending", theme });
-			text.setText(fillToolBackground(`\n${headerLine}\n`, ctx.isError ? BG_ERROR : undefined));
+			text.setText(fillToolCallBackground(`\n${headerLine}\n`, theme));
 			return text;
 		},
 
@@ -66,10 +66,10 @@ export function registerLsTool(
 			}
 			const d = result.details as LsDetails | undefined;
 			if (d?._type === "lsResult" && d.text) {
-				if (!ctx.expanded) {
+				if (!areToolResultsExpanded()) {
 					text.setText(
 						fillToolBackground(
-							`${TOOL_RESULT_INDENT}${FG_DIM}${d.entryCount} entries — ctrl+o to expand${RST}${renderToolMetrics(result)}\n`,
+							`${renderToolResultDivider(theme, process.stdout.columns ?? 80)}\n${TOOL_RESULT_INDENT}${theme.fg("success", "✓")} ${FG_DIM}${d.entryCount} entries — ${RESULT_TOGGLE_HINT} to expand results${RST}${renderToolMetrics(result)}\n`,
 						),
 					);
 					return text;
@@ -80,7 +80,7 @@ export function registerLsTool(
 					.join("\n");
 				text.setText(
 					fillToolBackground(
-						`\n${TOOL_RESULT_INDENT}${FG_DIM}${d.entryCount} entries${RST}${renderToolMetrics(result)}\n${rendered}\n`,
+						`${renderToolResultDivider(theme, process.stdout.columns ?? 80)}\n${TOOL_RESULT_INDENT}${theme.fg("success", "✓")} ${FG_DIM}${d.entryCount} entries${RST}${renderToolMetrics(result)}\n${rendered}\n`,
 					),
 				);
 				return text;

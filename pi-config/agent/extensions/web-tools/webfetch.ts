@@ -5,6 +5,7 @@ import { Type } from "typebox";
 import { FetchPage, type FetchPageError } from "./fetch-page.ts";
 import { createOperationSignal, FetchPublicWebClient, isOperationTimeoutError } from "./network.ts";
 import { appendExpandHint, appendExpandedPreview, getTextContent } from "./render.ts";
+import { areToolResultsExpanded } from "../tool-display/state.js";
 import { getWebToolsSettings, WEB_FETCH_FORMATS, type ToolInputParseError } from "./settings.ts";
 import {
 	TempFileToolOutputStore,
@@ -144,17 +145,15 @@ export function createWebFetchTool(composition?: WebFetchToolComposition) {
 			if (details?.image) {
 				text += theme.fg("muted", " [image]");
 			}
-			text = appendExpandHint(text, options.expanded);
+			text = appendExpandHint(text);
 
-			if (options.expanded) {
-				if (details?.image) {
-					text += `\n${theme.fg("dim", `Image URL: ${details.finalUrl}`)}`;
-				} else {
-					text = appendExpandedPreview(text, getTextContent(result.content), theme, { maxLines: 12, maxColumns: 220 });
-				}
-				if (details?.fullOutputPath) {
-					text += `\n${theme.fg("dim", `Full output: ${details.fullOutputPath}`)}`;
-				}
+			if (details?.image) {
+				if (areToolResultsExpanded()) text += `\n${theme.fg("dim", `Image URL: ${details.finalUrl}`)}`;
+			} else {
+				text = appendExpandedPreview(text, getTextContent(result.content), theme, { maxLines: 12 });
+			}
+			if (areToolResultsExpanded() && details?.fullOutputPath) {
+				text += `\n${theme.fg("dim", `Full output: ${details.fullOutputPath}`)}`;
 			}
 
 			return new Text(text, 0, 0);

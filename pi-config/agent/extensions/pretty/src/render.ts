@@ -235,6 +235,16 @@ export function renderCardHeader(opts: {
 	return `${TOOL_RESULT_INDENT}${icon} ${title}${durationPart}`;
 }
 
+/** Neutral call header inside the semantic result card. */
+export function fillToolCallBackground(text: string, theme: ThemeLike, width?: number): string {
+	return fillToolBackground(text, theme.getBgAnsi?.("customMessageBg") ?? "", width);
+}
+
+/** Visual boundary between a tool invocation and its returned data. */
+export function renderToolResultDivider(theme: ThemeLike, width: number): string {
+	return `${TOOL_RESULT_INDENT}${theme.fg("dim", "─".repeat(Math.max(1, width - 1)))}`;
+}
+
 // ---------------------------------------------------------------------------
 // Error renderer
 // ---------------------------------------------------------------------------

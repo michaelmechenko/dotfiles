@@ -1,4 +1,4 @@
-import { keyHint } from "@earendil-works/pi-coding-agent";
+import { areToolResultsExpanded, previewResult, RESULT_TOGGLE_HINT } from "../tool-display/state.js";
 
 export function getTextContent(content: Array<{ type: string; text?: string }> | undefined): string {
 	if (!content) return "";
@@ -11,24 +11,15 @@ export function getTextContent(content: Array<{ type: string; text?: string }> |
 export function appendExpandedPreview(
 	base: string,
 	text: string,
-	theme: {
-		fg: (name: string, value: string) => string;
-	},
-	options: { maxLines?: number; maxColumns?: number } = {},
+	theme: { fg: (name: string, value: string) => string },
+	options: { maxLines?: number } = {},
 ): string {
-	const maxLines = options.maxLines ?? 12;
-	const maxColumns = options.maxColumns ?? 200;
-	const lines = text.split("\n");
-	for (const line of lines.slice(0, maxLines)) {
-		base += `\n${theme.fg("dim", line.slice(0, maxColumns))}`;
-	}
-	if (lines.length > maxLines) {
-		base += `\n${theme.fg("muted", "...")}`;
-	}
+	const preview = previewResult(text, options.maxLines ?? 12);
+	for (const line of preview.body.split("\n")) base += `\n${theme.fg("dim", line)}`;
+	if (preview.remaining > 0) base += `\n${theme.fg("muted", `… ${preview.remaining} more lines (${RESULT_TOGGLE_HINT})`)}`;
 	return base;
 }
 
-export function appendExpandHint(base: string, expanded: boolean): string {
-	if (expanded) return base;
-	return `${base} ${keyHint("app.tools.expand" as any, "for details")}`;
+export function appendExpandHint(base: string): string {
+	return `${base} ${RESULT_TOGGLE_HINT} to ${areToolResultsExpanded() ? "collapse" : "expand"} results`;
 }

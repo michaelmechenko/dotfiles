@@ -7,8 +7,8 @@
  * File path: <agentDir>/plans/<session-hash>.md
  */
 
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { type TodoItem, parsePlanEditText } from "./utils.ts";
 
 /** Derive a safe filename slug from a session hash or project path. */
@@ -57,12 +57,10 @@ export function writePlanFile(agentDir: string, sessionId: string, todos: TodoIt
 	renameSync(tmpPath, filePath);
 }
 
-/** Delete plan file. */
+/** Delete a completed or discarded plan file. */
 export function deletePlanFile(agentDir: string, sessionId: string): void {
 	const filePath = planFilePath(agentDir, sessionId);
-	if (existsSync(filePath)) {
-		renameSync(filePath, filePath + ".bak");
-	}
+	if (existsSync(filePath)) unlinkSync(filePath);
 }
 
 /** Read a plan file back into TodoItem[], preserving completion/skip status. */

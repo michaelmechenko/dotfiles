@@ -1,81 +1,55 @@
 # Plan Mode Extension
 
-Read-only exploration mode for safe code analysis, plus tracked plan execution.
+A read-only planning workflow with structured plan revisions, tracked execution, and a required closeout.
 
-## Features
+## Workflow
 
-- **Built-in write tools disabled**: Disables edit/write while preserving other active tools
-- **Bash allowlist**: Only read-only bash commands are allowed
-- **Plan extraction**: Extracts numbered steps from `Plan:` sections
-- **`plan_step` tool**: The agent calls this tool (not a text tag) to mark a step
-  complete/uncomplete/skipped during execution - schema-enforced, so it's far more
-  reliable than asking the model to emit a text marker
-- **Progress widget**: Shows during execution; collapsible to a single compact line
-  (`/plan-widget` or `Ctrl+Alt+T`) when the full checklist gets distracting
-- **Interactive `/todos`**: Arrow keys + space/enter to manually cycle any step
-  through pending → done → skipped → pending, independent of what the agent reports
-- **`/plan-edit`**: Add/remove/reorder/reword plan steps mid-execution; unchanged
-  step text keeps its completed/skipped state
-- **Session persistence**: State survives session resume
+1. `/plan` enters read-only planning. The agent investigates, asks contextual clarifying questions when needed, then calls `plan_update` with a goal, top-level steps, verification criteria, and follow-up work.
+2. The plan review dialog lets you execute, recalibrate, or keep planning.
+3. Execution switches to the configured execution model, currently `opencode/gpt-5.6-luna` at medium thinking. The planning model and the exact active-tool set are restored when the workflow pauses or completes.
+4. The agent calls `plan_step` immediately after each completed or skipped step. If scope changes or a blocker invalidates pending work, it calls `plan_update` again rather than requiring a new `/plan` cycle.
+5. After every step is terminal, the agent must call `plan_complete`. Its closeout records the goal, outcome, end state, verification, deviations, and next steps.
+
+## Recalibration and interruption
+
+Pressing Escape uses Pi's normal abort behavior. Once the agent has settled, plan mode shows the interrupted step and offers:
+
+- resume the current step;
+- recalibrate from the current state;
+- adjust statuses in `/todos`; or
+- pause the plan.
+
+Recalibration opens an editor for the requested change, restores read-only planning and the planning model, then resumes execution automatically after the agent calls `plan_update`.
+
+Pi already retries retryable 5xx and connection failures. Plan mode waits for Pi's retry lifecycle to settle before it shows an interruption dialog, so a `503` or `Connection error.` does not prematurely stop execution. Account, quota, and billing failures remain terminal.
 
 ## Commands
 
-- `/plan` - Toggle plan mode
-- `/plan-edit` - Edit the current plan's steps
-- `/plan-widget` - Toggle the progress widget between full checklist and a
-  compact single-line summary
-- `/todos` - Open an interactive view of plan progress; toggle any step by hand
-- `Ctrl+Alt+P` - Toggle plan mode (shortcut)
-- `Ctrl+Alt+T` - Toggle the progress widget (shortcut)
+- `/plan` — start planning, or pause an active workflow.
+- `/plan-review` — execute, recalibrate, edit, pause, or discard the active plan.
+- `/plan-edit` — manually edit top-level steps.
+- `/plan-widget` — toggle compact/full progress.
+- `/todos` — inspect or correct step statuses.
+- `/pause` — pause execution.
+- `Ctrl+P` — enter plan mode when inactive; otherwise open the active plan workflow.
+- `Ctrl+Alt+P` or `Ctrl+Alt+T` — toggle compact/full progress.
 
-## Usage
+## Configuration
 
-1. Enable plan mode with `/plan` or `--plan` flag
-2. Ask the agent to analyze code and create a plan
-3. The agent should output a numbered plan under a `Plan:` header:
+`~/.config/pi-config/agent/plan-mode.json` configures the execution model:
 
+```json
+{
+  "executionModel": {
+    "provider": "opencode",
+    "model": "gpt-5.6-luna",
+    "thinkingLevel": "medium"
+  }
+}
 ```
-Plan:
-1. First step description
-2. Second step description
-3. Third step description
-```
 
-4. Choose "Execute the plan" when prompted
-5. During execution, the agent calls the `plan_step` tool (`complete`/`skip`) as
-   it finishes each step; the widget/status line update immediately
-6. If a step needs manual correction (or the agent didn't call the tool), open
-   `/todos` and toggle it yourself
-7. Need to change the plan itself mid-run? `/plan-edit` opens it in your editor
+If the configured model is unavailable or unauthenticated, plan mode warns and continues with the current model. Pi's public `setModel()` also updates its global default model; normal pause/completion/shutdown restores the saved planning model, but a forced process kill can leave the execution model selected.
 
-## How It Works
+## Read-only mode
 
-### Plan Mode (Read-Only)
-- Built-in edit/write tools disabled
-- Other active tools remain available
-- Bash commands filtered through allowlist
-- Agent creates a plan without making changes
-
-### Execution Mode
-- Full tool access restored, plus the `plan_step` tool
-- Agent executes steps in order, calling `plan_step` after each one
-- Widget/status show live progress; `/todos` lets you correct it by hand
-- If the model stops without marking all steps done (or not-done), you're
-  prompted to say what actually happened, resume, adjust steps manually, or stop
-
-### Command Allowlist
-
-Safe commands (allowed):
-- File inspection: `cat`, `head`, `tail`, `less`, `more`
-- Search: `grep`, `find`, `rg`, `fd`
-- Directory: `ls`, `pwd`, `tree`
-- Git read: `git status`, `git log`, `git diff`, `git branch`
-- Package info: `npm list`, `npm outdated`, `yarn info`
-- System info: `uname`, `whoami`, `date`, `uptime`
-
-Blocked commands:
-- File modification: `rm`, `mv`, `cp`, `mkdir`, `touch`
-- Git write: `git add`, `git commit`, `git push`
-- Package install: `npm install`, `yarn add`, `pip install`
-- System: `sudo`, `kill`, `reboot`
-- Editors: `vim`, `nano`, `code`
+Planning and recalibration use a positive allowlist of read-only tools plus `plan_update`, rather than only disabling `edit` and `write`. Bash is additionally restricted to read-only commands.

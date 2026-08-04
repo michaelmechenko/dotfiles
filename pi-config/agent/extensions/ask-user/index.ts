@@ -49,6 +49,9 @@ const OptionSchema = Type.Object({
 });
 
 const AskUserParams = Type.Object({
+  context: Type.Optional(Type.String({
+    description: ASK_USER_PARAMETER_DESCRIPTIONS.context,
+  })),
   question: Type.String({
     description: ASK_USER_PARAMETER_DESCRIPTIONS.question,
   }),
@@ -62,6 +65,7 @@ const AskUserParams = Type.Object({
 export type AskUserInput = Static<typeof AskUserParams>;
 
 interface AskUserDetails {
+  context?: string;
   question: string;
   options: string[];
   answer: string | null;
@@ -127,6 +131,7 @@ export default function askUser(pi: ExtensionAPI) {
       ) => ({
         content: [{ type: "text" as const, text }],
         details: {
+          context: params.context,
           question: params.question,
           options: params.options.map((o) => o.label),
           answer,
@@ -168,6 +173,7 @@ export default function askUser(pi: ExtensionAPI) {
             { type: "text", text: "Waiting for a previous question to be answered..." },
           ],
           details: {
+            context: params.context,
             question: params.question,
             options: params.options.map((o) => o.label),
             answer: null,
@@ -312,6 +318,12 @@ export default function askUser(pi: ExtensionAPI) {
                   `─${title}${"─".repeat(Math.max(0, width - title.length - 1))}`,
                 ),
               );
+              if (params.context) {
+                for (const line of wrapText(params.context, Math.max(10, width - 2))) {
+                  add(` ${theme.fg("muted", line)}`);
+                }
+                lines.push("");
+              }
               for (const line of wrapText(
                 params.question,
                 Math.max(10, width - 2),

@@ -56,7 +56,7 @@ file extension isn't part of the extension's identity), plain `kebab-case` names
 | `tools/` | `/tools` — interactive enable/disable UI for active tools, persists across resume |
 | `titlebar-spinner/` | Braille spinner in the terminal title bar while the agent works |
 | `thinking-label/` | Lowercases the "Thinking..." placeholder shown for collapsed thinking blocks (`hideThinkingBlock: true`) to `thinking...`, via `ctx.ui.setHiddenThinkingLabel()`. A prior `hidden-thinking-label/` extension exposed this as a full `/thinking-label [text]` command and was removed as unneeded; this is a fixed, no-command replacement |
-| `plan-mode/` | `/plan` read-only planning mode: disables write/edit, allowlists safe bash, tracks `Plan:` steps via a `plan_step` tool call (not text tags) and a collapsible progress widget, collapsed by default (`/plan-widget`, `Ctrl+Alt+T` or `Ctrl+P` to toggle); `/todos` gives an interactive view to manually toggle any step, `/plan-edit` lets you edit the plan's steps mid-execution. De-emoji'd: status/widget glyphs (📋, ⏸, ☑, ☐) replaced with plain text/`[x]`/`[ ]` |
+| `plan-mode/` | `/plan` read-only structured planning mode. `plan_update` creates or revises the authoritative top-level plan without exiting execution; `plan_step` tracks progress; `plan_complete` records a required outcome/end-state/verification/next-steps closeout. Escape presents resume/recalibrate/status/pause options only after Pi's retry lifecycle settles. Execution defaults to `opencode/gpt-5.6-luna` at medium thinking via `agent/plan-mode.json`, then restores the saved planning model. `/todos` manually adjusts statuses; `/plan-edit` edits top-level steps; progress is collapsible via `/plan-widget`, `Ctrl+Alt+T`, or `Ctrl+P`. |
 | `subagent/` | Delegate tasks to isolated `pi` subprocess agents (single/parallel/chain modes); see [Agents & Prompts](#agents--prompts) |
 | `prompt-stash/` | Claude Code-style Ctrl+S "stash or restore prompt": stashes and clears a non-empty editor, restores it on the next Ctrl+S press when the editor is empty. In-memory only (per pi process, cleared on `session_shutdown`); no cursor-position or pasted-image restore since pi's extension API doesn't expose those. Not vendored from anywhere — written directly against pi's `registerShortcut` + `ctx.ui.getEditorText`/`setEditorText` API. Ctrl+S collides with two built-in shortcuts: `app.models.save` (only live inside the `/scoped-models` picker) and `app.session.toggleSort` (only live inside the `/resume` session picker); `agent/keybindings.json` rebinds them to `ctrl+shift+s` and `ctrl+shift+r` respectively to resolve it — prompt-stash keeps the Claude Code-matching key |
 
@@ -92,7 +92,7 @@ discipline (see `~/.config/COLORS.md`).
 
 | Extension | What it does |
 |---|---|
-| `ask-user/` | `ask_user` tool — lets the model ask a single multiple-choice question (2-5 options + "write my own answer") via a popup UI. Concurrent calls (tool calls run in parallel) are serialized through a queue so they're shown one at a time instead of racing for overlay focus. Needs its own `node_modules` (depends on `effect`); already installed with `npm install --ignore-scripts` (skips its `effect-tsgo patch` dev-only prepare script) |
+| `ask-user/` | `ask_user` tool — lets the model ask one contextual multiple-choice question (2-5 options + "write my own answer") via a popup UI. An optional context block states the investigation finding and decision impact before the question. Concurrent calls (tool calls run in parallel) are serialized through a queue so they're shown one at a time instead of racing for overlay focus. Needs its own `node_modules` (depends on `effect`); already installed with `npm install --ignore-scripts` (skips its `effect-tsgo patch` dev-only prepare script) |
 
 ### Forked locally from `@ogulcancelik/pi-extensions` (no longer npm-managed)
 
@@ -167,15 +167,15 @@ extension's shortcut via `keybindings.json`** — verified against `@earendil-wo
 | `skill-toggle/` | `ctrl+shift+e` |
 | `prompt-stash/` | `ctrl+s` |
 | `tool-display/` | `ctrl+shift+o` — independently expand/collapse tool results; `ctrl+o` remains Pi's built-in tool-call detail toggle. The shared state survives an extension reload so existing rows update too. `tool-display/frame.ts` defines the custom-tool frame contract: top padding, call, divider, result, bottom padding; every row uses ANSI-aware fitting and one outer space on both sides. Migrated renderers must use this adapter rather than adding raw newlines or tool-specific outer indentation. Compact results show a truncated preview. |
-| `plan-mode/` | `ctrl+alt+p` (toggle plan mode), `ctrl+alt+t` and `ctrl+p` (toggle widget collapsed) |
+| `plan-mode/` | `ctrl+p` enters plan mode when inactive, otherwise opens the active plan workflow; `ctrl+alt+p` and `ctrl+alt+t` toggle the progress widget |
 | `thinking-controls/` | `ctrl+tab` (Ghostty sends F13) — cycle the current model's thinking level backward; `shift+tab` remains Pi's forward cycle |
 | `session-rename/` | `ctrl+r` or `/rename [name]` — rename the current live session |
 
-`plan-mode/`'s `ctrl+p` widget-toggle shortcut and `extension-toggle/`'s `ctrl+e` picker shortcut both
+`plan-mode/`'s `ctrl+p` plan-workflow shortcut and `extension-toggle/`'s `ctrl+e` picker shortcut both
 collide with core defaults, so `keybindings.json` frees those keys up:
 
 - `app.model.cycleForward` (default `ctrl+p`) and `app.model.cycleBackward` (default `shift+ctrl+p`)
-  are cleared (`[]`) — model cycling is dropped in favor of `plan-mode/`'s widget toggle on `ctrl+p`.
+  are cleared (`[]`) — model cycling is dropped in favor of entering or reviewing plan mode on `ctrl+p`.
 - `app.model.select` (default `ctrl+l`) gets `ctrl+shift+p` added, so the freed-up `ctrl+shift+p` opens
   the model selector (same UI as `/model`) instead of cycling models.
 - `tui.editor.cursorLineEnd` (default `["end", "ctrl+e"]`) drops the `ctrl+e` alias, keeping only `end`,

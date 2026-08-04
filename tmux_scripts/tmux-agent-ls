@@ -16,17 +16,16 @@
 # "claude" into one garbled last field).
 #
 # Claude rows come from tmux-claude-ls (statusUpdatedAt swapped for "claude").
-# pi rows are derived per-pane via the tmux-pi-last-response recipe: a pane whose
-# direct child process is `pi` (pgrep -P <pane_pid> -x pi) -> its cwd (lsof) ->
-# pi's `--<cwd without its leading slash; remaining slashes become dashes>--`
-# session-dir name (dots remain literal) -> the
-# newest *.jsonl there is the active session. pi has no live status file, so state is
-# inferred: idle if `pi` is the pane's foreground command, busy otherwise.
+# pi rows are derived per-pane via tmux-pi-session: a pane whose direct child
+# is pi (or Node running pi's CLI) -> its cwd (lsof) -> pi's
+# `--<cwd without its leading slash; remaining slashes become dashes>--`
+# session-dir name (dots remain literal) -> the newest *.jsonl there is the
+# active session. pi has no live status file, so state is inferred: idle if
+# `pi` is the pane's foreground command, busy otherwise.
 
 set -uo pipefail
 
 CLAUDE_LS="$HOME/.config/tmux_scripts/tmux-claude-ls"
-PI_SESS_DIR="$HOME/.config/pi-config/agent/sessions"
 
 # Claude rows: tmux-claude-ls emits 9 fields ending in statusUpdatedAt (field
 # 9); drop it and append the literal "claude" tag in its place instead of
@@ -44,16 +43,9 @@ panes=$(tmux list-panes -a -F '#{pane_pid}|#{pane_id}|#{session_name}:#{window_i
 
 while IFS='|' read -r pid pane_id target sname wname cmd; do
   [ -n "$pid" ] || continue
-  pi_pid=$(pgrep -P "$pid" -x pi 2>/dev/null | head -1)
-  [ -n "$pi_pid" ] || continue
-
-  cwd=$(lsof -a -p "$pi_pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | tail -1)
-  [ -n "$cwd" ] || continue
-
-  slug="--$(printf '%s' "${cwd#/}" | tr '/' '-')--"
-  sess_dir="$PI_SESS_DIR/$slug"
-  transcript=""
-  [ -d "$sess_dir" ] && transcript=$(ls -t "$sess_dir"/*.jsonl 2>/dev/null | head -1)
+  info=$($HOME/.config/tmux_scripts/tmux-pi-session "$pid" 2>/dev/null) || continue
+  pi_pid=$(printf '%s' "$info" | awk -F '\t' '{print $1}')
+  transcript=$(printf '%s' "$info" | awk -F '\t' '{print $3}')
   # Never emit a genuinely empty field: bash's `read -r ... <<<"$line"` with
   # IFS=$'\t' treats tab as "IFS whitespace" regardless of what IFS is set to,
   # so consecutive tabs (an empty field) get silently collapsed -- shifting

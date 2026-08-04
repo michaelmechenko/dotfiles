@@ -4,27 +4,20 @@
 # name, it just opens a given file to the right).
 #
 # pi has no live pid-keyed session-state file like Claude Code's
-# claude/sessions/<pid>.json, so the session is located by process tree +
-# cwd instead: the pane's direct `pi` child process's cwd (via lsof) is
-# converted to pi's session-dir name (`--`, then its slash-separated path with
-# dashes, then `--`; dots remain literal). The most recently modified *.jsonl
-# in that directory is treated as the active session.
+# claude/sessions/<pid>.json, so the session is located by process tree + cwd
+# instead: tmux-pi-session identifies the pane's direct pi/Node child, converts
+# its cwd to pi's session-dir name (`--`, then its slash-separated path with
+# dashes, then `--`; dots remain literal), and selects the newest *.jsonl.
 
 origin=$(tmux display -p '#{pane_id}')
 pane_pid=$(tmux display -p -t "$origin" '#{pane_pid}')
 
-pi_pid=$(pgrep -P "$pane_pid" -x pi 2>/dev/null | head -1)
-[ -n "$pi_pid" ] || { tmux display-message "no pi session in this pane"; exit 0; }
+info=$($HOME/.config/tmux_scripts/tmux-pi-session "$pane_pid" 2>/dev/null) || {
+  tmux display-message "no pi session in this pane"
+  exit 0
+}
 
-cwd=$(lsof -a -p "$pi_pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | tail -1)
-[ -n "$cwd" ] || { tmux display-message "couldn't resolve pi session cwd"; exit 0; }
-
-slug="--$(printf '%s' "${cwd#/}" | tr '/' '-')--"
-sess_dir="$HOME/.config/pi-config/agent/sessions/$slug"
-[ -d "$sess_dir" ] || { tmux display-message "no pi sessions for $cwd"; exit 0; }
-
-transcript=$(ls -t "$sess_dir"/*.jsonl 2>/dev/null | head -1)
-[ -f "$transcript" ] || { tmux display-message "no pi transcript found"; exit 0; }
+transcript=$(printf '%s' "$info" | awk -F '\t' '{print $3}')
 
 out="$(mktemp -t pi-resp).md"
 jq -c 'select(.type=="message" and .message.role=="assistant")' "$transcript" 2>/dev/null | tail -1 \

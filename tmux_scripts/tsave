@@ -53,24 +53,12 @@ claude_session() {
     return 0
 }
 
-# Echo the pi session id for a pane (given its pane_pid), or nothing. Mirrors
-# tmux-pi-last-response: pi has no live pid-keyed session file like Claude's,
-# so it's located by process tree + cwd instead. pi is a direct child of the
-# pane's shell (unlike Claude, no BFS needed). Pi stores a cwd at
-# `--${cwd-with-slashes-replaced-by-dashes}--`; dots remain literal.
+# Echo the pi session id for a pane (given its pane_pid), or nothing. The
+# shared resolver handles both pi-named processes and Node processes running
+# pi's CLI; dots remain literal in pi's session-directory name.
 pi_session() {
-    pi_pid=$(pgrep -P "$1" -x pi 2>/dev/null | head -1)
-    [ -n "$pi_pid" ] || return 0
-    cwd=$(lsof -a -p "$pi_pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | tail -1)
-    [ -n "$cwd" ] || return 0
-    slug="--$(printf '%s' "${cwd#/}" | tr '/' '-')--"
-    sess_dir="$HOME/.config/pi-config/agent/sessions/$slug"
-    [ -d "$sess_dir" ] || return 0
-    # Globbing is globally disabled above while walking process ids, so enable it
-    # only here to select this project's newest transcript.
-    transcript=$( (set +f; ls -t "$sess_dir"/*.jsonl 2>/dev/null | head -1) )
-    [ -f "$transcript" ] || return 0
-    printf '%s' "$(basename "$transcript" .jsonl | sed 's/^.*_//')"
+    info=$($HOME/.config/tmux_scripts/tmux-pi-session "$1" 2>/dev/null) || return 0
+    printf '%s' "$(printf '%s' "$info" | awk -F '\t' '{print $4}')"
 }
 
 fmt="#{session_name}${TAB}#{window_index}${TAB}#{window_name}${TAB}#{window_layout}${TAB}#{window_active}${TAB}#{pane_index}${TAB}#{pane_active}${TAB}#{pane_pid}${TAB}#{pane_current_path}${TAB}#{pane_current_command}${TAB}#{session_id}${TAB}#{pane_title}"

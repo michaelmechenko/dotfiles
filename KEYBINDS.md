@@ -363,7 +363,7 @@ nnn in a tmux popup; in-nnn plugins (pressed as `;<key>`) spawn splits back in t
 
 | Key | Action |
 | --- | --- |
-| `M-d` | Centred float popup (80% × 75%), start in origin pane cwd |
+| `M-d` | Centred float popup (65% × 75%), start in origin pane cwd |
 | `M-B` | Overlay the launching pane (fills it instead of floating) |
 
 In-nnn plugin keys (`;` prefix — nnn requires it for plugins):
@@ -373,7 +373,8 @@ In-nnn plugin keys (`;` prefix — nnn requires it for plugins):
 | `;j` | Vertical split (open selected in origin window) |
 | `;e` | New window in origin session (dir → shell there / file → nvim) |
 | `;i` | Send `cd` to the origin pane's prompt |
-| `;p` | Toggle file preview (bat/moor, `ansi` theme, 60% preview width) |
+| `;w` | Toggle preview word-wrap (moor `w`; less `-S`) |
+| `;p` | Toggle file preview (bat/moor, `ansi` theme, 70% preview width) |
 | `;f` | fzcd — fuzzy-jump to a subdir (`M-g` jumps into `;g`/fzrg; standard fzf keys + `M-j`/`M-k`/`M-u`/`M-n`/`M-q` apply) |
 | `;g` | fzrg — live ripgrep (syntax + match highlight) → open match in an nvim split in the origin window |
 | `;h` | Keybind cheatsheet popup (nnn native basics + this launch's `;`-plugin keys, read live from `$NNN_PLUG` + the M-* keys meaningful inside `;f`/`;g`). nnn's own native `?` still shows its full compiled-in help/about screen. |

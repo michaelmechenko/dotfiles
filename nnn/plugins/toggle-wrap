@@ -9,8 +9,21 @@
 
 [ -z "$TMUX_PANE" ] && exit 0
 
-other=$(tmux list-panes -F '#{pane_id}' | grep -v -- "$TMUX_PANE" | head -1)
+map="${TMPDIR:-/tmp}/nnn-preview-panes/$TMUX_PANE"
+other=$(cat "$map" 2>/dev/null)
+
+# Fall back to the first sibling for preview-tui instances created before the mapping
+# was written, or after the mapped pane has exited.
+if [ -z "$other" ] || ! tmux list-panes -F '#{pane_id}' | grep -qx -- "$other"; then
+    other=$(tmux list-panes -F '#{pane_id}' | grep -v -- "$TMUX_PANE" | head -1)
+fi
 [ -z "$other" ] && exit 0
+
+# The mapping can point at a pane in another window after a stale nnn process is
+# reused; only send to a pane in this window.
+window=$(tmux display-message -p '#{window_id}')
+other_window=$(tmux display-message -p -t "$other" '#{window_id}' 2>/dev/null)
+[ "$window" = "$other_window" ] || exit 0
 
 case "$NNN_PAGER" in
     moor*) tmux send-keys -t "$other" 'w' ;;

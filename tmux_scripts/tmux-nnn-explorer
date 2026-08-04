@@ -47,7 +47,11 @@ SPLITSIZE=70                               # preview pane width % (explorer gets
 BATSTYLE=numbers
 BATTHEME=ansi
 
-PAGER_CMD='moor --no-linenumbers --mousemode=scroll --statusbar=plain'
+if command -v moor >/dev/null 2>&1; then
+    PAGER_CMD='moor --no-linenumbers --mousemode=scroll --statusbar=plain --scroll-left-hint=ESC[38;2;101;106;128m<ESC[39m --scroll-right-hint=ESC[38;2;101;106;128m>ESC[39m'
+else
+    PAGER_CMD='less -R --mouse --wheel-lines=1 -+F'
+fi
 
 FZF_OPTS="${FZF_DEFAULT_OPTS:-}"
 if [ -z "$FZF_OPTS" ]; then

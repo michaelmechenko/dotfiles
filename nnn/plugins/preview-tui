@@ -369,13 +369,7 @@ handle_ext() {
         epub) generate_preview "$cols" "$lines" "$1" "epub" ;;
         pdf) generate_preview "$cols" "$lines" "$1" "pdf" ;;
         gz|bz2) fifo_pager tar -tvf "$1" ;;
-        md) if exists glow; then
-                fifo_pager glow -s dark "$1"
-            elif exists lowdown; then
-                fifo_pager lowdown -Tterm --term-width="$cols" --term-column="$cols" "$1"
-            else
-                fifo_pager pager "$1"
-            fi ;;
+        md) fifo_pager pager "$1" ;;
         htm|html|xhtml)
             if exists w3m; then
                 fifo_pager w3m "$1"

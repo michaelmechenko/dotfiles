@@ -124,7 +124,7 @@ export NNN_SPLITSIZE=60
 
 # use moor if installed
 if command -v moor >/dev/null 2>&1; then
-    export NNN_PAGER='moor --no-linenumbers --mousemode=scroll --statusbar=plain'
+    export NNN_PAGER='moor --no-linenumbers --mousemode=scroll --statusbar=plain --scroll-left-hint=ESC[38;2;101;106;128m<ESC[39m --scroll-right-hint=ESC[38;2;101;106;128m>ESC[39m'
 else
     export NNN_PAGER='less -R --mouse --wheel-lines=1 -+F'
 fi

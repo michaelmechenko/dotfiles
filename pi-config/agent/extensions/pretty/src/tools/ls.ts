@@ -54,7 +54,7 @@ export function registerLsTool(
 			if (path) title += ` ${theme.fg("accent", path)}`;
 			if (limit !== undefined && limit !== null) title += theme.fg("toolOutput", ` (limit ${limit})`);
 			const headerLine = renderFrameStatus({ title, status: ctx.isError ? "error" : "pending", theme });
-			return frameText(text, (width) => frameRows(["", headerLine], theme.getBgAnsi?.("toolSuccessBg"), width));
+			return frameText(text, (width) => frameRows(["", headerLine], theme.getBgAnsi?.("toolPendingBg"), width));
 		},
 
 		renderResult(result: Result, _opt: unknown, theme: ThemeLike, ctx: RenderCtxLike) {
@@ -62,8 +62,8 @@ export function registerLsTool(
 
 			const text = ctx.lastComponent ?? new TC("", 0, 0);
 			if (ctx.isError) {
-				text.setText(renderToolError(getText(result) || "Error", theme));
-				return text;
+				const message = (getText(result) || "Error").split("\n").map((line) => theme.fg("error", line));
+				return frameText(text, (width) => frameResult(theme, width, message, BG_ERROR));
 			}
 			const d = result.details as LsDetails | undefined;
 			if (d?._type === "lsResult" && d.text) {

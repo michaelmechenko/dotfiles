@@ -44,6 +44,7 @@ import {
 	Spacer,
 	Text,
 } from "@earendil-works/pi-tui";
+import { frameComponentResult } from "../tool-display/frame.js";
 import { Type } from "@sinclair/typebox";
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from "node:fs";
@@ -664,6 +665,11 @@ export default function sessionRecallExtension(pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "session_search",
 		label: (params) => `Session Search: ${params.query}`,
+		renderShell: "self",
+		renderCall: (args, theme, ctx) => {
+			const text = ctx.lastComponent ?? new Text("", 0, 0);
+			return frameText(text, (width) => frameCall(theme, width, `${theme.fg("toolTitle", theme.bold("session_search"))} ${theme.fg("accent", String(args.query ?? ""))}`, { pending: true }));
+		},
 		description:
 			"Find past sessions by literal text search. This is essentially `rg -i -F` over session JSONL files, not semantic search. " +
 			"Use one exact token or phrase. Spaces are exact spaces in an exact phrase, so only use spaces for wording you expect appeared in the session, such as an error message. " +
@@ -678,7 +684,7 @@ export default function sessionRecallExtension(pi: ExtensionAPI) {
 
 			if (details?.error || !details?.matchCount) {
 				container.addChild(new Text(theme.fg("toolOutput", text), 0, 0));
-				return container;
+				return frameComponentResult(theme, [container]);
 			}
 
 			const summary = `✓ ${details.matchCount} session${details.matchCount > 1 ? "s" : ""} matching "${details.query}"`;
@@ -694,7 +700,7 @@ export default function sessionRecallExtension(pi: ExtensionAPI) {
 				);
 			}
 
-			return container;
+			return frameComponentResult(theme, [container]);
 		},
 		parameters: Type.Object({
 			query: Type.String({
@@ -794,6 +800,11 @@ export default function sessionRecallExtension(pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "session_query",
 		label: (params) => `Session Query: ${params.question}`,
+		renderShell: "self",
+		renderCall: (args, theme, ctx) => {
+			const text = ctx.lastComponent ?? new Text("", 0, 0);
+			return frameText(text, (width) => frameCall(theme, width, `${theme.fg("toolTitle", theme.bold("session_query"))} ${theme.fg("accent", String(args.question ?? ""))}`, { pending: true }));
+		},
 		description:
 			"Query a specific session file to get detailed information. Use after session_search to dig into a particular session, " +
 			"or when you already have a session path (e.g., from a handoff). Sends the full conversation to an LLM for analysis.",
@@ -804,7 +815,7 @@ export default function sessionRecallExtension(pi: ExtensionAPI) {
 
 			if (!match) {
 				container.addChild(new Text(theme.fg("toolOutput", text), 0, 0));
-				return container;
+				return frameComponentResult(theme, [container]);
 			}
 
 			const [, query, answer] = match;
@@ -827,7 +838,7 @@ export default function sessionRecallExtension(pi: ExtensionAPI) {
 				container.addChild(new Text(theme.fg("toolOutput", summary), 0, 0));
 			}
 
-			return container;
+			return frameComponentResult(theme, [container]);
 		},
 		parameters: Type.Object({
 			sessionPath: Type.String({

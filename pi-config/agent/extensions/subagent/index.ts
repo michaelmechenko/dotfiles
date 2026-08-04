@@ -28,6 +28,7 @@ import {
 	withFileMutationQueue,
 } from "@earendil-works/pi-coding-agent";
 import { Container, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
+import { frameCall, frameComponentResult, frameText } from "../tool-display/frame.js";
 import { Type } from "typebox";
 import { type AgentConfig, type AgentScope, discoverAgents } from "./agents.ts";
 
@@ -469,6 +470,7 @@ export default function (pi: ExtensionAPI) {
 			`To enable project-local agents in ${CONFIG_DIR_NAME}/agents, set agentScope: "both" (or "project").`,
 		].join(" "),
 		parameters: SubagentParams,
+		renderShell: "self",
 
 		async execute(_toolCallId, params, signal, onUpdate, ctx) {
 			const agentScope: AgentScope = params.agentScope ?? "user";
@@ -698,8 +700,12 @@ export default function (pi: ExtensionAPI) {
 			};
 		},
 
-		renderCall(args, theme, _context) {
+		renderCall(args, theme, context) {
 			const scope: AgentScope = args.agentScope ?? "user";
+			const callFrame = (value: string) => {
+				const text = context.lastComponent ?? new Text("", 0, 0);
+				return frameText(text, (width) => frameCall(theme, width, value, { pending: true }));
+			};
 			if (args.chain && args.chain.length > 0) {
 				let text =
 					theme.fg("warning", "○ ") +
@@ -719,7 +725,7 @@ export default function (pi: ExtensionAPI) {
 						theme.fg("dim", ` ${preview}`);
 				}
 				if (args.chain.length > 3) text += `\n  ${theme.fg("muted", `... +${args.chain.length - 3} more`)}`;
-				return new Text(text, 0, 0);
+				return callFrame(text);
 			}
 			if (args.tasks && args.tasks.length > 0) {
 				let text =
@@ -732,7 +738,7 @@ export default function (pi: ExtensionAPI) {
 					text += `\n  ${theme.fg("accent", t.agent)}${theme.fg("dim", ` ${preview}`)}`;
 				}
 				if (args.tasks.length > 3) text += `\n  ${theme.fg("muted", `... +${args.tasks.length - 3} more`)}`;
-				return new Text(text, 0, 0);
+				return callFrame(text);
 			}
 			const agentName = args.agent || "...";
 			const preview = args.task ? (args.task.length > 60 ? `${args.task.slice(0, 60)}...` : args.task) : "...";
@@ -742,15 +748,16 @@ export default function (pi: ExtensionAPI) {
 				theme.fg("accent", agentName) +
 				theme.fg("muted", ` [${scope}]`);
 			text += `\n  ${theme.fg("dim", preview)}`;
-			return new Text(text, 0, 0);
+			return callFrame(text);
 		},
 
 		renderResult(result, _options, theme, _context) {
+			const resultFrame = (value: string) => frameComponentResult(theme, [new Text(value, 0, 0)]);
 			const expanded = areToolResultsExpanded();
 			const details = result.details as SubagentDetails | undefined;
 			if (!details || details.results.length === 0) {
 				const text = result.content[0];
-				return new Text(text?.type === "text" ? text.text : "(no output)", 0, 0);
+				return resultFrame(text?.type === "text" ? text.text : "(no output)");
 			}
 
 			const mdTheme = getMarkdownTheme();
@@ -813,7 +820,7 @@ export default function (pi: ExtensionAPI) {
 						container.addChild(new Spacer(1));
 						container.addChild(new Text(theme.fg("dim", usageStr), 0, 0));
 					}
-					return container;
+						return frameComponentResult(theme, [container]);
 				}
 
 				let text = `${icon} ${theme.fg("toolTitle", theme.bold(r.agent))}${theme.fg("muted", ` (${r.agentSource})`)}`;
@@ -826,7 +833,7 @@ export default function (pi: ExtensionAPI) {
 				}
 				const usageStr = formatUsageStats(r.usage, r.model);
 				if (usageStr) text += `\n${theme.fg("dim", usageStr)}`;
-				return new Text(text, 0, 0);
+				return resultFrame(text);
 			}
 
 			const aggregateUsage = (results: SingleResult[]) => {
@@ -902,7 +909,7 @@ export default function (pi: ExtensionAPI) {
 						container.addChild(new Spacer(1));
 						container.addChild(new Text(theme.fg("dim", `Total: ${usageStr}`), 0, 0));
 					}
-					return container;
+					return frameComponentResult(theme, [container]);
 				}
 
 				// Collapsed view
@@ -921,7 +928,7 @@ export default function (pi: ExtensionAPI) {
 				const usageStr = formatUsageStats(aggregateUsage(details.results));
 				if (usageStr) text += `\n\n${theme.fg("dim", `Total: ${usageStr}`)}`;
 				text += `\n${theme.fg("muted", "(${RESULT_TOGGLE_HINT} to expand results)")}`;
-				return new Text(text, 0, 0);
+				return resultFrame(text);
 			}
 
 			if (details.mode === "parallel") {
@@ -987,7 +994,7 @@ export default function (pi: ExtensionAPI) {
 						container.addChild(new Spacer(1));
 						container.addChild(new Text(theme.fg("dim", `Total: ${usageStr}`), 0, 0));
 					}
-					return container;
+					return frameComponentResult(theme, [container]);
 				}
 
 				// Collapsed view (or still running)
@@ -1010,11 +1017,11 @@ export default function (pi: ExtensionAPI) {
 					if (usageStr) text += `\n\n${theme.fg("dim", `Total: ${usageStr}`)}`;
 				}
 				if (!expanded) text += `\n${theme.fg("muted", "(${RESULT_TOGGLE_HINT} to expand results)")}`;
-				return new Text(text, 0, 0);
+				return resultFrame(text);
 			}
 
 			const text = result.content[0];
-			return new Text(text?.type === "text" ? text.text : "(no output)", 0, 0);
+			return resultFrame(text?.type === "text" ? text.text : "(no output)");
 		},
 	});
 }

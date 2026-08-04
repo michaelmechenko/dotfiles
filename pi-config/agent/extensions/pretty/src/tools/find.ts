@@ -8,7 +8,7 @@ import { resolveTextCtor } from "../tui-text.js";
 import type { FindDetails, RenderCtxLike, SdkToolDef, TextContent, ThemeLike } from "../types.js";
 import { wrapExecuteWithMetrics } from "./metrics.js";
 import { areToolResultsExpanded, RESULT_TOGGLE_HINT } from "../../../tool-display/state.js";
-import { frameDivider, framePadding, frameRow, frameRows, frameText } from "../../../tool-display/frame.js";
+import { frameDivider, framePadding, frameResult, frameRow, frameRows, frameText } from "../../../tool-display/frame.js";
 
 type Result = AgentToolResult<Record<string, unknown>>;
 
@@ -63,7 +63,7 @@ export function registerFindTool(
 			const limitPart = limit !== undefined && limit !== null ? theme.fg("dim", ` limit ${limit}`) : "";
 			const title = `${findLabel} ${patternPart}${inPart}${pathPart}${limitPart}`;
 			const headerLine = renderFrameStatus({ title, status: ctx.isError ? "error" : "pending", theme });
-			return frameText(text, (width) => frameRows(["", headerLine], theme.getBgAnsi?.("toolSuccessBg"), width));
+			return frameText(text, (width) => frameRows(["", headerLine], theme.getBgAnsi?.("toolPendingBg"), width));
 		},
 
 		renderResult(result: Result, _opt: unknown, theme: ThemeLike, ctx: RenderCtxLike) {
@@ -71,14 +71,13 @@ export function registerFindTool(
 			const r = result;
 			const text = (ctx as RenderCtxLike).lastComponent ?? new TC("", 0, 0);
 			if (ctx.isError) {
-				text.setText(renderToolError(getText(r) || "Error", theme));
-				return text;
+				const message = (getText(r) || "Error").split("\n").map((line) => theme.fg("error", line));
+				return frameText(text, (width) => frameResult(theme, width, message, BG_ERROR));
 			}
 			const d = r.details as FindDetails | undefined;
 			if (d?._type === "findResult") {
 				if (!d.text.trim()) {
-					text.setText(fillToolBackground(`\n${TOOL_RESULT_INDENT}${theme.fg("dim", "0 files")}\n`));
-					return text;
+					return frameText(text, (width) => frameResult(theme, width, [theme.fg("dim", "0 files")]));
 				}
 				if (!areToolResultsExpanded()) {
 					const duration = renderToolDuration(r);
@@ -103,10 +102,7 @@ export function registerFindTool(
 				].join("\n"));
 			}
 			const fc = r.content?.[0] as TextContent | undefined;
-			text.setText(
-				fillToolBackground(`\n${TOOL_RESULT_INDENT}${theme.fg("dim", fc?.text?.slice(0, 120) ?? "0 files")}\n`),
-			);
-			return text;
+			return frameText(text, (width) => frameResult(theme, width, [theme.fg("dim", fc?.text?.slice(0, 120) ?? "0 files")]));
 		},
 	} as unknown as ToolDefinition);
 }

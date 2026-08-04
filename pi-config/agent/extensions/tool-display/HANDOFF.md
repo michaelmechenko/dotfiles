@@ -6,12 +6,17 @@ The custom-tool frame work is partially implemented and intentionally not ready 
 
 Canonical frame code now lives in `pi-config/agent/extensions/tool-display/frame.ts`. It provides:
 
-- `frameRow`, `framePadding`, `frameDivider`, and `frameRows`
-- `frameResult`
-- `toolCallFrame` and `toolResultFrame` for separate Pi render slots
-- `toolFrameContainer` for future component-aware renderers
-- `toolErrorFrame` and `toolEmptyFrame`
-- `frameText` for width-aware repainting
+- `frameRow`, `framePadding`, `frameDivider`, and `frameRows` for ANSI-aware text rows
+- `frameResult` and `frameText` for width-aware text renderers
+- `frameComponentResult` for rich `Component` results; child components render at the interior width and every emitted line receives the outer frame
+- `toolCallFrame` and `toolResultFrame` as compatibility helpers for existing small text-only extensions
+- `toolErrorFrame` and `toolEmptyFrame` as compatibility helpers
+
+The component adapter is the required seam for `Container`, `Markdown`, and other rich results. Do not add another renderer-specific outer-frame implementation.
+
+The vendored `pretty` and `diff` top-level shims must re-export `./src/index.ts`; their source trees contain TypeScript entrypoints, not `src/index.js`. A fresh explicit-agent-dir session confirmed both extensions load after this correction.
+
+`frameRow` reapplies the selected semantic row background after embedded full SGR resets and terminates the background at the row boundary. Pending calls use `toolPendingBg`; successful results use `toolSuccessBg`; failures use `toolErrorBg`. These surfaces intentionally differ, while rows within each state remain continuous.
 
 `pretty/src/frame.ts` was removed. Pretty tools should import the canonical adapter directly from `../../../tool-display/frame.js`.
 
@@ -23,19 +28,13 @@ pi --help
  git diff --check
 ```
 
-The harness currently checks canonical exports, one-cell row fitting, diff marker removal, absence of the duplicate pretty frame module, and the bash status-header indent.
+The harness currently checks canonical exports, the rich-component adapter, ANSI-width fitting fixtures, one-cell row fitting, diff marker removal, absence of the duplicate pretty frame module, and the bash status-header indent.
 
 ## Known incomplete work
 
-1. `pretty` result branches still bypass the canonical adapter:
-   - `read`: error, image, expanded syntax, async highlight replacement, and fallback paths
-   - `bash`: empty output, error, and fallback paths
-   - `find`: empty and fallback paths
-   - `ls`: error/fallback and some expanded paths
-2. `diff/src/index.ts` still has raw `TOOL_RESULT_INDENT`, `formatToolFrameHeaderText`, and direct `text.setText` paths in apply_patch metadata, no-change, error, new-file, and fallback branches.
-3. `subagent` and `session-recall` still use rich `Container`/Markdown renderers without the component-aware adapter.
-4. Live fresh-process visual verification has not been performed. Do not call the migration complete based only on `/reload` or `pi --help`.
-5. The current frame helpers have accumulated compatibility APIs (`toolFrame`, `toolCallFrame`, `toolResultFrame`, and object/positional `frameResult`). Consolidate only after all callers migrate.
+1. Fresh-process visual verification of the complete resize/sidebar matrix remains mandatory. The focused visual matrix confirmed custom read/bash/find/grep/ls, diff, session-recall, web, and ask-user renderers load; the subagent run was blocked by the available model/API credit error.
+2. `toolCallFrame` and `toolResultFrame` remain compatibility helpers because `ask-user`, `plan-mode`, and `web-tools` still use them. Consolidate those callers before deleting the helpers or the positional `frameResult` signature.
+3. Keep `frameComponentResult` as the only component-aware outer-frame seam. Rich results must not be inserted directly into an unframed `Container`.
 
 ## Visual contract
 

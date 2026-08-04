@@ -40,6 +40,7 @@ import {
 	normalizeLineEndings,
 } from "./helpers.js";
 import type { RenderCtxLike as RenderContext, ThemeLike } from "./types.js";
+import { frameResult, frameText } from "../../tool-display/frame.js";
 
 /** Thin wrapper over pi-tui's truncateToWidth (imported at top level above). */
 function _truncateToWidth(text: string, maxWidth: number, ellipsis?: string, pad?: boolean): string {
@@ -478,9 +479,8 @@ export function makeRenderCall(toolName: string) {
 	return (args: Record<string, unknown>, theme: ThemeLike, ctx: RenderContext) => {
 		resolveBaseBackground(theme);
 		const text = ctx.lastComponent ?? new TuiText("", 0, 0);
-		const bg = ctx.isError ? BG_ERROR : undefined;
-		text.setText(fillToolBackground(`${theme.fg("toolTitle", theme.bold(toolName))}`, bg));
-		return text;
+		const bg = ctx.isError ? BG_ERROR : theme.getBgAnsi?.("toolPendingBg");
+		return frameText(text, (width) => frameResult(theme, width, [theme.fg("toolTitle", theme.bold(toolName))], bg));
 	};
 }
 
@@ -489,8 +489,8 @@ export function makeRenderResult() {
 		resolveBaseBackground(theme);
 		const text = ctx.lastComponent ?? new TuiText("", 0, 0);
 		if (ctx.isError) {
-			text.setText(renderToolError(getTextContent(result) || "Error", theme));
-			return text;
+			const message = (getTextContent(result) || "Error").split("\n").map((line) => theme.fg("error", line));
+			return frameText(text, (width) => frameResult(theme, width, message, BG_ERROR));
 		}
 		const content = getTextContent(result);
 		if (content) {
@@ -500,15 +500,9 @@ export function makeRenderResult() {
 			const preview = lines.slice(0, maxShow).join("\n");
 			const more = lines.length > maxShow ? `\n${FG_DIM}... ${lines.length - maxShow} more lines${RST}` : "";
 			const metrics = renderToolMetrics(result);
-			text.setText(
-				fillToolBackground(
-					`${TOOL_RESULT_INDENT}${preview}${more}${metrics ? `\n${TOOL_RESULT_INDENT}${metrics}` : ""}`,
-					undefined,
-					renderWidth,
-				),
-			);
+			text.setText(frameResult(theme, renderWidth, [`${preview}${more}${metrics ? `\n${metrics}` : ""}`], undefined));
 		} else {
-			text.setText(fillToolBackground(`${TOOL_RESULT_INDENT}${theme.fg("dim", "(no text output)")}`));
+			text.setText(frameResult(theme, termWidth(), [theme.fg("dim", "(no text output)")]));
 		}
 		return text;
 	};

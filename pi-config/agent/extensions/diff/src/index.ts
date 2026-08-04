@@ -43,6 +43,8 @@ import {
 import { replace } from "./core/replace.js";
 import { registerEditGuard } from "./edit-guard.js";
 
+import { frameResult, frameRow, frameText } from "../../tool-display/frame.js";
+
 import {
 	applyDiffPalette as applySharedDiffPalette,
 	lang as detectDiffLanguage,
@@ -1434,7 +1436,13 @@ export default async function diffRendererExtension(pi: ExtensionAPI): Promise<v
 	function bgLine(content: string, width: number): string {
 		const renderWidth = Math.max(2, width);
 		const interior = fit(content, renderWidth - 2);
-		return injectBg(` ${interior} `, [], BG_BASE, BG_BASE);
+		return injectBg(frameRow(interior, undefined, renderWidth), [], BG_BASE, BG_BASE);
+	}
+
+	function setFramedText(text: any, theme: any, lines: string[], background = BG_BASE): void {
+		const build = (width: number) => frameResult(theme, width, lines, background);
+		frameText(text, build);
+		text.setText(build(termW()));
 	}
 
 	type ToolFrameHeaderOpts = {
@@ -1487,10 +1495,16 @@ export default async function diffRendererExtension(pi: ExtensionAPI): Promise<v
 		text.customBgFn = (line: string) => injectBg(line, [], background, background);
 	}
 
-	function formatToolErrorResult(name: string, message: string, theme: any): string {
+	function formatToolErrorResult(name: string, message: string, theme: any, width = termW()): string {
 		const meta = theme.fg("error", theme.bold(formatToolHeaderName(name)));
-		const header = formatToolFrameHeaderText({ meta, theme, headerLeftPad: 1, topPad: 0, bottomPad: 0 });
-		return `${header}\n ${theme.fg("error", message)}\n`;
+		const header = formatToolFrameHeaderText({ meta, theme, headerLeftPad: 0, topPad: 0, bottomPad: 0 });
+		return frameResult(theme, width, [header, theme.fg("error", message)], theme.getBgAnsi?.("toolErrorBg") ?? BG_BASE);
+	}
+
+	function setToolErrorResult(text: any, name: string, message: string, theme: any): void {
+		const build = (width: number) => formatToolErrorResult(name, message, theme, width);
+		frameText(text, build);
+		text.setText(build(termW()));
 	}
 
 	function summarizeApplyPatchChanges(changes: Array<{ action: string; path: string }>, theme: any): string {
@@ -1705,14 +1719,16 @@ export default async function diffRendererExtension(pi: ExtensionAPI): Promise<v
 	}
 
 	function setToolHeaderText(
-		text: { __piDiffTask?: unknown; setText(text: string): void },
+		text: { __piDiffTask?: unknown; setText(text: string): void; render?: (width: number) => string[] },
 		meta: string,
 		theme: any,
 	): void {
 		resolvePreviewDiffColors(theme);
 		text.__piDiffTask = undefined;
 		setToolHeaderBg(text);
-		text.setText(formatToolFrameHeaderText({ meta, bottomPad: 0 }));
+		const build = (width: number) => formatToolFrameHeader({ meta, theme, width, topPad: 0, bottomPad: 0 });
+		frameText(text as any, build);
+		text.setText(build(termW()));
 	}
 
 	function setDiffPreviewTask(
@@ -1912,7 +1928,7 @@ export default async function diffRendererExtension(pi: ExtensionAPI): Promise<v
 						.join("\n") ?? "Error";
 				text.__piDiffTask = undefined;
 				setToolErrorBg(text, theme);
-				text.setText(formatToolErrorResult("write", e, theme));
+				setToolErrorResult(text, "write", e, theme);
 
 				return text;
 			}
@@ -1929,7 +1945,7 @@ export default async function diffRendererExtension(pi: ExtensionAPI): Promise<v
 				text.__piDiffTask = undefined;
 				clearToolHeaderBg(text);
 				const width = termW();
-				text.setText(`${bgLine(theme.fg("dim", "─".repeat(Math.max(1, width))), width)}\n${bgLine(`${TOOL_RESULT_INDENT}${theme.fg("muted", "✓ no changes")}`, width)}`);
+				setFramedText(text, theme, [theme.fg("muted", "✓ no changes")], BG_BASE);
 				return text;
 			}
 			if (d?._type === "new") {
@@ -1965,9 +1981,7 @@ export default async function diffRendererExtension(pi: ExtensionAPI): Promise<v
 			}
 
 			clearToolHeaderBg(text);
-			text.setText(
-				`${TOOL_RESULT_INDENT}${theme.fg("dim", String(result?.content?.[0]?.text ?? "written").slice(0, 120))}`,
-			);
+			setFramedText(text, theme, [theme.fg("dim", String(result?.content?.[0]?.text ?? "written").slice(0, 120))], BG_BASE);
 			return text;
 		},
 	});
@@ -2266,7 +2280,7 @@ export default async function diffRendererExtension(pi: ExtensionAPI): Promise<v
 						.join("\n") ?? "Error";
 				text.__piDiffTask = undefined;
 				setToolErrorBg(text, theme);
-				text.setText(formatToolErrorResult("edit", e, theme));
+				setToolErrorResult(text, "edit", e, theme);
 				return text;
 			}
 			const d = result.details;
@@ -2297,9 +2311,7 @@ export default async function diffRendererExtension(pi: ExtensionAPI): Promise<v
 			}
 			text.__piDiffTask = undefined;
 			clearToolHeaderBg(text);
-			text.setText(
-				`${TOOL_RESULT_INDENT}${theme.fg("dim", String(result?.content?.[0]?.text ?? "edited").slice(0, 120))}`,
-			);
+			setFramedText(text, theme, [theme.fg("dim", String(result?.content?.[0]?.text ?? "edited").slice(0, 120))], BG_BASE);
 
 			return text;
 		},
@@ -2369,8 +2381,10 @@ export default async function diffRendererExtension(pi: ExtensionAPI): Promise<v
 				: `${TOOL_RESULT_INDENT}${theme.fg("muted", "(waiting for changes)")}`;
 			setToolHeaderBg(text);
 			text.setText(
-				formatToolFrameHeaderText({
+				formatToolFrameHeader({
 					meta: `${theme.fg("toolTitle", theme.bold(formatToolHeaderName("apply_patch")))}${suffix}`,
+					theme,
+					width: termW(),
 					topPad: 0,
 					bottomPad: 0,
 				}),
@@ -2383,7 +2397,7 @@ export default async function diffRendererExtension(pi: ExtensionAPI): Promise<v
 				const out = (result.content || []).map((c: any) => c.text).join("\n") || "Error";
 				text.__piDiffTask = undefined;
 				setToolErrorBg(text, theme);
-				text.setText(formatToolErrorResult("apply_patch", out, theme));
+				setToolErrorResult(text, "apply_patch", out, theme);
 				return text;
 			}
 
@@ -2393,7 +2407,7 @@ export default async function diffRendererExtension(pi: ExtensionAPI): Promise<v
 			const out = (result.content || []).map((c: any) => c.text).join("\n");
 			text.__piDiffTask = undefined;
 			clearToolHeaderBg(text);
-			text.setText(theme.fg("muted", out));
+			setFramedText(text, theme, [theme.fg("muted", out)], BG_BASE);
 			return text;
 		},
 	});

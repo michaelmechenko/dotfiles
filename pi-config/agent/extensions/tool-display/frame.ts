@@ -1,4 +1,5 @@
-import { Container, Text, truncateToWidth } from "@earendil-works/pi-tui";
+import { truncateToWidth } from "@earendil-works/pi-tui";
+import type { Component } from "@earendil-works/pi-tui";
 
 export type ToolFrameTheme = {
 	fg(name: string, value: string): string;
@@ -13,6 +14,45 @@ type WidthAwareText = {
 	render(width: number): string[];
 	__toolFrame?: { build: (width: number) => string; width: number };
 };
+
+/**
+ * Component wrapper for rich tool results. Child components render against the
+ * interior width; every emitted line is then fitted and given the same outer
+ * frame as text renderers.
+ */
+class FramedComponent implements Component {
+	constructor(
+		private readonly theme: ToolFrameTheme,
+		private readonly children: Component[],
+		private readonly background: string | undefined,
+		private readonly includeDivider: boolean,
+	) {}
+
+	render(width: number): string[] {
+		const actual = Math.max(2, Math.floor(width || process.stdout.columns || 80));
+		const rows: string[] = [];
+		if (this.includeDivider) rows.push(frameDivider(this.theme, this.background, actual));
+		for (const child of this.children) {
+			for (const line of child.render(Math.max(1, actual - 2))) {
+				rows.push(frameRow(line, this.background, actual));
+			}
+		}
+		rows.push(framePadding(this.background, actual));
+		return rows;
+	}
+
+	invalidate(): void {
+		for (const child of this.children) child.invalidate();
+	}
+}
+
+export function frameComponentResult(
+	theme: ToolFrameTheme,
+	children: Component[],
+	options: { background?: string } = {},
+): Component {
+	return new FramedComponent(theme, children, options.background ?? theme.getBgAnsi?.("toolSuccessBg"), true);
+}
 
 export function frameText<T extends WidthAwareText>(text: T, build: (width: number) => string): T {
 	if (!text.__toolFrame) {
@@ -37,7 +77,13 @@ export function frameRow(content: string, background: string | undefined, width:
 	const actual = Math.max(2, width);
 	const interior = truncateToWidth(content, actual - 2, "", true);
 	const padded = `${PAD}${interior}${PAD}`;
-	return background ? `${background}${padded}` : padded;
+	if (!background) return padded;
+
+	// Embedded syntax/Markdown/diff styles commonly emit a full SGR reset.
+	// Reapply the row background after those resets so every cell in the outer
+	// frame stays on the same semantic surface, then terminate it at the row end.
+	const withBackground = padded.replace(/\x1b\[0m/g, `\x1b[0m${background}`);
+	return `${background}${withBackground}\x1b[0m`;
 }
 
 export function framePadding(background: string | undefined, width: number): string {
@@ -49,11 +95,25 @@ export function frameDivider(theme: ToolFrameTheme, background: string | undefin
 }
 
 export function frameRows(lines: string[], background: string | undefined, width: number): string {
-	return lines.map((line) => frameRow(line, background, width)).join("\n");
+	return lines
+		.flatMap((line) => line.split("\n"))
+		.map((line) => frameRow(line, background, width))
+		.join("\n");
+}
+
+export function frameCall(
+	theme: ToolFrameTheme,
+	width: number,
+	call: string,
+	options: { error?: boolean; pending?: boolean } = {},
+): string {
+	const background = theme.getBgAnsi?.(options.error ? "toolErrorBg" : options.pending ? "toolPendingBg" : "toolSuccessBg");
+	return frameRows(["", call], background, width);
 }
 
 export function frameResult(
 	themeOrOptions: ToolFrameTheme | { theme: ToolFrameTheme; width: number; lines: string[]; background?: string },
+
 	widthArg?: number,
 	linesArg?: string[],
 	backgroundArg?: string,
@@ -61,41 +121,15 @@ export function frameResult(
 	const options = typeof themeOrOptions === "object" && "theme" in themeOrOptions
 		? themeOrOptions
 		: { theme: themeOrOptions, width: widthArg ?? 80, lines: linesArg ?? [], background: backgroundArg };
+	const background = options.background ?? options.theme.getBgAnsi?.("toolSuccessBg");
 	return [
-		frameDivider(options.theme, options.background, options.width),
-		...options.lines.map((line) => frameRow(line, options.background, options.width)),
-		framePadding(options.background, options.width),
+		frameDivider(options.theme, background, options.width),
+		frameRows(options.lines, background, options.width),
+		framePadding(background, options.width),
 	].join("\n");
 }
 
-export function toolFrameContainer(
-	theme: ToolFrameTheme,
-	width: number,
-	call: string,
-	result: unknown[],
-	options: { error?: boolean; pending?: boolean } = {},
-): Container {
-	const frame = new Container();
-	const callBg = theme.getBgAnsi?.(options.error ? "toolErrorBg" : options.pending ? "toolPendingBg" : "toolSuccessBg");
-	frame.addChild(new Text(framePadding(callBg, width), 0, 0));
-	frame.addChild(new Text(frameRow(call, callBg, width), 0, 0));
-	if (result.length > 0) {
-		frame.addChild(new Text(frameDivider(theme, callBg, width), 0, 0));
-		for (const child of result) frame.addChild(child as any);
-	}
-	frame.addChild(new Text(framePadding(callBg, width), 0, 0));
-	return frame;
-}
-
-export function toolCallFrame(
-	theme: ToolFrameTheme,
-	width: number,
-	call: string,
-	options: { error?: boolean; pending?: boolean } = {},
-): string {
-	const background = theme.getBgAnsi?.(options.error ? "toolErrorBg" : options.pending ? "toolPendingBg" : "toolSuccessBg");
-	return [framePadding(background, width), frameRow(call, background, width)].join("\n");
-}
+export const toolCallFrame = frameCall;
 
 export function toolErrorFrame(theme: ToolFrameTheme, width: number, call: string, message: string): string {
 	return toolFrame(theme, width, call, [theme.fg("error", message)], { error: true });
@@ -124,10 +158,10 @@ export function toolFrame(
 ): string {
 	const callBg = theme.getBgAnsi?.(options.error ? "toolErrorBg" : options.pending ? "toolPendingBg" : "toolSuccessBg");
 	const resultBg = theme.getBgAnsi?.(options.error ? "toolErrorBg" : options.pending ? "toolPendingBg" : "toolSuccessBg");
-	const rows = [framePadding(callBg, width), frameRow(call, callBg, width)];
+	const rows = [frameRows(["", call], callBg, width)];
 	if (result) {
 		rows.push(frameDivider(theme, resultBg, width));
-		rows.push(...result.map((line) => frameRow(line, resultBg, width)));
+		rows.push(frameRows(result, resultBg, width));
 	}
 	rows.push(framePadding(result ? resultBg : callBg, width));
 	return rows.join("\n");

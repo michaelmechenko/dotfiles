@@ -68,23 +68,20 @@ export function registerGrepTool(
 			if (literal) title += theme.fg("dim", ` (literal)`);
 			if (caseInsensitive) title += theme.fg("dim", ` (case-insensitive)`);
 			const headerLine = renderFrameStatus({ title, status: ctx.isError ? "error" : "pending", theme });
-			return frameText(text, (width) => frameRows(["", headerLine], theme.getBgAnsi?.("toolSuccessBg"), width));
+			return frameText(text, (width) => frameRows(["", headerLine], theme.getBgAnsi?.("toolPendingBg"), width));
 		},
 
 		renderResult(result: Result, _opt: unknown, theme: ThemeLike, ctx: RenderCtxLike) {
 			resolveBaseBackground(theme);
 			const text = ctx.lastComponent ?? new T("", 0, 0);
 			if (ctx.isError) {
-				text.setText(
-					renderToolError(
-						((result.content ?? []) as TextContent[])
-							.filter((c) => c.type === "text")
-							.map((c) => c.text)
-							.join("\n") || "Error",
-						theme,
-					),
-				);
-				return text;
+				const message = (
+					((result.content ?? []) as TextContent[])
+						.filter((c) => c.type === "text")
+						.map((c) => c.text)
+						.join("\n") || "Error"
+				).split("\n").map((line) => theme.fg("error", line));
+				return frameText(text, (width) => frameResult(theme, width, message, BG_ERROR));
 			}
 			const d = result.details as GrepDetails | undefined;
 			if (d?._type === "grepResult" && d.text) {

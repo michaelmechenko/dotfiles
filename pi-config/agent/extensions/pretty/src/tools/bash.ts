@@ -8,7 +8,7 @@ import { resolveTextCtor } from "../tui-text.js";
 import type { BashDetails, ComponentLike, RenderCtxLike, SdkToolDef, TextContent, ThemeLike } from "../types.js";
 import { wrapExecuteWithMetrics } from "./metrics.js";
 import { areToolResultsExpanded, previewResult, RESULT_TOGGLE_HINT } from "../../../tool-display/state.js";
-import { frameDivider, framePadding, frameRow, frameRows } from "../../../tool-display/frame.js";
+import { frameDivider, framePadding, frameResult, frameRow, frameRows, frameText } from "../../../tool-display/frame.js";
 
 type Result = AgentToolResult<Record<string, unknown>>;
 
@@ -84,7 +84,7 @@ export function registerBashTool(
 					status: ctx.isError ? "error" : "pending",
 					theme,
 				});
-				return frameRows(["", headerLine], theme.getBgAnsi?.("toolSuccessBg"), tw);
+				return frameRows(["", headerLine], theme.getBgAnsi?.("toolPendingBg"), tw);
 			};
 
 			text.setText(buildHeader(termWidth()));
@@ -140,7 +140,7 @@ export function registerBashTool(
 				const rw = termWidth();
 
 				const renderFn = (w: number) => {
-					if (!output.trim()) return fillToolBackground(`${header}\n`, undefined, w);
+					if (!output.trim()) return frameResult(theme, w, [header]);
 					const preview = previewResult(output, resultsExpanded ? Number.MAX_SAFE_INTEGER : 3);
 					const out = [
 						frameDivider(theme, undefined, w),
@@ -171,16 +171,11 @@ export function registerBashTool(
 			}
 
 			if (ctx.isError) {
-				text.setText(renderToolError(tc || "Error", theme));
-				return text;
+				const message = (tc || "Error").split("\n").map((line) => theme.fg("error", line));
+				return frameText(text, (width) => frameResult(theme, width, message, theme.getBgAnsi?.("toolErrorBg")));
 			}
 			const fc = result.content?.[0];
-			text.setText(
-				fillToolBackground(
-					`${TOOL_RESULT_INDENT}${theme.fg("dim", fc && "text" in fc ? String(fc.text).slice(0, 120) : "done")}`,
-				),
-			);
-			return text;
+			return frameText(text, (width) => frameResult(theme, width, [theme.fg("dim", fc && "text" in fc ? String(fc.text).slice(0, 120) : "done")]));
 		},
 	} as unknown as ToolDefinition<any, any, any>);
 }

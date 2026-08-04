@@ -19,7 +19,7 @@ import { resolveTextCtor } from "../tui-text.js";
 import type { ReadDetails, RenderCtxLike, SdkToolDef, TextContent, ThemeLike } from "../types.js";
 import { wrapExecuteWithMetrics } from "./metrics.js";
 import { areToolResultsExpanded, RESULT_TOGGLE_HINT } from "../../../tool-display/state.js";
-import { frameDivider, framePadding, frameRow, frameRows, frameText } from "../../../tool-display/frame.js";
+import { frameDivider, framePadding, frameResult, frameRow, frameRows, frameText } from "../../../tool-display/frame.js";
 
 type Result = AgentToolResult<Record<string, unknown>>;
 
@@ -99,7 +99,7 @@ export function registerReadTool(
 			const limit = typeof args.limit === "number" ? ` +${args.limit}` : "";
 			const title = `${theme.fg("toolTitle", theme.bold("read"))} ${theme.fg("toolTitle", path)}${theme.fg("dim", `${offset}${limit}`)}`;
 			const header = renderFrameStatus({ title, status: ctx.isError ? "error" : "pending", theme });
-			return frameText(text, (width) => frameRows(["", header], theme.getBgAnsi?.("toolSuccessBg"), width));
+			return frameText(text, (width) => frameRows(["", header], theme.getBgAnsi?.("toolPendingBg"), width));
 		},
 
 		renderResult(result: Result, _opt: unknown, theme: ThemeLike, ctx: RenderCtxLike) {
@@ -108,8 +108,8 @@ export function registerReadTool(
 			const text = ctx.lastComponent ?? new TC("", 0, 0);
 
 			if (ctx.isError) {
-				text.setText(fillToolBackground(renderToolError(getText(result) || "Error", theme), BG_ERROR));
-				return text;
+				const message = (getText(result) || "Error").split("\n").map((line) => theme.fg("error", line));
+				return frameText(text, (width) => frameResult(theme, width, message, BG_ERROR));
 			}
 
 			const d = result.details as ReadDetails | undefined;
@@ -119,8 +119,7 @@ export function registerReadTool(
 			// or unsupported by the terminal.
 			if (d?._type === "readImage") {
 				const note = getText(result);
-				text.setText(note ? fillToolBackground(note, BG_BASE) : "");
-				return text;
+				return frameText(text, (width) => note ? frameResult(theme, width, note.split("\n"), BG_BASE) : frameRows([], BG_BASE, width));
 			}
 
 			// File content — line-numbered display
@@ -172,7 +171,8 @@ export function registerReadTool(
 				}
 				out.push("");
 				const rendered = out.join("\n");
-				text.setText(fillToolBackground(rendered, BG_BASE));
+				frameText(text, (width) => frameRows(rendered.split("\n").map((line) => line.startsWith(" ") ? line.slice(1) : line), BG_BASE, width));
+				text.setText(frameRows(rendered.split("\n").map((line) => line.startsWith(" ") ? line.slice(1) : line), BG_BASE, tw));
 				(ctx as any).state._rt = rendered;
 
 				// Async syntax highlighting via Shiki
@@ -189,7 +189,8 @@ export function registerReadTool(
 							? `${TOOL_RESULT_INDENT}${FG_RULE}${"─".repeat(Math.max(1, tw - 1))}${RST}\n`
 							: "";
 						const rendered = `\n${header}\n${divider}${padded}\n`;
-						text.setText(fillToolBackground(rendered, BG_BASE));
+						frameText(text, (width) => frameRows(rendered.split("\n").map((line) => line.startsWith(" ") ? line.slice(1) : line), BG_BASE, width));
+						text.setText(frameRows(rendered.split("\n").map((line) => line.startsWith(" ") ? line.slice(1) : line), BG_BASE, tw));
 						(ctx as any).state._rt = rendered;
 					})
 					.catch(() => {});
@@ -198,13 +199,7 @@ export function registerReadTool(
 			}
 
 			const fc = result.content?.[0];
-			text.setText(
-				fillToolBackground(
-					`${TOOL_RESULT_INDENT}${theme.fg("dim", fc && "text" in fc ? String(fc.text).slice(0, 120) : "done")}`,
-					BG_BASE,
-				),
-			);
-			return text;
+			return frameText(text, (width) => frameResult(theme, width, [theme.fg("dim", fc && "text" in fc ? String(fc.text).slice(0, 120) : "done")], BG_BASE));
 		},
 	} as unknown as ToolDefinition<any, any, any>);
 }

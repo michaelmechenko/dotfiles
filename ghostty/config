@@ -151,9 +151,11 @@ keybind = cmd+shift+r=reload_config
 quick-terminal-position = bottom
 keybind = global:cmd+shift+e=toggle_quick_terminal
 
-# update alt/left and alt/right bindings
+# Update modified arrow bindings. Super-arrow is used by pi for line start/end.
 keybind = alt+left=csi:1;3D
 keybind = alt+right=csi:1;3C
+keybind = cmd+left=csi:1;9D
+keybind = cmd+right=csi:1;9C
 
 # alt+enter: without this, Ghostty doesn't send a modified Enter for Option+Return,
 # so pi (and tmux, via extended-keys/csi-u) can't distinguish it from plain Enter and

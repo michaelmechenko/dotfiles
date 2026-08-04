@@ -6,7 +6,8 @@
   "app.model.cycleForward": [],
   "app.model.cycleBackward": [],
   "app.model.select": ["ctrl+l", "ctrl+shift+p"],
-  "tui.editor.cursorLineEnd": ["end"],
+  "tui.editor.cursorLineStart": ["home", "super+left"],
+  "tui.editor.cursorLineEnd": ["end", "super+right"],
   "app.models.toggleProvider": [],
   "app.session.togglePath": [],
   "app.session.rename": []

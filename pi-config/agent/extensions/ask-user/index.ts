@@ -14,7 +14,8 @@
  * calls show one at a time instead of stacking.
  */
 
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { getPackageDir, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ImageContent } from "@earendil-works/pi-ai";
 import { frameText, toolCallFrame, toolResultFrame } from "../tool-display/frame.js";
 import {
   Editor,
@@ -25,6 +26,8 @@ import {
   truncateToWidth,
 } from "@earendil-works/pi-tui";
 import { Cause, Effect, Exit } from "effect";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { Type, type Static } from "typebox";
 import {
   ASK_USER_PARAMETER_DESCRIPTIONS,
@@ -70,6 +73,7 @@ interface AskUserDetails {
   options: string[];
   answer: string | null;
   wasCustom: boolean;
+  images?: ImageContent[];
   cancelled: boolean;
 }
 
@@ -77,7 +81,23 @@ type SelectionResult = {
   answer: string;
   wasCustom: boolean;
   index?: number;
+  images?: ImageContent[];
 } | null;
+
+type ClipboardImageReader = () => Promise<{ bytes: Uint8Array; mimeType: string } | null>;
+type ClipboardTextReader = () => Promise<string | null>;
+
+async function readClipboardImage(): Promise<{ bytes: Uint8Array; mimeType: string } | null> {
+  const modulePath = join(getPackageDir(), "dist", "utils", "clipboard-image.js");
+  const module = await import(pathToFileURL(modulePath).href) as { readClipboardImage: ClipboardImageReader };
+  return module.readClipboardImage();
+}
+
+async function readClipboardText(): Promise<string | null> {
+  const modulePath = join(getPackageDir(), "dist", "utils", "clipboard.js");
+  const module = await import(pathToFileURL(modulePath).href) as { readClipboardText: ClipboardTextReader };
+  return module.readClipboardText();
+}
 
 interface DisplayOption {
   label: string;
@@ -128,14 +148,19 @@ export default function askUser(pi: ExtensionAPI) {
         text: string,
         answer: string | null = null,
         wasCustom = false,
+        images: ImageContent[] = [],
       ) => ({
-        content: [{ type: "text" as const, text }],
+        content: [
+          { type: "text" as const, text },
+          ...images,
+        ],
         details: {
           context: params.context,
           question: params.question,
           options: params.options.map((o) => o.label),
           answer,
           wasCustom,
+          images: images.length > 0 ? images : undefined,
           cancelled: answer === null,
         } satisfies AskUserDetails,
       });
@@ -200,6 +225,7 @@ export default function askUser(pi: ExtensionAPI) {
             let optionIndex = 0;
             let editMode = false;
             let cachedLines: string[] | undefined;
+            let pastedImages: ImageContent[] = [];
 
             let settled = false;
 
@@ -232,7 +258,7 @@ export default function askUser(pi: ExtensionAPI) {
             editor.onSubmit = (value) => {
               const trimmed = value.trim();
               if (trimmed) {
-                finish({ answer: trimmed, wasCustom: true });
+                finish({ answer: trimmed, wasCustom: true, images: pastedImages });
               } else {
                 editMode = false;
                 editor.setText("");
@@ -260,8 +286,32 @@ export default function askUser(pi: ExtensionAPI) {
               }
             }
 
+            async function pasteClipboard(): Promise<void> {
+              try {
+                const image = await readClipboardImage();
+                if (image) {
+                  pastedImages = [...pastedImages, {
+                    type: "image",
+                    data: Buffer.from(image.bytes).toString("base64"),
+                    mimeType: image.mimeType,
+                  }];
+                  editor.insertTextAtCursor("[Pasted image]");
+                } else {
+                  const text = await readClipboardText();
+                  if (text) editor.insertTextAtCursor(text);
+                }
+                refresh();
+              } catch {
+                // Match the regular prompt: ignore clipboard access failures.
+              }
+            }
+
             function handleInput(data: string) {
               if (editMode) {
+                if (matchesKey(data, Key.ctrl("v"))) {
+                  void pasteClipboard();
+                  return;
+                }
                 if (matchesKey(data, Key.escape)) {
                   editMode = false;
                   editor.setText("");
@@ -358,7 +408,7 @@ export default function askUser(pi: ExtensionAPI) {
 
               if (editMode) {
                 lines.push("");
-                add(theme.fg("muted", " Your answer:"));
+                add(theme.fg("muted", ` Your answer${pastedImages.length ? ` (${pastedImages.length} image${pastedImages.length === 1 ? "" : "s"} attached)` : ""}:`));
                 for (const line of editor.render(width - 2)) {
                   add(` ${line}`);
                 }
@@ -420,6 +470,7 @@ export default function askUser(pi: ExtensionAPI) {
             }),
             result.answer,
             true,
+            result.images,
           );
         }
 
@@ -471,7 +522,8 @@ export default function askUser(pi: ExtensionAPI) {
       }
 
       if (details.wasCustom) {
-        const answer = theme.fg("success", "✓ ") + theme.fg("muted", "(wrote) ") + theme.fg("accent", details.answer);
+        const attachment = details.images?.length ? ` + ${details.images.length} image${details.images.length === 1 ? "" : "s"}` : "";
+        const answer = theme.fg("success", "✓ ") + theme.fg("muted", "(wrote) ") + theme.fg("accent", `${details.answer}${attachment}`);
         return frameText(context?.lastComponent ?? new Text("", 0, 0), (width) =>
           toolResultFrame(theme, width, [answer]),
         );

@@ -92,7 +92,7 @@ discipline (see `~/.config/COLORS.md`).
 
 | Extension | What it does |
 |---|---|
-| `ask-user/` | `ask_user` tool — lets the model ask one contextual multiple-choice question (2-5 options + "write my own answer") via a popup UI. An optional context block states the investigation finding and decision impact before the question. Concurrent calls (tool calls run in parallel) are serialized through a queue so they're shown one at a time instead of racing for overlay focus. Needs its own `node_modules` (depends on `effect`); already installed with `npm install --ignore-scripts` (skips its `effect-tsgo patch` dev-only prepare script) |
+| `ask-user/` | `ask_user` tool — lets the model ask one contextual multiple-choice question (2-5 options + "write my own answer") via a popup UI. An optional context block states the investigation finding and decision impact before the question. The free-form answer editor accepts Ctrl+V text and clipboard images, returning pasted images to the model as image content. Concurrent calls (tool calls run in parallel) are serialized through a queue so they're shown one at a time instead of racing for overlay focus. Needs its own `node_modules` (depends on `effect`); already installed with `npm install --ignore-scripts` (skips its `effect-tsgo patch` dev-only prepare script) |
 
 ### Forked locally from `@ogulcancelik/pi-extensions` (no longer npm-managed)
 

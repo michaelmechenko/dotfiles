@@ -8,6 +8,8 @@ Reference for all active keybinds across AeroSpace (`aerospace/aerospace.toml`),
 | --- | --- |
 | `shift-tab` | Cycle thinking level forward (Pi built-in) |
 | `ctrl-tab` | Cycle thinking level backward (`thinking-controls/`; Ghostty maps it to F13) |
+| `cmd-left` | Move pi editor to the start of the current line (Ghostty → `super+left`) |
+| `cmd-right` | Move pi editor to the end of the current line (Ghostty → `super+right`) |
 | `ctrl+r` | Rename the current live pi session (`session-rename/`) |
 | `/rename [name]` | Rename the current live pi session; omit `name` to open a prompt |
 

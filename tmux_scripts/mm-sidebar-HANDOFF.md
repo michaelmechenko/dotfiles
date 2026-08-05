@@ -1,7 +1,7 @@
-# mega-michael-sidebar — session handoff
+# mm-sidebar — session handoff
 
 > Written at the end of the implementation session. A refining agent should
-> read this alongside `mega-michael-sidebar.md` (the stable reference) to
+> read this alongside `mm-sidebar.md` (the stable reference) to
 > understand what was built, what was verified, what's known-rough, and where
 > to pick up. The reference doc has the architecture; this doc has the
 > session-time decisions and gotchas hit.
@@ -40,7 +40,7 @@ tmux bind, one Ghostty keybind, one gitignore entry, and three doc updates.
    rows: `pi:<pid> <pane> <target> <session> <state> - <transcript> <wname> pi`.
 
 5. **Docs.** `KEYBINDS.md` (bind row + sidebar section), `AGENTS.md` (source-of-
-   truth section), this handoff, and `mega-michael-sidebar.md` (reference).
+   truth section), this handoff, and `mm-sidebar.md` (reference).
 
 ## Gotchas hit during implementation
 
@@ -162,7 +162,7 @@ assuming the dispatcher is broken.
 > the layout around a stacked-blocks model after reviewing
 > [herdr](https://github.com/herdrdev/herdr) and
 > [agent-manager](https://github.com/YoanWai/agent-manager) as references.
-> `mega-michael-sidebar.md` has been rewritten to describe the current state
+> `mm-sidebar.md` has been rewritten to describe the current state
 > directly (not as a diff against the MVP); this section is the session log.
 
 ### What triggered this session
@@ -319,3 +319,129 @@ two blocks stacked. Result:
 - Per-window vs. single global sidebar (Follow-up #3, renumbered from #4) —
   unchanged, still per-window.
 
+
+---
+
+## Revision 3 session handoff (Go/Bubble Tea rewrite + rename + M-Tab focus-toggle)
+
+> Everything above is the bash era. This revision replaced the dispatcher with a
+> compiled Go/Bubble Tea binary, renamed the plugin `mega-michael-sidebar` →
+> `mm-sidebar`, and changed `M-Tab` from open/close to a three-state focus
+> toggle. `mm-sidebar.md` describes the current state directly; this section is
+> the session log.
+
+### Why
+
+Revision 2 closed every item it had flagged, but the bug list it closed was
+*entirely* bash/termios/subprocess-shaped (Enter no-op ×2, tty-echo race,
+off-by-one frame scroll, bash-3.2 arrays, TSV field collapse). Two measurements
+made the runtime the obvious thing to change rather than the next bug:
+
+- `tmux-agent-ls` measured **1.26–1.44s** on a 20-pane machine, and the 2s poll
+  set `dirty=1` unconditionally — so with a single-threaded blocking `read` key
+  loop, a keypress landing inside a sweep waited for the whole sweep. Revision
+  2's fetch/paint split fixed lag *between* polls and never touched this.
+- `fg()` was a command substitution wrapping another one (2 forks per colored
+  token) plus a `basename` fork per filetree row: a ~200-row filetree was ~800
+  forks, re-run every 2s.
+
+### Findings that corrected the existing docs
+
+1. **The bash-3.2 premise was wrong.** `tmux-sidebar` is `#!/usr/bin/env bash` →
+   Homebrew bash **5.3.15**. The `set -u` empty-array crash reproduces only under
+   `/bin/bash` 3.2.57 (confirmed both ways). So the case-statement dock dispatch
+   and the empty-array guards were defensive against a version that never ran,
+   and bash 4+ features were avoided for no reason.
+2. **`CLAUDE.md` is a symlink to `AGENTS.md`** — asked to diff them for extra
+   context; there is none, same bytes.
+3. **`df -H /` was reporting the wrong disk.** On APFS `/` is the sealed system
+   volume: it reports **5%** here while `/System/Volumes/Data` reports **48%**.
+   The bash `system_stats` block showed 5%. Not a rounding difference — fixed to
+   measure the data volume with a `/` fallback.
+4. **`tmux_scratch/` was documented as gitignored but wasn't** in either
+   `.gitignore` or `.git/info/exclude`. Added.
+5. **`show-hooks -g` does not list `window-layout-changed`.** With no argument it
+   omits it entirely, so the hook looks unset; `show-hooks -g <name>` shows it.
+   Nearly led to a wrong conclusion that the existing `refresh-active-bg` wiring
+   was dead. It fires — verified by instrumenting it.
+
+### What was built
+
+- **`tmux_scripts/mm-sidebar/`** — Go module: `internal/tmuxio` (single batched
+  `display-message -p` per tick; `#{@user_option}` resolves window-scoped options
+  so no `show-options` forks), `internal/theme` (five `@color-*` roles →
+  `lipgloss`), `internal/agents` (the join), `internal/nav` (4 tabs),
+  `internal/blocks` (`Block` interface + 2 docked blocks), `model.go` (layout,
+  keys, mouse, agent feed, fsnotify).
+- **`tmux-sidebar-build`** — build-on-demand, temp-path + atomic rename, ~10ms
+  no-op. **`tmux-sidebar-repin`** — width restoration. **`tmux-agent-ls`** — now
+  a thin wrapper over `mm-sidebar agents`.
+- **`tmux-sidebar-toggle`** — rewritten as the three-state focus toggle with the
+  `mkdir`+pid lock and `$TMUX_PANE` sourcing.
+- `tmux.conf`: `@color-canvas`, `prefix Tab` bind, two `[100]`-indexed hooks.
+  `tsave`: `@sidebar_pane` filter. `.git/info/exclude`: binary + `tmux_scratch/`.
+
+### Bugs found by actually running it (not static review)
+
+1. **`tmux-fzf-nav`'s display column is space-padded for a wide fzf popup.**
+   Rendered verbatim in 28 columns a row came out `float    2:conf          …`
+   with the cwd truncated away entirely. Added `squeezeSpaces`; the *ordering*
+   (float-first, creation order) is what had to stay consistent, not the padding.
+2. **Agent rows didn't align and the urgent rows lost the most data.** The four
+   state tags were 5/5/1/1 cells wide, so no two rows started their location in
+   the same column; and `[claude]` spent 8 of 28 columns on the least actionable
+   field, truncating the *location* on exactly the rows that need it. Fixed to a
+   fixed-width 2-char tag (`!P`/`!W`/`~~`/blank) with the agent suffix dropped.
+   (Asked the user rather than choosing unilaterally — three options priced out.)
+3. **Inline `resize-pane` in a resize hook is silently discarded.** The width
+   re-pin hook fired every time with the correct pane id and the sidebar still
+   ended at **1 column** after 160→100. tmux applies its own proportional layout
+   *after* the hook body returns. Fixed with `run-shell -b` into a script that
+   also sweeps *all* windows (`client-resized` only resolves formats against the
+   client's current window).
+4. **`display-message -p '#{pane_id}'` is the wrong source for "which pane am I
+   acting for"** — it resolves to the client's *active* pane. Switched the toggle
+   to `$TMUX_PANE`, the same fix `AGENTS.md` already documents for
+   `.nnn-preview-scroll`.
+
+### Verified live (in a real tmux pane, not static review)
+
+- Agent output **byte-identical** to the bash version (`diff`), all four states
+  plus a no-transcript session. **1.44s → 0.09–0.20s** cold; `MMS_TRACE=1` over
+  ~9s showed 5 resolves, only the first paying the `ps` sweep, the rest
+  **13.6–15.7ms**.
+- All 4 tabs render; tab switch, `j`/`k`, `g`/`G`, `?` overlay.
+- **`Enter` on a nested filetree directory opens a pane at that exact path**
+  (`tmux list-panes` confirmed) — the revision-2 bug, now fixed by construction.
+- Scratch → nvim → `:q` → dispatcher, with the tab preserved and dock blocks live.
+- Degradation at 3 heights; **rendered lines == `pane_height` at every size**, so
+  the off-by-one/scroll class is gone rather than worked around.
+- Wide glyphs: synthetic CJK tree, every rendered line ≤28 cells (measured in
+  cells, not chars).
+- Mouse click maps to the exact row (raw SGR injection); wheel moves the cursor.
+- Three-state toggle over 4 presses: focus alternates, **pane count stays 2**.
+  Two concurrent invocations → exactly one sidebar. `--close` clears
+  `@sidebar_pane_id`/`@sidebar_content_pane`, keeps `@sidebar_source`, focuses the
+  content pane.
+- Width holds at 28 across five resizes (100/160/90/200/120), both hook indices
+  intact.
+- `tsave` excludes the sidebar pane; a regression run on the real sessions kept
+  float-first order, 6 Claude session ids, and no field shift.
+
+### Still open
+
+- **`tmux_scripts/tmux-sidebar` (bash) retained** as the no-Go-toolchain
+  fallback. Delete when that's judged unnecessary.
+- Per-window vs. single global sidebar — unchanged, still per-window.
+- `tload` doesn't re-open sidebars (by design now — `tsave` filters them).
+- **Stash-via-`break-pane` is closed, not deferred** — the focus toggle means the
+  pane isn't killed incidentally, which was its only justification.
+- Three stale local artifacts this session could not remove (`rm` was denied by
+  the permission mode) — delete by hand:
+  - `tmux_scripts/mm-sidebar/mega-michael-sidebar` — the old-named binary. Note
+    the `.git/info/exclude` entry only covers `mm-sidebar/mm-sidebar`, so this one
+    *does* show up in `git status` until removed.
+  - `~/.config/tmux_sessions/mms_filter_test.{json,md}` and
+    `mms_regress.{json,md}` — throwaway `tsave` snapshots from testing the
+    `@sidebar_pane` filter. (`tmux_sessions/` is gitignored, so these are only
+    clutter.)

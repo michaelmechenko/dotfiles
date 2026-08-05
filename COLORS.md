@@ -8,7 +8,7 @@ Single source of truth for colors used across tmux, Ghostty, and zsh (via ohmypo
 
 | Role | Hex | Where used |
 |---|---|---|
-| `canvas` | `#100E11` | Ghostty `background`; tmux inactive pane, status bar, borders, message line, all window-status states; active pane when single-pane or zoomed; tmux `message-style`/`message-command-style` `fill=` (required on next-3.7 so the command-prompt repaints the full line — see Cross-tool notes) |
+| `canvas` | `#100E11` | Ghostty `background`; tmux inactive pane, status bar, borders, message line, all window-status states; active pane when single-pane or zoomed; tmux `message-style`/`message-command-style` `fill=` (required on next-3.7 so the command-prompt repaints the full line — see Cross-tool notes); mm-sidebar active-tab chip fg. **Exposed as the tmux user option `@color-canvas`** — added so a pane running its own TUI can read the hex instead of hardcoding it. The ~15 pre-existing inline `#100E11` literals in `tmux.conf` predate the option and could migrate to it (purely mechanical, not yet done). |
 | `surface-active` | `#16141a` | tmux active pane bg (the `refresh-active-bg` alias's 2+-pane branch), only when window has 2+ panes and is not zoomed. Active border bg stays `canvas` `#100E11`. |
 | `surface-chrome` | `#1C1C24` | nvim chrome: dropbar WinBar bg, lualine statusline/winbar bg (the whole bar — sections `b`/`c`/`x`/`y` + inactive — in the inline lualine theme; see `nvim lualine statusline`); tmux inactive pane-footer rail fg / subtle horizontal separator |
 | `surface-highlight` | `#2A2A35` | nvim `CursorLine` (override in `vague.lua`'s `on_highlights`) |
@@ -26,17 +26,17 @@ Single source of truth for colors used across tmux, Ghostty, and zsh (via ohmypo
 |---|---|---|
 | `text` | `#BEBEBE` | Ghostty `foreground`; nvim editor fg (`vague.lua` `colors.fg`) |
 | `text-ui` | `#9094A0` | nvim WinBar fg (`dropbar.lua`) — slightly dimmer than `text` for chrome/breadcrumb text |
-| `text-muted` | `#656a80` | tmux `@color-inactive` — secondary UI text (border fg, inactive footer-label/default-marker fg, status secondary text, bell-state); tmux copy-mode non-current line numbers (`copy-mode-line-number-style`, dim); nvim devicons, dropbar `DropBarIconKindDefault`, lualine inactive-buffer fg; nvim `FloatBorder` fg; Claude statusline dir/model/ctx text; Claude theme `inactive` token; moor preview overflow hints |
+| `text-muted` | `#656a80` | tmux `@color-inactive` — secondary UI text (border fg, inactive footer-label/default-marker fg, status secondary text, bell-state); tmux copy-mode non-current line numbers (`copy-mode-line-number-style`, dim); nvim devicons, dropbar `DropBarIconKindDefault`, lualine inactive-buffer fg; nvim `FloatBorder` fg; Claude statusline dir/model/ctx text; Claude theme `inactive` token; moor preview overflow hints; mm-sidebar inactive tabs, idle agents, help overlay, `(none)`/`(empty)` placeholders |
 | `text-default` | `#a9b1d6` | tmux `@color-default` — window-status text (the colored window names in the status bar). **Not referenced elsewhere.** |
 
 ### Accents
 
 | Role | Hex | Where used |
 |---|---|---|
-| `accent-primary` (rose) | `#d8647e` | tmux `@color-rose`; tmux ephemeral session indicator + zoomed border center; Ghostty ANSI 1; ohmyposh path segment; nvim lualine `replace`-mode status/location block |
-| `accent-secondary` (lavender) | `#aeaed1` | tmux `@color-ephemeral` / `@color-lavender2` / `@color-float`; tmux pane-border-active fg; Ghostty ANSI 6 + ANSI 12 (ANSI 12 override → Claude Code code-block syntax highlighting, since its dark-ansi theme has no syntax token); ohmyposh session segment; nvim lualine `normal`/`command`-mode status/location block |
-| `accent-tertiary` (dusty pink) | `#bb9dbd` | tmux `@color-dusty_pink`; Ghostty ANSI 2; ohmyposh transient prompt + git segment; nvim lualine `visual`-mode status/location block |
-| `accent-highlight` (pale lavender) | `#bebedb` | tmux `@color-lavender` / `@color-active` — current window status; tmux copy-mode current line number (`copy-mode-current-line-number-style`, bold) |
+| `accent-primary` (rose) | `#d8647e` | tmux `@color-rose`; tmux ephemeral session indicator + zoomed border center; Ghostty ANSI 1; ohmyposh path segment; nvim lualine `replace`-mode status/location block; mm-sidebar agents-glance `!P`/`!W` (awaiting-permission / waiting) |
+| `accent-secondary` (lavender) | `#aeaed1` | tmux `@color-ephemeral` / `@color-lavender2` / `@color-float`; tmux pane-border-active fg; Ghostty ANSI 6 + ANSI 12 (ANSI 12 override → Claude Code code-block syntax highlighting, since its dark-ansi theme has no syntax token); ohmyposh session segment; nvim lualine `normal`/`command`-mode status/location block; mm-sidebar active-tab chip bg, block labels (`▸ name`), cursor `▶`, directory rows |
+| `accent-tertiary` (dusty pink) | `#bb9dbd` | tmux `@color-dusty_pink`; Ghostty ANSI 2; ohmyposh transient prompt + git segment; nvim lualine `visual`-mode status/location block; mm-sidebar agents-glance `~~` (thinking) |
+| `accent-highlight` (pale lavender) | `#bebedb` | tmux `@color-lavender` / `@color-active` — current window status; tmux copy-mode current line number (`copy-mode-current-line-number-style`, bold); mm-sidebar row text + stat values |
 | `accent-info` (slate) | `#8ba9c1` | ohmyposh executiontime segment; nvim `FoldColumn` fg (`surface-fold`); Claude theme `planMode` token. **No tmux usage. No longer Ghostty ANSI 12** — that slot was remapped to `accent-secondary` lavender (`#aeaed1`). |
 | `accent-periwinkle` | `#9b9bcc` | nvim render-md inline code (`RenderMarkdownCodeInline` fg, bg cleared — fenced blocks keep their bg) + table borders (`RenderMarkdownTableHead` / `RenderMarkdownTableRow` fg; Head otherwise default-links to `@markup.heading` = blue `c.keyword`). A blue-violet between `accent-info` slate and `accent-secondary` lavender. **nvim-only.** |
 | `accent-warn` (warm sand) | `#f5cb96` | Ghostty ANSI 11. **ohmyposh uses a near-miss variant** (see below). |
@@ -139,6 +139,40 @@ pi (the coding agent TUI) uses a custom theme at `~/.config/pi-config/agent/them
 Syntax tokens (`syntax*`) map to the same accents used elsewhere for consistency: comments/punctuation → `text-muted`, keywords → `accent-secondary`, functions/bullets → `accent-periwinkle`, strings → `accent-tertiary`, numbers → `accent-amber`, types → `accent-info`.
 
 The `md*` tokens (`mdHeading`, `mdQuote`/`mdQuoteBorder`, `mdLink`, `mdCode`/`mdListBullet`, `mdHr`, `mdCodeBlockBorder`) aren't just for pi's own chat markdown rendering — `pi-config/agent/extensions/pretty`'s `read` tool renders `.md`/`.mdx` file previews through these same tokens directly (`renderMarkdownBlock()` in `pretty/src/render.ts`), bypassing Shiki entirely for markdown. Shiki has no bundled theme matching pi's own semantic themes (there is no Shiki theme literally named `vague`), so it can never render markdown in the active palette's colors — asking it to try either throws (falling back to unhighlighted text) or silently uses an unrelated bundled theme's colors (e.g. `github-dark`'s blue headings/green quotes), neither of which match this file. Non-markdown languages read via `pretty` still go through Shiki with a real bundled theme (`PRETTY_THEME` env, else `settings.json`'s `theme` if it's an actual Shiki theme name, else `github-dark`) — those syntax colors are Shiki's own palette, not `COLORS.md`'s.
+
+## mm-sidebar integration
+
+`tmux_scripts/mm-sidebar` (the `M-Tab` sidebar pane, Go/Bubble Tea) is the only
+surface here that reads the palette **at runtime from tmux itself** rather than
+duplicating hex in a theme file. `internal/theme/theme.go` resolves five
+`@color-*` user options once at startup into `lipgloss` styles:
+
+| Style | tmux option | Palette role | Used for |
+|---|---|---|---|
+| `Muted` | `@color-inactive` | text-muted | inactive tabs, idle agent rows, help overlay, `(none)`/`(empty)` |
+| `Accent` | `@color-lavender2` | accent-secondary | block labels (`▸ agents`), cursor `▶`, directory rows, active-tab chip **bg** |
+| `Text` | `@color-active` | accent-highlight | ordinary row text, stat values |
+| `Urgent` | `@color-rose` | accent-primary | `!P` awaiting-permission, `!W` waiting |
+| `Busy` | `@color-dusty_pink` | accent-tertiary | `~~` thinking |
+| (chip fg) | `@color-canvas` | canvas | active-tab chip **fg** |
+
+Two rules to preserve when touching it:
+
+- **No hex literals in the sidebar.** The values hardcoded in `theme.go` are
+  *fallbacks only*, reached when the binary runs outside a tmux server (e.g.
+  `mm-sidebar agents` from a plain shell). They duplicate `tmux.conf`'s values;
+  they must never diverge from it. A new sidebar color means a new or extended
+  role here plus a `@color-*` option, not an inline hex.
+- **The active-tab chip sets fg and bg explicitly — never reverse video.**
+  Reverse swaps in whatever the terminal treats as its default background, which
+  reads as light gray; this is the same trap that made pi's moor pager use
+  `--statusbar=plain` instead of the default `inverse` (see the nnn preview
+  section). Explicit canvas-on-accent also matches the lualine convention
+  documented below: dark canvas text on a per-mode accent block.
+
+Agent-state colors are intentionally the same three roles
+`tmux-claude-menu --colorize` uses, so the `M-b` menu and the sidebar's
+agents glance encode state identically.
 
 ## Git colors (cross-tool)
 

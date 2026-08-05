@@ -268,7 +268,8 @@ Type a query; every matching substring in the current viewport gets a single-key
 | `prefix C` | — | New session (prompt) |
 | `M-C` | root | New session (prompt) |
 | `M-s` | root | Session picker fzf popup (`tmux-session-ls`) |
-| `M-Tab` | root | Toggle left sidebar pane (`tmux-sidebar-toggle`; see tmux sidebar section) |
+| `M-Tab` | root | Three-state sidebar focus toggle (`tmux-sidebar-toggle`; see tmux sidebar section) |
+| `prefix Tab` | prefix | Same sidebar toggle, terminal-agnostic fallback for `M-Tab` |
 | `M-:` | root | Switch client to prev session (by index) |
 | `M-[` | root | Switch client to prev session |
 | `M-"` | root | Switch client to next session (by index) |
@@ -381,30 +382,46 @@ In-nnn plugin keys (`;` prefix — nnn requires it for plugins):
 | `;g` | fzrg — live ripgrep (syntax + match highlight) → open match in an nvim split in the origin window |
 | `;h` | Keybind cheatsheet popup (nnn native basics + this launch's `;`-plugin keys, read live from `$NNN_PLUG` + the M-* keys meaningful inside `;f`/`;g`). nnn's own native `?` still shows its full compiled-in help/about screen. |
 
-## tmux — sidebar (`tmux-sidebar-toggle` / `tmux-sidebar`)
+## tmux — sidebar (`tmux-sidebar-toggle` / `mm-sidebar`)
 
-> Internal plugin name: **mega-michael-sidebar**. Canonical reference:
-> `tmux_scripts/mega-michael-sidebar.md`. This section is the keybind summary;
+> Internal plugin name: **mm-sidebar**. Canonical reference:
+> `tmux_scripts/mm-sidebar.md`. This section is the keybind summary;
 > the plugin doc has the full architecture, state, and gotchas.
 
-A leftmost, full-window-height pane toggled by `M-Tab`. Runs a self-contained bash TUI dispatcher (`tmux-sidebar`) inside the pane — not fzf, not nnn. Renders a stack of blocks: a 2-line header, a flexible 4-tab **navigator** (sessions / windows / filetree / scratch), and fixed-height **docked blocks** below it (`agents_glance`, `system_stats`) that stay visible regardless of which navigator tab is active — inspired by [agent-manager](https://github.com/YoanWai/agent-manager)'s session-tree-plus-persistent-gauges layout. Window-scoped state (`@sidebar_pane_id` / `@sidebar_content_pane` / `@sidebar_source`) so each window remembers its own tab and survives re-renders. Guarded like `M-j`/`M-q`: forwards `M-Tab` raw inside any popup or the `nnn` session.
+A leftmost, full-window-height pane toggled by `M-Tab`. Runs a compiled Go/Bubble Tea TUI (`tmux_scripts/mm-sidebar`, built on demand by `tmux-sidebar-build`) inside the pane — not fzf, not nnn. Renders a stack of blocks: a 2-line header, a flexible 4-tab **navigator** (sessions / windows / filetree / scratch), and fixed-height **docked blocks** below it (`agents_glance`, `system_stats`) that stay visible regardless of which navigator tab is active — inspired by [agent-manager](https://github.com/YoanWai/agent-manager)'s session-tree-plus-persistent-gauges layout. Window-scoped state (`@sidebar_pane_id` / `@sidebar_content_pane` / `@sidebar_source`) so each window remembers its own tab.
+
+**`M-Tab` is a three-state FOCUS toggle, not open/close** — it never kills the pane:
+
+| Press | State | Result |
+| --- | --- | --- |
+| 1 | no sidebar in this window | open it (`split-window -h -f -b -l 28`, leftmost, full height) and focus it |
+| 2 | open, focus in content | focus the sidebar (and retarget it at the pane you came from) |
+| 3 | open, focus in sidebar | focus the content pane — **sidebar stays open** |
 
 | Key | Scope | Action |
 | --- | --- | --- |
-| `M-Tab` | root | Toggle sidebar (open = `split-window -h -f -b -l 28` leftmost, full window height; close = kill pane + clear options) |
+| `M-Tab` | root | Three-state sidebar focus toggle (above). Guarded like `M-j`/`M-q`: forwards raw inside any popup or the `nnn` session |
+| `prefix Tab` | prefix | Identical toggle, reachable from **any** terminal. `M-Tab` only arrives via Ghostty's `alt+tab=csi:9;3u` mapping, so this is the fallback over SSH / other emulators |
 
-**Inside the sidebar pane** (dispatcher keymap; pane must be focused; docked blocks have no keys of their own — read-only glances, not pickers):
+Closing is `q`/`Esc` inside the sidebar (or `tmux-sidebar-toggle --close`, unbound — for scripts).
+
+**Inside the sidebar pane** (pane must be focused; docked blocks have no keys of their own — read-only glances, not pickers):
 
 | Key | Action |
 | --- | --- |
 | `1` / `2` / `3` / `4` | Switch to sessions / windows / filetree / scratch tab |
 | `Tab` / `S-Tab` | Cycle tabs forward / back |
-| `j` / `↓` | Move cursor down (navigator only) |
-| `k` / `↑` | Move cursor up (navigator only) |
+| `j` / `↓` | Move cursor down (navigator only, wraps) |
+| `k` / `↑` | Move cursor up (navigator only, wraps) |
+| `g` / `G` | Jump to first / last row |
 | `Enter` | Act on the selected navigator row (tab-specific — see below) |
 | `r` | Force refetch + re-render |
 | `?` | Toggle inline help overlay |
-| `q` / `Esc` | Close the sidebar (kills pane, clears window-scoped options) |
+| `q` / `Esc` | Close the sidebar (clears `@sidebar_pane_id`/`@sidebar_content_pane`, keeps `@sidebar_source`, focuses the content pane) |
+| click | Select the clicked navigator row |
+| wheel | Move the cursor up / down |
+
+Agent-glance state tags: `!P` awaiting permission, `!W` waiting, `~~` thinking, blank = idle (color also encodes state).
 
 **Per-tab `Enter` actions + extra keys:**
 

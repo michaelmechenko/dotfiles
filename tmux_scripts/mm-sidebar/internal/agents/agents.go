@@ -117,15 +117,15 @@ func (r Row) TSV() string {
 // Not safe for concurrent use; the sidebar owns exactly one and calls Resolve
 // from a single background goroutine.
 type Resolver struct {
-	claudeSessDir string
-	claudeProjDir string
+	claudeSessDir  string
+	claudeProjDir  string
 	claudeStateDir string
-	piSessDir     string
+	piSessDir      string
 
-	panePIDsKey string         // fingerprint of the current pane->pid set
-	piByPanePID map[int]piProc // pane_pid -> resolved pi process (absent = probed, not pi)
-	cwdByPID    map[int]string // pi pid -> cwd (stable for the process lifetime)
-	ppidByPID   map[int]int    // agent pid -> ppid (stable for the process lifetime)
+	panePIDsKey string            // fingerprint of the current pane->pid set
+	piByPanePID map[int]piProc    // pane_pid -> resolved pi process (absent = probed, not pi)
+	cwdByPID    map[int]string    // pi pid -> cwd (stable for the process lifetime)
+	ppidByPID   map[int]int       // agent pid -> ppid (stable for the process lifetime)
 	transcript  map[string]string // claude sessionId -> transcript path
 }
 

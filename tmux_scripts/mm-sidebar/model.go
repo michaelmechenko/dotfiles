@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -26,6 +27,12 @@ const (
 	// navMinHeight: the navigator never shrinks below this. When it would,
 	// docked blocks are dropped from the end of the block list instead.
 	navMinHeight = 3
+	// navFractionNum/Den: the navigator region's minimum share of the
+	// post-header space (proportional split). Chosen over shrink-to-content so
+	// the navigator keeps a predictable amount of room regardless of how many
+	// rows the active tab happens to have.
+	navFractionNum = 6
+	navFractionDen = 10
 	// navTickInterval re-polls tmux state (sessions/windows/cwd) so the sidebar
 	// follows changes made elsewhere without needing input. Below ~1s the
 	// repaint cost becomes visible; above ~5s the view feels stale.
@@ -44,10 +51,14 @@ type model struct {
 	contentPane string
 
 	// Navigator.
-	tab      nav.Tab
-	rows     []nav.Row
-	sel      int
-	vpStart  int // first visible row index, for mouse-click -> row mapping
+	tab     nav.Tab
+	rows    []nav.Row
+	sel     int
+	vpStart int // first visible row index
+	// lineRow maps each rendered navigator line back to its row index (-1 for
+	// padding), rebuilt on every View. Rows are variable-height, so the mouse
+	// handler cannot derive the row from the click's Y offset arithmetically.
+	lineRow  []int
 	showHelp bool
 
 	// Filetree browse root. Only re-derived from the content pane's cwd when the
@@ -305,13 +316,13 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		if msg.Action != tea.MouseActionPress {
 			return m, nil
 		}
-		// Map the clicked screen row back to a navigator row through the current
-		// viewport offset. Clicks on the header or on a docked block are ignored
-		// -- blocks are glances and hold no cursor.
-		first := m.navFirstLine()
-		idx := m.vpStart + (msg.Y - first)
-		if msg.Y >= first && idx >= 0 && idx < len(m.rows) {
-			m.sel = idx
+		// Map the clicked screen line back to a navigator row through the mapping
+		// the last render recorded. Clicks on the header, on padding, or on a
+		// docked block are ignored -- blocks are glances and hold no cursor.
+		// Either line of a two-line row selects that row.
+		line := msg.Y - m.navFirstLine()
+		if line >= 0 && line < len(m.lineRow) && m.lineRow[line] >= 0 {
+			m.sel = m.lineRow[line]
 		}
 	}
 	return m, nil
@@ -443,6 +454,7 @@ func (m *model) View() string {
 	active, navAvail := m.layout(usable)
 	lines = append(lines, m.navLines(navAvail)...)
 	for _, b := range active {
+		lines = append(lines, m.dividerLine())
 		lines = append(lines, splitLines(b.View(m.width), b.Height())...)
 	}
 
@@ -453,26 +465,36 @@ func (m *model) View() string {
 	return joinLines(lines[:m.height])
 }
 
-// layout reserves space bottom-up: sum the active blocks' heights, give the rest
-// to the navigator. If that would push the navigator under navMinHeight, drop the
-// last block in the list (lowest priority) and recompute -- so a short pane
-// protects the primary navigator rather than squeezing everything thin.
+// layout is a proportional split: the navigator region gets at least a fixed
+// fraction of the post-header space (navFractionNum/navFractionDen), and the
+// blocks are dropped from the END of the list (lowest priority first) until they
+// fit in the rest.
+//
+// The navigator then absorbs any remaining slack, which puts the last block's
+// final row flush with the bottom of the pane and leaves the empty space as one
+// contiguous gap inside the navigator instead of splitting it between a gap
+// above the blocks and dead rows below them.
+//
+// The old behavior gave the navigator ALL the leftover space with no floor, so a
+// 3-row session list on a 45-row pane left a ~30-row void between the last row
+// and "▸ agents". The fraction is what stops that.
 func (m *model) layout(usable int) ([]blocks.Block, int) {
+	navFloor := usable * navFractionNum / navFractionDen
+	if navFloor < navMinHeight {
+		navFloor = navMinHeight
+	}
 	active := m.docked
-	for {
+	for len(active) > 0 {
 		total := 0
 		for _, b := range active {
-			total += b.Height()
+			total += b.Height() + 1 // +1: the divider row above each block
 		}
-		navAvail := usable - total
-		if navAvail >= navMinHeight || len(active) == 0 {
-			if navAvail < 1 {
-				navAvail = 1
-			}
-			return active, navAvail
+		if total <= usable-navFloor {
+			return active, usable - total
 		}
 		active = active[:len(active)-1]
 	}
+	return nil, usable
 }
 
 func (m *model) headerLines() []string {
@@ -512,48 +534,86 @@ func (m *model) helpLines() []string {
 // navLines renders a viewport-clipped window of rows that follows the cursor,
 // padded to exactly avail lines. Without the clipping, a row list longer than
 // the space it was given scrolls the pane and pushes the header out of view.
+//
+// Rows are variable-height (sessions/windows are two lines, filetree/scratch
+// one), so the viewport is scrolled in ROW units but measured in LINE units, and
+// the rendered line -> row index mapping is recorded in m.lineRow for the mouse
+// handler. Deriving the row from the click's Y offset arithmetically only worked
+// while every row was exactly one line tall.
 func (m *model) navLines(avail int) []string {
 	if avail < 1 {
 		avail = 1
 	}
+	m.lineRow = m.lineRow[:0]
 	out := make([]string, 0, avail)
-	if len(m.rows) == 0 {
-		m.vpStart = 0
-		out = append(out, clipLine(m.theme.Muted.Render("(empty)"), m.width))
+	pad := func() []string {
 		for len(out) < avail {
 			out = append(out, "")
+			m.lineRow = append(m.lineRow, -1)
 		}
 		return out
 	}
 
-	start := 0
-	if len(m.rows) > avail {
-		start = m.sel - avail/2
-		if start < 0 {
-			start = 0
-		}
-		if max := len(m.rows) - avail; start > max {
-			start = max
-		}
+	if len(m.rows) == 0 {
+		m.vpStart = 0
+		out = append(out, clipLine(m.theme.Muted.Render("(empty)"), m.width))
+		m.lineRow = append(m.lineRow, -1)
+		return pad()
 	}
-	m.vpStart = start
 
-	// 2 columns for the cursor prefix.
+	m.vpStart = m.scrollTo(avail)
+
+	// 2 columns for the cursor prefix; continuation lines are indented under it.
 	rowWidth := m.width - 2
 	if rowWidth < 1 {
 		rowWidth = 1
 	}
-	for i := start; i < len(m.rows) && len(out) < avail; i++ {
-		prefix := "  "
-		if i == m.sel {
-			prefix = m.theme.Accent.Render("▶") + " "
+	for i := m.vpStart; i < len(m.rows) && len(out) < avail; i++ {
+		for j, line := range m.rows[i].Lines {
+			if len(out) >= avail {
+				break
+			}
+			prefix := "  "
+			if j == 0 && i == m.sel {
+				prefix = m.theme.Accent.Render("▶") + " "
+			}
+			out = append(out, prefix+clipLine(line, rowWidth))
+			m.lineRow = append(m.lineRow, i)
 		}
-		out = append(out, prefix+clipLine(m.rows[i].Display, rowWidth))
 	}
-	for len(out) < avail {
-		out = append(out, "")
+	return pad()
+}
+
+// scrollTo returns the first row index to render so that the selected row is
+// fully visible within avail lines, scrolling by the minimum needed. Anchoring
+// the selection mid-viewport (the old behavior) doesn't generalize to
+// variable-height rows without the view jumping on every move.
+func (m *model) scrollTo(avail int) int {
+	total := 0
+	for _, r := range m.rows {
+		total += len(r.Lines)
 	}
-	return out
+	if total <= avail {
+		return 0
+	}
+	start := m.vpStart
+	if start > m.sel {
+		start = m.sel
+	}
+	if start < 0 {
+		start = 0
+	}
+	for start < m.sel {
+		used := 0
+		for i := start; i <= m.sel; i++ {
+			used += len(m.rows[i].Lines)
+		}
+		if used <= avail {
+			break
+		}
+		start++
+	}
+	return start
 }
 
 // ---- agent feed -----------------------------------------------------------
@@ -637,6 +697,12 @@ func (f *agentFeed) watchCmd(dirs []string) tea.Cmd {
 		}()
 		return nil
 	}
+}
+
+// dividerLine renders one full-width horizontal rule in the divider-subtle role,
+// separating the navigator from each docked block.
+func (m *model) dividerLine() string {
+	return m.theme.Divider.Render(strings.Repeat("─", m.width))
 }
 
 // ---- small helpers --------------------------------------------------------

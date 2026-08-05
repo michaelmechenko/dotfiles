@@ -22,6 +22,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"mm-sidebar/internal/theme"
 	"mm-sidebar/internal/tmuxio"
 )
@@ -41,7 +43,7 @@ const (
 var Tabs = []Tab{TabSessions, TabWindows, TabFiletree, TabScratch}
 
 // Short is the tab-strip label. Kept to 3-4 chars because the whole sidebar is
-// 28 columns and the full names wrapped.
+// 36 columns and the full names wrapped.
 func (t Tab) Short() string {
 	switch t {
 	case TabSessions:
@@ -98,32 +100,54 @@ const (
 	ActionEditFile
 )
 
-// Row is one navigator line: pre-styled display text plus its action payload.
+// Row is one navigator entry: one or more pre-styled display lines plus its
+// action payload.
+//
+// Lines is a slice, not a single string, because sessions and windows render as
+// two lines (identity on the first, cwd on the second). Four columns of
+// tmux-fzf-nav's popup-width display simply do not fit a 36-column pane on one
+// line -- squeezing the padding fixed the alignment but not the
+// over-subscription, and the cwd (the most useful field for telling two
+// same-named sessions apart) was the thing that truncated away. Filetree and
+// scratch rows stay single-line; the render loop handles both uniformly.
 type Row struct {
-	Display string
-	Kind    ActionKind
-	PaneID  string // ActionFocusPane
-	Target  string // ActionFocusPane
-	Path    string // ActionOpenDir / ActionOpenFile / ActionEditFile
+	Lines  []string
+	Kind   ActionKind
+	PaneID string // ActionFocusPane
+	Target string // ActionFocusPane
+	Path   string // ActionOpenDir / ActionOpenFile / ActionEditFile
 }
 
-// FetchSessions and FetchWindows shell out to tmux-fzf-nav's list modes, whose
-// output is "pane<TAB>target<TAB>display" with one header line.
+// FetchSessions and FetchWindows shell out to tmux-fzf-nav's list modes.
 //
 // Reusing the script is what keeps the sidebar's session order identical to the
 // M-w / M-s pickers (float first, then creation order -- a repo-wide invariant).
-// Its *display* column, though, is space-padded to align columns in a wide fzf
-// popup, and in a 28-column sidebar that padding eats the whole line: a row
-// rendered verbatim came out as "float    2:conf          …" with the cwd
-// truncated away entirely. squeezeSpaces collapses the padding so the same
-// content fits; the ordering, which is the part that must stay consistent, is
-// untouched.
-func FetchSessions(th theme.Theme) []Row { return fetchFzfNav(th, "--list-sessions") }
+// Its field-3 *display* column, though, is space-padded to align columns in a
+// wide fzf popup and does not fit here, so the sidebar reads the UNPADDED
+// fields 4+ that the same script also emits (added for exactly this) and
+// formats its own two-line rows. Fields 1-3 are untouched, so the fzf pickers
+// are unaffected.
+//
+// Sessions field layout: pane, target, display, sname, windows, attached, cwd,
+// current. Windows: pane, target, display, win:name, cmd, cwd, active.
+func FetchSessions(th theme.Theme) []Row {
+	return fetchFzfNav(th, "--list-sessions", sessionRow)
+}
 
 // FetchWindows lists the current session's panes.
-func FetchWindows(th theme.Theme) []Row { return fetchFzfNav(th, "--list-windows") }
+func FetchWindows(th theme.Theme) []Row {
+	return fetchFzfNav(th, "--list-windows", windowRow)
+}
 
-func fetchFzfNav(th theme.Theme, mode string) []Row {
+// Column widths for the two-line rows' first line. Fixed rather than derived
+// from the pane width so a row can be built without knowing it; the model clips
+// to the real width on render.
+const (
+	nameCol = 14 // session name / window index:name
+	metaCol = 4  // "12w" window count
+)
+
+func fetchFzfNav(th theme.Theme, mode string, build func(theme.Theme, []string) ([]string, bool)) []Row {
 	out, err := exec.Command(fzfNavPath(), mode).Output()
 	if err != nil {
 		return nil
@@ -134,23 +158,97 @@ func fetchFzfNav(th theme.Theme, mode string) []Row {
 	}
 	rows := make([]Row, 0, len(lines)-1)
 	for _, line := range lines[1:] { // drop the header row
-		f := strings.SplitN(line, "\t", 3)
+		f := strings.Split(line, "\t")
 		if len(f) < 3 || f[0] == "" {
 			continue
 		}
+		display, ok := build(th, f)
+		if !ok {
+			// The script predates the unpadded fields: fall back to the padded
+			// display column with its runs of spaces collapsed.
+			display = []string{th.Text.Render(squeezeSpaces(f[2]))}
+		}
 		rows = append(rows, Row{
-			Display: th.Text.Render(squeezeSpaces(f[2])),
-			Kind:    ActionFocusPane,
-			PaneID:  f[0],
-			Target:  f[1],
+			Lines:  display,
+			Kind:   ActionFocusPane,
+			PaneID: f[0],
+			Target: f[1],
 		})
 	}
 	return rows
 }
 
+// sessionRow: "<name padded> <Nw> <●>" over "  <cwd>". The attached dot and the
+// window count are session-level facts the old display column had no room for.
+func sessionRow(th theme.Theme, f []string) ([]string, bool) {
+	if len(f) < 8 {
+		return nil, false
+	}
+	name, windows, attached, cwd, current := f[3], f[4], f[5], f[6], f[7]
+
+	dot := " "
+	if attached == "1" {
+		dot = "●"
+	}
+	nameStyle := th.Text
+	if current == "1" {
+		nameStyle = th.Accent // the session this sidebar lives in
+	}
+	first := nameStyle.Render(padTo(name, nameCol)) + " " +
+		th.Muted.Render(padTo(windows+"w", metaCol)) + " " +
+		th.Accent.Render(dot)
+	return []string{first, "  " + th.Muted.Render(truncLeft(cwd, cwdCol))}, true
+}
+
+// windowRow: "<index:name padded> <cmd>" over "  <cwd>".
+func windowRow(th theme.Theme, f []string) ([]string, bool) {
+	if len(f) < 7 {
+		return nil, false
+	}
+	wname, cmd, cwd, active := f[3], f[4], f[5], f[6]
+
+	nameStyle := th.Text
+	if active == "1" {
+		nameStyle = th.Accent // the active pane of its window
+	}
+	first := nameStyle.Render(padTo(wname, nameCol)) + " " + th.Muted.Render(cmd)
+	return []string{first, "  " + th.Muted.Render(truncLeft(cwd, cwdCol))}, true
+}
+
+// padTo pads (or truncates) to exactly w display cells, counting wide glyphs as
+// the cells they occupy.
+func padTo(s string, w int) string {
+	if n := ansi.StringWidth(s); n < w {
+		return s + strings.Repeat(" ", w-n)
+	}
+	return ansi.Truncate(s, w, "…")
+}
+
+// cwdCol is the cells a cwd line has after the 2-cell cursor gutter and its own
+// 2-space indent, at the default 36-column width.
+const cwdCol = 32
+
+// truncLeft keeps the TAIL of a path, dropping leading components. A path is
+// most identifying at its end -- right-truncating
+// "~/.config/tmux_scripts/mm-sidebar" to 32 cells yields
+// "~/.config/tmux_scripts/mm-sideb…", which is exactly the part that doesn't
+// distinguish it from its siblings.
+func truncLeft(s string, w int) string {
+	if ansi.StringWidth(s) <= w {
+		return s
+	}
+	r := []rune(s)
+	for i := 1; i <= len(r); i++ {
+		if cand := "…" + string(r[i:]); ansi.StringWidth(cand) <= w {
+			return cand
+		}
+	}
+	return s
+}
+
 // squeezeSpaces collapses runs of two or more spaces into one and trims the
-// result -- undoing tmux-fzf-nav's column padding for a narrow pane without
-// touching the content or the row order.
+// result -- undoing tmux-fzf-nav's column padding. Only reached by the
+// compatibility fallback above now that the script emits unpadded fields.
 func squeezeSpaces(s string) string {
 	var b strings.Builder
 	b.Grow(len(s))
@@ -198,17 +296,17 @@ func FetchFiletree(th theme.Theme, root string) []Row {
 
 func dirRow(th theme.Theme, path string, depth int) Row {
 	return Row{
-		Display: indent(depth) + th.Accent.Render(filepath.Base(path)+"/"),
-		Kind:    ActionOpenDir,
-		Path:    path,
+		Lines: []string{indent(depth) + th.Accent.Render(filepath.Base(path)+"/")},
+		Kind:  ActionOpenDir,
+		Path:  path,
 	}
 }
 
 func fileRow(th theme.Theme, path string, depth int) Row {
 	return Row{
-		Display: indent(depth) + th.Text.Render(filepath.Base(path)),
-		Kind:    ActionOpenFile,
-		Path:    path,
+		Lines: []string{indent(depth) + th.Text.Render(filepath.Base(path))},
+		Kind:  ActionOpenFile,
+		Path:  path,
 	}
 }
 
@@ -262,9 +360,9 @@ func FetchScratch(th theme.Theme, cwd string) []Row {
 	rows := make([]Row, 0, len(entries))
 	for _, e := range entries {
 		rows = append(rows, Row{
-			Display: th.Accent.Render(e.label) + "  " + th.Muted.Render(scratchSize(e.path)),
-			Kind:    ActionEditFile,
-			Path:    e.path,
+			Lines: []string{th.Accent.Render(e.label) + "  " + th.Muted.Render(scratchSize(e.path))},
+			Kind:  ActionEditFile,
+			Path:  e.path,
 		})
 	}
 	return rows

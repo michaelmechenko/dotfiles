@@ -123,9 +123,10 @@ list_windows() {
       }
       BEGIN {
         OFS = "\t"
-        print "PANE", "TARGET", sprintf("%-14s %-10s %s", "WINDOW", "CMD", "CWD")
+        print "PANE", "TARGET", sprintf("%-14s %-10s %s", "WINDOW", "CMD", "CWD"), "WNAME", "CMD", "CWD", "ACTIVE"
       }
       $3 == current_id {
+        active = $1
         pane = $2
         sid = $3
         win = $5
@@ -137,7 +138,11 @@ list_windows() {
         if (wname == "") wname = "-"
         sub("^" home, "~", cwd)
 
-        print pane, sid ":" win, sprintf("%-14s %-10s %s", trunc(wname, 14), trunc(cmd, 10), cwd)
+        # Fields 1-3 are the contract every consumer already relies on (fzf shows
+        # only field 3; the pickers cut fields 1-2). Fields 4+ are the same data
+        # UNPADDED, added for mm-sidebar, which reformats rows for a 36-column
+        # pane and cannot use the popup-width column padding.
+        print pane, sid ":" win, sprintf("%-14s %-10s %s", trunc(wname, 14), trunc(cmd, 10), cwd), win ":" wname, cmd, cwd, active
       }'
 }
 
@@ -155,7 +160,7 @@ list_sessions() {
     }
     BEGIN {
       OFS = "\t"
-      print "PANE", "TARGET", sprintf("%-8s %-16s %-10s %s", "SESSION", "ACTIVE", "CMD", "CWD")
+      print "PANE", "TARGET", sprintf("%-8s %-16s %-10s %s", "SESSION", "ACTIVE", "CMD", "CWD"), "SNAME", "WINDOWS", "ATTACHED", "CWD", "CURRENT"
     }
     $1 == "S" {
       sid = $2
@@ -239,7 +244,11 @@ list_sessions() {
 
       display = sprintf("%-8s %-16s %-10s %s", trunc(sess, 8), trunc(win ":" wname, 16), trunc(cmd, 10), cwd)
 
-      print pane, sid ":" win, display
+      # Fields 1-3 are the contract every consumer already relies on (fzf shows
+      # only field 3; the pickers cut fields 1-2). Fields 4+ carry the same data
+      # UNPADDED plus the session-level facts the display column has no room for
+      # (window count, attached), added for the narrow two-line mm-sidebar rows.
+      print pane, sid ":" win, display, session_name[sid], session_windows[sid], session_attached[sid], cwd, (marker == "*" ? 1 : 0)
     }
     END {
       for (i = 1; i <= float_count; i++) {

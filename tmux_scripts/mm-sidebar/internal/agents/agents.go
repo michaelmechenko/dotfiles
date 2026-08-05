@@ -43,6 +43,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"mm-sidebar/internal/tmuxio"
@@ -124,10 +125,16 @@ type Resolver struct {
 
 	panePIDsKey string            // fingerprint of the current pane->pid set
 	piByPanePID map[int]piProc    // pane_pid -> resolved pi process (absent = probed, not pi)
+	probedCmd   map[int]string    // pane_pid -> pane_current_command as of the last sweep
 	cwdByPID    map[int]string    // pi pid -> cwd (stable for the process lifetime)
 	ppidByPID   map[int]int       // agent pid -> ppid (stable for the process lifetime)
 	transcript  map[string]string // claude sessionId -> transcript path
 }
+
+// nodeComm is what pi's process reports on releases that don't set their own
+// process name (it is a Node CLI), which is also why a pi pane's tmux window
+// auto-names itself `node`.
+const nodeComm = "node"
 
 type piProc struct {
 	pid  int
@@ -147,6 +154,7 @@ func NewResolver() *Resolver {
 		claudeStateDir: "/tmp/claude-session-state",
 		piSessDir:      filepath.Join(cfg, "pi-config", "agent", "sessions"),
 		piByPanePID:    map[int]piProc{},
+		probedCmd:      map[int]string{},
 		cwdByPID:       map[int]string{},
 		ppidByPID:      map[int]int{},
 		transcript:     map[string]string{},
@@ -195,8 +203,8 @@ func (r *Resolver) Resolve() ([]Row, error) {
 	trace("claude-sessions", t)
 
 	// Decide whether the process table is needed this round. It is the single
-	// priciest call here (~90ms), so it only runs on an actual structural
-	// change: a different pane set, an agent pid whose ppid isn't cached yet.
+	// priciest call here (~90ms, and 260ms on a loaded machine), so it only runs
+	// on an actual structural change.
 	key := panePIDsKey(panes)
 	needPS := key != r.panePIDsKey
 	for _, s := range claudeSessions {
@@ -204,6 +212,9 @@ func (r *Resolver) Resolve() ([]Row, error) {
 			needPS = true
 			break
 		}
+	}
+	if !needPS {
+		needPS = r.piSetChanged(panes)
 	}
 	if needPS {
 		t = time.Now()
@@ -221,6 +232,47 @@ func (r *Resolver) Resolve() ([]Row, error) {
 	rows = append(rows, r.claudeRows(claudeSessions, byPanePID)...)
 	rows = append(rows, r.piRows(panes)...)
 	return rows, nil
+}
+
+// piSetChanged reports whether the set of pi processes may have changed without
+// the pane set changing -- the one structural event panePIDsKey cannot see.
+//
+// A pane's pane_pid is its SHELL's pid, so launching pi inside an already-open
+// pane changes no pane pid, and pi (unlike Claude) writes no session file whose
+// uncached ppid would force the sweep. The result was that a pi session started
+// in an existing pane never appeared at all until some unrelated pane happened
+// to open or close, and a quit pi left its row up just as long.
+//
+// Both directions are detected without a fork:
+//
+//   - APPEARED: a pane whose foreground command could be pi (`pi`, or `node`
+//     since pi is a Node CLI whose comm is node on releases that don't set their
+//     process name -- the same fact piState documents) that isn't already a known
+//     pi pane and whose command has CHANGED since the last sweep probed it.
+//     Both extra conditions are load-bearing: without the pi-ish test, every
+//     command run in any pane in any session would force a ps sweep; without the
+//     changed-since-probed test, a pane running plain node (not pi) would force
+//     one every single tick forever, which is worse than the bug being fixed.
+//   - GONE: a cached pi pid that no longer exists. kill(pid, 0) is a syscall,
+//     not a process, so probing every known pi pane costs nothing measurable.
+func (r *Resolver) piSetChanged(panes []tmuxio.PaneRow) bool {
+	for _, p := range panes {
+		if _, known := r.piByPanePID[p.PanePID]; known {
+			continue
+		}
+		if p.Command != AgentPi && p.Command != nodeComm {
+			continue
+		}
+		if r.probedCmd[p.PanePID] != p.Command {
+			return true
+		}
+	}
+	for _, proc := range r.piByPanePID {
+		if syscall.Kill(proc.pid, 0) != nil {
+			return true
+		}
+	}
+	return false
 }
 
 // ---- Claude ---------------------------------------------------------------
@@ -462,6 +514,15 @@ func (r *Resolver) refreshProcessTable(panes []tmuxio.PaneRow, sessions []claude
 		nextPi[p.ppid] = piProc{pid: pid, comm: p.comm}
 	}
 	r.piByPanePID = nextPi
+
+	// Record what each pane's foreground command was when this sweep probed it, so
+	// piSetChanged can tell "a pane just became pi-ish" from "a pane has been
+	// running plain node all along". Rebuilt (not merged) so dead panes drop out.
+	probed := make(map[int]string, len(panes))
+	for _, p := range panes {
+		probed[p.PanePID] = p.Command
+	}
+	r.probedCmd = probed
 
 	r.refreshPiCwds()
 }

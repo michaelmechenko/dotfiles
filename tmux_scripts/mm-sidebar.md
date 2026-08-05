@@ -564,11 +564,33 @@ fetch/paint split fixed lag *between* polls; it never decoupled the poll.
 | transcripts | 0 forks — cached |
 | **total** | **~14ms** |
 
-`ps -eww -o pid=,ppid=,args=` (1 fork, ~65ms) and the batched
-`lsof -a -d cwd -Fn -p <csv>` (1 fork) run **only** when the pane-set fingerprint
-changes or an agent identity isn't cached — i.e. when a pane or agent actually
-appears or disappears. pi processes don't chdir, so pid→cwd is cached for the
-process lifetime; pid→ppid likewise.
+`ps -eww -o pid=,ppid=,args=` (1 fork, ~65ms — 260ms measured on a loaded machine)
+and the batched `lsof -a -d cwd -Fn -p <csv>` (1 fork) run **only** when the
+pane-set fingerprint changes or an agent identity isn't cached — i.e. when a pane
+or agent actually appears or disappears. pi processes don't chdir, so pid→cwd is
+cached for the process lifetime; pid→ppid likewise.
+
+**A pane's `pane_pid` is its shell's, which is why pi needs a third trigger
+(`piSetChanged`).** Launching pi inside an already-open pane changes no pane pid,
+and pi — unlike Claude — writes no session file whose uncached ppid would force the
+sweep. Through revision 4 a pi session started that way therefore **never appeared
+at all** until some unrelated pane happened to open or close, and a quit pi left its
+row up just as long. Both directions are now caught without a fork:
+
+- **appeared** — a pane whose `pane_current_command` could be pi (`pi`, or `node`,
+  since pi is a Node CLI whose `comm` is `node` on releases that don't set their
+  process name) that isn't already a known pi pane **and whose command changed
+  since the last sweep probed it** (`probedCmd`). Both extra conditions are
+  load-bearing: without the pi-ish test, every command run in any pane in any
+  session forces a `ps` sweep; without the changed-since-probed test, a pane running
+  plain `node` forces one on every single tick forever — worse than the bug.
+- **gone** — a cached pi pid failing `kill(pid, 0)`, a syscall rather than a
+  process, so probing every known pi pane costs nothing measurable.
+
+Verified live with a fake pi (real `node` running a path containing
+`/pi-coding-agent/dist/cli.js`, launched as a child of an existing pane's shell):
+the row appears one tick after launch and disappears one tick after `C-c`, each
+costing **exactly one** extra `ps` sweep with no thrash on the ticks between.
 
 Measured with `MMS_TRACE=1` over ~9s: 5 resolves, **1** paid the `ps` sweep
 (104ms cold), the other 4 were 13.6–15.7ms. Output is byte-identical to the shell

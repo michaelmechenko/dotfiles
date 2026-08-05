@@ -26,28 +26,40 @@ window-list with appended widgets rather than switchable sources.
 ## Layout
 
 ```
-┌────────────────────────────┐
-│ 1sess 2win 3tree 4scr      │  header: tab strip (active chip = canvas on lavender)
-│ ▸ sessions                 │  header: active-tab subtitle
-│ ▶ float 2:conf 2_1_220 ~/… │  navigator — flexible, owns the cursor and Enter
-│   m* 5:seed-bank 2_1_220 … │
-│   misc 1:overnight-loop  … │
-│                            │
-│ ▸ agents                   │  docked block — read-only glance
-│   !P r-notes · m*          │
-│   !W n8n-salesforce · m*   │
-│   ~~ conf · float          │
-│      nvim · m*             │
-│   +1 more                  │
-│ ▸ system                   │  docked block — read-only glance
-│ cpu 54%  mem 84%           │
-│ disk 48%  batt 61%         │
-└────────────────────────────┘
+┌────────────────────────────────────┐
+│ 1sess 2win 3tree 4scr              │  header: tab strip (active chip = canvas on lavender)
+│ ▸ sessions                         │  header: active-tab subtitle
+│ ▶ float          2w   ●            │  navigator — flexible, owns the cursor and Enter
+│     ~/.config                      │  two-line rows: identity, then cwd
+│   m*             6w                │
+│     ~/_main/product-enablement      │
+│   misc           1w                │
+│     ~/_main/tulip                  │
+│                                    │  slack collects here, as one gap
+│ ────────────────────────────────── │  divider (divider-subtle)
+│ ▸ agents                           │  docked block — read-only glance
+│   !P r-notes · m*                  │
+│   !W n8n-salesforce · m*           │
+│   ~~ conf · float                  │
+│      nvim · m*                     │
+│   +1 more                          │
+│ ────────────────────────────────── │
+│ ▸ system                           │  docked block — read-only glance
+│ cpu  ▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░ 58%      │
+│ mem  ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░ 83%      │
+│ disk ▓▓▓▓▓▓▓▓▓░░░░░░░░░░░ 48%      │
+│ batt ▓░░░░░░░░░░░░░░░░░░░ 5%       │
+└────────────────────────────────────┘
 ```
 
+The pane is **36 columns** wide (`TMUX_SIDEBAR_WIDTH`, default in
+`tmux-sidebar-toggle` and `tmux-sidebar-repin` — change both together). It was 28
+through revision 3; the density pass widened it.
+
 `View()` emits **exactly `pane_height` lines**, every frame, at every size.
-Verified live at three heights (all blocks fit / `system_stats` dropped / both
-dropped) with `capture-pane | wc -l` matching `#{pane_height}` each time.
+Verified live at four heights (all blocks fit / `system_stats` dropped / both
+dropped / two-line rows clipped to a viewport) with `capture-pane | wc -l`
+matching `#{pane_height}` each time.
 
 ## Components
 
@@ -161,7 +173,7 @@ states, not a second behavior.
 ### Width re-pinning (and why the obvious version doesn't work)
 
 tmux scales panes **proportionally** on client/window resize, so a Ghostty resize
-or a monitor attach drifts the 28-col sidebar. Measured: shrinking a window from
+or a monitor attach drifts the 36-col sidebar. Measured: shrinking a window from
 160 to 100 columns collapsed the sidebar to **1 column**.
 
 `client-resized[100]` and `window-layout-changed[100]` both call
@@ -211,18 +223,36 @@ hand-written case statement in three separate dispatch functions, because macOS'
 `/bin/bash` 3.2 has neither associative arrays nor namerefs to look up
 `fetch_$id`. An interface makes that workaround moot.)
 
-Each block reuses the header's `▸ <name>` subtitle idiom as its own label row, so
-blocks are visually delimited without spending a row on a blank divider.
+Each block carries a full-width `─` divider row above it (`divider-subtle`) plus
+the header's `▸ <name>` subtitle idiom as its own label row. The label alone was
+doing the divider's job through revision 3, which made header / navigator /
+agents / system read as one undifferentiated column.
 
 ### Layout + degradation
 
+A **proportional split**, not shrink-to-content and not bottom-pinned:
+
 1. `usable = pane_height - header_lines` (2, or 8 with the help overlay open).
-2. Sum every active block's `Height()`. If `usable - dock_total >= navMinHeight`
-   (3), that's final.
-3. Otherwise drop the **last** block in the slice — lowest degradation priority,
-   `system_stats` before `agents_glance` — and recompute. Repeat until the
-   navigator fits or no blocks remain.
-4. The navigator gets what's left, viewport-clipped around the cursor.
+2. `navFloor = usable * 6/10`, at least `navMinHeight` (3). This is the
+   navigator's guaranteed minimum share.
+3. Sum every active block's `Height() + 1` (the `+1` is its divider row). If that
+   exceeds `usable - navFloor`, drop the **last** block in the slice — lowest
+   degradation priority, `system_stats` before `agents_glance` — and recompute.
+   Repeat until they fit or no blocks remain.
+4. The navigator gets **all** the remaining space, i.e. `usable - dock_total`.
+   That puts the last block's final row flush with the bottom of the pane and
+   leaves the empty space as one contiguous gap inside the navigator, rather than
+   splitting it between a gap above the blocks and dead rows below them.
+
+Step 2 is the fix for revision 3's dominant visual defect: the navigator got
+*all* leftover space with no floor and no ceiling, so a 3-row session list on a
+45-row pane left a ~30-row void between the last row and `▸ agents`.
+
+Rows are **variable-height** (sessions/windows are two lines, filetree/scratch
+one), so the viewport scrolls in whole-row units while being measured in lines,
+and `navLines` records a rendered-line → row-index table (`m.lineRow`) for the
+mouse handler. Deriving the row from the click's `Y` offset arithmetically only
+worked while every row was exactly one line tall.
 
 ### Docked block: `agents_glance`
 
@@ -242,7 +272,8 @@ Row format: `<2-char state tag> <window · session>`.
 | `~~` | thinking | `accent-tertiary` dusty pink |
 | (blank) | idle | `text-muted` |
 
-Two deliberate choices, both forced by the 28-column budget:
+Two deliberate choices, both forced by the narrow column budget (28 at the time;
+the reasoning still holds at 36):
 
 - **The tag column is fixed width.** The words it replaced (`!perm`, `!wait`,
   `…`, a bare space) were 5, 5, 1 and 1 cells wide, so no two rows started their
@@ -272,6 +303,16 @@ measured on this machine `/` reports **5%** while the data volume reports
 **48%**. The bash version used `df -H /` and therefore showed 5%, which is not a
 rounding difference from the truth. Falls back to `/` if the path is absent.
 
+Each metric renders as a **20-cell block bar** — `▓` fill in `accent-secondary`
+(or `accent-primary` rose when hot: cpu/mem/disk ≥ 85%, battery ≤ 20%), `░` track
+in `divider-subtle`, then the numeric percent. This is the gauge half of
+agent-manager's "computer" panel that revision 3 rendered as bare text. Bar width
+is a fixed constant rather than width-reactive; `clip` handles a narrower pane.
+
+**A nonzero reading floors at one filled cell.** At 20 cells anything under 5%
+divides to an all-track bar indistinguishable from 0% — and it would also drop
+the hot/low color entirely, which is exactly backwards for a 4% battery.
+
 ## Navigator tabs
 
 | Tab | Data source | `Enter` action | Extra keys |
@@ -286,11 +327,44 @@ rounding difference from the truth. Falls back to `/` if the path is absent.
 Reusing `tmux-fzf-nav` is what keeps the sidebar's session order identical to the
 `M-w`/`M-s` pickers: **float first, then creation order**, a repo-wide invariant.
 
-Its *display* column, though, is space-padded to align columns in a wide fzf
-popup, and in 28 columns that padding eats the line — a row rendered verbatim
-came out as `float    2:conf          …` with the cwd truncated away entirely.
-`squeezeSpaces` collapses runs of 2+ spaces. The **ordering**, which is the part
-that must stay consistent, is untouched.
+Rows render as **two lines**: identity on the first, cwd on the second.
+
+```
+▶ float          2w   ●        session name (accent when it's this session),
+    ~/.config                  window count, ● when attached; cwd below
+
+▶ 2:conf         nvim          window index:name, foreground command
+    ~/.config                  cwd below
+```
+
+Four columns never fit one narrow line. `tmux-fzf-nav`'s field-3 *display* column
+is space-padded to align columns in a wide fzf popup; through revision 3 the
+sidebar rendered it verbatim and got `float    2:conf          …` with the cwd
+truncated away entirely. `squeezeSpaces` fixed the *padding* but not the
+over-subscription — the cwd, which is what distinguishes two same-named sessions,
+was still the field that lost.
+
+So **`tmux-fzf-nav` now also emits the same data unpadded, as fields 4+**, and the
+sidebar formats its own rows from those:
+
+| Mode | Fields 4+ |
+| --- | --- |
+| `--list-sessions` | `sname`, `windows`, `attached`, `cwd`, `current` |
+| `--list-windows` | `win:name`, `cmd`, `cwd`, `active` |
+
+Fields 1–3 are unchanged, which is why the fzf pickers are unaffected: they show
+only field 3 (`--with-nth=3`) and `cut` fields 1–2. `squeezeSpaces` survives as
+the fallback for a script that predates the extra fields. The **ordering** — the
+part that must stay consistent across every surface in this repo — is untouched;
+that is still entirely the script's.
+
+> Watch the quoting when editing those awk programs: they are single-quoted shell
+> strings, so an apostrophe in an awk comment terminates the program and bash
+> reports a syntax error on a line you didn't touch.
+
+cwd lines **truncate from the left** (`…config/tmux_scripts/mm-sidebar`), keeping
+the tail. A path is most identifying at its end; right-truncation cuts off exactly
+the part that distinguishes it from its siblings.
 
 ### filetree
 
@@ -426,7 +500,7 @@ entirely off the input path.
 ## Colors
 
 See `COLORS.md`'s "mm-sidebar integration" section for the full table. The rule:
-**no hex literals in the sidebar.** `internal/theme` resolves five `@color-*`
+**no hex literals in the sidebar.** `internal/theme` resolves six `@color-*`
 tmux options at startup; the hexes in that file are *fallbacks only*, for when
 the binary runs outside a tmux server (`mm-sidebar agents` from a plain shell).
 
@@ -436,6 +510,11 @@ default background, which reads as light gray. Same trap that made pi's moor
 pager use `--statusbar=plain` instead of the default `inverse`. Explicit
 canvas-on-accent also matches the documented lualine convention. `@color-canvas`
 was added to `tmux.conf` for this.
+
+`@color-divider` (`divider-subtle`, already defined in `tmux.conf`) is the sixth
+option, added by the density pass for the block dividers and the unfilled gauge
+track — both are background-weight surfaces, not text, so neither could reuse
+`text-muted` without competing with the content in front of them.
 
 ## Keymap (sidebar pane focused)
 
@@ -491,9 +570,9 @@ this is current guidance**:
   reserving a headroom row. Bubble Tea's renderer diffs frames and needs no
   headroom.
 - **`trunc` measured characters, not display cells** (`${#plain}` on an
-  ANSI-stripped copy), so nerd-font and CJK glyphs overflowed the 28-col frame
-  and color was lost past the cut. Now `ansi.StringWidth`/`ansi.Truncate`;
-  verified with a synthetic CJK tree that every rendered line stays ≤28 cells.
+  ANSI-stripped copy), so nerd-font and CJK glyphs overflowed the frame and color
+  was lost past the cut. Now `ansi.StringWidth`/`ansi.Truncate`; verified with a
+  synthetic CJK tree that every rendered line stays within the pane width.
 - **Fork storms in the fetch path.** `fg()` was a command substitution wrapping
   another command substitution, so every colored token cost 2 forks, plus a
   `basename` fork per filetree row — a ~200-row filetree was ~800 forks, re-run

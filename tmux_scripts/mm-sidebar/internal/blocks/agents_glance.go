@@ -9,6 +9,7 @@ import (
 
 	"mm-sidebar/internal/agents"
 	"mm-sidebar/internal/theme"
+	"mm-sidebar/internal/tmuxio"
 )
 
 // AgentsGlanceMax is the default cap on visible agent rows before the rest
@@ -149,6 +150,32 @@ func (b *AgentsGlance) View(width int) string {
 		lines = append(lines, b.theme.Muted.Render("  +"+strconv.Itoa(more)+" more"))
 	}
 	return join(lines, width)
+}
+
+// OnClick implements Clickable: a click on an agent row switches to that agent's
+// pane. Line 0 is the "▸ agents" label and the trailing "+N more" counter is
+// inert, as is the "(none)" placeholder -- View's line order is
+// label, rows[0..n), then the optional counter, so block-local line i+1 is
+// rows[i].
+//
+// The tmux calls fork and block, so they are returned inside a Cmd and run off
+// the input path, mirroring the model's own act().
+//
+// agents.Row already carries both fields FocusPane wants: PaneID is "%161" and
+// Target is the human-facing "sess:2.1", which switch-client resolves -- so an
+// agent in a DIFFERENT session switches the client correctly with no extra
+// plumbing.
+func (b *AgentsGlance) OnClick(line int) tea.Cmd {
+	n, _ := b.shown()
+	i := line - 1
+	if i < 0 || i >= n {
+		return nil
+	}
+	row := b.rows[i]
+	return func() tea.Msg {
+		tmuxio.FocusPane(row.PaneID, row.Target)
+		return nil
+	}
 }
 
 // stateTagWidth keeps every row's location starting in the same column so the

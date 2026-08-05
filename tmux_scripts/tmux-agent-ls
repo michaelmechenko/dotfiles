@@ -1,64 +1,48 @@
 #!/usr/bin/env bash
 # tmux-agent-ls -- emit one TSV row per live AI-agent pane (Claude Code + pi),
-# schema-compatible so the sidebar agents tab and M-b menu can consume both
-# from one stream.
+# schema-compatible so the mm-sidebar agents glance and the M-b menu can consume
+# both from one stream.
 #
 # 9 fields:
 #   sessionId <TAB> pane_id <TAB> target <TAB> session_name <TAB> state <TAB>
 #   name <TAB> transcript <TAB> window_name <TAB> agent
 #   agent ∈ claude | pi
+#   state ∈ awaiting-permission | waiting | thinking | idle
 #
-# tmux-claude-ls itself emits 9 fields ending in statusUpdatedAt (not an agent
-# tag) -- this script drops that field and appends the literal "claude" tag in
-# its place, so Claude rows end up with the same 9-field/9-column shape as the
-# pi rows below instead of 10 fields (which would silently misalign the
-# consuming `read` in tmux-sidebar's render_agents, gluing statusUpdatedAt and
-# "claude" into one garbled last field).
+# This is now a thin wrapper over `mm-sidebar agents`, which owns the only
+# implementation of the join. The shell version this replaced forked
+# tmux-pi-session once per pane (pgrep + ps x2 + lsof + sed + ls + basename each)
+# and measured 1.26-1.44s on a 20-pane machine -- around a second of which was
+# spent proving that panes are NOT running pi. The Go version batches the process
+# table and cwd lookups into one call apiece and caches identities across sweeps:
+# ~0.10s cold, and inside the sidebar the cached path skips the process table
+# entirely (~0.02s). Verified byte-identical output against the shell version.
 #
-# Claude rows come from tmux-claude-ls (statusUpdatedAt swapped for "claude").
-# pi rows are derived per-pane via tmux-pi-session: a pane whose direct child
-# is pi (or Node running pi's CLI) -> its cwd (lsof) -> pi's
-# `--<cwd without its leading slash; remaining slashes become dashes>--`
-# session-dir name (dots remain literal) -> the newest *.jsonl there is the
-# active session. pi has no live status file, so state is inferred: idle if
-# `pi` is the pane's foreground command, busy otherwise.
+# Do NOT reimplement the join here. If it needs changing, change
+# tmux_scripts/mm-sidebar/internal/agents and both this script and the sidebar
+# pick it up together -- that single-source property is the point of the wrapper.
 
 set -uo pipefail
 
 CLAUDE_LS="$HOME/.config/tmux_scripts/tmux-claude-ls"
+BUILD="$HOME/.config/tmux_scripts/tmux-sidebar-build"
 
-# Claude rows: tmux-claude-ls emits 9 fields ending in statusUpdatedAt (field
-# 9); drop it and append the literal "claude" tag in its place instead of
-# appending a 10th field, so Claude rows stay 9 fields like the pi rows below.
+if bin=$("$BUILD" 2>/dev/null) && [ -n "$bin" ]; then
+  exec "$bin" agents
+fi
+
+# Degraded fallback: no Go toolchain, or the build failed. Emit Claude rows only,
+# by re-tagging tmux-claude-ls's own output -- it already computes the identical
+# first 8 fields and ends in statusUpdatedAt, which is dropped and replaced by the
+# literal "claude" agent tag so rows keep the 9-field shape consumers parse.
+#
+# pi rows are lost in this mode. That is deliberate: the alternative is keeping a
+# second copy of the pi detection recipe in shell, which is exactly the drift this
+# wrapper exists to prevent. A missing pi row degrades a glance; a stale duplicate
+# recipe silently reports wrong state.
 if [ -x "$CLAUDE_LS" ]; then
   "$CLAUDE_LS" 2>/dev/null | awk -F'\t' 'NF>=9 {
     out=$1; for (i=2;i<=8;i++) out=out"\t"$i
     print out "\tclaude"
   }'
 fi
-
-# pi rows.
-panes=$(tmux list-panes -a -F '#{pane_pid}|#{pane_id}|#{session_name}:#{window_index}.#{pane_index}|#{session_name}|#{window_name}|#{pane_current_command}' 2>/dev/null)
-[ -n "$panes" ] || exit 0
-
-while IFS='|' read -r pid pane_id target sname wname cmd; do
-  [ -n "$pid" ] || continue
-  info=$($HOME/.config/tmux_scripts/tmux-pi-session "$pid" 2>/dev/null) || continue
-  pi_pid=$(printf '%s' "$info" | awk -F '\t' '{print $1}')
-  transcript=$(printf '%s' "$info" | awk -F '\t' '{print $3}')
-  # Never emit a genuinely empty field: bash's `read -r ... <<<"$line"` with
-  # IFS=$'\t' treats tab as "IFS whitespace" regardless of what IFS is set to,
-  # so consecutive tabs (an empty field) get silently collapsed -- shifting
-  # every subsequent field left by one in tmux-sidebar's render_agents
-  # consumer (confirmed live: this exact bug produced the "[]" empty
-  # agent-type tag, with wname/agent silently swapped one field left).
-  [ -n "$transcript" ] || transcript="-"
-
-  # State inference: if the pane's foreground cmd is `pi` itself, it's at the
-  # prompt (idle); a child of pi foregrounded means it's working (busy/thinking).
-  if [ "$cmd" = "pi" ]; then state="idle"; else state="thinking"; fi
-
-  # sessionId: use the pi pid as a stable-enough stand-in (no real id exposed).
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\tpi\n' \
-    "pi:$pi_pid" "$pane_id" "$target" "$sname" "$state" "-" "${transcript:-}" "$wname"
-done <<<"$panes"

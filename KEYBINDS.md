@@ -397,19 +397,23 @@ without ever killing the pane:
 
 | Key | State | Result |
 | --- | --- | --- |
-| `M-Tab` | no sidebar in this window | open it (`split-window -h -f -b -l 36`, leftmost, full height) and focus it |
-| `M-Tab` | open (from anywhere) | **close it** — the pane is killed |
-| `M-S-Tab` | no sidebar in this window | open it and focus it |
-| `M-S-Tab` | open, focus in content | focus the sidebar (and retarget it at the pane you came from) |
-| `M-S-Tab` | open, focus in sidebar | focus the content pane — **sidebar stays open** |
+| `M-Tab` | no sidebar in this window | open it (`split-window -h -f -b -d -l 36`, leftmost, full height) — **focus does not move** |
+| `M-Tab` | open (from anywhere) | **close it** — pane killed, other panes' sizes restored |
+| `M-S-Tab` | no sidebar in this window | open it **and** focus it |
+| `M-S-Tab` | open, sidebar not active | focus the sidebar (and retarget it at the pane you came from) |
+| `M-S-Tab` | open, sidebar active | focus the window's **last active pane** — **sidebar stays open** |
 
 `M-S-Tab` is the cheap gesture: peek at the tree and come back with no process
 respawn. `M-Tab` is the one that actually dismisses, so the respawn is only paid
-when that's the intent.
+when that's the intent — and it leaves the active pane alone, so opening the
+sidebar never interrupts what you were typing in.
+
+The return target is tmux's own last-pane, not the sidebar's content pane; those
+differ once focus has bounced between content panes.
 
 | Key | Scope | Action |
 | --- | --- | --- |
-| `M-Tab` | root | Open / close the sidebar. Guarded like `M-j`/`M-q`: forwards raw inside any popup or the `nnn` session |
+| `M-Tab` | root | Open / close the sidebar, without moving focus on open. Guarded like `M-j`/`M-q`: forwards raw inside any popup or the `nnn` session |
 | `M-S-Tab` | root | Focus switch (three states above), pane stays alive. Same popup/nnn guard |
 | `prefix Tab` | prefix | Identical open/close, reachable from **any** terminal. The `M-` forms only arrive via Ghostty's `alt+tab=csi:9;3u` / `alt+shift+tab=csi:9;4u` mappings, so the prefix table is the fallback over SSH / other emulators |
 | `prefix BTab` | prefix | Identical focus switch, same fallback rationale |
@@ -417,20 +421,22 @@ when that's the intent.
 `q`/`Esc` inside the sidebar also closes it (as does `tmux-sidebar-toggle --close`,
 unbound — for scripts).
 
-**Inside the sidebar pane** (pane must be focused; docked blocks have no keys of their own — read-only glances, not pickers):
+**Inside the sidebar pane** (pane must be focused; docked blocks have no *keys* of their own — glances, not pickers — though they can accept a mouse click):
 
 | Key | Action |
 | --- | --- |
-| `1` / `2` / `3` / `4` | Switch to sessions / windows / filetree / scratch tab |
+| `1` / `2` / `3` / `4` | Switch to sessions / windows / filetree / scratch tab (`1`..`N` over the `nav.Sources` registry) |
 | `Tab` / `S-Tab` | Cycle tabs forward / back |
 | `j` / `↓` | Move cursor down (navigator only, wraps) |
 | `k` / `↑` | Move cursor up (navigator only, wraps) |
 | `g` / `G` | Jump to first / last row |
 | `Enter` | Act on the selected navigator row (tab-specific — see below) |
+| `Backspace` | Up one level in a hierarchical tab (filetree); inert on the others |
 | `r` | Force refetch + re-render |
 | `?` | Toggle inline help overlay |
-| `q` / `Esc` | Close the sidebar (clears `@sidebar_pane_id`/`@sidebar_content_pane`, keeps `@sidebar_source`, focuses the content pane) |
-| click | Select the clicked navigator row |
+| `q` / `Esc` | Close the sidebar (clears `@sidebar_pane_id`/`@sidebar_content_pane`, keeps `@sidebar_source`, focuses the last active pane) |
+| click (navigator) | Select the clicked navigator row |
+| click (agents row) | **Switch to that agent's pane**, across sessions included. The `▸ agents` label, the `+N more` counter and `(none)` are inert |
 | wheel | Move the cursor up / down |
 
 Agent-glance state tags: `!P` awaiting permission, `!W` waiting, `~~` thinking, blank = idle (color also encodes state).

@@ -78,12 +78,17 @@ matching `#{pane_height}` each time.
 | Package | Responsibility |
 | --- | --- |
 | `main.go` | Entry point; `mm-sidebar` (TUI) and `mm-sidebar agents` (TSV) subcommands. |
-| `model.go` | Bubble Tea model: layout + degradation, keys, mouse, the agent feed, fsnotify. |
+| `model.go` | Bubble Tea model: state refresh, keys, mouse, `View`, the agent feed, fsnotify. |
+| `layout.go` | The vertical arrangement: navigator/block sizing and block degradation. |
 | `internal/tmuxio` | **The only place that talks to tmux.** One batched `display-message -p` per tick. |
 | `internal/theme` | Resolves the `@color-*` palette into `lipgloss` styles. |
 | `internal/agents` | The Claude + pi pane join. |
-| `internal/nav` | The 4 navigator tabs and their `Enter` actions. |
-| `internal/blocks` | The `Block` interface and the two docked blocks. |
+| `internal/nav` | The navigator tabs (`Source` registry) and their `Enter` actions. |
+| `internal/blocks` | The `Block` interface, the `Factories` registry, and the docked blocks. |
+
+Within `internal/nav`: `source.go` is the contract plus the `Sources` registry,
+one file per source (`sessions.go`, `windows.go`, `filetree.go`, `scratch.go`),
+`fzfnav.go` is what sessions and windows share, `act.go` performs a row's action.
 
 ## State (window-scoped tmux user options)
 
@@ -94,7 +99,8 @@ sidebar presence — mirroring neo-tree's per-tab isolation.
 | --- | --- |
 | `@sidebar_pane_id` | The sidebar pane. Unset when closed. |
 | `@sidebar_content_pane` | The pane the sidebar navigates/opens into. Retargeted to whichever pane you `M-S-Tab` *from*. |
-| `@sidebar_source` | Active tab (`sessions`\|`windows`\|`filetree`\|`scratch`). **Deliberately not cleared on close**, so re-opening restores your tab. |
+| `@sidebar_source` | Active tab — any `nav.Source`'s `ID()` (`sessions`\|`windows`\|`filetree`\|`scratch`). **Deliberately not cleared on close**, so re-opening restores your tab. An unrecognized value falls back to the first registered source. |
+| `@sidebar_saved_layout` | The window's `window_layout` from just before the sidebar opened, replayed on close to undo the squeeze. Cleared on close, including when the replay is rejected as stale. |
 
 Per-pane marker: `@sidebar_pane 1` + pane title `sidebar`, so `tsave` and border
 coloring can detect it.
@@ -124,11 +130,22 @@ three-state focus switch, `--close` only ever closes.
 
 | Key | State | Result |
 | --- | --- | --- |
-| `M-Tab` / `prefix Tab` | no sidebar in this window | open + focus the sidebar |
-| `M-Tab` / `prefix Tab` | open (from **anywhere**) | close it — the pane is killed |
-| `M-S-Tab` / `prefix BTab` | no sidebar in this window | open + focus the sidebar |
-| `M-S-Tab` / `prefix BTab` | open, focus in content | retarget `@sidebar_content_pane` at this pane, focus the sidebar |
-| `M-S-Tab` / `prefix BTab` | open, focus in sidebar | focus the content pane — **sidebar stays open** |
+| `M-Tab` / `prefix Tab` | no sidebar in this window | open it — **focus does not move** |
+| `M-Tab` / `prefix Tab` | open (from **anywhere**) | close it — pane killed, geometry restored |
+| `M-S-Tab` / `prefix BTab` | no sidebar in this window | open **and** focus the sidebar |
+| `M-S-Tab` / `prefix BTab` | open, sidebar not active | retarget `@sidebar_content_pane` at this pane, focus the sidebar |
+| `M-S-Tab` / `prefix BTab` | open, sidebar active | focus the window's **last active pane** — sidebar stays open |
+
+`M-Tab` opening without moving focus is why the split carries `-d`; `--focus`
+selects the pane explicitly afterwards. `select-pane -T` (the title marker) was
+checked live and does **not** activate its target, so it cannot defeat `-d`.
+
+Handing focus back targets tmux's own **last active pane** (`#{pane_last}`), not
+`@sidebar_content_pane`. Those differ whenever focus bounced between content panes
+before entering the sidebar — `content_pane` is the navigate/open-into target,
+which is a separate question from where focus came from. Falls back to
+`content_pane`, then any other pane in the window. Closing from inside the sidebar
+resolves the same way, so focus is never left nowhere.
 
 `q`/`Esc` inside the sidebar also closes it, as does `tmux-sidebar-toggle --close`
 (unbound; for scripts).
@@ -187,6 +204,31 @@ Note the sidebar's own `Tab`/`S-Tab` (cycle navigator tabs) don't collide: those
 are unmodified keys delivered to the focused pane, while `M-Tab`/`M-S-Tab` are
 root-table binds tmux consumes before the pane ever sees them.
 
+### Pane geometry: the sidebar squeezes its neighbors
+
+The open split uses `-f` (full window height), which makes it a **whole-window
+geometry event**, not a split of one pane: tmux reflows every pane in the window
+proportionally. Closing it doesn't undo that — tmux hands the reclaimed columns to
+an arbitrary neighbor. Measured on a 99/40 two-pane window, a close left 109/30.
+
+So `tmux-sidebar-toggle` snapshots `#{window_layout}` into `@sidebar_saved_layout`
+*before* the split and `select-layout`s it back *after* the kill, which restores the
+sizes byte-identically (verified: the layout string round-trips exactly). Only taken
+when the window already has 2+ panes.
+
+**The restore is allowed to fail, and must stay that way.** `select-layout`
+validates the layout string's checksum *and* its pane count, so adding or killing a
+pane while the sidebar is open makes the snapshot stale and tmux rejects it
+(verified: exit 1, window untouched and usable). That degrades to tmux's own
+redistribution — exactly what used to happen unconditionally. The option is cleared
+either way so a stale string is never reused.
+
+This does **not** fight the repin hook: `select-layout` re-fires
+`window-layout-changed`, whose `[100]` entry is `tmux-sidebar-repin`, but
+`@sidebar_pane_id` is already unset by then so repin skips the window. Note also
+that this restore lives in the script and **not** in a hook — a geometry command
+issued inline from a layout hook is silently discarded (same trap as below).
+
 ### Width re-pinning (and why the obvious version doesn't work)
 
 tmux scales panes **proportionally** on client/window resize, so a Ghostty resize
@@ -217,6 +259,68 @@ or a monitor attach drifts the 36-col sidebar. Measured: shrinking a window from
 > (`show-hooks -g window-layout-changed`) to see both indices. The hook does
 > fire — verified by instrumenting it with a `run-shell` that touched a file.
 
+## Extending (start here to add a tab, a block, or a click action)
+
+Everything extensible is a registry entry. The three recipes below are the whole
+contract; none of them require touching `model.go`.
+
+### Add a navigator tab
+
+1. New file in `internal/nav/`, one type implementing `Source`:
+
+```go
+type Bookmarks struct{}
+
+func (Bookmarks) ID() string    { return "bookmarks" } // persisted @sidebar_source
+func (Bookmarks) Short() string { return "bkmk" }      // tab chip, 3-4 cells
+func (Bookmarks) Title() string { return "bookmarks" } // "▸ bookmarks" subtitle
+
+func (Bookmarks) Fetch(c nav.Ctx) []nav.Row { /* build rows */ }
+```
+
+2. Add it to `nav.Sources`. That slice's order is the tab-strip order **and** the
+   number-key order.
+
+That's it: the strip, the `1`..`N` keys, `Tab`/`S-Tab` cycling, and
+`@sidebar_source` persistence all derive from the registry.
+
+- Style rows with `c.Theme` (never a hex literal — see Colors) and return them
+  pre-styled; the model only clips to width.
+- A `Row` may be **multi-line** (`Lines []string`); the viewport handles variable
+  heights. Give a row an action via `Kind` + its payload field, and extend
+  `ActionKind`/`nav.Act` only if none of the existing actions fit.
+- Need Backspace to mean "up a level"? Also implement `Ascender`. Nothing else
+  binds that key, and sources that don't implement it make it inert.
+- Need some state `Ctx` doesn't carry? Add a field to `Ctx` and populate it in
+  `refreshState`, rather than querying tmux from the source — the per-poll tmux
+  cost is deliberately one batched call.
+
+### Add a docked block
+
+1. New file in `internal/blocks/`, one type implementing `Block` (see below).
+2. Add a `Factory` entry to `blocks.Factories`.
+
+Its position in that slice is both render order and **degradation priority** — a
+short pane drops blocks from the END first, so put a more important block earlier.
+Constructors take whatever they need from `blocks.Deps`; add a field there if a new
+block needs a shared resource.
+
+Two hard rules: `View(width)` must emit **exactly `Height()` lines**, and
+`Height()` must be computed from already-cached state (never fetch in it, since the
+layout calls it several times per frame).
+
+### Make something clickable
+
+Implement `Clickable` on the block. It receives the click's line offset **within
+that block** (0 = its label row) and returns a `tea.Cmd`, so the block hit-tests
+itself and keeps its ordering and truncation private. Return `nil` for lines that
+aren't actionable. Put any tmux calls inside the returned `Cmd` — they fork and
+block, and the input path must stay clear.
+
+Blocks deliberately have **no keyboard cursor**; a click is an unambiguous point at
+one row, which is why it needs neither a cursor in the block nor a traversal path
+into it.
+
 ## Blocks architecture
 
 The pane renders top to bottom: **header** (2 lines) → optional **help overlay**
@@ -234,11 +338,11 @@ type Block interface {
 }
 ```
 
-Blocks are listed in one ordered slice in `newModel()`. **Adding a block is one
-type plus one slice entry** — no layout code changes. (The bash version needed a
-hand-written case statement in three separate dispatch functions, because macOS's
-`/bin/bash` 3.2 has neither associative arrays nor namerefs to look up
-`fetch_$id`. An interface makes that workaround moot.)
+Blocks are listed in one ordered slice, `blocks.Factories`. **Adding a block is
+one type plus one slice entry** — no layout code changes and no `model.go` edit.
+(The bash version needed a hand-written case statement in three separate dispatch
+functions, because macOS's `/bin/bash` 3.2 has neither associative arrays nor
+namerefs to look up `fetch_$id`. An interface makes that workaround moot.)
 
 A block that is holding data it isn't showing can additionally implement
 `Expandable` (`SetExtra`/`Expand`), which lets the layout hand it leftover pane
@@ -286,16 +390,24 @@ worked while every row was exactly one line tall.
 
 ### Docked block: `agents_glance`
 
-Read-only, always visible. Capped to 6 rows by default — it implements
-`Expandable`, so the layout raises that cap when the pane has room to spare and
-the `+N more` line disappears entirely once everything fits. Truncation is a
-render-time decision, not baked in when a sweep arrives, so a grant takes effect
-immediately rather than on the next sweep. **Sorted by urgency** (stable, so
-rows don't shuffle between sweeps) with a trailing `+N more` when clipped. No
-cursor, no `Enter` — interactive agent switching stays on the existing `M-b`
-menu (`tmux-claude-menu`), which already covers it. This is also why `agents` is
-not a navigator tab: the picker-vs-glance split removes a genuinely redundant
-interactive surface.
+Always visible. Capped to 6 rows by default — it implements `Expandable`, so the
+layout raises that cap when the pane has room to spare and the `+N more` line
+disappears entirely once everything fits. Truncation is a render-time decision, not
+baked in when a sweep arrives, so a grant takes effect immediately rather than on
+the next sweep. **Sorted by urgency** (stable, so rows don't shuffle between
+sweeps) with a trailing `+N more` when clipped.
+
+**Clicking a row switches to that agent's pane**, including across sessions — it
+implements `Clickable`, and `agents.Row` already carries `PaneID` (`%161`) and
+`Target` (`sess:2.1`) in exactly the forms `tmuxio.FocusPane` wants, so no extra
+plumbing was needed. The label row, the `+N more` counter and the `(none)`
+placeholder are inert.
+
+Still **no keyboard cursor and no `Enter`** — keyboard agent-switching stays on the
+existing `M-b` menu (`tmux-claude-menu`), which already covers it, and that is also
+why `agents` is not a navigator tab: the picker-vs-glance split removes a genuinely
+redundant interactive surface. A click doesn't reintroduce one, because it names a
+row directly instead of needing a cursor to travel there.
 
 Row format: `<2-char state tag> <window · session>`.
 
@@ -349,11 +461,14 @@ the hot/low color entirely, which is exactly backwards for a 4% battery.
 
 ## Navigator tabs
 
+Each tab is a `nav.Source` in the `nav.Sources` registry — see **Extending** for
+how to add one.
+
 | Tab | Data source | `Enter` action | Extra keys |
 | --- | --- | --- | --- |
 | sessions | `tmux-fzf-nav --list-sessions` | `switch-client` + `select-pane` | — |
 | windows | `tmux-fzf-nav --list-windows` | `switch-client` + `select-pane` | — |
-| filetree | `os.ReadDir`, 2 levels, over the content pane's cwd | dir → `split-window -h -c <dir>` in the content pane; file → `tmux-open-target` | `Backspace` = up one level |
+| filetree | `os.ReadDir`, 2 levels, over the content pane's cwd | dir → `split-window -h -c <dir>` in the content pane; file → `tmux-open-target` | `Backspace` = up one level (via `Ascender`) |
 | scratch | `~/.config/tmux_scratch/{global,<slug>}.md` | `tea.ExecProcess(nvim)` | — |
 
 ### sessions / windows
@@ -554,23 +669,28 @@ track — both are background-weight surfaces, not text, so neither could reuse
 
 | Key | Action |
 | --- | --- |
-| `1`–`4` | Switch to sessions / windows / filetree / scratch |
+| `1`–`4` | Switch to sessions / windows / filetree / scratch (`1`..`N` over `nav.Sources`) |
 | `Tab` / `S-Tab` | Cycle tabs forward / back |
 | `j` `k` / `↓` `↑` | Move cursor (navigator only, wraps) |
 | `g` / `G` | First / last row |
 | `Enter` | Act on the selected row (tab-specific) |
-| `Backspace` | filetree: up one directory |
+| `Backspace` | Up one level in a hierarchical tab (filetree); inert elsewhere |
 | `r` | Force refetch |
 | `?` | Toggle help overlay |
 | `q` / `Esc` | Close the sidebar |
-| click | Select the clicked row |
+| click (navigator) | Select the clicked row |
+| click (agents row) | Switch to that agent's pane |
 | wheel | Move cursor |
 
-Docked blocks have no keys — they're glances, not pickers.
+Docked blocks have **no keys** — they're glances, not pickers — but a block may
+accept a click by implementing `Clickable` (see Extending).
 
 Mouse works because tmux already has `mouse on` and Bubble Tea enables SGR
-tracking (`WithMouseCellMotion`); clicks map back to a row through the current
-viewport offset. Verified by injecting raw SGR sequences.
+tracking (`WithMouseCellMotion`). A click resolves through two tables `View`
+records as it renders: `lineRow` for the navigator, then `blockLines` for the
+region below it. Both are recorded rather than recomputed, so they cannot disagree
+with the frame — and `Height()` read after the fact would reflect the previous
+frame's `Expandable` grant anyway. Verified by injecting raw SGR sequences.
 
 ## Relationship to `M-d` and `M-b`
 

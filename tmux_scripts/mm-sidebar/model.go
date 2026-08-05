@@ -24,9 +24,6 @@ const (
 	headerLines = 2
 	// helpLines: the inline help overlay, when toggled on with '?'.
 	helpLines = 6
-	// navMinHeight: the navigator never shrinks below this. When it would,
-	// docked blocks are dropped from the end of the block list instead.
-	navMinHeight = 3
 	// navTickInterval re-polls tmux state (sessions/windows/cwd) so the sidebar
 	// follows changes made elsewhere without needing input. Below ~1s the
 	// repaint cost becomes visible; above ~5s the view feels stale.
@@ -44,16 +41,23 @@ type model struct {
 	selfPane    string
 	contentPane string
 
-	// Navigator.
-	tab     nav.Tab
+	// Navigator. srcIdx indexes nav.Sources -- the registry is the only place
+	// tabs are enumerated, so there is no tab enum to keep in sync.
+	srcIdx  int
 	rows    []nav.Row
 	sel     int
 	vpStart int // first visible row index
 	// lineRow maps each rendered navigator line back to its row index (-1 for
 	// padding), rebuilt on every View. Rows are variable-height, so the mouse
 	// handler cannot derive the row from the click's Y offset arithmetically.
-	lineRow  []int
-	showHelp bool
+	lineRow []int
+	// blockLines maps each rendered line BELOW the navigator to its owning block
+	// and the line's offset within that block. Dividers and padding get a nil
+	// block. Recorded during View for the same reason lineRow is: the mapping
+	// then cannot disagree with the frame, whereas recomputing it from layout()
+	// would read Height() values that layout resets and re-grants every frame.
+	blockLines []blockHit
+	showHelp   bool
 
 	// Filetree browse root. Only re-derived from the content pane's cwd when the
 	// content pane actually changes (tracked by ftLastPane), so Backspace-up
@@ -68,16 +72,20 @@ type model struct {
 	feed *agentFeed
 }
 
+// blockHit is one rendered line's owner: the block it belongs to and the line's
+// offset inside that block. A nil Block marks a divider or padding row.
+type blockHit struct {
+	block blocks.Block
+	local int
+}
+
 func newModel() *model {
 	th := theme.Load()
 	feed := newAgentFeed()
 	return &model{
-		theme: th,
-		docked: []blocks.Block{
-			blocks.NewAgentsGlance(th, feed.request),
-			blocks.NewSystemStats(th),
-		},
-		feed: feed,
+		theme:  th,
+		docked: blocks.Build(blocks.Deps{Theme: th, Agents: feed.request}),
+		feed:   feed,
 	}
 }
 
@@ -90,7 +98,7 @@ type stateMsg struct {
 	snap        tmuxio.Snapshot
 	contentPane string
 	ftRoot      string
-	tab         nav.Tab
+	srcIdx      int
 	rows        []nav.Row
 }
 
@@ -182,7 +190,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // refreshState gathers the tmux snapshot, resolves the content pane, and fetches
 // the active tab's rows -- all in one Cmd, off the input path.
 func (m *model) refreshState() tea.Cmd {
-	tab := m.tab
+	srcIdx := m.srcIdx
 	ftRoot := m.ftRoot
 	ftLastPane := m.ftLastPane
 	th := m.theme
@@ -196,7 +204,7 @@ func (m *model) refreshState() tea.Cmd {
 		// @sidebar_source before this process started, and it survives a
 		// scratch-editor round trip.
 		if snap.Source != "" {
-			tab = nav.ParseTab(snap.Source)
+			srcIdx = nav.SourceByID(snap.Source)
 		}
 
 		content := resolveContentPane(snap)
@@ -213,18 +221,15 @@ func (m *model) refreshState() tea.Cmd {
 			ftRoot = cwd
 		}
 
-		var rows []nav.Row
-		switch tab {
-		case nav.TabSessions:
-			rows = nav.FetchSessions(th)
-		case nav.TabWindows:
-			rows = nav.FetchWindows(th)
-		case nav.TabFiletree:
-			rows = nav.FetchFiletree(th, ftRoot)
-		case nav.TabScratch:
-			rows = nav.FetchScratch(th, cwd)
-		}
-		return stateMsg{snap: snap, contentPane: content, ftRoot: ftRoot, tab: tab, rows: rows}
+		// One registry lookup, no per-tab switch: adding a Source needs no edit
+		// here.
+		rows := nav.Sources[srcIdx].Fetch(nav.Ctx{
+			Theme:       th,
+			Cwd:         cwd,
+			ContentPane: content,
+			Root:        ftRoot,
+		})
+		return stateMsg{snap: snap, contentPane: content, ftRoot: ftRoot, srcIdx: srcIdx, rows: rows}
 	}
 }
 
@@ -234,7 +239,7 @@ func (m *model) applyState(msg stateMsg) {
 	m.contentPane = msg.contentPane
 	m.ftLastPane = msg.contentPane
 	m.ftRoot = msg.ftRoot
-	m.tab = msg.tab
+	m.srcIdx = msg.srcIdx
 	m.rows = msg.rows
 	m.clampSel()
 	// WindowSizeMsg is the normal source of geometry, but the very first render
@@ -262,7 +267,8 @@ func resolveContentPane(snap tmuxio.Snapshot) string {
 // ---- keys -----------------------------------------------------------------
 
 func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
+	key := msg.String()
+	switch key {
 	case "q", "esc", "ctrl+c":
 		return m, m.quit()
 	case "j", "down":
@@ -278,14 +284,6 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(m.refreshState(), m.fetchAllBlocks())
 	case "?":
 		m.showHelp = !m.showHelp
-	case "1":
-		return m, m.setTab(nav.TabSessions)
-	case "2":
-		return m, m.setTab(nav.TabWindows)
-	case "3":
-		return m, m.setTab(nav.TabFiletree)
-	case "4":
-		return m, m.setTab(nav.TabScratch)
 	case "tab":
 		return m, m.cycleTab(1)
 	case "shift+tab":
@@ -293,8 +291,12 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		return m, m.act()
 	case "backspace":
-		if m.tab == nav.TabFiletree {
-			return m, m.filetreeUp()
+		return m, m.ascend()
+	default:
+		// Number keys select a tab by position, derived from the registry -- so a
+		// fifth Source is reachable as "5" with no edit here.
+		if d := int(key[0] - '0'); len(key) == 1 && d >= 1 && d <= len(nav.Sources) {
+			return m, m.setSource(d - 1)
 		}
 	}
 	return m, nil
@@ -310,13 +312,27 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		if msg.Action != tea.MouseActionPress {
 			return m, nil
 		}
-		// Map the clicked screen line back to a navigator row through the mapping
-		// the last render recorded. Clicks on the header, on padding, or on a
-		// docked block are ignored -- blocks are glances and hold no cursor.
-		// Either line of a two-line row selects that row.
+		// Map the clicked screen line back through the tables the last render
+		// recorded: the navigator region first, then the docked blocks below it.
+		// Clicks on the header, on a divider, or on padding do nothing.
 		line := msg.Y - m.navFirstLine()
-		if line >= 0 && line < len(m.lineRow) && m.lineRow[line] >= 0 {
-			m.sel = m.lineRow[line]
+		if line < 0 {
+			return m, nil
+		}
+		if line < len(m.lineRow) {
+			// Navigator: either line of a two-line row selects that row.
+			if m.lineRow[line] >= 0 {
+				m.sel = m.lineRow[line]
+			}
+			return m, nil
+		}
+		// A docked block. Blocks hold no cursor, so a click acts immediately --
+		// only those implementing Clickable act at all.
+		if i := line - len(m.lineRow); i < len(m.blockLines) {
+			hit := m.blockLines[i]
+			if c, ok := hit.block.(blocks.Clickable); ok {
+				return m, c.OnClick(hit.local)
+			}
 		}
 	}
 	return m, nil
@@ -347,38 +363,51 @@ func (m *model) clampSel() {
 	}
 }
 
-func (m *model) setTab(t nav.Tab) tea.Cmd {
-	if m.tab == t {
+func (m *model) setSource(idx int) tea.Cmd {
+	if idx == m.srcIdx || idx < 0 || idx >= len(nav.Sources) {
 		return nil
 	}
-	m.tab = t
+	m.srcIdx = idx
 	m.sel = 0
 	m.rows = nil
 	if m.winTarget != "" {
-		tmuxio.SetWinOpt(m.winTarget, "@sidebar_source", t.Name())
+		tmuxio.SetWinOpt(m.winTarget, "@sidebar_source", nav.Sources[idx].ID())
 	}
 	return m.refreshState()
 }
 
 func (m *model) cycleTab(delta int) tea.Cmd {
-	n := len(nav.Tabs)
-	idx := 0
-	for i, t := range nav.Tabs {
-		if t == m.tab {
-			idx = i
-		}
-	}
-	return m.setTab(nav.Tabs[((idx+delta)%n+n)%n])
+	n := len(nav.Sources)
+	return m.setSource(((m.srcIdx+delta)%n + n) % n)
 }
 
-func (m *model) filetreeUp() tea.Cmd {
-	parent := parentDir(m.ftRoot)
-	if parent == m.ftRoot {
+// ascend is Backspace: move up one level in a hierarchical source. Sources that
+// aren't hierarchical don't implement nav.Ascender and the key is inert for them,
+// so the model never names a specific tab.
+func (m *model) ascend() tea.Cmd {
+	a, ok := nav.Sources[m.srcIdx].(nav.Ascender)
+	if !ok {
 		return nil
 	}
-	m.ftRoot = parent
+	root, moved := a.Up(m.navCtx())
+	if !moved {
+		return nil
+	}
+	m.ftRoot = root
 	m.sel = 0
 	return m.refreshState()
+}
+
+// navCtx builds the Source context from current model state. refreshState builds
+// its own copy inside the Cmd closure (it must not touch the model from another
+// goroutine); this one serves the synchronous key path.
+func (m *model) navCtx() nav.Ctx {
+	return nav.Ctx{
+		Theme:       m.theme,
+		Cwd:         m.ftRoot,
+		ContentPane: m.contentPane,
+		Root:        m.ftRoot,
+	}
 }
 
 func (m *model) fetchAllBlocks() tea.Cmd {
@@ -445,11 +474,20 @@ func (m *model) View() string {
 		usable = 1
 	}
 
-	active, navAvail := m.layout(usable)
-	lines = append(lines, m.navLines(navAvail)...)
-	for _, b := range active {
+	arr := m.layout(usable)
+	lines = append(lines, m.navLines(arr.navAvail)...)
+
+	// Record which block owns each line as it is emitted, so a click can be
+	// resolved without recomputing the arrangement (see blockLines' doc comment).
+	m.blockLines = m.blockLines[:0]
+	for _, b := range arr.blocks {
 		lines = append(lines, m.dividerLine())
-		lines = append(lines, splitLines(b.View(m.width), b.Height())...)
+		m.blockLines = append(m.blockLines, blockHit{}) // the divider is inert
+		body := splitLines(b.View(m.width), b.Height())
+		for i := range body {
+			lines = append(lines, body[i])
+			m.blockLines = append(m.blockLines, blockHit{block: b, local: i})
+		}
 	}
 
 	// Pad/clamp to exactly the pane height so the frame never scrolls.
@@ -459,92 +497,14 @@ func (m *model) View() string {
 	return joinLines(lines[:m.height])
 }
 
-// layout sizes the navigator to its ACTUAL content and lets the blocks float up
-// directly beneath it, so everything the sidebar knows sits in one compact stack
-// at the top of the pane and the unused space collects at the bottom.
-//
-// Two earlier versions both failed the same way, from opposite directions:
-// giving the navigator all the leftover space, and giving it a fixed 60% share.
-// A tall pane is much taller than the content -- on a 55-row pane a 3-session
-// list left a 33-row void in the MIDDLE either way, between the last row and
-// "▸ agents". There is no share of a 55-row pane that three sessions fill; the
-// only fix is to stop reserving space the navigator cannot use.
-//
-// Leftover space is then offered to blocks that can show more of what they
-// already hold (agents_glance drops its "+N more" and lists everything), because
-// a "+1 more" above 30 blank rows is the same information-density failure in
-// miniature.
-func (m *model) layout(usable int) ([]blocks.Block, int) {
-	for _, b := range m.docked {
-		if e, ok := b.(blocks.Expandable); ok {
-			e.SetExtra(0) // recomputed below; layout runs every frame
-		}
-	}
-
-	// Drop blocks from the END of the list (lowest priority first, system_stats
-	// before agents_glance) until they fit alongside a minimal navigator.
-	active := m.docked
-	for len(active) > 0 && dockCost(active) > usable-navMinHeight {
-		active = active[:len(active)-1]
-	}
-
-	navAvail := m.navContentLines()
-	if room := usable - dockCost(active); navAvail > room {
-		navAvail = room // a long list is viewport-clipped instead
-	}
-	if navAvail < navMinHeight {
-		navAvail = navMinHeight
-	}
-
-	for slack := usable - navAvail - dockCost(active); slack > 0; {
-		grew := false
-		for _, b := range active {
-			e, ok := b.(blocks.Expandable)
-			if !ok {
-				continue
-			}
-			if used := e.Expand(slack); used > 0 {
-				slack -= used
-				grew = true
-			}
-		}
-		if !grew {
-			break
-		}
-	}
-	return active, navAvail
-}
-
-// dockCost is the lines the given blocks occupy, including one divider row each.
-func dockCost(bs []blocks.Block) int {
-	total := 0
-	for _, b := range bs {
-		total += b.Height() + 1
-	}
-	return total
-}
-
-// navContentLines is how many lines the current rows actually need. Rows are
-// variable-height, so this is a sum, not a count.
-func (m *model) navContentLines() int {
-	if len(m.rows) == 0 {
-		return 1 // the "(empty)" placeholder
-	}
-	total := 0
-	for _, r := range m.rows {
-		total += len(r.Lines)
-	}
-	return total
-}
-
 func (m *model) headerLines() []string {
 	strip := ""
-	for i, t := range nav.Tabs {
+	for i, s := range nav.Sources {
 		if i > 0 {
 			strip += " "
 		}
-		chip := strconv.Itoa(i+1) + t.Short()
-		if t == m.tab {
+		chip := strconv.Itoa(i+1) + s.Short()
+		if i == m.srcIdx {
 			strip += m.theme.ActiveTab.Render(chip)
 		} else {
 			strip += m.theme.Muted.Render(chip)
@@ -552,7 +512,7 @@ func (m *model) headerLines() []string {
 	}
 	return []string{
 		clipLine(strip, m.width),
-		clipLine(m.theme.Accent.Render("▸ "+m.tab.Name()), m.width),
+		clipLine(m.theme.Accent.Render("▸ "+nav.Sources[m.srcIdx].Title()), m.width),
 	}
 }
 
@@ -563,7 +523,7 @@ func (m *model) helpLines() []string {
 		"g/G     top/end ?       toggle help",
 		"q/Esc   close   click   select row",
 		"filetree: Backspace = up one dir",
-		"agents: !P perm !W wait ~~ busy",
+		"agents: click row = switch to it",
 	}
 	for i, l := range out {
 		out[i] = clipLine(m.theme.Muted.Render(l), m.width)
@@ -786,21 +746,6 @@ func joinLines(lines []string) string {
 		out += l
 	}
 	return out
-}
-
-func parentDir(path string) string {
-	if path == "" || path == "/" {
-		return "/"
-	}
-	for i := len(path) - 1; i >= 0; i-- {
-		if path[i] == '/' {
-			if i == 0 {
-				return "/"
-			}
-			return path[:i]
-		}
-	}
-	return path
 }
 
 func homeDir() string {

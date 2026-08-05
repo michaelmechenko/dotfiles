@@ -22,12 +22,16 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-// Block is a docked, read-only region of the sidebar.
+// Block is a docked region of the sidebar.
 //
 // Blocks have no keys of their own and never hold the cursor: they are glances,
-// not pickers. Interactive agent switching lives on the M-b cross-session menu
-// (tmux-claude-menu), which already covers it -- agents_glance deliberately
-// doesn't duplicate that.
+// not pickers. Keyboard-driven agent switching lives on the M-b cross-session
+// menu (tmux-claude-menu), which already covers it -- agents_glance deliberately
+// doesn't duplicate that picker.
+//
+// A block may still accept a MOUSE click by implementing Clickable, which is not
+// the same thing: a click is an unambiguous point at one row, so it needs no
+// cursor to live in the block and no traversal path into it.
 type Block interface {
 	// ID is the block's stable name, used in the layout and in logs.
 	ID() string
@@ -62,6 +66,20 @@ type Expandable interface {
 	// the block has nothing hidden). The return value is the block's Height
 	// delta, so the layout can subtract it from the remaining slack.
 	Expand(n int) int
+}
+
+// Clickable is the optional mouse half of Block: a block with actionable rows.
+//
+// The block hit-tests ITSELF rather than exposing its rows positionally, so its
+// truncation and ordering stay private and the model needs no accessor. The
+// model's only job is knowing which lines belong to which block, which it records
+// while rendering (see model.go's blockLines) rather than recomputing from the
+// layout -- the same reason the navigator's lineRow table exists.
+type Clickable interface {
+	// OnClick receives the 0-based line offset WITHIN this block's own rendered
+	// region: 0 is its label row. Returns nil when that line isn't actionable
+	// (the label, a placeholder, a "+N more" counter).
+	OnClick(line int) tea.Cmd
 }
 
 // label renders a block's title row in the same "▸ name" idiom the header's

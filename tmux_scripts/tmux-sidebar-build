@@ -1,0 +1,47 @@
+#!/bin/sh
+# tmux-sidebar-build -- ensure the mm-sidebar binary is built, print its path.
+#
+# mm-sidebar is this repo's only compiled component. The binary is deliberately
+# NOT committed (it's arch-specific) and is excluded via .git/info/exclude, so it
+# has to be produced on demand -- this script is the single place that happens,
+# shared by tmux-sidebar-toggle and tmux-agent-ls.
+#
+# Rebuilds when the binary is missing or older than any source file, so editing a
+# .go file and pressing M-Tab picks the change up with no extra step. A no-op
+# `go build` is ~0.2s (Go's build cache); a cold one is ~5s.
+#
+# Output: the binary path on stdout, exit 0. On any failure (no Go toolchain,
+# compile error) prints nothing and exits 1, so callers can fall back rather than
+# exec'ing a path that doesn't exist.
+
+SRC="$HOME/.config/tmux_scripts/mm-sidebar"
+BIN="$SRC/mm-sidebar"
+
+needs_build() {
+    [ -x "$BIN" ] || return 0
+    # -nt on each source file rather than a find|sort pipeline: this runs on every
+    # M-Tab press, so it stays fork-free.
+    for f in "$SRC"/*.go "$SRC"/internal/*/*.go "$SRC"/go.mod "$SRC"/go.sum; do
+        [ -e "$f" ] || continue
+        [ "$f" -nt "$BIN" ] && return 0
+    done
+    return 1
+}
+
+if needs_build; then
+    command -v go >/dev/null 2>&1 || exit 1
+    # Build to a unique temp path and rename: two callers racing (M-Tab pressed
+    # while tmux-agent-ls is also starting) must never leave a half-written binary
+    # at $BIN. rename(2) is atomic within the directory.
+    tmp="$BIN.tmp.$$"
+    # -C instead of `cd $SRC &&` so no subshell/directory change is needed; -o is
+    # resolved after the chdir, hence the absolute path.
+    if go build -C "$SRC" -o "$tmp" . >/dev/null 2>&1; then
+        mv -f "$tmp" "$BIN" 2>/dev/null || { rm -f "$tmp" 2>/dev/null; exit 1; }
+    else
+        rm -f "$tmp" 2>/dev/null
+        exit 1
+    fi
+fi
+
+printf '%s\n' "$BIN"

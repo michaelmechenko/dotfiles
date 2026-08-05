@@ -1,0 +1,76 @@
+// Package blocks holds the sidebar's docked blocks: fixed-height, read-only
+// glances rendered below the flexible navigator and visible regardless of which
+// navigator tab is active.
+//
+// The layout is a stack: header -> navigator -> blocks, in Order. That array is
+// the whole "which blocks, in what order" configuration, and it doubles as the
+// degradation priority -- on a short pane the model drops blocks from the END
+// of the list first, protecting the primary navigator instead of squeezing
+// everything unusably thin.
+//
+// Adding a block is one type implementing Block plus one entry in the model's
+// block slice. (The bash version needed a hand-written case statement in three
+// separate dispatch functions, because macOS's /bin/bash 3.2 has neither
+// associative arrays nor namerefs to look up "fetch_$id". An interface makes
+// that whole workaround moot.)
+package blocks
+
+import (
+	"time"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
+)
+
+// Block is a docked, read-only region of the sidebar.
+//
+// Blocks have no keys of their own and never hold the cursor: they are glances,
+// not pickers. Interactive agent switching lives on the M-b cross-session menu
+// (tmux-claude-menu), which already covers it -- agents_glance deliberately
+// doesn't duplicate that.
+type Block interface {
+	// ID is the block's stable name, used in the layout and in logs.
+	ID() string
+	// Interval is how often Fetch should run. Blocks with genuinely
+	// independent cadences (system load vs. agent liveness) declare their own
+	// rather than sharing one global dirty flag.
+	Interval() time.Duration
+	// Fetch is the expensive half: it returns a Cmd that gathers data off the
+	// input path and delivers it as a message.
+	Fetch() tea.Cmd
+	// Update absorbs this block's own message type and ignores everything else.
+	Update(tea.Msg)
+	// Height is the block's current desired row count, computed from already
+	// cached state (never fetches), so the layout can reserve space for it.
+	Height() int
+	// View renders exactly Height() lines, each at most width columns.
+	View(width int) string
+}
+
+// label renders a block's title row in the same "▸ name" idiom the header's
+// active-tab subtitle uses, so each block is visually delimited without
+// spending a row on a blank divider.
+func label(style styler, text string) string {
+	return style.Render("▸ " + text)
+}
+
+// styler is the subset of lipgloss.Style the blocks need, kept as an interface
+// so this file doesn't have to import lipgloss just for a type name.
+type styler interface {
+	Render(...string) string
+}
+
+// clip truncates a possibly-styled string to width display cells. It is
+// ANSI-aware and width-aware (wide CJK glyphs and nerd-font icons count as the
+// cells they actually occupy), unlike the bash version's byte/rune length check
+// on an ANSI-stripped copy, which misaligned the 28-column frame on any such
+// glyph and dropped color past the cut.
+func clip(s string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	if ansi.StringWidth(s) <= width {
+		return s
+	}
+	return ansi.Truncate(s, width, "…")
+}

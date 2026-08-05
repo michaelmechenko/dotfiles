@@ -61,14 +61,27 @@ pi_session() {
     printf '%s' "$(printf '%s' "$info" | awk -F '\t' '{print $4}')"
 }
 
-fmt="#{session_name}${TAB}#{window_index}${TAB}#{window_name}${TAB}#{window_layout}${TAB}#{window_active}${TAB}#{pane_index}${TAB}#{pane_active}${TAB}#{pane_pid}${TAB}#{pane_current_path}${TAB}#{pane_current_command}${TAB}#{session_id}${TAB}#{pane_title}"
+# @sidebar_pane is appended as a trailing field purely so the loop below can skip
+# mm-sidebar panes; it is not carried into the snapshot.
+fmt="#{session_name}${TAB}#{window_index}${TAB}#{window_name}${TAB}#{window_layout}${TAB}#{window_active}${TAB}#{pane_index}${TAB}#{pane_active}${TAB}#{pane_pid}${TAB}#{pane_current_path}${TAB}#{pane_current_command}${TAB}#{session_id}${TAB}#{pane_title}${TAB}#{@sidebar_pane}"
 
 tmp=$(mktemp "${TMPDIR:-/tmp}/tsave.XXXXXX")
 trap 'rm -f "$tmp"' EXIT
 
 # Capture all panes, then enrich each line with the Claude sessionId and pi
 # session id (last two fields).
-tmux list-panes -a -F "$fmt" | while IFS="$TAB" read -r session widx wname layout wactive pidx pactive ppid cwd cmd sid title; do
+tmux list-panes -a -F "$fmt" | while IFS="$TAB" read -r session widx wname layout wactive pidx pactive ppid cwd cmd sid title sidebar; do
+    # Skip mm-sidebar panes. A sidebar is a UI surface owned by M-Tab, not work
+    # worth restoring: tload would recreate it as a plain shell sitting in the
+    # saved cwd, with the window-scoped @sidebar_* state gone, so M-Tab would then
+    # open a SECOND sidebar beside the dead one. Press M-Tab after a tload instead.
+    #
+    # The saved window_layout still describes the window as it was, sidebar
+    # included, so a restored window is one pane short of its layout -- tmux
+    # tolerates that (it applies the layout to the panes that exist), and the
+    # alternative (rewriting layout strings) is far more fragile.
+    [ "$sidebar" = "1" ] && continue
+
     csid=$(claude_session "$ppid")
     psid=""
     [ -z "$csid" ] && psid=$(pi_session "$ppid")

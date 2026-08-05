@@ -148,7 +148,14 @@ which is a separate question from where focus came from. Falls back to
 resolves the same way, so focus is never left nowhere.
 
 `q`/`Esc` inside the sidebar also closes it, as does `tmux-sidebar-toggle --close`
-(unbound; for scripts).
+(unbound; for scripts). **`q` does not implement its own close — it fires
+`run-shell -b '<toggle> --close'` and quits.** Through revision 4 it cleared the
+options and selected the content pane inline, which meant it silently skipped the
+`@sidebar_saved_layout` replay below: closing with `M-Tab` restored the window's
+pane geometry and closing with `q` didn't, and left the saved layout behind as a
+stale option. `run-shell -b` runs as a child of the tmux **server**, not of this
+pane, so it survives the `kill-pane` it issues — which is what lets the script stay
+the single owner of kill + geometry restore + focus for both gestures.
 
 **Why both, rather than one gesture doing everything.** They have different costs.
 Open/close pays a full process respawn on every re-open — that cost was the entire
@@ -709,7 +716,7 @@ track — both are background-weight surfaces, not text, so neither could reuse
 | `Backspace` | Up one level in a hierarchical tab (filetree); inert elsewhere |
 | `r` | Force refetch |
 | `?` | Toggle help overlay |
-| `q` / `Esc` | Close the sidebar |
+| `q` / `Esc` | Close the sidebar (delegates to `tmux-sidebar-toggle --close`) |
 | click (navigator) | Select the clicked row |
 | click (agents row) | Switch to that agent's pane |
 | wheel | Scroll the navigator viewport — clamped, and only over the navigator |

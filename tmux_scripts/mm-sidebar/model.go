@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -510,20 +511,33 @@ func (m *model) act() tea.Cmd {
 	}
 }
 
-// quit clears the window-scoped pane options and hands focus back to the content
-// pane before exiting. The sidebar pane dies with this process (tmux ran it as
-// the pane's command), so selecting the content pane first makes the post-close
-// focus deterministic instead of whatever pane tmux happens to pick.
+// quit hands the whole close sequence to tmux-sidebar-toggle --close rather than
+// doing it here.
 //
-// @sidebar_source is deliberately left set, so re-opening the sidebar in this
-// window restores the tab that was active.
+// This used to clear the options and select the content pane inline, which meant
+// `q` skipped the ONE thing the script's close path does that this can't: replaying
+// @sidebar_saved_layout to undo the pane squeeze the full-height split caused. So
+// closing with M-Tab restored the window's geometry and closing with q silently
+// didn't, and left the saved layout behind as a stale option. Duplicating that
+// replay here would be a second copy of logic with a documented
+// allowed-to-fail contract, so the script stays the single owner of it.
+//
+// `run-shell -b` is what makes this safe: it runs as a child of the tmux SERVER,
+// not of this pane, so it survives the kill-pane it is about to issue. The script
+// then owns kill + select-layout + focus, exactly as it does for M-Tab. tea.Quit
+// still follows, so the TUI releases the terminal even if the script never lands.
+//
+// @sidebar_source is deliberately left set (by the script), so re-opening the
+// sidebar in this window restores the tab that was active.
 func (m *model) quit() tea.Cmd {
-	if m.winTarget != "" {
-		tmuxio.UnsetWinOpt(m.winTarget, "@sidebar_pane_id")
-		tmuxio.UnsetWinOpt(m.winTarget, "@sidebar_content_pane")
-	}
-	tmuxio.SelectPane(m.contentPane)
+	tmuxio.RunQuiet("run-shell", "-b", "-t", m.selfPane, closeScript())
 	return tea.Quit
+}
+
+// closeScript is tmux-sidebar-toggle's --close invocation. Quoted as one shell
+// word because run-shell passes the string to sh -c.
+func closeScript() string {
+	return "'" + filepath.Join(homeDir(), ".config", "tmux_scripts", "tmux-sidebar-toggle") + "' --close"
 }
 
 // ---- view -----------------------------------------------------------------

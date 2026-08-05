@@ -434,7 +434,7 @@ unbound — for scripts).
 | `Backspace` | Up one level in a hierarchical tab (filetree); inert on the others |
 | `r` | Force refetch + re-render |
 | `?` | Toggle inline help overlay |
-| `q` / `Esc` | Close the sidebar (clears `@sidebar_pane_id`/`@sidebar_content_pane`, keeps `@sidebar_source`, focuses the last active pane) |
+| `q` / `Esc` | Close the sidebar — identical to `M-Tab` close, because it delegates to `tmux-sidebar-toggle --close` via `run-shell -b` (so the pane geometry restore and the focus choice are the script's, not a second copy) |
 | click (navigator) | Select the clicked navigator row |
 | click (agents row) | **Switch to that agent's pane**, across sessions included. The `▸ agents` label, the `+N more` counter and `(none)` are inert |
 | wheel | Scroll the navigator viewport, **clamped** (no wrap) and only while the pointer is **over the navigator** — a wheel event over the docked blocks or the header does nothing |

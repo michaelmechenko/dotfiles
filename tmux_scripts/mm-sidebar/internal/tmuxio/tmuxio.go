@@ -145,14 +145,6 @@ func FocusPane(paneID, target string) {
 	RunQuiet("select-pane", "-t", paneID)
 }
 
-// SelectPane focuses a pane within its window without switching clients.
-func SelectPane(paneID string) {
-	if paneID == "" {
-		return
-	}
-	RunQuiet("select-pane", "-t", paneID)
-}
-
 // SplitAt opens a new horizontal split in dir, targeting the content pane, and
 // leaves focus there -- the filetree's Enter-on-a-directory action.
 func SplitAt(targetPane, dir string) {

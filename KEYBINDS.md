@@ -437,7 +437,7 @@ unbound — for scripts).
 | `q` / `Esc` | Close the sidebar (clears `@sidebar_pane_id`/`@sidebar_content_pane`, keeps `@sidebar_source`, focuses the last active pane) |
 | click (navigator) | Select the clicked navigator row |
 | click (agents row) | **Switch to that agent's pane**, across sessions included. The `▸ agents` label, the `+N more` counter and `(none)` are inert |
-| wheel | Move the cursor up / down |
+| wheel | Scroll the navigator viewport, **clamped** (no wrap) and only while the pointer is **over the navigator** — a wheel event over the docked blocks or the header does nothing |
 
 Agent-glance state tags: `!P` awaiting permission, `!W` waiting, `~~` thinking, blank = idle (color also encodes state).
 

@@ -712,10 +712,21 @@ track — both are background-weight surfaces, not text, so neither could reuse
 | `q` / `Esc` | Close the sidebar |
 | click (navigator) | Select the clicked row |
 | click (agents row) | Switch to that agent's pane |
-| wheel | Move cursor |
+| wheel | Scroll the navigator viewport — clamped, and only over the navigator |
 
 Docked blocks have **no keys** — they're glances, not pickers — but a block may
 accept a click by implementing `Clickable` (see Extending).
+
+**The wheel is a clamped, position-scoped viewport scroll, not a cursor move.**
+Through revision 4 it called the same wrapping `move()` that `j`/`k` use, from
+anywhere in the pane — so a flick past the last row teleported the cursor to the
+top, and scrolling over the `system` gauges (which hold no cursor at all) moved the
+navigator's. It now adjusts `vpStart`, drags the cursor along only when it would
+leave the visible window, and ignores any wheel event whose `Y` is outside the
+navigator's own lines. `j`/`k` keep wrapping — that's a keyboard convenience; a
+wheel that wraps just reads as a glitch. The visible row span comes from
+`m.lineRow`, for the same reason clicks do: rows are variable-height, so it can't
+be derived from a line count.
 
 Mouse works because tmux already has `mouse on` and Bubble Tea enables SGR
 tracking (`WithMouseCellMotion`). A click resolves through two tables `View`

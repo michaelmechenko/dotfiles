@@ -308,9 +308,9 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	switch msg.Button {
 	case tea.MouseButtonWheelUp:
-		m.move(-1)
+		m.wheel(-1, msg.Y)
 	case tea.MouseButtonWheelDown:
-		m.move(1)
+		m.wheel(1, msg.Y)
 	case tea.MouseButtonLeft:
 		if msg.Action != tea.MouseActionPress {
 			return m, nil
@@ -346,6 +346,75 @@ func (m *model) navFirstLine() int {
 		return headerLines + len(helpText)
 	}
 	return headerLines
+}
+
+// wheel scrolls the navigator's VIEWPORT by delta rows, dragging the cursor along
+// only when it would otherwise leave the visible window.
+//
+// Two deliberate differences from j/k. It is position-scoped: a wheel event over
+// the docked blocks or the header is ignored, where previously scrolling anywhere
+// in the pane moved the navigator cursor -- including over the gauges, which hold
+// no cursor at all. And it does NOT wrap: j/k wrapping is a keyboard convenience,
+// but a wheel flick past the last row teleporting to the top reads as a glitch.
+//
+// The visible region comes from m.lineRow, the table the last frame recorded, for
+// the same reason the click handler uses it: rows are variable-height, so the
+// viewport's row span can't be derived from a line count arithmetically.
+func (m *model) wheel(delta, y int) {
+	top := m.navFirstLine()
+	avail := len(m.lineRow)
+	if y < top || y >= top+avail || len(m.rows) == 0 {
+		return
+	}
+	maxStart := m.maxScrollStart(avail)
+	if maxStart == 0 {
+		return // nothing is clipped; there is nowhere to scroll
+	}
+	start := m.vpStart + delta
+	if start < 0 {
+		start = 0
+	}
+	if start > maxStart {
+		start = maxStart
+	}
+	m.vpStart = start
+	if m.sel < start {
+		m.sel = start
+		return
+	}
+	if last := m.lastVisibleRow(start, avail); m.sel > last {
+		m.sel = last
+	}
+}
+
+// lastVisibleRow is the final row index that fits when rendering from start
+// within avail lines. At least the start row always counts, even if it is taller
+// than the viewport (it is then clipped, as View already does).
+func (m *model) lastVisibleRow(start, avail int) int {
+	used := 0
+	last := start
+	for i := start; i < len(m.rows); i++ {
+		used += len(m.rows[i].Lines)
+		if used > avail && i > start {
+			break
+		}
+		last = i
+	}
+	return last
+}
+
+// maxScrollStart is the largest vpStart that still fills the viewport, so
+// scrolling can't run past the end of the list into blank space. 0 means the
+// whole list already fits.
+func (m *model) maxScrollStart(avail int) int {
+	used := 0
+	for i := len(m.rows) - 1; i >= 0; i-- {
+		used += len(m.rows[i].Lines)
+		if used > avail {
+			return i + 1
+		}
+	}
+	return 0
 }
 
 func (m *model) move(delta int) {

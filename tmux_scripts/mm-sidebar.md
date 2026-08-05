@@ -35,7 +35,6 @@ window-list with appended widgets rather than switchable sources.
 │     ~/_main/product-enablement      │
 │   misc           1w                │
 │     ~/_main/tulip                  │
-│                                    │  slack collects here, as one gap
 │ ────────────────────────────────── │  divider (divider-subtle)
 │ ▸ agents                           │  docked block — read-only glance
 │   !P r-notes · m*                  │
@@ -49,6 +48,8 @@ window-list with appended widgets rather than switchable sources.
 │ mem  ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░ 83%      │
 │ disk ▓▓▓▓▓▓▓▓▓░░░░░░░░░░░ 48%      │
 │ batt ▓░░░░░░░░░░░░░░░░░░░ 5%       │
+│                                    │  unused space collects at the BOTTOM
+│                                    │
 └────────────────────────────────────┘
 ```
 
@@ -223,6 +224,13 @@ hand-written case statement in three separate dispatch functions, because macOS'
 `/bin/bash` 3.2 has neither associative arrays nor namerefs to look up
 `fetch_$id`. An interface makes that workaround moot.)
 
+A block that is holding data it isn't showing can additionally implement
+`Expandable` (`SetExtra`/`Expand`), which lets the layout hand it leftover pane
+space instead of leaving it blank. `Expand` returns its **`Height` delta, not the
+row count** — showing the last hidden row also retires the `+N more` line, so a
+1-row grant that clears the backlog is a net-zero height change. A block that
+always shows everything simply doesn't implement it.
+
 Each block carries a full-width `─` divider row above it (`divider-subtle`) plus
 the header's `▸ <name>` subtitle idiom as its own label row. The label alone was
 doing the divider's job through revision 3, which made header / navigator /
@@ -230,23 +238,29 @@ agents / system read as one undifferentiated column.
 
 ### Layout + degradation
 
-A **proportional split**, not shrink-to-content and not bottom-pinned:
+The navigator is sized to its **actual content**; blocks float up directly
+beneath it; unused space collects at the **bottom** of the pane.
 
 1. `usable = pane_height - header_lines` (2, or 8 with the help overlay open).
-2. `navFloor = usable * 6/10`, at least `navMinHeight` (3). This is the
-   navigator's guaranteed minimum share.
-3. Sum every active block's `Height() + 1` (the `+1` is its divider row). If that
-   exceeds `usable - navFloor`, drop the **last** block in the slice — lowest
-   degradation priority, `system_stats` before `agents_glance` — and recompute.
-   Repeat until they fit or no blocks remain.
-4. The navigator gets **all** the remaining space, i.e. `usable - dock_total`.
-   That puts the last block's final row flush with the bottom of the pane and
-   leaves the empty space as one contiguous gap inside the navigator, rather than
-   splitting it between a gap above the blocks and dead rows below them.
+2. Drop the **last** block in the slice — lowest degradation priority,
+   `system_stats` before `agents_glance` — while the blocks' total
+   (`Height() + 1` each, the `+1` being the divider row) exceeds
+   `usable - navMinHeight` (3).
+3. The navigator gets exactly the lines its rows need (a *sum*, since rows are
+   variable-height), clamped to what's left after the blocks. A longer list is
+   viewport-clipped around the cursor.
+4. Any slack left over is offered to blocks implementing `Expandable`, which show
+   more of what they already hold (`agents_glance` drops its `+N more` and lists
+   everything). Whatever nothing claims stays blank at the bottom.
 
-Step 2 is the fix for revision 3's dominant visual defect: the navigator got
-*all* leftover space with no floor and no ceiling, so a 3-row session list on a
-45-row pane left a ~30-row void between the last row and `▸ agents`.
+> **Two earlier versions of this failed the same way from opposite directions,
+> so don't reintroduce either.** Giving the navigator *all* leftover space (rev
+> 3), and giving it a fixed 60% share, both left a ~33-row void in the **middle**
+> of a 55-row pane, between the last session row and `▸ agents`. There is no
+> *share* of a 55-row pane that three sessions fill — a real pane is far taller
+> than the content, so the only fix is to stop reserving space the navigator
+> cannot use. Step 4 exists for the same reason at block scale: a `+1 more` line
+> sitting above 30 blank rows is the identical failure in miniature.
 
 Rows are **variable-height** (sessions/windows are two lines, filetree/scratch
 one), so the viewport scrolls in whole-row units while being measured in lines,
@@ -256,7 +270,11 @@ worked while every row was exactly one line tall.
 
 ### Docked block: `agents_glance`
 
-Read-only, always visible. Capped to 6 rows, **sorted by urgency** (stable, so
+Read-only, always visible. Capped to 6 rows by default — it implements
+`Expandable`, so the layout raises that cap when the pane has room to spare and
+the `+N more` line disappears entirely once everything fits. Truncation is a
+render-time decision, not baked in when a sweep arrives, so a grant takes effect
+immediately rather than on the next sweep. **Sorted by urgency** (stable, so
 rows don't shuffle between sweeps) with a trailing `+N more` when clipped. No
 cursor, no `Enter` — interactive agent switching stays on the existing `M-b`
 menu (`tmux-claude-menu`), which already covers it. This is also why `agents` is

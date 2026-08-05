@@ -47,6 +47,23 @@ type Block interface {
 	View(width int) string
 }
 
+// Expandable is the optional half of Block: a block that is holding data it
+// isn't showing, and can show more of it when the layout has space going spare.
+//
+// This exists because the sidebar's real problem is a pane much taller than its
+// content. Rather than pad the gap with nothing, the layout offers it to blocks
+// that are truncating -- agents_glance replacing "+N more" with the actual rows.
+// A block that always shows everything simply doesn't implement this.
+type Expandable interface {
+	// SetExtra resets the granted allowance. The layout calls this every frame
+	// before measuring, so a grant never accumulates across renders.
+	SetExtra(n int)
+	// Expand offers up to n extra lines and returns how many were taken (0 if
+	// the block has nothing hidden). The return value is the block's Height
+	// delta, so the layout can subtract it from the remaining slack.
+	Expand(n int) int
+}
+
 // label renders a block's title row in the same "▸ name" idiom the header's
 // active-tab subtitle uses, so each block is visually delimited without
 // spending a row on a blank divider.

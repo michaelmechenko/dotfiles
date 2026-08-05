@@ -11,8 +11,9 @@ import (
 	"mm-sidebar/internal/theme"
 )
 
-// AgentsGlanceMax caps how many agent rows the block shows before collapsing the
-// rest into a "+N more" line.
+// AgentsGlanceMax is the default cap on visible agent rows before the rest
+// collapse into a "+N more" line. The layout can raise it via Expand when the
+// pane has space going spare.
 const AgentsGlanceMax = 6
 
 // AgentRowsMsg carries a fresh agent sweep into the model. It is produced by the
@@ -29,8 +30,11 @@ type AgentRowsMsg struct {
 // rows that most need attention are the ones that survive truncation.
 type AgentsGlance struct {
 	theme theme.Theme
+	// rows holds every agent from the last sweep, urgency-sorted. Truncation is a
+	// render-time decision (see limit), not something baked in on receipt, so the
+	// layout can grant more room without waiting for another sweep.
 	rows  []agents.Row
-	more  int
+	extra int // additional rows granted by the layout beyond AgentsGlanceMax
 
 	// request is how the block asks the model's resolver goroutine for a sweep.
 	// Buffered and non-blocking: a coalescing trigger, not a queue.
@@ -77,20 +81,51 @@ func (b *AgentsGlance) Update(msg tea.Msg) {
 	sort.SliceStable(rows, func(i, j int) bool {
 		return agents.StateRank(rows[i].State) < agents.StateRank(rows[j].State)
 	})
-	if len(rows) > AgentsGlanceMax {
-		b.more = len(rows) - AgentsGlanceMax
-		rows = rows[:AgentsGlanceMax]
-	} else {
-		b.more = 0
-	}
 	b.rows = rows
 }
 
-// Height: label + rows (+ the "+N more" line). Minimum 2 so the block never
-// vanishes entirely -- an empty agents list still shows "▸ agents / (none)".
+// shown is how many rows render at the current allowance, and how many are left
+// over for the "+N more" line.
+func (b *AgentsGlance) shown() (n, more int) {
+	n = AgentsGlanceMax + b.extra
+	if n > len(b.rows) {
+		n = len(b.rows)
+	}
+	return n, len(b.rows) - n
+}
+
+// SetExtra resets the layout's row allowance.
+func (b *AgentsGlance) SetExtra(n int) { b.extra = n }
+
+// Expand takes up to n extra lines, returning the resulting Height delta.
+//
+// Note the delta is not always the row count: showing the LAST hidden row also
+// retires the "+N more" line, so a 1-row grant that clears the backlog is a
+// net-zero height change.
+func (b *AgentsGlance) Expand(n int) int {
+	_, more := b.shown()
+	if n <= 0 || more == 0 {
+		return 0
+	}
+	before := b.Height()
+	take := n
+	if take > more {
+		take = more
+	}
+	b.extra += take
+	if delta := b.Height() - before; delta <= n {
+		return delta
+	}
+	b.extra -= take // the grant didn't fit after all
+	return 0
+}
+
+// Height: label + visible rows (+ the "+N more" line). Minimum 2 so the block
+// never vanishes entirely -- an empty agents list still shows "▸ agents / (none)".
 func (b *AgentsGlance) Height() int {
-	h := 1 + len(b.rows)
-	if b.more > 0 {
+	n, more := b.shown()
+	h := 1 + n
+	if more > 0 {
 		h++
 	}
 	if h < 2 {
@@ -106,11 +141,12 @@ func (b *AgentsGlance) View(width int) string {
 		lines = append(lines, b.theme.Muted.Render("(none)"))
 		return join(lines, width)
 	}
-	for _, r := range b.rows {
+	n, more := b.shown()
+	for _, r := range b.rows[:n] {
 		lines = append(lines, "  "+b.renderRow(r))
 	}
-	if b.more > 0 {
-		lines = append(lines, b.theme.Muted.Render("  +"+strconv.Itoa(b.more)+" more"))
+	if more > 0 {
+		lines = append(lines, b.theme.Muted.Render("  +"+strconv.Itoa(more)+" more"))
 	}
 	return join(lines, width)
 }

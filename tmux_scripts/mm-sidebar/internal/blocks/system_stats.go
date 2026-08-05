@@ -65,24 +65,62 @@ func (b *SystemStats) Update(msg tea.Msg) {
 	}
 }
 
-// Height is fixed: label + 2 stat lines.
-func (b *SystemStats) Height() int { return 3 }
+// gaugeWidth is the bar's cell count: 4 (label) + 1 + 20 (bar) + 1 + 4 ("100%")
+// = 30 cells, inside the 36-column pane. Fixed rather than width-reactive; clip
+// handles a narrower pane.
+const gaugeWidth = 20
+
+// Height: label + one gauge line per metric (battery omitted when absent).
+func (b *SystemStats) Height() int {
+	h := 4 // label + cpu + mem + disk
+	if !b.have || b.stats.Batt >= 0 {
+		h++
+	}
+	return h
+}
 
 func (b *SystemStats) View(width int) string {
 	lines := []string{label(b.theme.Accent, "system")}
 	if !b.have {
-		lines = append(lines, b.theme.Muted.Render("sampling…"), "")
+		for len(lines) < b.Height() {
+			lines = append(lines, b.theme.Muted.Render("sampling…"))
+		}
 		return join(lines, width)
 	}
 	s := b.stats
-	lines = append(lines, b.theme.Text.Render(
-		"cpu "+pct(s.CPU)+"  mem "+pct(s.Mem)))
-	second := "disk " + pct(s.Disk)
+	lines = append(lines,
+		b.gauge("cpu", s.CPU, s.CPU >= 85),
+		b.gauge("mem", s.Mem, s.Mem >= 85),
+		b.gauge("disk", s.Disk, s.Disk >= 85),
+	)
 	if s.Batt >= 0 {
-		second += "  batt " + pct(s.Batt)
+		lines = append(lines, b.gauge("batt", s.Batt, s.Batt <= 20))
 	}
-	lines = append(lines, b.theme.Text.Render(second))
 	return join(lines, width)
+}
+
+// gauge renders "labl ▓▓▓░░… NN%": fill in the accent (rose when hot -- high
+// load, or a LOW battery), track in the divider-subtle role so it reads as
+// background, value in the ordinary row-text style.
+func (b *SystemStats) gauge(name string, val int, hot bool) string {
+	for len(name) < 4 {
+		name += " "
+	}
+	fill := val * gaugeWidth / 100
+	// Floor a nonzero reading at one cell: at 20 cells anything under 5% rounds
+	// to an all-track bar indistinguishable from 0, which also drops the hot/low
+	// color entirely -- exactly backwards for a 4% battery.
+	if fill == 0 && val > 0 {
+		fill = 1
+	}
+	fillStyle := b.theme.Accent
+	if hot {
+		fillStyle = b.theme.Urgent
+	}
+	return b.theme.Muted.Render(name) + " " +
+		fillStyle.Render(strings.Repeat("▓", fill)) +
+		b.theme.Divider.Render(strings.Repeat("░", gaugeWidth-fill)) + " " +
+		b.theme.Text.Render(pct(val))
 }
 
 func pct(n int) string { return strconv.Itoa(n) + "%" }
@@ -107,7 +145,7 @@ func sampleCPU() int {
 			sum += v
 		}
 	}
-	return clampPct(int(sum / float64(cores) + 0.5))
+	return clampPct(int(sum/float64(cores) + 0.5))
 }
 
 var vmStatPages = regexp.MustCompile(`(?m)^Pages (free|inactive):\s+(\d+)`)

@@ -28,6 +28,9 @@ type Theme struct {
 	Urgent lipgloss.Style
 	// Busy: accent-tertiary dusty pink (@color-dusty_pink) -- thinking.
 	Busy lipgloss.Style
+	// Divider: divider-subtle (@color-divider) -- the horizontal rules between
+	// the navigator and each docked block, and the unfilled gauge track.
+	Divider lipgloss.Style
 	// ActiveTab: the selected tab chip -- dark canvas text on an accent fill.
 	//
 	// Deliberately NOT reverse video. Reverse would swap in whatever the terminal
@@ -49,13 +52,15 @@ func Load() Theme {
 	text := opt("@color-active", "#bebedb")
 	rose := opt("@color-rose", "#d8647e")
 	pink := opt("@color-dusty_pink", "#bb9dbd")
+	divider := opt("@color-divider", "#383848")
 
 	return Theme{
-		Muted:  lipgloss.NewStyle().Foreground(lipgloss.Color(muted)),
-		Accent: lipgloss.NewStyle().Foreground(lipgloss.Color(accent)),
-		Text:   lipgloss.NewStyle().Foreground(lipgloss.Color(text)),
-		Urgent: lipgloss.NewStyle().Foreground(lipgloss.Color(rose)),
-		Busy:   lipgloss.NewStyle().Foreground(lipgloss.Color(pink)),
+		Muted:   lipgloss.NewStyle().Foreground(lipgloss.Color(muted)),
+		Accent:  lipgloss.NewStyle().Foreground(lipgloss.Color(accent)),
+		Text:    lipgloss.NewStyle().Foreground(lipgloss.Color(text)),
+		Urgent:  lipgloss.NewStyle().Foreground(lipgloss.Color(rose)),
+		Busy:    lipgloss.NewStyle().Foreground(lipgloss.Color(pink)),
+		Divider: lipgloss.NewStyle().Foreground(lipgloss.Color(divider)),
 		ActiveTab: lipgloss.NewStyle().
 			Foreground(lipgloss.Color(canvas)).
 			Background(lipgloss.Color(accent)).

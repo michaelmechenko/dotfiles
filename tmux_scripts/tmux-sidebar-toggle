@@ -83,15 +83,54 @@ pane_alive() {
   [ -n "${1:-}" ] && tmux display-message -p -t "$1" '#{pane_id}' >/dev/null 2>&1
 }
 
-close_sidebar() {
-  local content
+# return_pane resolves where focus should land when the sidebar stops holding it:
+# the window's LAST ACTIVE pane, per tmux's own tracking. @sidebar_content_pane is
+# the navigate/open-into target, which is a different question from "where did
+# focus come from" -- bounce between two content panes and only last-pane gives
+# the right answer. Falls back to it, then to any other pane in the window.
+return_pane() {
+  local last content other
+  last=$(tmux list-panes -t "$win_target" -F '#{?pane_last,#{pane_id},}' 2>/dev/null | grep . | head -1)
+  if [ -n "$last" ] && [ "$last" != "$existing" ]; then
+    printf '%s' "$last"
+    return 0
+  fi
   content=$(tmux show-options -wqv -t "$win_target" @sidebar_content_pane 2>/dev/null || true)
+  if [ "$content" != "$existing" ] && pane_alive "$content"; then
+    printf '%s' "$content"
+    return 0
+  fi
+  other=$(tmux list-panes -t "$win_target" -F '#{pane_id}' 2>/dev/null | grep -v "^$existing$" | head -1)
+  printf '%s' "$other"
+}
+
+close_sidebar() {
+  local target layout
+  # Resolve the focus target BEFORE the kill, while the options still exist.
+  target=$(return_pane)
+  layout=$(tmux show-options -wqv -t "$win_target" @sidebar_saved_layout 2>/dev/null || true)
+
   tmux kill-pane -t "$existing" 2>/dev/null || true
   tmux set-option -wqu -t "$win_target" @sidebar_pane_id
   tmux set-option -wqu -t "$win_target" @sidebar_content_pane
-  # Read the content pane BEFORE clearing the options, then select it, so focus
-  # after a close is deterministic instead of whichever pane tmux happens to pick.
-  pane_alive "$content" && tmux select-pane -t "$content" 2>/dev/null || true
+
+  # Restore the pane sizes the window had before the sidebar squeezed them. The
+  # -f (full-height) split is a whole-window geometry event, so tmux reflows every
+  # pane proportionally on open and gives the reclaimed columns to an arbitrary
+  # neighbor on close -- measured: a 99/40 split came back as 109/30.
+  #
+  # Failure is expected and must be harmless: select-layout validates the layout
+  # string's checksum AND its pane count, so a pane added or killed while the
+  # sidebar was open makes the saved string stale and tmux rejects it (verified).
+  # That degrades to tmux's own redistribution, which is what used to happen
+  # always. Clear the option either way so a stale string is never reused.
+  if [ -n "$layout" ]; then
+    tmux select-layout -t "$win_target" "$layout" 2>/dev/null || true
+  fi
+  tmux set-option -wqu -t "$win_target" @sidebar_saved_layout
+
+  # Focus last, so it wins regardless of what select-layout did.
+  pane_alive "$target" && tmux select-pane -t "$target" 2>/dev/null || true
 }
 
 if pane_alive "$existing"; then
@@ -102,15 +141,11 @@ if pane_alive "$existing"; then
     exit 0
   fi
   if [ "$current_pane" = "$existing" ]; then
-    # Focus is in the sidebar -> hand it back to the content pane, keep the sidebar.
-    content=$(tmux show-options -wqv -t "$win_target" @sidebar_content_pane 2>/dev/null || true)
-    if pane_alive "$content"; then
-      tmux select-pane -t "$content"
-    else
-      # Content pane died while the sidebar had focus: fall back to any other pane.
-      other=$(tmux list-panes -t "$win_target" -F '#{pane_id}' | grep -v "^$existing$" | head -1)
-      [ -n "$other" ] && tmux select-pane -t "$other"
-    fi
+    # Focus is in the sidebar -> hand it back to the window's last active pane,
+    # keeping the sidebar alive. See return_pane for why last-pane and not
+    # @sidebar_content_pane.
+    target=$(return_pane)
+    pane_alive "$target" && tmux select-pane -t "$target"
   else
     # Focus is in a content pane -> retarget the sidebar at THIS pane, then focus it.
     # Retargeting means the sidebar's filetree/scratch follow whichever pane you were
@@ -137,14 +172,28 @@ fi
 content_pane="$current_pane"
 cwd=$(tmux display-message -p -t "$content_pane" '#{pane_current_path}')
 
-# -h -f -b -l N: horizontal split, spanning the FULL window height (-f) rather than
-# just content_pane's height, placed to the LEFT of it (-b), N columns wide. Without
-# -f a content pane that isn't already full-height (the window already has panes
-# stacked around it) yields a sidebar only as tall as that one pane.
-sidebar_pane=$(tmux split-window -h -f -b -l "$SIDEBAR_WIDTH" -t "$content_pane" -c "$cwd" \
+# Snapshot the window's pane geometry BEFORE the split, so close_sidebar can put
+# it back. Only meaningful with 2+ panes -- a single-pane window has no sizes to
+# preserve. Stored window-scoped so it survives this process.
+panes=$(tmux display-message -p -t "$win_target" '#{window_panes}' 2>/dev/null || echo 1)
+if [ "${panes:-1}" -gt 1 ]; then
+  saved_layout=$(tmux display-message -p -t "$win_target" '#{window_layout}' 2>/dev/null || true)
+  [ -n "$saved_layout" ] && tmux set-option -wt "$win_target" @sidebar_saved_layout "$saved_layout"
+fi
+
+# -h -f -b -l N -d: horizontal split, spanning the FULL window height (-f) rather
+# than just content_pane's height, placed to the LEFT of it (-b), N columns wide.
+# Without -f a content pane that isn't already full-height (the window already has
+# panes stacked around it) yields a sidebar only as tall as that one pane.
+#
+# -d leaves the new pane UNFOCUSED: plain M-Tab must not move the active pane, it
+# only opens the sidebar. The --focus mode selects it explicitly further down.
+sidebar_pane=$(tmux split-window -h -f -b -d -l "$SIDEBAR_WIDTH" -t "$content_pane" -c "$cwd" \
   -P -F '#{pane_id}' "$cmd")
 
 # Mark the pane so other scripts can detect it (tsave's filter, border coloring).
+# `select-pane -T` only sets the title -- verified live that it does NOT activate
+# the target pane, so it can't defeat the -d above.
 tmux set-option -pt "$sidebar_pane" @sidebar_pane 1
 tmux select-pane -t "$sidebar_pane" -T sidebar
 
@@ -153,3 +202,8 @@ tmux set-option -wt "$win_target" @sidebar_content_pane "$content_pane"
 # Default tab on first open; preserved across close/re-open in the same window.
 cur_source=$(tmux show-options -wqv -t "$win_target" @sidebar_source 2>/dev/null || true)
 [ -n "$cur_source" ] || tmux set-option -wt "$win_target" @sidebar_source sessions
+
+# --focus opens AND focuses; plain open leaves focus where it was (the -d above).
+[ "$mode" = "--focus" ] && tmux select-pane -t "$sidebar_pane"
+
+exit 0

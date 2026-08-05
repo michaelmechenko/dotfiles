@@ -173,26 +173,21 @@ Border color/width for every window is driven by two files that must stay in loc
 - `borders/bordersrc` — daemon defaults: `width`, plus a static `active_color`/`inactive_color`
   fallback that only renders for a window before `frontapps.sh` has tinted it at least once (e.g.
   right after the daemon restarts, before the next focus/workspace event).
-- `sketchybar/plugins/frontapps.sh` — per-window color override by AeroSpace layout, applied via
-  `borders apply-to=` on every focus/workspace change. Always wins over `bordersrc`'s static
-  default once it has run.
+- `sketchybar/plugins/frontapps.sh` — per-window color override, applied via `borders apply-to=` on
+  every focus/workspace change. Always wins over `bordersrc`'s static default once it has run.
 
-Locked values — apply to every instance of borders in both files; don't reintroduce the old hexes
-(`#808080`, `#bb9dbd`, `#75758D`) or the old width (`6.0`):
+The active border uses the muted `text-ui` gray (`#9094A0`) at approximately 70% opacity. The
+inactive color remains the dark `surface-chrome` border, preserving the original perimeter behavior
+while reducing the active border's brightness and visual weight.
 
 | State | Hex | Where set |
 |---|---|---|
 | Inactive (any layout) | `#1c1c24` (`surface-chrome`) | `bordersrc` `inactive_color`; `frontapps.sh` `INACT` |
-| Active, floating | `#8B8692` | `frontapps.sh` floating branch |
-| Active, tiled/sticky | `#AEAED1` (`accent-secondary` lavender) | `bordersrc` `active_color` (static fallback — tiling is the default layout); `frontapps.sh` tiling branch |
+| Active (any layout) | `0xB39094A0` (`#9094A0` / `text-ui`, ~70% opacity) | `bordersrc` `active_color`; `frontapps.sh` active branch |
 | Width | `5.0` | `bordersrc` `width` (per-window `apply-to=` calls never set width) |
 
-Active-tiled deliberately reuses `accent-secondary` lavender (the same hex as tmux's active-pane
-border, Ghostty ANSI 6/12, etc.) — ties tiled-window borders to the same lavender identity used
-elsewhere. Active-floating (`#8B8692`) stays a dedicated border-only color: a light desaturation of
-an earlier `#8b8494` gray (blended ~30% toward its own average-channel gray) so floating windows
-read as a *slightly* grayer, less saturated variant next to the tiled lavender — not tied to any
-other palette role.
+This changes only the active border's color and opacity; JankyBorders still renders a full rounded
+perimeter, not corner-only segments.
 
 ## nnn preview (bat)
 

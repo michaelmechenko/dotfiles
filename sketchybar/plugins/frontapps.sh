@@ -181,18 +181,16 @@ done
 
 "${CMD[@]}"
 
-# Per-window border color by LAYOUT (focused window only; unfocused dims to inactive). Locked
-# values, see COLORS.md "Window borders" section - keep in lockstep with borders/bordersrc:
-#   floating → #8B8692, tiling/"sticky" → #AEAED1 (accent-secondary lavender). Fullscreen keeps
-#   its layout color (no special tint) — only the SketchyBar name brackets mark fullscreen.
+# Per-window border color (focused window only; unfocused dims to inactive). Locked values, see
+# COLORS.md "Window borders" section - keep in lockstep with borders/bordersrc. Fullscreen keeps
+# the same active color — only the SketchyBar name brackets mark fullscreen.
 # JankyBorders apply-to is write-only, so diff "id color" against saved state; only changed
-# windows get a borders call. inactive_color stays dark so unfocused windows still dim.
+# windows get a borders call. Unfocused windows retain the dark inactive border.
 BORDERS=/opt/homebrew/bin/borders
 INACT=0xff1c1c24
 CUR_COLORS="$(printf '%s\n' "$WINDOW_DATA" | awk -F'\t' '
   NF>=6 && $3!="" {
-    c="0xffAEAED1"                                  # tiling / sticky
-    if ($6=="floating") c="0xff8B8692"              # floating
+    c="0xB39094A0"                                  # all active windows
     print $3" "c
   }' | sort)"
 PREV_COLORS="$(sort /tmp/aerospace_border_colors 2>/dev/null || true)"

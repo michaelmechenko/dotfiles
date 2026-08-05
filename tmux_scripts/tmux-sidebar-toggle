@@ -1,20 +1,25 @@
 #!/usr/bin/env bash
-# tmux-sidebar-toggle -- M-Tab / prefix-Tab entry point for the mm-sidebar pane.
+# tmux-sidebar-toggle -- M-Tab / M-S-Tab / prefix-Tab entry point for the
+# mm-sidebar pane. TWO MODES, one per keybinding:
 #
-# THREE-STATE FOCUS TOGGLE (not open/close):
+#   (default)  OPEN/CLOSE     no sidebar -> open it, focus it
+#                             sidebar open (from anywhere) -> close it
 #
-#   no sidebar in this window        -> open it, focus it
-#   sidebar open, focus in content   -> focus the sidebar
-#   sidebar open, focus in sidebar   -> focus the content pane (sidebar STAYS)
+#   --focus    FOCUS SWITCH   no sidebar -> open it, focus it
+#              (three-state)  open, focus in content -> focus the sidebar
+#                             open, focus in sidebar -> focus content, pane STAYS
 #
-# Closing is `q`/`Esc` inside the sidebar, or this script with --close.
+#   --close                   close if open, never opens (for scripts)
 #
-# Why focus-toggle rather than open/kill: the old behavior killed the pane on the
-# second press, so every "let me peek at the tree and go back" cycle paid a full
-# process respawn. That respawn cost is also the entire reason the reference doc
-# carried a "stash the pane via break-pane so re-open is instant" follow-up --
-# which needed an AeroSpace exclusion for the holding session's window and was
-# never solved. Not killing the pane in the first place retires that follow-up.
+# The split exists because the two gestures have different costs. Open/close pays
+# a full process respawn on every re-open, which is why the reference doc once
+# carried a "stash the pane via break-pane so re-open is instant" follow-up (it
+# needed an AeroSpace exclusion for the holding session's window and was never
+# solved). --focus is the cheap path: peek at the tree and go back without the
+# pane ever dying. Both are bound, so the respawn is only paid when the intent is
+# genuinely to dismiss the sidebar.
+#
+# Closing also works with `q`/`Esc` inside the sidebar.
 #
 # Window-scoped options (setw -w; per-window, so each window keeps its own sidebar
 # and its own active tab -- neo-tree's per-tab isolation):
@@ -90,7 +95,9 @@ close_sidebar() {
 }
 
 if pane_alive "$existing"; then
-  if [ "$mode" = "--close" ]; then
+  # Open/close (the default) and --close both dismiss an open sidebar; only
+  # --focus moves focus around while keeping the pane alive.
+  if [ "$mode" != "--focus" ]; then
     close_sidebar
     exit 0
   fi

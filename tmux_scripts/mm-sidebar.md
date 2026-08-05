@@ -67,7 +67,7 @@ matching `#{pane_height}` each time.
 | Path | Role |
 | --- | --- |
 | `tmux_scripts/mm-sidebar/` | The Go module. `go.mod`/`go.sum` tracked; binary gitignored. |
-| `tmux_scripts/tmux-sidebar-toggle` | `M-Tab` / `prefix Tab` entry point. Three-state focus toggle + pane lifecycle. |
+| `tmux_scripts/tmux-sidebar-toggle` | `M-Tab` / `M-S-Tab` / `prefix Tab` / `prefix BTab` entry point. Open/close, focus switch, pane lifecycle. |
 | `tmux_scripts/tmux-sidebar-build` | Builds the binary on demand; prints its path, or exits 1 so callers can fall back. |
 | `tmux_scripts/tmux-sidebar-repin` | Restores every sidebar pane to its configured width after a resize. |
 | `tmux_scripts/tmux-agent-ls` | Thin wrapper over `mm-sidebar agents` (the only copy of the join). |
@@ -93,7 +93,7 @@ sidebar presence — mirroring neo-tree's per-tab isolation.
 | Option | Meaning |
 | --- | --- |
 | `@sidebar_pane_id` | The sidebar pane. Unset when closed. |
-| `@sidebar_content_pane` | The pane the sidebar navigates/opens into. Retargeted to whichever pane you `M-Tab` *from*. |
+| `@sidebar_content_pane` | The pane the sidebar navigates/opens into. Retargeted to whichever pane you `M-S-Tab` *from*. |
 | `@sidebar_source` | Active tab (`sessions`\|`windows`\|`filetree`\|`scratch`). **Deliberately not cleared on close**, so re-opening restores your tab. |
 
 Per-pane marker: `@sidebar_pane 1` + pane title `sidebar`, so `tsave` and border
@@ -117,24 +117,33 @@ cwd when the content pane actually **changes** (tracked via `ftLastPane`), never
 on every refresh — otherwise `Backspace`-navigate-up would be silently reset on
 the next 2s poll.
 
-## `M-Tab`: three-state focus toggle
+## `M-Tab` / `M-S-Tab`: two gestures, one script
 
-| State | `M-Tab` / `prefix Tab` |
-| --- | --- |
-| no sidebar in this window | open + focus the sidebar |
-| open, focus in content | retarget `@sidebar_content_pane` at this pane, focus the sidebar |
-| open, focus in sidebar | focus the content pane — **sidebar stays open** |
+One entry point, dispatched on argv: no argument is open/close, `--focus` is the
+three-state focus switch, `--close` only ever closes.
 
-Closing is `q`/`Esc` inside the sidebar, or `tmux-sidebar-toggle --close`
+| Key | State | Result |
+| --- | --- | --- |
+| `M-Tab` / `prefix Tab` | no sidebar in this window | open + focus the sidebar |
+| `M-Tab` / `prefix Tab` | open (from **anywhere**) | close it — the pane is killed |
+| `M-S-Tab` / `prefix BTab` | no sidebar in this window | open + focus the sidebar |
+| `M-S-Tab` / `prefix BTab` | open, focus in content | retarget `@sidebar_content_pane` at this pane, focus the sidebar |
+| `M-S-Tab` / `prefix BTab` | open, focus in sidebar | focus the content pane — **sidebar stays open** |
+
+`q`/`Esc` inside the sidebar also closes it, as does `tmux-sidebar-toggle --close`
 (unbound; for scripts).
 
-**Why focus-toggle rather than open/kill.** The old behavior killed the pane on
-the second press, so every "peek at the tree and go back" cycle paid a full
-process respawn. That respawn cost was also the entire justification for the old
-stash-via-`break-pane` follow-up (tabby's trick: `break-pane -d` into a hidden
-holding session so the renderer keeps running), which needed an AeroSpace
-exclusion for the holding session's window and was never solved. Not killing the
-pane retires that follow-up rather than working around it.
+**Why both, rather than one gesture doing everything.** They have different costs.
+Open/close pays a full process respawn on every re-open — that cost was the entire
+justification for the old stash-via-`break-pane` follow-up (tabby's trick:
+`break-pane -d` into a hidden holding session so the renderer keeps running),
+which needed an AeroSpace exclusion for the holding session's window and was never
+solved. `--focus` sidesteps it: "peek at the tree and go back" never kills the
+pane, so the respawn is only paid when the intent is genuinely to dismiss the
+sidebar. That retires the follow-up rather than working around it.
+
+Revision 3 put the three-state behavior on `M-Tab` alone with no open/close
+binding at all, which left dismissing the sidebar reachable only from inside it.
 
 Implementation notes:
 
@@ -156,20 +165,27 @@ Implementation notes:
 
 ### Reachability
 
-Three pieces must stay aligned for `M-Tab`:
+Three pieces must stay aligned for `M-Tab` and `M-S-Tab`:
 
-1. **Ghostty** (`ghostty/config`): `keybind = alt+tab=csi:9;3u` — Tab is keycode
-   9, Alt is modifier 3. Same recipe as the existing `alt+enter=csi:13;3u`.
+1. **Ghostty** (`ghostty/config`): `keybind = alt+tab=csi:9;3u` and
+   `keybind = alt+shift+tab=csi:9;4u`. Tab is keycode 9; the CSI-u modifier is
+   `1 + shift(1) + alt(2)`, so Alt is 3 and Alt+Shift is 4. Same recipe as the
+   existing `alt+enter=csi:13;3u`.
 2. **tmux**: `extended-keys on` + `extended-keys-format csi-u` (already set).
-3. **tmux bind**: guarded with
-   `#{||:#{popup_width},#{==:#{session_name},nnn}}` so `M-Tab` forwards raw
-   inside any popup or the `nnn` session, matching the `M-j`/`M-q` pattern.
+3. **tmux binds**: both guarded with
+   `#{||:#{popup_width},#{==:#{session_name},nnn}}` so they forward raw inside
+   any popup or the `nnn` session, matching the `M-j`/`M-q` pattern.
 
-**`prefix Tab` is bound to the same script as a terminal-agnostic fallback.**
-`M-Tab` exists only because of (1); from another emulator, or over SSH from a
-machine without that mapping, it silently does nothing. `prefix Tab` needs no
-terminal cooperation, so the sidebar is never unreachable. It is the same three
-states, not a second behavior.
+**`prefix Tab` / `prefix BTab` are bound to the same script as terminal-agnostic
+fallbacks.** The `M-` forms exist only because of (1); from another emulator, or
+over SSH from a machine without those mappings, they silently do nothing. The
+prefix table needs no terminal cooperation, so the sidebar is never unreachable.
+`Tab` maps to open/close and `BTab` (tmux's name for Shift-Tab) to the focus
+switch — the same two modes, not a third behavior.
+
+Note the sidebar's own `Tab`/`S-Tab` (cycle navigator tabs) don't collide: those
+are unmodified keys delivered to the focused pane, while `M-Tab`/`M-S-Tab` are
+root-table binds tmux consumes before the pane ever sees them.
 
 ### Width re-pinning (and why the obvious version doesn't work)
 
@@ -639,5 +655,6 @@ instant. It was deferred because the holding session's window gets tiled by
 AeroSpace, needing an autohide/floating workspace or an AeroSpace exclusion.
 
 **It is no longer wanted.** Its only purpose was hiding the respawn cost of
-kill-on-close, and the three-state focus toggle means the sidebar isn't killed
-incidentally in the first place. Don't reintroduce it.
+kill-on-close, and `M-S-Tab` (the focus switch) means the sidebar isn't killed
+incidentally in the first place — the respawn is only paid on a deliberate
+`M-Tab` dismissal. Don't reintroduce it.

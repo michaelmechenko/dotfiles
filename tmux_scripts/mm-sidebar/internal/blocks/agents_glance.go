@@ -123,7 +123,8 @@ const stateTagWidth = 2
 // same palette roles as tmux-claude-menu --colorize (rose = blocked on you,
 // dusty pink = working, muted = idle).
 //
-// Two deliberate choices, both forced by the 28-column budget:
+// Two deliberate choices, both forced by the narrow column budget (28 at the
+// time; the reasoning still holds at 36):
 //
 //   - The tag column is FIXED WIDTH. The words this replaced (!perm / !wait / … /
 //     a bare space) were 5, 5, 1 and 1 cells wide, so no two rows started their

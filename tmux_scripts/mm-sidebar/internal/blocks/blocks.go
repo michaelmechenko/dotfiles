@@ -63,7 +63,7 @@ type styler interface {
 // clip truncates a possibly-styled string to width display cells. It is
 // ANSI-aware and width-aware (wide CJK glyphs and nerd-font icons count as the
 // cells they actually occupy), unlike the bash version's byte/rune length check
-// on an ANSI-stripped copy, which misaligned the 28-column frame on any such
+// on an ANSI-stripped copy, which misaligned the fixed-width frame on any such
 // glyph and dropped color past the cut.
 func clip(s string, width int) string {
 	if width <= 0 {

@@ -29,7 +29,7 @@
 
 set -uo pipefail
 
-SIDEBAR_WIDTH="${TMUX_SIDEBAR_WIDTH:-28}"
+SIDEBAR_WIDTH="${TMUX_SIDEBAR_WIDTH:-36}"
 SCRIPTS="$HOME/.config/tmux_scripts"
 BUILD="$SCRIPTS/tmux-sidebar-build"
 FALLBACK="$SCRIPTS/tmux-sidebar"

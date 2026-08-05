@@ -2,7 +2,7 @@
 # tmux-sidebar-repin -- restore every mm-sidebar pane to its configured width.
 #
 # tmux scales panes PROPORTIONALLY when a client or window resizes, so a Ghostty
-# window resize or a monitor attach/detach drifts the 28-col sidebar off 28
+# window resize or a monitor attach/detach drifts the 36-col sidebar off 36
 # columns (measured: 160->100 cols collapsed it to 1 column).
 #
 # Two things this has to get right, both found by testing the naive version:
@@ -22,7 +22,7 @@
 # resize-pane re-fires window-layout-changed, and the next invocation sees the
 # width already matching and does nothing.
 
-WIDTH="${TMUX_SIDEBAR_WIDTH:-28}"
+WIDTH="${TMUX_SIDEBAR_WIDTH:-36}"
 
 tmux list-windows -a -F '#{session_id}:#{window_index}	#{@sidebar_pane_id}' 2>/dev/null |
 while IFS='	' read -r _win sb; do

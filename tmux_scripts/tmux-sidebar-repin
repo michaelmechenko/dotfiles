@@ -1,0 +1,42 @@
+#!/bin/sh
+# tmux-sidebar-repin -- restore every mm-sidebar pane to its configured width.
+#
+# tmux scales panes PROPORTIONALLY when a client or window resizes, so a Ghostty
+# window resize or a monitor attach/detach drifts the 28-col sidebar off 28
+# columns (measured: 160->100 cols collapsed it to 1 column).
+#
+# Two things this has to get right, both found by testing the naive version:
+#
+#  1. It must run DEFERRED, via `run-shell -b`, not inline in the hook. A
+#     `resize-pane` issued synchronously inside window-layout-changed /
+#     client-resized is discarded -- tmux finishes applying its own proportional
+#     layout after the hook body returns and overwrites it. Confirmed live: the
+#     hook fired with the correct pane id every time and the width still ended up
+#     at 1. Backgrounding it lets the resize land after that pass completes.
+#  2. It must sweep ALL windows, not just the hook's target. `client-resized`
+#     resolves formats against the client's current window, so an inline
+#     `#{@sidebar_pane_id}` only ever re-pins the window you happen to be looking
+#     at -- sidebars in other windows stay drifted.
+#
+# The "already correct" check is also the recursion brake: this script's own
+# resize-pane re-fires window-layout-changed, and the next invocation sees the
+# width already matching and does nothing.
+
+WIDTH="${TMUX_SIDEBAR_WIDTH:-28}"
+
+tmux list-windows -a -F '#{session_id}:#{window_index}	#{@sidebar_pane_id}' 2>/dev/null |
+while IFS='	' read -r _win sb; do
+    [ -n "$sb" ] || continue
+
+    cur=$(tmux display-message -p -t "$sb" '#{pane_width}' 2>/dev/null) || continue
+    [ -n "$cur" ] || continue
+    [ "$cur" = "$WIDTH" ] && continue
+
+    # Don't fight a window too narrow to honor the request; tmux would clamp it and
+    # this would re-run on every layout change forever.
+    ww=$(tmux display-message -p -t "$sb" '#{window_width}' 2>/dev/null)
+    [ -n "$ww" ] || continue
+    [ "$ww" -le "$((WIDTH + 10))" ] && continue
+
+    tmux resize-pane -x "$WIDTH" -t "$sb" 2>/dev/null || true
+done

@@ -1,66 +1,148 @@
 #!/usr/bin/env bash
-# M-Tab: toggle the left sidebar pane (the neo-tree-like multi-source sidebar).
-# Open  -> split a 28-col, FULL-WINDOW-HEIGHT pane (split-window -f) to the LEFT
-#          of the current (content) pane, run tmux-sidebar (the dispatcher TUI)
-#          inside it, and record both pane ids in window-scoped user options so
-#          the dispatcher can track its content pane and re-toggle can close.
-#          -f is required regardless of how many other panes already exist on
-#          the content side, otherwise the sidebar only spans the height of the
-#          single pane it split from.
-# Close -> kill the sidebar pane and clear the window-scoped options.
+# tmux-sidebar-toggle -- M-Tab / prefix-Tab entry point for the mm-sidebar pane.
 #
-# Window-scoped options (setw -w; per-window so each window remembers its own
-# sidebar state and active source, mirroring neo-tree's per-tab isolation):
-#   @sidebar_pane_id     id of the sidebar pane (unset when closed)
-#   @sidebar_content_pane id of the pane the sidebar navigates/opens into
-#   @sidebar_source      active source: sessions|windows|agents|filetree|scratch
+# THREE-STATE FOCUS TOGGLE (not open/close):
 #
-# MVP uses kill-pane on close (simple). A stash-via-break-pane path (tabby-style
-# instant restore, renderer keeps running) is a known follow-up -- not used now
-# because the holding session's window would get tiled by AeroSpace.
+#   no sidebar in this window        -> open it, focus it
+#   sidebar open, focus in content   -> focus the sidebar
+#   sidebar open, focus in sidebar   -> focus the content pane (sidebar STAYS)
+#
+# Closing is `q`/`Esc` inside the sidebar, or this script with --close.
+#
+# Why focus-toggle rather than open/kill: the old behavior killed the pane on the
+# second press, so every "let me peek at the tree and go back" cycle paid a full
+# process respawn. That respawn cost is also the entire reason the reference doc
+# carried a "stash the pane via break-pane so re-open is instant" follow-up --
+# which needed an AeroSpace exclusion for the holding session's window and was
+# never solved. Not killing the pane in the first place retires that follow-up.
+#
+# Window-scoped options (setw -w; per-window, so each window keeps its own sidebar
+# and its own active tab -- neo-tree's per-tab isolation):
+#   @sidebar_pane_id       the sidebar pane (unset when closed)
+#   @sidebar_content_pane  the pane the sidebar navigates/opens into
+#   @sidebar_source        active tab; deliberately NOT cleared on close, so
+#                          re-opening restores the tab you were on
+#
+# Open runs the compiled mm-sidebar binary, falling back to the legacy bash
+# dispatcher if the build fails (no Go toolchain, compile error) so M-Tab always
+# does something.
 
-set -euo pipefail
+set -uo pipefail
 
 SIDEBAR_WIDTH="${TMUX_SIDEBAR_WIDTH:-28}"
+SCRIPTS="$HOME/.config/tmux_scripts"
+BUILD="$SCRIPTS/tmux-sidebar-build"
+FALLBACK="$SCRIPTS/tmux-sidebar"
 
-# Double-guard: the M-Tab bind already forwards raw inside popups/nnn, but a
-# direct invocation should still no-op there rather than spawn a sidebar.
-session=$(tmux display-message -p '#{session_name}')
-popup=$(tmux display-message -p '#{popup_width}')
+mode="${1:-toggle}"
+
+# Double-guard: the M-Tab bind already forwards raw inside popups/nnn, but a direct
+# invocation should no-op there rather than spawn a sidebar into a popup.
+session=$(tmux display-message -p "${TMUX_PANE:+-t}" ${TMUX_PANE:+"$TMUX_PANE"} '#{session_name}' 2>/dev/null || true)
+popup=$(tmux display-message -p '#{popup_width}' 2>/dev/null || true)
 if [ -n "$popup" ] || [ "$session" = "nnn" ]; then
   exit 0
 fi
 
-win_target=$(tmux display-message -p '#{session_id}:#{window_index}')
+# `run-shell` is asynchronous, so a fast double-press can start two copies of this
+# script before either has written @sidebar_pane_id -- both would take the open path
+# and the window would end up with two sidebars. mkdir is the atomic lock (macOS has
+# no flock(1)); the pid + `kill -0` guard clears a lock left behind by a killed run,
+# so a stale lock can never permanently break M-Tab (the failure mode the
+# @in_float_popup flag hit -- see AGENTS.md).
+LOCK="${TMPDIR:-/tmp}/mm-sidebar-toggle.lock"
+if ! mkdir "$LOCK" 2>/dev/null; then
+  if [ -f "$LOCK/pid" ] && ! kill -0 "$(cat "$LOCK/pid" 2>/dev/null)" 2>/dev/null; then
+    rm -rf "$LOCK"
+    mkdir "$LOCK" 2>/dev/null || exit 0
+  else
+    exit 0   # a press is already being handled; this one is a duplicate
+  fi
+fi
+echo $$ >"$LOCK/pid"
+trap 'rm -rf "$LOCK"' EXIT
+
+# "Which pane am I acting for" must come from $TMUX_PANE, not `display-message -p
+# '#{pane_id}'`. The latter resolves to the *currently active* pane per the attached
+# client, which is not necessarily the pane this invocation belongs to -- the same
+# trap AGENTS.md documents for nnn's .nnn-preview-scroll. tmux exports TMUX_PANE to
+# run-shell with the target pane, so the keybinding path gets the right answer, and
+# a direct invocation from inside a pane does too.
+current_pane="${TMUX_PANE:-}"
+[ -n "$current_pane" ] || current_pane=$(tmux display-message -p '#{pane_id}')
+
+win_target=$(tmux display-message -p -t "$current_pane" '#{session_id}:#{window_index}')
 existing=$(tmux show-options -wqv -t "$win_target" @sidebar_pane_id 2>/dev/null || true)
 
-if [ -n "$existing" ] && tmux display-message -p -t "$existing" '#{pane_id}' >/dev/null 2>&1; then
-  # Close path.
+pane_alive() {
+  [ -n "${1:-}" ] && tmux display-message -p -t "$1" '#{pane_id}' >/dev/null 2>&1
+}
+
+close_sidebar() {
+  local content
+  content=$(tmux show-options -wqv -t "$win_target" @sidebar_content_pane 2>/dev/null || true)
   tmux kill-pane -t "$existing" 2>/dev/null || true
   tmux set-option -wqu -t "$win_target" @sidebar_pane_id
   tmux set-option -wqu -t "$win_target" @sidebar_content_pane
+  # Read the content pane BEFORE clearing the options, then select it, so focus
+  # after a close is deterministic instead of whichever pane tmux happens to pick.
+  pane_alive "$content" && tmux select-pane -t "$content" 2>/dev/null || true
+}
+
+if pane_alive "$existing"; then
+  if [ "$mode" = "--close" ]; then
+    close_sidebar
+    exit 0
+  fi
+  if [ "$current_pane" = "$existing" ]; then
+    # Focus is in the sidebar -> hand it back to the content pane, keep the sidebar.
+    content=$(tmux show-options -wqv -t "$win_target" @sidebar_content_pane 2>/dev/null || true)
+    if pane_alive "$content"; then
+      tmux select-pane -t "$content"
+    else
+      # Content pane died while the sidebar had focus: fall back to any other pane.
+      other=$(tmux list-panes -t "$win_target" -F '#{pane_id}' | grep -v "^$existing$" | head -1)
+      [ -n "$other" ] && tmux select-pane -t "$other"
+    fi
+  else
+    # Focus is in a content pane -> retarget the sidebar at THIS pane, then focus it.
+    # Retargeting means the sidebar's filetree/scratch follow whichever pane you were
+    # last working in, rather than staying pinned to whatever was focused at open.
+    tmux set-option -wt "$win_target" @sidebar_content_pane "$current_pane"
+    tmux select-pane -t "$existing"
+  fi
   exit 0
 fi
 
-# Open path.
-content_pane=$(tmux display-message -p '#{pane_id}')
+# No live sidebar in this window.
+[ "$mode" = "--close" ] && exit 0
+
+# Open. Prefer the compiled binary; fall back to the legacy bash dispatcher.
+cmd=""
+if bin=$("$BUILD" 2>/dev/null) && [ -n "$bin" ]; then
+  cmd="$bin"
+elif [ -x "$FALLBACK" ]; then
+  cmd="$FALLBACK"
+else
+  exit 1
+fi
+
+content_pane="$current_pane"
 cwd=$(tmux display-message -p -t "$content_pane" '#{pane_current_path}')
 
-# -h -f -b -l N: horizontal split, spanning the FULL window height (-f) rather
-# than just content_pane's height, placed to the LEFT of the content pane (-b),
-# N columns wide. Without -f, a content pane that isn't already full-height
-# (e.g. the window already has other panes stacked around it) would produce a
-# sidebar that only spans that one pane's height. -P -F captures the new pane's id.
+# -h -f -b -l N: horizontal split, spanning the FULL window height (-f) rather than
+# just content_pane's height, placed to the LEFT of it (-b), N columns wide. Without
+# -f a content pane that isn't already full-height (the window already has panes
+# stacked around it) yields a sidebar only as tall as that one pane.
 sidebar_pane=$(tmux split-window -h -f -b -l "$SIDEBAR_WIDTH" -t "$content_pane" -c "$cwd" \
-  -P -F '#{pane_id}' "$HOME/.config/tmux_scripts/tmux-sidebar")
+  -P -F '#{pane_id}' "$cmd")
 
-# Mark the sidebar pane so other scripts can detect it (tsave filter, border
-# coloring) and give it a recognizable title.
+# Mark the pane so other scripts can detect it (tsave's filter, border coloring).
 tmux set-option -pt "$sidebar_pane" @sidebar_pane 1
 tmux select-pane -t "$sidebar_pane" -T sidebar
 
 tmux set-option -wt "$win_target" @sidebar_pane_id "$sidebar_pane"
 tmux set-option -wt "$win_target" @sidebar_content_pane "$content_pane"
-# Default source on first open; preserve if already set (e.g. re-open in same window).
+# Default tab on first open; preserved across close/re-open in the same window.
 cur_source=$(tmux show-options -wqv -t "$win_target" @sidebar_source 2>/dev/null || true)
 [ -n "$cur_source" ] || tmux set-option -wt "$win_target" @sidebar_source sessions

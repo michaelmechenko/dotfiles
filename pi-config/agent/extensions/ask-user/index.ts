@@ -16,7 +16,6 @@
 
 import { getPackageDir, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { ImageContent } from "@earendil-works/pi-ai";
-import { frameText, toolCallFrame, toolResultFrame } from "../tool-display/frame.js";
 import {
   Editor,
   type EditorTheme,
@@ -488,52 +487,5 @@ export default function askUser(pi: ExtensionAPI) {
       }
     },
 
-    renderCall(args, theme, context) {
-      let text = theme.fg("warning", "○ ") + theme.fg("toolTitle", theme.bold("ask_user "));
-      text += theme.fg(
-        "muted",
-        typeof args.question === "string" ? args.question : "",
-      );
-      const opts = Array.isArray(args.options)
-        ? (args.options as DisplayOption[])
-        : [];
-      if (opts.length > 0) {
-        const numbered = opts.map((o, i) => `${i + 1}. ${o.label}`);
-        text += `\n${theme.fg("dim", `  ${numbered.join("  ")}`)}`;
-      }
-      return frameText(context?.lastComponent ?? new Text("", 0, 0), (width) =>
-        toolCallFrame(theme, width, text, { pending: true }),
-      );
-    },
-
-    renderResult(result, _options, theme, context) {
-      const details = result.details as AskUserDetails | undefined;
-      if (!details) {
-        const first = result.content[0];
-        return frameText(context?.lastComponent ?? new Text("", 0, 0), (width) =>
-          toolResultFrame(theme, width, [first?.type === "text" ? first.text : ""]),
-        );
-      }
-
-      if (details.cancelled || details.answer === null) {
-        return frameText(context?.lastComponent ?? new Text("", 0, 0), (width) =>
-          toolResultFrame(theme, width, [theme.fg("warning", "✗ dismissed")]),
-        );
-      }
-
-      if (details.wasCustom) {
-        const attachment = details.images?.length ? ` + ${details.images.length} image${details.images.length === 1 ? "" : "s"}` : "";
-        const answer = theme.fg("success", "✓ ") + theme.fg("muted", "(wrote) ") + theme.fg("accent", `${details.answer}${attachment}`);
-        return frameText(context?.lastComponent ?? new Text("", 0, 0), (width) =>
-          toolResultFrame(theme, width, [answer]),
-        );
-      }
-
-      const idx = details.options.indexOf(details.answer) + 1;
-      const display = idx > 0 ? `${idx}. ${details.answer}` : details.answer;
-      return frameText(context?.lastComponent ?? new Text("", 0, 0), (width) =>
-        toolResultFrame(theme, width, [theme.fg("success", "✓ ") + theme.fg("accent", display)]),
-      );
-    },
   });
 }

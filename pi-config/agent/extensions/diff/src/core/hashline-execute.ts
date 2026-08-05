@@ -22,7 +22,7 @@ export type HashlineExecuteOptions = {
 	resolvedPath: string;
 	changes: HashlineEdit[];
 	dryRun?: boolean;
-	/** Pi tool call id — used to stash diff stats for renderCall */
+	/** Pi tool call id — retained for tool execution metadata */
 	toolCallId?: string;
 	onDiffStats?: (toolCallId: string, diff: ParsedDiff) => void;
 };

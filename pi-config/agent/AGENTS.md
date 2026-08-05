@@ -66,9 +66,9 @@
 - Ask before destructive, irreversible, externally visible, privileged, or costly actions
 - If intent is unclear but a safe default exists, choose it and continue
 
-## Tool Renderer Frames
+## Custom tool rendering
 
-- Custom tool call/result renderers must use `extensions/tool-display/frame.ts` for outer layout. Do not add raw outer newlines, fixed terminal-width padding, or tool-specific outer indentation; the adapter owns the top/call/divider/result/bottom rows and the one-cell horizontal padding contract.
+Custom outer framing is intentionally limited to the `read`, `bash`, and diff renderer paths. Other extensions must use Pi's default tool shell and result presentation. Keep renderer-specific layout out of execution-only tools.
 
 ## Response Shaping
 

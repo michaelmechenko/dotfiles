@@ -25,7 +25,6 @@
 
 import { complete, type Model, type Api, type Message } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { areToolResultsExpanded } from "../tool-display/state.js";
 import {
 	getAgentDir,
 	SessionManager,
@@ -44,7 +43,6 @@ import {
 	Spacer,
 	Text,
 } from "@earendil-works/pi-tui";
-import { frameComponentResult } from "../tool-display/frame.js";
 import { Type } from "@sinclair/typebox";
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from "node:fs";
@@ -665,43 +663,7 @@ export default function sessionRecallExtension(pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "session_search",
 		label: (params) => `Session Search: ${params.query}`,
-		renderShell: "self",
-		renderCall: (args, theme, ctx) => {
-			const text = ctx.lastComponent ?? new Text("", 0, 0);
-			return frameText(text, (width) => frameCall(theme, width, `${theme.fg("toolTitle", theme.bold("session_search"))} ${theme.fg("accent", String(args.query ?? ""))}`, { pending: true }));
-		},
-		description:
-			"Find past sessions by literal text search. This is essentially `rg -i -F` over session JSONL files, not semantic search. " +
-			"Use one exact token or phrase. Spaces are exact spaces in an exact phrase, so only use spaces for wording you expect appeared in the session, such as an error message. " +
-			"Good examples: `libc++abi`, `Cannot find module '@sinclair/typebox'`, `Blender VAT bake`. " +
-			"Bad example: `build ci c lib dependency ghostty` because that searches for one exact phrase, not separate keywords. " +
-			"Do not combine independent keywords into one search string. If you need multiple unrelated terms, call session_search multiple times. " +
-			"After finding a likely session, use session_query for semantic questions.",
-						renderResult: (result, options, theme) => {
-			const container = new Container();
-			const text = result.content?.[0]?.type === "text" ? result.content[0].text : "";
-			const details = result.details as { matchCount?: number; query?: string; error?: boolean } | undefined;
 
-			if (details?.error || !details?.matchCount) {
-				container.addChild(new Text(theme.fg("toolOutput", text), 0, 0));
-				return frameComponentResult(theme, [container]);
-			}
-
-			const summary = `✓ ${details.matchCount} session${details.matchCount > 1 ? "s" : ""} matching "${details.query}"`;
-			container.addChild(new Text(theme.fg("success", summary.slice(0, 1)) + theme.fg("toolOutput", summary.slice(1)), 0, 0));
-
-			if (areToolResultsExpanded()) {
-				container.addChild(new Spacer(1));
-				const body = text.replace(/^Found \d+ sessions? matching "[^"]*":\n\n/, "");
-				container.addChild(
-					new Markdown(body, 0, 0, getMarkdownTheme(), {
-						color: (text: string) => theme.fg("toolOutput", text),
-					}),
-				);
-			}
-
-			return frameComponentResult(theme, [container]);
-		},
 		parameters: Type.Object({
 			query: Type.String({
 				description:
@@ -800,46 +762,7 @@ export default function sessionRecallExtension(pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "session_query",
 		label: (params) => `Session Query: ${params.question}`,
-		renderShell: "self",
-		renderCall: (args, theme, ctx) => {
-			const text = ctx.lastComponent ?? new Text("", 0, 0);
-			return frameText(text, (width) => frameCall(theme, width, `${theme.fg("toolTitle", theme.bold("session_query"))} ${theme.fg("accent", String(args.question ?? ""))}`, { pending: true }));
-		},
-		description:
-			"Query a specific session file to get detailed information. Use after session_search to dig into a particular session, " +
-			"or when you already have a session path (e.g., from a handoff). Sends the full conversation to an LLM for analysis.",
-		renderResult: (result, options, theme) => {
-			const container = new Container();
-			const text = result.content?.[0]?.type === "text" ? result.content[0].text : "";
-			const match = text.match(/\*\*Query:\*\* (.+?)\n\n---\n\n([\s\S]+)/);
 
-			if (!match) {
-				container.addChild(new Text(theme.fg("toolOutput", text), 0, 0));
-				return frameComponentResult(theme, [container]);
-			}
-
-			const [, query, answer] = match;
-
-			if (areToolResultsExpanded()) {
-				container.addChild(new Text(theme.bold("Query: ") + theme.fg("accent", query), 0, 0));
-				container.addChild(new Spacer(1));
-				container.addChild(
-					new Markdown(answer.trim(), 0, 0, getMarkdownTheme(), {
-						color: (text: string) => theme.fg("toolOutput", text),
-					}),
-				);
-			} else {
-				const firstLine = answer
-					.trim()
-					.split("\n")
-					.find((l) => l.trim().length > 0 && !l.startsWith("#") && !l.startsWith("---"))
-					?.trim() ?? query;
-				const summary = firstLine.length > 120 ? firstLine.slice(0, 120) + "..." : firstLine;
-				container.addChild(new Text(theme.fg("toolOutput", summary), 0, 0));
-			}
-
-			return frameComponentResult(theme, [container]);
-		},
 		parameters: Type.Object({
 			sessionPath: Type.String({
 				description:

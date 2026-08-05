@@ -5,9 +5,7 @@ import { createOperationSignal, isOperationTimeoutError } from "./network.ts";
 import { FetchHttpTextClient, ExaSearchProvider } from "./providers/exa.ts";
 import { Redacted } from "./redacted.ts";
 import type { SearchProvider } from "./providers/types.ts";
-import { appendExpandHint, appendExpandedPreview, getTextContent } from "./render.ts";
-import { areToolResultsExpanded } from "../tool-display/state.js";
-import { frameText, toolCallFrame, toolResultFrame } from "../tool-display/frame.js";
+import { getTextContent } from "./render.ts";
 import { SearchWeb, type SearchWebError } from "./search-web.ts";
 import { getWebToolsSettings, SEARCH_DEPTHS, type ToolInputParseError } from "./settings.ts";
 import {
@@ -111,44 +109,6 @@ export function createWebSearchTool(composition?: WebSearchToolComposition) {
 			}
 		},
 
-		renderCall(args: { query: string; depth?: SearchDepth; maxResults?: number }, theme: RenderTheme, ctx: any) {
-			let call = theme.fg("warning", "○ ") + theme.fg("toolTitle", theme.bold("websearch "));
-			call += theme.fg("accent", JSON.stringify(String(args.query)));
-			if (args.depth && args.depth !== "auto") call += theme.fg("muted", ` (${args.depth})`);
-			if (args.maxResults) call += theme.fg("dim", ` limit=${args.maxResults}`);
-			return frameText(ctx?.lastComponent ?? new Text("", 0, 0), (width) => toolCallFrame(theme, width, call, { pending: true }));
-		},
-
-		renderResult(
-			result: { content: Array<{ type: string; text?: string }>; details?: WebSearchDetails; isError?: boolean },
-			options: { expanded: boolean; isPartial: boolean },
-			theme: RenderTheme,
-			ctx: any,
-		) {
-			if (options.isPartial) {
-				return frameText(ctx?.lastComponent ?? new Text("", 0, 0), (width) => toolResultFrame(theme, width, [theme.fg("warning", "Searching...")], { pending: true }));
-			}
-			if (result.isError) {
-				return frameText(ctx?.lastComponent ?? new Text("", 0, 0), (width) => toolResultFrame(theme, width, [theme.fg("error", getTextContent(result.content) || "Search failed")], { error: true }));
-			}
-
-			const details = result.details;
-			let text = theme.fg("success", `✓ ${details?.resultCount ?? 0} results`);
-			if (details?.provider) {
-				text += theme.fg("muted", ` (${details.provider})`);
-			}
-			if (details?.truncated) {
-				text += theme.fg("warning", " [truncated]");
-			}
-			text = appendExpandHint(text);
-
-			text = appendExpandedPreview(text, getTextContent(result.content), theme, { maxLines: 16 });
-			if (areToolResultsExpanded() && details?.fullOutputPath) {
-				text += `\n${theme.fg("dim", `Full output: ${details.fullOutputPath}`)}`;
-			}
-
-			return frameText(ctx?.lastComponent ?? new Text("", 0, 0), (width) => toolResultFrame(theme, width, text.split("\n")));
-		},
 	};
 }
 

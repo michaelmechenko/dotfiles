@@ -84,7 +84,7 @@ export function registerBashTool(
 					status: ctx.isError ? "error" : "pending",
 					theme,
 				});
-				return frameRows(["", headerLine], theme.getBgAnsi?.("toolPendingBg"), tw);
+				return frameRows(["", headerLine], theme.getBgAnsi?.("toolSuccessBg"), tw);
 			};
 
 			text.setText(buildHeader(termWidth()));

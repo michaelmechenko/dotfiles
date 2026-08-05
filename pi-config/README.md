@@ -122,35 +122,13 @@ enabled/disabled extension summary (above) reuses the same `DefaultPackageManage
 resolution this extension uses internally. To pick up upstream changes, diff against
 `npm view @petechu/pi-extension-toggle` and re-copy `index.ts`/`utils.ts` by hand.
 
-### Forked locally from `heyhuynhgiabuu/pi-pretty` and `heyhuynhgiabuu/pi-diff` (no longer npm-managed)
+### Local tool renderers and execution extensions
 
-| Extension | What it does |
-|---|---|
-| `pretty/` | Replaces built-in `read`/`bash`/`ls`/`find`/`grep` rendering: Shiki-highlighted `read` previews (+ inline images on supported terminals), colored `bash` exit summaries, Nerd Font tree `ls`. `find`/`grep` are thin renderers over Pi's own built-in SDK tools, which are themselves fd/rg-backed — **FFF integration removed** (see below) |
-| `diff/` | Replaces built-in `write`/`edit` tool output with Shiki-powered syntax-highlighted diffs (split side-by-side + unified stacked views, word-level emphasis). Also registers an edit guard (`tool_call` handler) that blocks `edit` calls whose `oldText` is stale, forcing a re-read instead of a fuzzy-retry loop. `apply_patch` is transactional (prepare-then-commit-with-rollback across multiple files, symlink/duplicate-path guards) |
+`pretty/` is a narrow visual override for `read` and `bash` only: syntax-highlighted reads and compact bash output. It does not register `find`, `grep`, or `ls`.
 
-Both are real published npm packages (`@heyhuynhgiabuu/pi-pretty` v0.6.21, `@heyhuynhgiabuu/pi-diff`
-v0.7.6) with their own runtime dependencies (Shiki, `diff`, `xxhash-wasm`), so — like `ask-user/` and
-`web-tools/` — each has its own `package.json` + `npm install`-ed `node_modules/` (gitignored). Unlike a
-plain `pi install npm:...`, they're vendored as source under `extensions/pretty/src/` and
-`extensions/diff/src/` with a top-level `index.ts` shim re-exporting the real entry point — same
-manifest-precedence workaround as `skill-toggle/` (a `package.json` `"pi": { "extensions": [...] }`
-field pointing at a built `dist/` would win discovery over the shim, and neither package ships without
-a build step otherwise). Each `package.json` intentionally omits that `pi.extensions` manifest field so
-discovery falls through to the shim. To pick up upstream changes, re-clone each repo's `src/` and
-re-copy by hand (drop `*.test.ts`, keep the shim and trimmed `package.json`) — there's no `pi update`
-path for a forked-local extension.
+`diff/` retains the full custom `write`/`edit`/`apply_patch` renderer, transactional patch execution, and stale-edit guard.
 
-**`pretty/`'s FFF integration was removed entirely** (`src/fff.ts`, `src/fff-helpers.ts`,
-`src/autocomplete.ts`, `src/find-glob.ts` deleted; `@ff-labs/fff-node` dropped from `package.json` and
-`node_modules/`; `/fff-health`/`/fff-rescan` commands, the FFF `session_start`/`session_shutdown`
-lifecycle, and the `"FFF indexed"` footer status line all removed). `find`/`grep` now always call
-through to Pi's built-in SDK `find`/`grep` tools, which already shell out to `fd`/`rg` directly
-(verified in `@earendil-works/pi-coding-agent`'s own `dist/core/tools/{find,grep}.js`) — no daemon, no
-new dependency, and this is also why the now-removed `@ff-labs/pi-fff` package (below) was never
-needed for fd/rg-backed search. `src/tools/bash.ts` still carries an **undocumented local patch**
-(reactive width-aware header re-render on terminal resize + indented multi-line command display) that
-predates this note — preserve it when re-syncing from upstream; don't overwrite the file wholesale.
+`tool-display/` supplies the shared framing and `ctrl+shift+o` result-detail toggle used by the restored `read`/`bash` and diff renderers. Other custom tools use Pi's default shell and result presentation.
 
 ## Keybindings (`agent/keybindings.json`)
 
@@ -166,7 +144,7 @@ extension's shortcut via `keybindings.json`** — verified against `@earendil-wo
 | `extension-toggle/` | `ctrl+e` |
 | `skill-toggle/` | `ctrl+shift+e` |
 | `prompt-stash/` | `ctrl+s` |
-| `tool-display/` | `ctrl+shift+o` — independently expand/collapse tool results; `ctrl+o` remains Pi's built-in tool-call detail toggle. The shared state survives an extension reload so existing rows update too. `tool-display/frame.ts` defines the custom-tool frame contract: top padding, call, divider, result, bottom padding; every row uses ANSI-aware fitting and one outer space on both sides. Text renderers use `frameText`/`frameResult`; rich `Container`/`Markdown` results use `frameComponentResult`, which renders children at the interior width before framing every line. Migrated renderers must use these adapters rather than adding raw newlines or tool-specific outer indentation. Compact results show a truncated preview. |
+| `tool-display/` | `ctrl+shift+o` — toggle details for the restored `read`, `bash`, and diff result renderers; `ctrl+o` remains Pi's built-in call-detail toggle |
 | `plan-mode/` | `ctrl+p` enters plan mode when inactive, otherwise opens the active plan workflow; `ctrl+alt+p` and `ctrl+alt+t` toggle the progress widget |
 | `thinking-controls/` | `ctrl+tab` (Ghostty sends F13) — cycle the current model's thinking level backward; `shift+tab` remains Pi's forward cycle |
 | `session-rename/` | `ctrl+r` or `/rename [name]` — rename the current live session |
@@ -207,8 +185,7 @@ Project-local `.pi/agents/*.md` only load if a subagent call passes `agentScope:
 with tmux/HerdR pane observability, restart-recovery, and durable resumable `conversation_id` subagent
 threads — real capability `subagent/` doesn't have (foreground-only single/parallel/chain). Not vendored
 because it would register a second, competing delegation tool (`task` alongside `subagent`) with no
-integration into this repo's `agents/`/`prompts/` workflow-preset system — same double-registration
-concern that ruled out running `@ff-labs/pi-fff` alongside `pretty/`'s find/grep. Revisit only if
+integration into this repo's `agents/`/`prompts/` workflow-preset system. Revisit only if
 background/async subagents with tmux pane observability become a real need.
 
 ## Skills (`agent/skills/`)

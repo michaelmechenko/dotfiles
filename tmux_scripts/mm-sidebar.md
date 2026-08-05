@@ -649,9 +649,19 @@ entirely off the input path.
 ## Colors
 
 See `COLORS.md`'s "mm-sidebar integration" section for the full table. The rule:
-**no hex literals in the sidebar.** `internal/theme` resolves six `@color-*`
+**no hex literals in the sidebar.** `internal/theme` resolves seven `@color-*`
 tmux options at startup; the hexes in that file are *fallbacks only*, for when
 the binary runs outside a tmux server (`mm-sidebar agents` from a plain shell).
+The `roles` map there is the single enumeration of the palette — both the batch's
+name list and the fallback table — so a role can't be added to one and forgotten
+in the other.
+
+**The palette is read in ONE tmux fork** (`tmuxio.GlobalOpts`, the same
+`#{@user_option}` token/separator pattern `Query` uses). One `show -gqv` per role
+measured **20ms each, 112ms for the set** — paid before Bubble Tea starts, i.e. as
+a blank pane, on every `M-Tab` open. That is the same gesture whose respawn cost
+justified splitting `M-S-Tab` out, so seven forks was the worst possible place to
+spend them.
 
 The active-tab chip sets fg and bg **explicitly** (canvas on lavender, bold) and
 never uses reverse video — reverse swaps in whatever the terminal treats as its

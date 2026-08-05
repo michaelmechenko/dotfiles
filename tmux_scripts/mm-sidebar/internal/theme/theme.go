@@ -42,17 +42,46 @@ type Theme struct {
 	ActiveTab lipgloss.Style
 }
 
+// roles maps each option to its fallback, and is also the batch's name list.
+// Keep it as the single enumeration of the palette so a new role can't be added
+// to one place and forgotten in the other.
+var roles = map[string]string{
+	"@color-canvas":     "#100E11",
+	"@color-inactive":   "#656a80",
+	"@color-lavender2":  "#aeaed1",
+	"@color-active":     "#bebedb",
+	"@color-rose":       "#d8647e",
+	"@color-dusty_pink": "#bb9dbd",
+	"@color-divider":    "#383848",
+}
+
 // Load reads the @color-* options once. Called at startup; the palette is not
 // re-read on the fly (a tmux.conf reload plus a sidebar re-toggle picks it up),
 // matching how the bash dispatcher read it once into shell variables.
+//
+// ONE tmux fork for the whole palette, not one per role: measured at 20ms per
+// fork, the per-role version cost 110ms of blank pane on every sidebar open,
+// before Bubble Tea started. See tmuxio.GlobalOpts.
 func Load() Theme {
-	canvas := opt("@color-canvas", "#100E11")
-	muted := opt("@color-inactive", "#656a80")
-	accent := opt("@color-lavender2", "#aeaed1")
-	text := opt("@color-active", "#bebedb")
-	rose := opt("@color-rose", "#d8647e")
-	pink := opt("@color-dusty_pink", "#bb9dbd")
-	divider := opt("@color-divider", "#383848")
+	names := make([]string, 0, len(roles))
+	for n := range roles {
+		names = append(names, n)
+	}
+	got := tmuxio.GlobalOpts(names...)
+	opt := func(name string) string {
+		if v := got[name]; v != "" {
+			return v
+		}
+		return roles[name]
+	}
+
+	canvas := opt("@color-canvas")
+	muted := opt("@color-inactive")
+	accent := opt("@color-lavender2")
+	text := opt("@color-active")
+	rose := opt("@color-rose")
+	pink := opt("@color-dusty_pink")
+	divider := opt("@color-divider")
 
 	return Theme{
 		Muted:   lipgloss.NewStyle().Foreground(lipgloss.Color(muted)),
@@ -66,11 +95,4 @@ func Load() Theme {
 			Background(lipgloss.Color(accent)).
 			Bold(true),
 	}
-}
-
-func opt(name, fallback string) string {
-	if v := tmuxio.ShowGlobalOpt(name); v != "" {
-		return v
-	}
-	return fallback
 }

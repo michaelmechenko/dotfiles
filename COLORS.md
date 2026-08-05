@@ -144,8 +144,11 @@ The `md*` tokens (`mdHeading`, `mdQuote`/`mdQuoteBorder`, `mdLink`, `mdCode`/`md
 
 `tmux_scripts/mm-sidebar` (the `M-Tab` sidebar pane, Go/Bubble Tea) is the only
 surface here that reads the palette **at runtime from tmux itself** rather than
-duplicating hex in a theme file. `internal/theme/theme.go` resolves six
-`@color-*` user options once at startup into `lipgloss` styles:
+duplicating hex in a theme file. `internal/theme/theme.go` resolves seven
+`@color-*` user options once at startup — in **one** `display-message` fork via
+`tmuxio.GlobalOpts`, not one `show -gqv` each (measured 20ms per fork, so the
+per-role version cost 112ms of blank pane on every `M-Tab` open) — into `lipgloss`
+styles:
 
 | Style | tmux option | Palette role | Used for |
 |---|---|---|---|
@@ -167,7 +170,9 @@ Two rules to preserve when touching it:
   *fallbacks only*, reached when the binary runs outside a tmux server (e.g.
   `mm-sidebar agents` from a plain shell). They duplicate `tmux.conf`'s values;
   they must never diverge from it. A new sidebar color means a new or extended
-  role here plus a `@color-*` option, not an inline hex.
+  role here plus a `@color-*` option, not an inline hex. Add it to `theme.go`'s
+  `roles` map — that map is both the batched read's name list and the fallback
+  table, so there is only one place to touch.
 - **The active-tab chip sets fg and bg explicitly — never reverse video.**
   Reverse swaps in whatever the terminal treats as its default background, which
   reads as light gray; this is the same trap that made pi's moor pager use

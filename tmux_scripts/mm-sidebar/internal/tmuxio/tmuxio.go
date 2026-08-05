@@ -207,13 +207,39 @@ func ListPanes() ([]PaneRow, error) {
 	return rows, nil
 }
 
-// ShowGlobalOpt reads a global option (used for the @color-* palette roles).
-func ShowGlobalOpt(name string) string {
-	out, err := Run("show", "-gqv", name)
-	if err != nil {
-		return ""
+// GlobalOpts reads several user options in ONE tmux fork, returning name ->
+// value with an empty string for anything unset.
+//
+// The obvious version -- one `show -gqv` per option -- cost 20ms per fork here,
+// so theme.Load's seven palette roles were 110ms of blank pane on every M-Tab
+// open, paid before Bubble Tea even starts. That is the same gesture whose
+// respawn cost justified splitting M-S-Tab out, so it was the wrong place to
+// spend seven forks. Batched via the same #{@user_option} token/fieldSep pattern
+// Query uses: that format resolves user options with normal scope fallback and
+// yields an empty field when unset.
+//
+// Names must be user options (@-prefixed); a non-@ option name is not a valid
+// format token and would come back as literal text.
+func GlobalOpts(names ...string) map[string]string {
+	vals := make(map[string]string, len(names))
+	if len(names) == 0 {
+		return vals
 	}
-	return out
+	tokens := make([]string, 0, len(names))
+	for _, n := range names {
+		tokens = append(tokens, "#{"+n+"}")
+	}
+	out, err := Run("display-message", "-p", strings.Join(tokens, fieldSep))
+	if err != nil {
+		return vals // outside a tmux server: every caller falls back
+	}
+	f := strings.Split(out, fieldSep)
+	for i, n := range names {
+		if i < len(f) {
+			vals[n] = f[i]
+		}
+	}
+	return vals
 }
 
 // RightOfPane finds the pane immediately to the right of paneLeft by geometry.

@@ -22,8 +22,6 @@ import (
 const (
 	// headerLines: the tab strip plus the "▸ <active tab>" subtitle.
 	headerLines = 2
-	// helpLines: the inline help overlay, when toggled on with '?'.
-	helpLines = 6
 	// navTickInterval re-polls tmux state (sessions/windows/cwd) so the sidebar
 	// follows changes made elsewhere without needing input. Below ~1s the
 	// repaint cost becomes visible; above ~5s the view feels stale.
@@ -294,9 +292,14 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.ascend()
 	default:
 		// Number keys select a tab by position, derived from the registry -- so a
-		// fifth Source is reachable as "5" with no edit here.
-		if d := int(key[0] - '0'); len(key) == 1 && d >= 1 && d <= len(nav.Sources) {
-			return m, m.setSource(d - 1)
+		// fifth Source is reachable as "5" with no edit here. The length check has
+		// to come FIRST: an if-statement's init clause runs before its condition,
+		// so indexing key[0] there panics on an empty KeyMsg.String() and takes the
+		// whole sidebar down.
+		if len(key) == 1 {
+			if d := int(key[0] - '0'); d >= 1 && d <= len(nav.Sources) {
+				return m, m.setSource(d - 1)
+			}
 		}
 	}
 	return m, nil
@@ -340,7 +343,7 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 
 func (m *model) navFirstLine() int {
 	if m.showHelp {
-		return headerLines + helpLines
+		return headerLines + len(helpText)
 	}
 	return headerLines
 }
@@ -516,17 +519,23 @@ func (m *model) headerLines() []string {
 	}
 }
 
+// helpText is the '?' overlay's content. Its LENGTH is the overlay's height:
+// navFirstLine (which maps a click's Y back to a row) and View's line budget
+// both derive from it, so adding a line here can't silently offset the mouse
+// mapping by one.
+var helpText = []string{
+	"j/k ↑/↓ move    1-4/Tab switch tab",
+	"Enter   act     r       refetch",
+	"g/G     top/end ?       toggle help",
+	"q/Esc   close   click   select row",
+	"filetree: Backspace = up one dir",
+	"agents: click row = switch to it",
+}
+
 func (m *model) helpLines() []string {
-	out := []string{
-		"j/k ↑/↓ move    1-4/Tab switch tab",
-		"Enter   act     r       refetch",
-		"g/G     top/end ?       toggle help",
-		"q/Esc   close   click   select row",
-		"filetree: Backspace = up one dir",
-		"agents: click row = switch to it",
-	}
-	for i, l := range out {
-		out[i] = clipLine(m.theme.Muted.Render(l), m.width)
+	out := make([]string, 0, len(helpText))
+	for _, l := range helpText {
+		out = append(out, clipLine(m.theme.Muted.Render(l), m.width))
 	}
 	return out
 }

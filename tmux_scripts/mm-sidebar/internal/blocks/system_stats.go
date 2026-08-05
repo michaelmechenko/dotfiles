@@ -82,8 +82,12 @@ func (b *SystemStats) Height() int {
 func (b *SystemStats) View(width int) string {
 	lines := []string{label(b.theme.Accent, "system")}
 	if !b.have {
+		// One notice, then blanks -- Height() reserves a row per gauge before the
+		// first sample lands, and padding all of them with the same string rendered
+		// "sampling…" four times over.
+		lines = append(lines, b.theme.Muted.Render("sampling…"))
 		for len(lines) < b.Height() {
-			lines = append(lines, b.theme.Muted.Render("sampling…"))
+			lines = append(lines, "")
 		}
 		return join(lines, width)
 	}

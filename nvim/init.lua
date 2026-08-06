@@ -103,4 +103,13 @@ vim.diagnostic.config({
 })
 
 require("vim-keymaps")
-require("lazy").setup("plugins")
+require("filetypes")
+require("lazy").setup("plugins", {
+  performance = {
+    rtp = {
+      -- lazy resets rtp, dropping the XDG_DATA_DIRS entry where Ghostty ships its own
+      -- syntax/ftplugin/compiler files for `ghostty/config`.
+      paths = { "/Applications/Ghostty.app/Contents/Resources/nvim/site" },
+    },
+  },
+})

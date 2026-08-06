@@ -1,8 +1,12 @@
 {
   "lastChangelogVersion": "0.83.0",
   "theme": "vague",
-  "defaultProvider": "anthropic",
-  "defaultModel": "claude-sonnet-5",
+  "defaultProvider": "ollama-cloud",
+  "defaultModel": "glm-5.2",
+  "enabledModels": [
+    "openai-codex/*",
+    "ollama-cloud/*"
+  ],
   "warnings": {
     "anthropicExtraUsage": true
   },

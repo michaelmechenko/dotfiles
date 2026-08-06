@@ -1,0 +1,38 @@
+{
+  "providers": {
+    "ollama-cloud": {
+      "baseUrl": "https://ollama.com/v1",
+      "api": "openai-completions",
+      "apiKey": "$OLLAMA_API_KEY",
+      "authHeader": true,
+      "compat": {
+        "supportsDeveloperRole": false,
+        "supportsStore": false,
+        "maxTokensField": "max_tokens",
+        "supportsStrictMode": false
+      },
+      "models": [
+        {
+          "id": "kimi-k3",
+          "reasoning": true,
+          "contextWindow": 1000000
+        },
+        {
+          "id": "glm-5.2",
+          "reasoning": true,
+          "contextWindow": 1000000
+        },
+        {
+          "id": "deepseek-v4-pro",
+          "reasoning": true,
+          "contextWindow": 1000000
+        },
+        {
+          "id": "deepseek-v4-flash",
+          "reasoning": true,
+          "contextWindow": 1000000
+        }
+      ]
+    }
+  }
+}

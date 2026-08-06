@@ -87,3 +87,8 @@ chrome
 /caveman-local
 /mattpocock-skills
 __pycache__/
+/pi-config/agent/plans
+/lazygit/github_pull_requests.json
+/tmux_sessions/diagnostic-215251.md
+/tmux_sessions/diagnostic-215251.json
+/pi-config/agent/auth.json

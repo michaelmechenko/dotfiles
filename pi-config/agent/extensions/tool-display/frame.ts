@@ -9,6 +9,31 @@ export type ToolFrameTheme = {
 export const FRAME_OUTER_INDENT = " ";
 const PAD = FRAME_OUTER_INDENT;
 
+// ---------------------------------------------------------------------------
+// Hybrid card policy — left accent edge for mutations, interactive tools, errors
+// ---------------------------------------------------------------------------
+
+/** Left accent-edge glyph (U+258C LEFT HALF BLOCK). Occupies the left pad cell. */
+export const EDGE_GLYPH = "▌";
+
+/** Tools that mutate state — always bordered, in every state. */
+export const BORDERED_MUTATION_TOOLS = new Set(["write", "edit", "apply_patch"]);
+
+/** Interactive tools that prompt the user mid-turn — always bordered. */
+export const BORDERED_INTERACTIVE_TOOLS = new Set(["ask_user"]);
+
+export type CardState = "pending" | "success" | "error";
+
+/** Complete styled edge token, with a state color matching the status icon palette. */
+export function cardEdgeColor(state: CardState, theme: ToolFrameTheme): string {
+	return theme.fg(state === "error" ? "error" : state === "pending" ? "warning" : "success", EDGE_GLYPH);
+}
+
+/** Whether a card should render with the left accent edge. */
+export function isBorderedCard(toolName: string, isError: boolean): boolean {
+	return isError || BORDERED_MUTATION_TOOLS.has(toolName) || BORDERED_INTERACTIVE_TOOLS.has(toolName);
+}
+
 type WidthAwareText = {
 	setText(value: string): void;
 	render(width: number): string[];
@@ -73,10 +98,14 @@ export function frameText<T extends WidthAwareText>(text: T, build: (width: numb
 	return text;
 }
 
-export function frameRow(content: string, background: string | undefined, width: number): string {
+export function frameRow(content: string, background: string | undefined, width: number, edgeColor?: string): string {
 	const actual = Math.max(2, width);
 	const interior = truncateToWidth(content, actual - 2, "", true);
-	const padded = `${PAD}${interior}${PAD}`;
+	// When bordered, the left pad cell carries the status-colored accent edge
+	// instead of a plain space. Interior width is unchanged (actual - 2): the
+	// edge occupies the existing left pad, the right pad stays a space.
+	const left = edgeColor ?? PAD;
+	const padded = `${left}${interior}${PAD}`;
 	if (!background) return padded;
 
 	// Embedded syntax/Markdown/diff styles commonly emit a full SGR reset.
@@ -86,18 +115,18 @@ export function frameRow(content: string, background: string | undefined, width:
 	return `${background}${withBackground}\x1b[0m`;
 }
 
-export function framePadding(background: string | undefined, width: number): string {
-	return frameRow("", background, width);
+export function framePadding(background: string | undefined, width: number, edgeColor?: string): string {
+	return frameRow("", background, width, edgeColor);
 }
 
-export function frameDivider(theme: ToolFrameTheme, background: string | undefined, width: number): string {
-	return frameRow(theme.fg("dim", "─".repeat(Math.max(1, width - 2))), background, width);
+export function frameDivider(theme: ToolFrameTheme, background: string | undefined, width: number, edgeColor?: string): string {
+	return frameRow(theme.fg("dim", "─".repeat(Math.max(1, width - 2))), background, width, edgeColor);
 }
 
-export function frameRows(lines: string[], background: string | undefined, width: number): string {
+export function frameRows(lines: string[], background: string | undefined, width: number, edgeColor?: string): string {
 	return lines
 		.flatMap((line) => line.split("\n"))
-		.map((line) => frameRow(line, background, width))
+		.map((line) => frameRow(line, background, width, edgeColor))
 		.join("\n");
 }
 
@@ -112,20 +141,22 @@ export function frameCall(
 }
 
 export function frameResult(
-	themeOrOptions: ToolFrameTheme | { theme: ToolFrameTheme; width: number; lines: string[]; background?: string },
+	themeOrOptions: ToolFrameTheme | { theme: ToolFrameTheme; width: number; lines: string[]; background?: string; edgeColor?: string },
 
 	widthArg?: number,
-	linesArg?: string[],
-	backgroundArg?: string,
+	linesArg?: string[] | undefined,
+	backgroundArg?: string | undefined,
+	edgeColorArg?: string | undefined,
 ): string {
 	const options = typeof themeOrOptions === "object" && "theme" in themeOrOptions
 		? themeOrOptions
-		: { theme: themeOrOptions, width: widthArg ?? 80, lines: linesArg ?? [], background: backgroundArg };
+		: { theme: themeOrOptions, width: widthArg ?? 80, lines: linesArg ?? [], background: backgroundArg, edgeColor: edgeColorArg };
 	const background = options.background ?? options.theme.getBgAnsi?.("toolSuccessBg");
+	const edgeColor = options.edgeColor;
 	return [
-		frameDivider(options.theme, background, options.width),
-		frameRows(options.lines, background, options.width),
-		framePadding(background, options.width),
+		frameDivider(options.theme, background, options.width, edgeColor),
+		frameRows(options.lines, background, options.width, edgeColor),
+		framePadding(background, options.width, edgeColor),
 	].join("\n");
 }
 

@@ -9,7 +9,7 @@ Single source of truth for colors used across tmux, Ghostty, and zsh (via ohmypo
 | Role | Hex | Where used |
 |---|---|---|
 | `canvas` | `#100E11` | Ghostty `background`; tmux inactive pane, status bar, borders, message line, all window-status states; active pane when single-pane or zoomed; tmux `message-style`/`message-command-style` `fill=` (required on next-3.7 so the command-prompt repaints the full line — see Cross-tool notes); mm-sidebar active-tab chip fg. **Exposed as the tmux user option `@color-canvas`** — added so a pane running its own TUI can read the hex instead of hardcoding it. The ~15 pre-existing inline `#100E11` literals in `tmux.conf` predate the option and could migrate to it (purely mechanical, not yet done). |
-| `surface-active` | `#16141a` | tmux active pane bg (the `refresh-active-bg` alias's 2+-pane branch), only when window has 2+ panes and is not zoomed. Active border bg stays `canvas` `#100E11`. |
+| `surface-active` | `#1A161C` | tmux active pane bg (the `refresh-active-bg` alias's 2+-pane branch), only when window has 2+ panes and is not zoomed. A subtle warm-plum lift over the `#100E11` canvas — brighter than the old `#16141a` for legible focus, but darker than `surface-chrome` `#1C1C24` (app/tool chrome) and `surface-highlight` `#2A2A35` (selection/message bg) to preserve the app-surface hierarchy. Active border bg stays `canvas` `#100E11`. |
 | `surface-chrome` | `#1C1C24` | nvim chrome: dropbar WinBar bg, lualine statusline/winbar bg (the whole bar — sections `b`/`c`/`x`/`y` + inactive — in the inline lualine theme; see `nvim lualine statusline`); tmux inactive pane-footer rail fg / subtle horizontal separator |
 | `surface-highlight` | `#2A2A35` | nvim `CursorLine` (override in `vague.lua`'s `on_highlights`) |
 | `surface-extend` | `#d8647e` | nvim `NonText` fg/bold — `listchars` `extends`/`precedes` indicators (`»`/`«`) when line exceeds window width. Uses `accent-primary` rose. **Side-effect override:** groups that inherit `NonText` but should remain dim are reset to `copy-mode-indicator` `#606079`: `BlinkCmpGhostText`, `LspInlayHint`, `GitSignsCurrentLineBlame`, `ComplHint`. |
@@ -26,16 +26,16 @@ Single source of truth for colors used across tmux, Ghostty, and zsh (via ohmypo
 |---|---|---|
 | `text` | `#BEBEBE` | Ghostty `foreground`; nvim editor fg (`vague.lua` `colors.fg`) |
 | `text-ui` | `#9094A0` | nvim WinBar fg (`dropbar.lua`) — slightly dimmer than `text` for chrome/breadcrumb text |
-| `text-muted` | `#656a80` | tmux `@color-inactive` — secondary UI text (border fg, inactive footer-label/default-marker fg, status secondary text, bell-state); tmux copy-mode non-current line numbers (`copy-mode-line-number-style`, dim); nvim devicons, dropbar `DropBarIconKindDefault`, lualine inactive-buffer fg; nvim `FloatBorder` fg; Claude statusline dir/model/ctx text; Claude theme `inactive` token; moor preview overflow hints; mm-sidebar inactive tabs, idle agents, help overlay, `(none)`/`(empty)` placeholders |
+| `text-muted` | `#656a80` | tmux `@color-inactive` — secondary UI text (border fg, inactive footer dashes, default-marker fg, and the full inactive pane-footer underline, status secondary text, bell-state); tmux copy-mode non-current line numbers (`copy-mode-line-number-style`, dim); nvim devicons, dropbar `DropBarIconKindDefault`, lualine inactive-buffer fg; nvim `FloatBorder` fg; Claude statusline dir/model/ctx text; Claude theme `inactive` token; moor preview overflow hints; mm-sidebar inactive tabs, idle agents, help overlay, `(none)`/`(empty)` placeholders |
 | `text-default` | `#a9b1d6` | tmux `@color-default` — window-status text (the colored window names in the status bar). **Not referenced elsewhere.** |
 
 ### Accents
 
 | Role | Hex | Where used |
 |---|---|---|
-| `accent-primary` (rose) | `#d8647e` | tmux `@color-rose`; tmux ephemeral session indicator + zoomed border center; Ghostty ANSI 1; ohmyposh path segment; nvim lualine `replace`-mode status/location block; mm-sidebar agents-glance `!P`/`!W` (awaiting-permission / waiting) |
-| `accent-secondary` (lavender) | `#aeaed1` | tmux `@color-ephemeral` / `@color-lavender2` / `@color-float`; tmux pane-border-active fg; Ghostty ANSI 6 + ANSI 12 (ANSI 12 override → Claude Code code-block syntax highlighting, since its dark-ansi theme has no syntax token); ohmyposh session segment; nvim lualine `normal`/`command`-mode status/location block; mm-sidebar active-tab chip bg, block labels (`▸ name`), cursor `▶`, directory rows |
-| `accent-tertiary` (dusty pink) | `#bb9dbd` | tmux `@color-dusty_pink`; Ghostty ANSI 2; ohmyposh transient prompt + git segment; nvim lualine `visual`-mode status/location block; mm-sidebar agents-glance `~~` (thinking) |
+| `accent-primary` (rose) | `#d8647e` | tmux `@color-rose` — all stars in inactive pane footers (labeled and unlabeled); the zoomed active-pane underline; tmux ephemeral session indicator; Ghostty ANSI 1; ohmyposh path segment; nvim lualine `replace`-mode status/location block; mm-sidebar agents-glance `!P`/`!W` (awaiting-permission / waiting) |
+| `accent-secondary` (lavender) | `#aeaed1` | tmux `@color-ephemeral` / `@color-lavender2` / `@color-float`; tmux active pane-border fg and active-footer frame/non-accent stars (labeled frame stars, zoomed unlabeled non-center stars); Ghostty ANSI 6 + ANSI 12 (ANSI 12 override → Claude Code code-block syntax highlighting, since its dark-ansi theme has no syntax token); ohmyposh session segment; nvim lualine `normal`/`command`-mode status/location block; mm-sidebar active-tab chip bg, block labels (`▸ name`), cursor `▶`, directory rows |
+| `accent-tertiary` (dusty pink) | `#bb9dbd` | tmux `@color-dusty_pink` — active non-zoomed pane-footer underline; active labeled text; active unlabeled marker stars (all seven normal, center `*-*-*` zoomed); Ghostty ANSI 2; ohmyposh transient prompt + git segment; nvim lualine `visual`-mode status/location block; mm-sidebar agents-glance `~~` (thinking) |
 | `accent-highlight` (pale lavender) | `#bebedb` | tmux `@color-lavender` / `@color-active` — current window status; tmux copy-mode current line number (`copy-mode-current-line-number-style`, bold); mm-sidebar row text + stat values |
 | `accent-info` (slate) | `#8ba9c1` | ohmyposh executiontime segment; nvim `FoldColumn` fg (`surface-fold`); Claude theme `planMode` token. **No tmux usage. No longer Ghostty ANSI 12** — that slot was remapped to `accent-secondary` lavender (`#aeaed1`). |
 | `accent-periwinkle` | `#9b9bcc` | nvim render-md inline code (`RenderMarkdownCodeInline` fg, bg cleared — fenced blocks keep their bg) + table borders (`RenderMarkdownTableHead` / `RenderMarkdownTableRow` fg; Head otherwise default-links to `@markup.heading` = blue `c.keyword`). A blue-violet between `accent-info` slate and `accent-secondary` lavender. **nvim-only.** |
@@ -73,7 +73,7 @@ Two places drift by one hex digit. The fixes are mechanical — pick one of the 
 
 ### Recommended normalization (not yet applied)
 
-- Lavender accent (`c9b1c9` vs `c9b1ca`): pick **`#c9b1ca`** (Ghostty's value, since the palette is the larger contract). Update the tmux pane-border-format on line 254 of `~/.config/tmux.conf` to use `#c9b1ca`.
+- Lavender accent (`c9b1c9` vs `c9b1ca`): pick **`#c9b1ca`** (Ghostty's value, since the palette is the larger contract). Update the tmux pane-border-format on line 342 of `~/.config/tmux.conf` to use `#c9b1ca`.
 - Warm sand (`F5CC96` vs `f5cb96`): pick **`#f5cb96`** (Ghostty's value). Update `~/.config/ohmyposh/base.json` git template — both occurrences of `#F5CC96` become `#f5cb96`.
 
 ### Tmux-only colors (not in Ghostty's palette)
@@ -138,7 +138,9 @@ pi (the coding agent TUI) uses a custom theme at `~/.config/pi-config/agent/them
 
 Syntax tokens (`syntax*`) map to the same accents used elsewhere for consistency: comments/punctuation → `text-muted`, keywords → `accent-secondary`, functions/bullets → `accent-periwinkle`, strings → `accent-tertiary`, numbers → `accent-amber`, types → `accent-info`.
 
-The `md*` tokens (`mdHeading`, `mdQuote`/`mdQuoteBorder`, `mdLink`, `mdCode`/`mdListBullet`, `mdHr`, `mdCodeBlockBorder`) aren't just for pi's own chat markdown rendering — `pi-config/agent/extensions/pretty`'s `read` tool renders `.md`/`.mdx` file previews through these same tokens directly (`renderMarkdownBlock()` in `pretty/src/render.ts`), bypassing Shiki entirely for markdown. Shiki has no bundled theme matching pi's own semantic themes (there is no Shiki theme literally named `vague`), so it can never render markdown in the active palette's colors — asking it to try either throws (falling back to unhighlighted text) or silently uses an unrelated bundled theme's colors (e.g. `github-dark`'s blue headings/green quotes), neither of which match this file. Non-markdown languages read via `pretty` still go through Shiki with a real bundled theme (`PRETTY_THEME` env, else `settings.json`'s `theme` if it's an actual Shiki theme name, else `github-dark`) — those syntax colors are Shiki's own palette, not `COLORS.md`'s.
+The `md*` tokens (`mdHeading`, `mdQuote`/`mdQuoteBorder`, `mdLink`, `mdCode`/`mdListBullet`, `mdHr`, `mdCodeBlockBorder`) style Pi's built-in chat Markdown renderer. The narrow `pretty` override also uses these semantic roles for Markdown read previews; diff rendering derives its add/delete/context surfaces from the Pi tool backgrounds.
+
+Pi tool-card accent edges (`▌`, `tool-display/frame.ts`) introduce no new palette role: the edge uses `warning` / `accent-amber` while pending, `success` / `accent-tertiary` on success, and `error` / `accent-primary` on error. It replaces the existing one-cell left frame pad, so the `width - 2` content budget and semantic tool backgrounds remain unchanged. The edge is applied to `write`/`edit`/`apply_patch`, `ask_user`, and all error cards; routine cards remain tint-only.
 
 ## mm-sidebar integration
 
@@ -217,26 +219,21 @@ Border color/width for every window is driven by two files that must stay in loc
 - `borders/bordersrc` — daemon defaults: `width`, plus a static `active_color`/`inactive_color`
   fallback that only renders for a window before `frontapps.sh` has tinted it at least once (e.g.
   right after the daemon restarts, before the next focus/workspace event).
-- `sketchybar/plugins/frontapps.sh` — per-window color override by AeroSpace layout, applied via
-  `borders apply-to=` on every focus/workspace change. Always wins over `bordersrc`'s static
-  default once it has run.
+- `sketchybar/plugins/frontapps.sh` — per-window color override, applied via `borders apply-to=` on
+  every focus/workspace change. Always wins over `bordersrc`'s static default once it has run.
 
-Locked values — apply to every instance of borders in both files; don't reintroduce the old hexes
-(`#808080`, `#bb9dbd`, `#75758D`) or the old width (`6.0`):
+The active border uses the muted `text-ui` gray (`#9094A0`) at approximately 70% opacity. The
+inactive color remains the dark `surface-chrome` border, preserving the original perimeter behavior
+while reducing the active border's brightness and visual weight.
 
 | State | Hex | Where set |
 |---|---|---|
 | Inactive (any layout) | `#1c1c24` (`surface-chrome`) | `bordersrc` `inactive_color`; `frontapps.sh` `INACT` |
-| Active, floating | `#8B8692` | `frontapps.sh` floating branch |
-| Active, tiled/sticky | `#AEAED1` (`accent-secondary` lavender) | `bordersrc` `active_color` (static fallback — tiling is the default layout); `frontapps.sh` tiling branch |
+| Active (any layout) | `0xB39094A0` (`#9094A0` / `text-ui`, ~70% opacity) | `bordersrc` `active_color`; `frontapps.sh` active branch |
 | Width | `5.0` | `bordersrc` `width` (per-window `apply-to=` calls never set width) |
 
-Active-tiled deliberately reuses `accent-secondary` lavender (the same hex as tmux's active-pane
-border, Ghostty ANSI 6/12, etc.) — ties tiled-window borders to the same lavender identity used
-elsewhere. Active-floating (`#8B8692`) stays a dedicated border-only color: a light desaturation of
-an earlier `#8b8494` gray (blended ~30% toward its own average-channel gray) so floating windows
-read as a *slightly* grayer, less saturated variant next to the tiled lavender — not tied to any
-other palette role.
+This changes only the active border's color and opacity; JankyBorders still renders a full rounded
+perimeter, not corner-only segments.
 
 ## nnn preview (bat)
 

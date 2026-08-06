@@ -4,9 +4,7 @@ import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { FetchPage, type FetchPageError } from "./fetch-page.ts";
 import { createOperationSignal, FetchPublicWebClient, isOperationTimeoutError } from "./network.ts";
-import { appendExpandHint, appendExpandedPreview, getTextContent } from "./render.ts";
-import { areToolResultsExpanded } from "../tool-display/state.js";
-import { frameText, toolCallFrame, toolResultFrame } from "../tool-display/frame.js";
+import { getTextContent } from "./render.ts";
 import { getWebToolsSettings, WEB_FETCH_FORMATS, type ToolInputParseError } from "./settings.ts";
 import {
 	TempFileToolOutputStore,
@@ -111,53 +109,6 @@ export function createWebFetchTool(composition?: WebFetchToolComposition) {
 			}
 		},
 
-		renderCall(args: { url: string; format?: WebFetchFormat }, theme: RenderTheme, ctx: any) {
-			let call = theme.fg("warning", "○ ") + theme.fg("toolTitle", theme.bold("webfetch "));
-			call += theme.fg("accent", redactUrlCredentialsForDisplay(args.url));
-			if (args.format && args.format !== "markdown") call += theme.fg("muted", ` (${args.format})`);
-			return frameText(ctx?.lastComponent ?? new Text("", 0, 0), (width) => toolCallFrame(theme, width, call, { pending: true }));
-		},
-
-		renderResult(
-			result: { content: Array<{ type: string; text?: string }>; details?: WebFetchDetails; isError?: boolean },
-			options: { expanded: boolean; isPartial: boolean },
-			theme: RenderTheme,
-			ctx: any,
-		) {
-			if (options.isPartial) {
-				return frameText(ctx?.lastComponent ?? new Text("", 0, 0), (width) => toolResultFrame(theme, width, [theme.fg("warning", "Fetching...")], { pending: true }));
-			}
-			if (result.isError) {
-				return frameText(ctx?.lastComponent ?? new Text("", 0, 0), (width) => toolResultFrame(theme, width, [theme.fg("error", getTextContent(result.content) || "Fetch failed")], { error: true }));
-			}
-
-			const details = result.details;
-			let text = theme.fg("success", "✓ Fetched");
-			if (details?.mime) {
-				text += theme.fg("muted", ` (${details.mime})`);
-			}
-			if (details?.bytes) {
-				text += theme.fg("dim", ` ${formatSize(details.bytes)}`);
-			}
-			if (details?.truncated) {
-				text += theme.fg("warning", " [truncated]");
-			}
-			if (details?.image) {
-				text += theme.fg("muted", " [image]");
-			}
-			text = appendExpandHint(text);
-
-			if (details?.image) {
-				if (areToolResultsExpanded()) text += `\n${theme.fg("dim", `Image URL: ${details.finalUrl}`)}`;
-			} else {
-				text = appendExpandedPreview(text, getTextContent(result.content), theme, { maxLines: 12 });
-			}
-			if (areToolResultsExpanded() && details?.fullOutputPath) {
-				text += `\n${theme.fg("dim", `Full output: ${details.fullOutputPath}`)}`;
-			}
-
-			return frameText(ctx?.lastComponent ?? new Text("", 0, 0), (width) => toolResultFrame(theme, width, text.split("\n")));
-		},
 	};
 }
 

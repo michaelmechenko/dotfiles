@@ -12,9 +12,6 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import * as hostSdk from "@earendil-works/pi-coding-agent";
 import { registerBashTool } from "./tools/bash.js";
-import { registerFindTool } from "./tools/find.js";
-import { registerGrepTool } from "./tools/grep.js";
-import { registerLsTool } from "./tools/ls.js";
 import { registerReadTool } from "./tools/read.js";
 import type { PiPrettyDeps, SdkTools } from "./types.js";
 
@@ -78,9 +75,6 @@ export default async function piPrettyExtension(pi: ExtensionAPI, deps?: PiPrett
 	};
 	const createReadTool = sdk.createReadToolDefinition ?? sdk.createReadTool;
 	const createBashTool = sdk.createBashToolDefinition ?? sdk.createBashTool;
-	const createLsTool = sdk.createLsToolDefinition ?? sdk.createLsTool;
-	const createFindTool = sdk.createFindToolDefinition ?? sdk.createFindTool;
-	const createGrepTool = sdk.createGrepToolDefinition ?? sdk.createGrepTool;
 
 	// ------------------------------------------------------------------
 	// Tool registration
@@ -92,14 +86,4 @@ export default async function piPrettyExtension(pi: ExtensionAPI, deps?: PiPrett
 	if (isToolEnabled("bash") && createBashTool) {
 		registerBashTool(pi, cwd, null, createBashTool(cwd), TextComp);
 	}
-	if (isToolEnabled("ls") && createLsTool) {
-		registerLsTool(pi, cwd, null, createLsTool(cwd), TextComp);
-	}
-	if (isToolEnabled("find") && createFindTool) {
-		registerFindTool(pi, cwd, null, createFindTool(cwd), TextComp);
-	}
-	if (isToolEnabled("grep") && createGrepTool) {
-		registerGrepTool(pi, cwd, null, createGrepTool(cwd), TextComp);
-	}
-
 }

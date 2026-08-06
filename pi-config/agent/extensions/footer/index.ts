@@ -4,29 +4,26 @@
  * Mirrors pi's built-in footer (dist/modes/interactive/components/footer.js)
  * line for line, with three deliberate deviations:
  *
- * 1. The bottom-left stats line groups `\u2191/\u2193` tokens, `R/W` cache, `CH`/cost,
- *    and context% with " \u2022 " separators instead of running them together.
+ * 1. The bottom line shows only context usage and the right-aligned
+ *    model/provider/thinking display; token, cache, cache-hit, and cost stats
+ *    are intentionally omitted to keep the footer quiet.
  * 2. The top line's left side shows `directory (origin/branch) (worktree/name)`
  *    instead of just `directory (branch)` -- origin/branch comes from the
  *    configured upstream (`git rev-parse --abbrev-ref --symbolic-full-name @{u}`),
  *    falling back to the plain branch name if there's no upstream; the worktree
  *    segment only appears when cwd is actually inside a linked git worktree.
- * 2. The top line's right side shows the `lsp` and `plan-mode` extensions'
+ * 3. The top line's right side shows the `lsp` and `plan-mode` extensions'
  *    status text (if any) instead of leaving that space empty -- and those
  *    statuses are excluded from the generic bottom extension-status lines
  *    so they aren't shown twice.
  *
- * Everything else (token/cache/cost math, right-aligned model/provider/thinking,
- * extension status lines) matches the built-in footer's logic and formatting
- * exactly, except the whole footer renders in one uniform color (`dim`) --
- * the built-in footer colors context% orange/red past 70%/90%; this one
- * doesn't, by request.
+ * The whole footer renders in one uniform color (`dim`) -- the built-in footer
+ * colors context% orange/red past 70%/90%; this one doesn't, by request.
  */
 
 import { execFile } from "node:child_process";
 import path from "node:path";
 import { promisify } from "node:util";
-import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
@@ -158,65 +155,17 @@ export default function footer(pi: ExtensionAPI) {
 						theme.fg("dim", "..."),
 					);
 
-					// --- Bottom-left stats, grouped with separators ---
-					let totalInput = 0;
-					let totalOutput = 0;
-					let totalCacheRead = 0;
-					let totalCacheWrite = 0;
-					let totalCost = 0;
-					let latestCacheHitRate: number | undefined;
-
-					for (const entry of ctx.sessionManager.getEntries()) {
-						if (entry.type === "message" && entry.message.role === "assistant") {
-							const message = entry.message as AssistantMessage;
-							totalInput += message.usage.input;
-							totalOutput += message.usage.output;
-							totalCacheRead += message.usage.cacheRead;
-							totalCacheWrite += message.usage.cacheWrite;
-							totalCost += message.usage.cost.total;
-							const latestPromptTokens = message.usage.input + message.usage.cacheRead + message.usage.cacheWrite;
-							latestCacheHitRate = latestPromptTokens > 0 ? (message.usage.cacheRead / latestPromptTokens) * 100 : undefined;
-						}
-					}
-
+					// --- Bottom line: context usage only ---
 					const contextUsage = ctx.getContextUsage();
 					const contextWindow = contextUsage?.contextWindow ?? ctx.model?.contextWindow ?? 0;
 					const contextPercentValue = contextUsage?.percent ?? 0;
 					const contextPercent = contextUsage?.percent !== null ? contextPercentValue.toFixed(1) : "?";
-
-					const tokenGroup: string[] = [];
-					if (totalInput) tokenGroup.push(`\u2191${formatTokens(totalInput)}`);
-					if (totalOutput) tokenGroup.push(`\u2193${formatTokens(totalOutput)}`);
-
-					const cacheGroup: string[] = [];
-					if (totalCacheRead) cacheGroup.push(`R${formatTokens(totalCacheRead)}`);
-					if (totalCacheWrite) cacheGroup.push(`W${formatTokens(totalCacheWrite)}`);
-
-					const costGroup: string[] = [];
-					if ((totalCacheRead > 0 || totalCacheWrite > 0) && latestCacheHitRate !== undefined) {
-						costGroup.push(`CH${latestCacheHitRate.toFixed(1)}%`);
-					}
-					const usingSubscription = ctx.model ? ctx.modelRegistry.isUsingOAuth(ctx.model) : false;
-					if (totalCost || usingSubscription) {
-						costGroup.push(`$${totalCost.toFixed(3)}${usingSubscription ? " (sub)" : ""}`);
-					}
-
 					const autoIndicator = " (auto)";
-					const contextPercentDisplay =
+					const statsLeft =
 						contextPercent === "?"
 							? `?/${formatTokens(contextWindow)}${autoIndicator}`
 							: `${contextPercent}%/${formatTokens(contextWindow)}${autoIndicator}`;
-
-					const contextGroup = [contextPercentDisplay];
-
-					const groups = [tokenGroup, cacheGroup, costGroup, contextGroup].filter((g) => g.length > 0);
-					let statsLeft = groups.map((g) => g.join(" ")).join(" \u2022 ");
-
-					let statsLeftWidth = visibleWidth(statsLeft);
-					if (statsLeftWidth > width) {
-						statsLeft = truncateToWidth(statsLeft, width, "...");
-						statsLeftWidth = visibleWidth(statsLeft);
-					}
+					const statsLeftWidth = visibleWidth(statsLeft);
 
 					const minPadding = 2;
 					const modelName = ctx.model?.id || "no-model";

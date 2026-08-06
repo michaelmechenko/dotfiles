@@ -134,6 +134,12 @@ alias n="nnn -aH -l 1 -P p"
 bindkey "^[[1;3C" forward-word      # Alt+Right
 bindkey "^[[1;3D" backward-word     # Alt+Left
 
+# cmd+left/right: Ghostty sends Super-arrow (csi:1;9D/1;9C) so pi can bind line start/end.
+# zsh's default emacs keymap maps those to forward/backward-word; restore macOS-default
+# line start/end here (overrides the default without touching Ghostty or pi).
+bindkey "^[[1;9D" beginning-of-line  # Cmd+Left
+bindkey "^[[1;9C" end-of-line        # Cmd+Right
+
 # ctrl+e: accept up to the next whitespace of the autosuggestion if present, else end-of-line.
 # vi-forward-blank-word splits on whitespace only (forward-word would stop at punctuation
 # like `--`); it's in ZSH_AUTOSUGGEST_PARTIAL_ACCEPT_WIDGETS so partial-accept wraps it.

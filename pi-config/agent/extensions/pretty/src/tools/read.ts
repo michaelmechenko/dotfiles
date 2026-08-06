@@ -19,7 +19,7 @@ import { resolveTextCtor } from "../tui-text.js";
 import type { ReadDetails, RenderCtxLike, SdkToolDef, TextContent, ThemeLike } from "../types.js";
 import { wrapExecuteWithMetrics } from "./metrics.js";
 import { areToolResultsExpanded, RESULT_TOGGLE_HINT } from "../../../tool-display/state.js";
-import { frameDivider, framePadding, frameResult, frameRow, frameRows, frameText } from "../../../tool-display/frame.js";
+import { cardEdgeColor, frameDivider, framePadding, frameResult, frameRow, frameRows, frameText } from "../../../tool-display/frame.js";
 
 type Result = AgentToolResult<Record<string, unknown>>;
 
@@ -99,7 +99,7 @@ export function registerReadTool(
 			const limit = typeof args.limit === "number" ? ` +${args.limit}` : "";
 			const title = `${theme.fg("toolTitle", theme.bold("read"))} ${theme.fg("toolTitle", path)}${theme.fg("dim", `${offset}${limit}`)}`;
 			const header = renderFrameStatus({ title, status: ctx.isError ? "error" : "pending", theme });
-			return frameText(text, (width) => frameRows(["", header], theme.getBgAnsi?.("toolPendingBg"), width));
+			return frameText(text, (width) => frameRows(["", header], theme.getBgAnsi?.("toolSuccessBg"), width));
 		},
 
 		renderResult(result: Result, _opt: unknown, theme: ThemeLike, ctx: RenderCtxLike) {
@@ -109,7 +109,7 @@ export function registerReadTool(
 
 			if (ctx.isError) {
 				const message = (getText(result) || "Error").split("\n").map((line) => theme.fg("error", line));
-				return frameText(text, (width) => frameResult(theme, width, message, BG_ERROR));
+				return frameText(text, (width) => frameResult(theme, width, message, BG_ERROR, cardEdgeColor("error", theme)));
 			}
 
 			const d = result.details as ReadDetails | undefined;

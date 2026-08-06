@@ -5,7 +5,6 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { Key, matchesKey, Text as UiText, truncateToWidth } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-import { frameText, toolCallFrame, toolResultFrame } from "../tool-display/frame.js";
 import { loadPlanModeConfig } from "./config.ts";
 import {
 	applyPlanUpdate,
@@ -341,13 +340,6 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 			persist(); updateUi(ctx);
 			return { content: [{ type: "text", text: `Plan updated with ${state.steps.length} step(s).\n${planContext()}` }], details: { state } };
 		},
-		renderCall(args, theme, ctx) {
-			return frameText(ctx?.lastComponent ?? new UiText("", 0, 0), (width) => toolCallFrame(theme, width, theme.fg("toolTitle", theme.bold("plan_update ")) + theme.fg("muted", args.goal), { pending: true }));
-		},
-		renderResult(result, _options, theme, ctx) {
-			const text = result.content[0]?.type === "text" ? result.content[0].text : "Plan updated";
-			return frameText(ctx?.lastComponent ?? new UiText("", 0, 0), (width) => toolResultFrame(theme, width, [theme.fg("success", "✓ ") + theme.fg("muted", text)]));
-		},
 	});
 
 	pi.registerTool({
@@ -368,14 +360,6 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 			else { step.completed = false; step.skipped = false; }
 			persist(); updateUi(ctx);
 			return { content: [{ type: "text", text: `Step ${step.step} marked ${params.action}: ${step.text}` }], details: { state } };
-		},
-		renderCall(args, theme, ctx) {
-			const text = theme.fg("warning", "○ ") + theme.fg("toolTitle", theme.bold("plan_step ")) + theme.fg("muted", args.action) + (args.step ? ` ${theme.fg("accent", `#${args.step}`)}` : "");
-			return frameText(ctx?.lastComponent ?? new UiText("", 0, 0), (width) => toolCallFrame(theme, width, text, { pending: true }));
-		},
-		renderResult(result, _options, theme, ctx) {
-			const text = result.content[0]?.type === "text" ? result.content[0].text : "";
-			return frameText(ctx?.lastComponent ?? new UiText("", 0, 0), (width) => toolResultFrame(theme, width, [theme.fg("success", "✓ ") + theme.fg("muted", text)]));
 		},
 	});
 

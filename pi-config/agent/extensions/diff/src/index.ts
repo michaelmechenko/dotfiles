@@ -1907,14 +1907,14 @@ export default async function diffRendererExtension(pi: ExtensionAPI): Promise<v
 				const n = String(args.content).split("\n").length;
 				const suffix = `${TOOL_RESULT_INDENT}${theme.fg("muted", `(${n} lines…)`)}${stats ? ` ${stats.trimStart()}` : ""}`;
 				setToolHeaderBg(text);
-				text.setText(formatToolFrameHeader({ label, filePath: fp, theme, width: w, suffix, topPad: 1, bottomPad: 0, headerLeftPad: 0 }));
+				text.setText(formatToolFrameHeader({ label, filePath: fp, theme, width: w, suffix, topPad: 0, bottomPad: 0, headerLeftPad: 0 }));
 				return text;
 			}
 
 
 
 			setToolHeaderBg(text);
-			text.setText(formatToolFrameHeader({ label, filePath: fp, theme, width: w, suffix: stats, topPad: 1, bottomPad: 0, headerLeftPad: 0 }));
+			text.setText(formatToolFrameHeader({ label, filePath: fp, theme, width: w, suffix: stats, topPad: 0, bottomPad: 0, headerLeftPad: 0 }));
 			return text;
 		},
 

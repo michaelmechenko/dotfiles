@@ -3,14 +3,14 @@
 # Locked border values (see COLORS.md "Window borders" section) - keep in lockstep with
 # sketchybar/plugins/frontapps.sh, which overrides active_color per-window by AeroSpace layout.
 # active_color here is only the static fallback for a window before frontapps.sh has tinted it at
-# least once (e.g. right after this daemon restarts); it uses the tiled color since tiling is the
-# default layout. inactive_color and width apply to every window regardless of layout.
+# least once (e.g. right after this daemon restarts). inactive_color and width apply to every
+# window regardless of layout.
 options=(
 	style=round
 	width=5.0
 	hidpi=off
   ax_focus=off
-  active_color=0xffAEAED1
+  active_color=0xB39094A0
 	inactive_color=0xff1c1c24
 )
 

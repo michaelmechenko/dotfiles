@@ -1,0 +1,15 @@
+{
+  "name": "image-proxy",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Image-only vision proxy: routes attached and local images to a fixed vision model so text-only models can see them.",
+  "type": "module",
+  "scripts": {
+    "test": "node --experimental-strip-types --no-warnings --test __tests__/*.test.ts"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  }
+}

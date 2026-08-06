@@ -55,6 +55,7 @@ file extension isn't part of the extension's identity), plain `kebab-case` names
 | `minimal-mode/` | Extra Ctrl+O display mode: collapsed tool calls with no output shown |
 | `tools/` | `/tools` — interactive enable/disable UI for active tools, persists across resume |
 | `titlebar-spinner/` | Braille spinner in the terminal title bar while the agent works |
+| `working-indicator-off/` | Disables pi's animated inline working spinner (`ctx.ui.setWorkingIndicator({ frames: [] })`) to avoid tmux redraw issues |
 | `thinking-label/` | Lowercases the "Thinking..." placeholder shown for collapsed thinking blocks (`hideThinkingBlock: true`) to `thinking...`, via `ctx.ui.setHiddenThinkingLabel()`. A prior `hidden-thinking-label/` extension exposed this as a full `/thinking-label [text]` command and was removed as unneeded; this is a fixed, no-command replacement |
 | `plan-mode/` | `/plan` read-only structured planning mode. `plan_update` creates or revises the authoritative top-level plan without exiting execution; `plan_step` tracks progress; `plan_complete` records a required outcome/end-state/verification/next-steps closeout. Escape presents resume/recalibrate/status/pause options only after Pi's retry lifecycle settles. Execution defaults to `opencode/gpt-5.6-luna` at medium thinking via `agent/plan-mode.json`, then restores the saved planning model. `/todos` manually adjusts statuses; `/plan-edit` edits top-level steps; progress is collapsible via `/plan-widget`, `Ctrl+Alt+T`, or `Ctrl+P`. |
 | `subagent/` | Delegate tasks to isolated `pi` subprocess agents (single/parallel/chain modes); see [Agents & Prompts](#agents--prompts) |
@@ -67,7 +68,7 @@ moved to `<name>/index.ts` here to match this repo's uniform extension-directory
 
 | Extension | What it does |
 |---|---|
-| `footer/` | Faithful reimplementation of pi's *built-in* footer (same token/cache/cost math, right-aligned model/provider/thinking), with four deliberate deviations: (1) bottom-left stats grouped with `•` separators (`↑196 ↓68k • R8.1M W902k • CH98.9% $4.552 • 16.6%/1.0M (auto)`); (2) top-left shows `directory (origin/branch) (worktree/name)` instead of `directory (branch)` — origin/branch from the configured upstream via `git rev-parse --abbrev-ref --symbolic-full-name @{u}`, worktree segment only when cwd is a linked worktree (`git rev-parse --git-dir` vs `--git-common-dir` diverge); (3) top-right shows the `lsp` extension's status instead of being empty, excluded from the generic bottom status lines so it isn't duplicated; (4) the **entire footer renders in one uniform color** (`dim`) — unlike the built-in footer, context% is not colored orange/red past 70%/90%. `/builtin-footer` restores the real (multi-color) default |
+| `footer/` | Faithful reimplementation of pi's *built-in* footer, with a quiet second line that shows only context usage plus the right-aligned model/provider/thinking display; top-left shows `directory (origin/branch) (worktree/name)` instead of `directory (branch)` — origin/branch from the configured upstream via `git rev-parse --abbrev-ref --symbolic-full-name @{u}`, worktree segment only when cwd is a linked worktree (`git rev-parse --git-dir` vs `--git-common-dir` diverge); top-right shows the `lsp` extension's status instead of being empty, excluded from the generic bottom status lines so it isn't duplicated; the **entire footer renders in one uniform color** (`dim`) — unlike the built-in footer, context% is not colored orange/red past 70%/90%. `/builtin-footer` restores the real (multi-color) default |
 | `header/` | Custom header: a plain "pi" wordmark (not upstream's block-drawing "PI" art or a `p`/`i`-character pixel-art logo, and not upstream's companion git-info/model-info dashboard), a directory subtitle, and enabled/disabled extension-count and skill-count summary lines listing disabled names when any are disabled (via the same `DefaultPackageManager`/`SettingsManager` resolution `extension-toggle` uses, applied to both `resolved.extensions` and `resolved.skills`). Resource display names are derived from the path segment immediately after `extensions/`/`skills/`, not the immediate parent directory of the entry point — defensive, in case any local extension's entry point ever ends up nested (naively taking the immediate parent would misreport a nested entry like `<name>/src/index.ts` as `src`; see the `skill-toggle/` bullet below for why this bit pi core's own extension list). `/builtin-header` restores the default |
 
 Upstream combines both in one `ui-customization/index.ts` file backed by companion `git-info`/
@@ -122,35 +123,21 @@ enabled/disabled extension summary (above) reuses the same `DefaultPackageManage
 resolution this extension uses internally. To pick up upstream changes, diff against
 `npm view @petechu/pi-extension-toggle` and re-copy `index.ts`/`utils.ts` by hand.
 
-### Forked locally from `heyhuynhgiabuu/pi-pretty` and `heyhuynhgiabuu/pi-diff` (no longer npm-managed)
+### Local tool renderers and execution extensions
 
-| Extension | What it does |
-|---|---|
-| `pretty/` | Replaces built-in `read`/`bash`/`ls`/`find`/`grep` rendering: Shiki-highlighted `read` previews (+ inline images on supported terminals), colored `bash` exit summaries, Nerd Font tree `ls`. `find`/`grep` are thin renderers over Pi's own built-in SDK tools, which are themselves fd/rg-backed — **FFF integration removed** (see below) |
-| `diff/` | Replaces built-in `write`/`edit` tool output with Shiki-powered syntax-highlighted diffs (split side-by-side + unified stacked views, word-level emphasis). Also registers an edit guard (`tool_call` handler) that blocks `edit` calls whose `oldText` is stale, forcing a re-read instead of a fuzzy-retry loop. `apply_patch` is transactional (prepare-then-commit-with-rollback across multiple files, symlink/duplicate-path guards) |
+`pretty/` is a narrow visual override for `read` and `bash` only: syntax-highlighted reads and compact bash output. It does not register `find`, `grep`, or `ls`.
 
-Both are real published npm packages (`@heyhuynhgiabuu/pi-pretty` v0.6.21, `@heyhuynhgiabuu/pi-diff`
-v0.7.6) with their own runtime dependencies (Shiki, `diff`, `xxhash-wasm`), so — like `ask-user/` and
-`web-tools/` — each has its own `package.json` + `npm install`-ed `node_modules/` (gitignored). Unlike a
-plain `pi install npm:...`, they're vendored as source under `extensions/pretty/src/` and
-`extensions/diff/src/` with a top-level `index.ts` shim re-exporting the real entry point — same
-manifest-precedence workaround as `skill-toggle/` (a `package.json` `"pi": { "extensions": [...] }`
-field pointing at a built `dist/` would win discovery over the shim, and neither package ships without
-a build step otherwise). Each `package.json` intentionally omits that `pi.extensions` manifest field so
-discovery falls through to the shim. To pick up upstream changes, re-clone each repo's `src/` and
-re-copy by hand (drop `*.test.ts`, keep the shim and trimmed `package.json`) — there's no `pi update`
-path for a forked-local extension.
+`diff/` retains the full custom `write`/`edit`/`apply_patch` renderer, transactional patch execution, and stale-edit guard.
 
-**`pretty/`'s FFF integration was removed entirely** (`src/fff.ts`, `src/fff-helpers.ts`,
-`src/autocomplete.ts`, `src/find-glob.ts` deleted; `@ff-labs/fff-node` dropped from `package.json` and
-`node_modules/`; `/fff-health`/`/fff-rescan` commands, the FFF `session_start`/`session_shutdown`
-lifecycle, and the `"FFF indexed"` footer status line all removed). `find`/`grep` now always call
-through to Pi's built-in SDK `find`/`grep` tools, which already shell out to `fd`/`rg` directly
-(verified in `@earendil-works/pi-coding-agent`'s own `dist/core/tools/{find,grep}.js`) — no daemon, no
-new dependency, and this is also why the now-removed `@ff-labs/pi-fff` package (below) was never
-needed for fd/rg-backed search. `src/tools/bash.ts` still carries an **undocumented local patch**
-(reactive width-aware header re-render on terminal resize + indented multi-line command display) that
-predates this note — preserve it when re-syncing from upstream; don't overwrite the file wholesale.
+`tool-display/` supplies the shared framing and `ctrl+shift+o` result-detail toggle used by the restored `read`/`bash` and diff renderers, **and** a guarded host-level decorator over Pi’s `ToolExecutionComponent` that adds the same status-marker prefix and call/result divider to every tool that still uses Pi’s default `Box` shell (the built-in `find`/`grep`/`ls` and every extension tool that does not set `renderShell: "self"`). Its hybrid visual hierarchy keeps routine cards tint-only, while `write`/`edit`/`apply_patch`, `ask_user`, and every error card replace the left frame pad with a status-colored `▌` edge (pending = warning, success = success, error = error); this keeps the `width - 2` content budget unchanged. `read` and `bash` are self-shell and render their own error edges; the diff extension provides rich call/result content inside the default `Box`, so the decorator supplies its mutation/error edge. The decorator never touches `renderShell: "self"` tools, never re-implements any tool’s renderer, and falls back to Pi’s unmodified render on any error or unrecognized component shape. Other custom tools use Pi's default shell and result presentation where the decorator applies.
+
+`image-proxy/` is a locally-written, image-only vision proxy (inspired by [`pungggi/pi-multimodal-proxy`](https://github.com/pungggi/pi-multimodal-proxy), scoped down to "I only care about reading images"). It exists so the configured text-only Ollama models can still understand images: when the active model lacks image input, attached/pasted images are described once by a fixed vision route and the description text is spliced into the user message in place of each image block, so the text model never receives an image block it can't render. An `analyze_image` tool lets the agent describe an explicit local image file (PNG/JPEG/GIF/WebP/BMP) on demand, regardless of the active model.
+
+- **Fixed vision route:** `openai-codex/gpt-5.6-luna`, resolved from the existing catalog — no new provider is registered and no credentials are duplicated. Luna is already authenticated as the default model, so the route works with no extra setup. Changing the route means editing `VISION_PROVIDER`/`VISION_MODEL_ID` at the top of `image-proxy/index.ts` (no picker, no persisted config, by design).
+- **Fallback only:** when the active model already supports images (the OpenAI/Codex and OpenCode GPT-5.x entries do), the proxy steps aside entirely — no analysis, no block replacement.
+- **Two pieces:** `before_agent_start` analyzes attached images (in parallel, low reasoning) and stores results keyed by an image-data hash in a per-session `WeakMap`; `context` replaces image blocks in user messages with a fenced `<image_proxy_description>` block looked up by that hash, on every turn (so historical images stay described across turns). The `analyze_image` tool is a normal tool result — no injection, no stripping.
+- **Deliberately omitted vs. upstream:** video, audio, YouTube download, image cropping, session image recall (`image="…"` ids), path auto-detection from prompt text, a model picker, persistent configuration, and per-session data-egress consent. Image data is sent to the configured Luna route by design — that is the whole point.
+- **Tests:** `npm test` in `extensions/image-proxy/` runs pure-helper unit tests (path/MIME, fence building + close-tag neutralization, image-block replacement, hashing) via `node --experimental-strip-types --test` — no pi packages resolved at test time, no live model calls. The first extension in this repo to ship tests.
 
 ## Keybindings (`agent/keybindings.json`)
 
@@ -166,7 +153,7 @@ extension's shortcut via `keybindings.json`** — verified against `@earendil-wo
 | `extension-toggle/` | `ctrl+e` |
 | `skill-toggle/` | `ctrl+shift+e` |
 | `prompt-stash/` | `ctrl+s` |
-| `tool-display/` | `ctrl+shift+o` — independently expand/collapse tool results; `ctrl+o` remains Pi's built-in tool-call detail toggle. The shared state survives an extension reload so existing rows update too. `tool-display/frame.ts` defines the custom-tool frame contract: top padding, call, divider, result, bottom padding; every row uses ANSI-aware fitting and one outer space on both sides. Text renderers use `frameText`/`frameResult`; rich `Container`/`Markdown` results use `frameComponentResult`, which renders children at the interior width before framing every line. Migrated renderers must use these adapters rather than adding raw newlines or tool-specific outer indentation. Compact results show a truncated preview. |
+| `tool-display/` | `ctrl+shift+o` — toggle details for the restored `read`, `bash`, and diff result renderers; `ctrl+o` remains Pi's built-in call-detail toggle |
 | `plan-mode/` | `ctrl+p` enters plan mode when inactive, otherwise opens the active plan workflow; `ctrl+alt+p` and `ctrl+alt+t` toggle the progress widget |
 | `thinking-controls/` | `ctrl+tab` (Ghostty sends F13) — cycle the current model's thinking level backward; `shift+tab` remains Pi's forward cycle |
 | `session-rename/` | `ctrl+r` or `/rename [name]` — rename the current live session |
@@ -207,8 +194,7 @@ Project-local `.pi/agents/*.md` only load if a subagent call passes `agentScope:
 with tmux/HerdR pane observability, restart-recovery, and durable resumable `conversation_id` subagent
 threads — real capability `subagent/` doesn't have (foreground-only single/parallel/chain). Not vendored
 because it would register a second, competing delegation tool (`task` alongside `subagent`) with no
-integration into this repo's `agents/`/`prompts/` workflow-preset system — same double-registration
-concern that ruled out running `@ff-labs/pi-fff` alongside `pretty/`'s find/grep. Revisit only if
+integration into this repo's `agents/`/`prompts/` workflow-preset system. Revisit only if
 background/async subagents with tmux pane observability become a real need.
 
 ## Skills (`agent/skills/`)

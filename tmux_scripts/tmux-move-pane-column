@@ -1,0 +1,81 @@
+#!/bin/sh
+# Move the active pane into the nearest adjacent visual column.
+# Direction is left or right. The pane is inserted into the adjacent column at
+# the closest matching vertical position; its process and pane id are preserved.
+set -eu
+
+case "${1:-}" in
+    left|right) direction=$1 ;;
+    *)
+        tmux display-message "usage: tmux-move-pane-column left|right"
+        exit 2
+        ;;
+esac
+
+window=$(tmux display-message -p '#{window_id}')
+source_info=$(tmux display-message -p '#{pane_id} #{pane_left} #{pane_top}')
+set -- $source_info
+source=$1
+source_left=$2
+source_top=$3
+
+target_info=$(
+    tmux list-panes -t "$window" \
+        -F '#{pane_id} #{pane_left} #{pane_top} #{pane_right} #{pane_bottom} #{@sidebar_pane}' |
+    awk -v source="$source" -v source_left="$source_left" -v source_top="$source_top" -v direction="$direction" '
+        function abs(value) { return value < 0 ? -value : value }
+        {
+            if ($6 == 1 || $1 == source)
+                next
+
+            left = $2 + 0
+            top = $3 + 0
+            if (direction == "left") {
+                if (left >= source_left)
+                    next
+                if (!found || left > target_left ||
+                    (left == target_left && abs(top - source_top) < target_distance)) {
+                    found = 1
+                    target_left = left
+                    target_distance = abs(top - source_top)
+                    target = $1
+                    target_top = top
+                }
+            } else {
+                if (left <= source_left)
+                    next
+                if (!found || left < target_left ||
+                    (left == target_left && abs(top - source_top) < target_distance)) {
+                    found = 1
+                    target_left = left
+                    target_distance = abs(top - source_top)
+                    target = $1
+                    target_top = top
+                }
+            }
+        }
+        END {
+            if (found)
+                print target, target_top
+        }
+    '
+)
+
+if [ -z "$target_info" ]; then
+    tmux display-message "no column to the $direction"
+    exit 0
+fi
+
+set -- $target_info
+target=$1
+target_top=$2
+
+# Keep the moved pane near its original vertical position within the target
+# column: insert above the nearest target row when it starts no lower than it.
+if [ "$source_top" -le "$target_top" ]; then
+    tmux move-pane -v -b -s "$source" -t "$target"
+else
+    tmux move-pane -v -s "$source" -t "$target"
+fi
+
+tmux select-pane -t "$source"

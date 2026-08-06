@@ -188,7 +188,7 @@ Entered via `M-u`/`M-U` or mouse scroll. `setw -g mode-keys vi`.
 | `S` | copy-mode | flash.nvim-style jump (`tmux-flash-jump.py`) — see below |
 
 #### `S` — flash jump (`tmux-flash-jump.py`)
-Type a query; every matching substring in the current viewport gets a single-key label (closest to the cursor gets the easiest/home-row label). Press that label, or `Enter` for the nearest match, to move the copy-mode cursor there — a jump, not a copy. Normal copy-mode operations (`v`, `y`, more movement) continue from the new position.
+Type a query; every matching substring in the popup's visible content rows gets a single-key label (closest to the cursor gets the easiest/home-row label). The popup's bottom row is the search prompt, so it is not a target row. Press a label, or `Enter` for the nearest match, to move the copy-mode cursor there — a jump, not a copy. Normal copy-mode operations (`v`, `y`, more movement) continue from the new position. Labels replace the first cell of their match, preserving alignment for adjacent matches.
 
 | Key | Action |
 | --- | --- |
@@ -234,6 +234,8 @@ Type a query; every matching substring in the current viewport gets a single-key
 | `M-Q` | root | Send pane to prev window (`tmux-send-pane-adjacent prev`) |
 | `M-i` | root | Send pane to a new window (`tmux-pane-to-window`) |
 | `M-I` | root | Send pane's window to a new session (`tmux-window-to-session`) |
+| `prefix ;` | — | Move active pane to the nearest column on the left |
+| `prefix '` | — | Move active pane to the nearest column on the right |
 | `M-<` | root | Swap pane up |
 | `M->` | root | Swap pane down |
 
@@ -254,7 +256,7 @@ Type a query; every matching substring in the current viewport gets a single-key
 | Key | Scope | Action |
 | --- | --- | --- |
 | `M-V` | root | `even-vertical` layout |
-| `M-H` | root | Cycle next preset layout (`next-layout`; 7 presets, wraps) |
+| `M-H` | root | Cycle previous preset layout (`previous-layout`; 7 presets, wraps) |
 | `M-v` | root | `tiled` layout |
 
 ### Session / float / popup

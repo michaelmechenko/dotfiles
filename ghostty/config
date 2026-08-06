@@ -76,9 +76,9 @@ font-size = 14
 
 # lilex-specific config
 font-family = "Lilex"
-alpha-blending = linear-corrected
-font-variation = wght=425
-adjust-cell-height = 4%
+# alpha-blending = linear-corrected
+font-variation = wght=415
+adjust-cell-height = 6%
 # font-thicken = true
 # font-thicken-strength = 0
 # font-feature = -calt

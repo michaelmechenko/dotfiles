@@ -9,7 +9,7 @@ import { resolveTextCtor } from "../tui-text.js";
 import type { BashDetails, ComponentLike, RenderCtxLike, SdkToolDef, TextContent, ThemeLike } from "../types.js";
 import { wrapExecuteWithMetrics } from "./metrics.js";
 import { areToolResultsExpanded, previewResult, RESULT_TOGGLE_HINT } from "../../../tool-display/state.js";
-import { frameDivider, framePadding, frameResult, frameRow, frameRows, frameText } from "../../../tool-display/frame.js";
+import { cardEdgeColor, frameDivider, framePadding, frameResult, frameRow, frameRows, frameText } from "../../../tool-display/frame.js";
 
 type Result = AgentToolResult<Record<string, unknown>>;
 
@@ -145,17 +145,18 @@ export function registerBashTool(
 				const rw = termWidth();
 
 				const resultBg = isErr ? theme.getBgAnsi?.("toolErrorBg") : theme.getBgAnsi?.("toolSuccessBg");
+				const edge = isErr ? cardEdgeColor("error", theme) : undefined;
 
 				const renderFn = (w: number) => {
-					if (!output.trim()) return frameResult(theme, w, [header], resultBg);
+					if (!output.trim()) return frameResult(theme, w, [header], resultBg, edge);
 					const preview = previewResult(output, resultsExpanded ? Number.MAX_SAFE_INTEGER : 3);
 					const out = [
-						frameDivider(theme, resultBg, w),
-						frameRow(header, resultBg, w),
-						...preview.body.split("\n").map((line: string) => frameRow(line, resultBg, w)),
+						frameDivider(theme, resultBg, w, edge),
+						frameRow(header, resultBg, w, edge),
+						...preview.body.split("\n").map((line: string) => frameRow(line, resultBg, w, edge)),
 					];
-					if (preview.remaining) out.push(frameRow(theme.fg("dim", `… ${preview.remaining} more lines (${RESULT_TOGGLE_HINT})`), resultBg, w));
-					out.push(framePadding(resultBg, w));
+					if (preview.remaining) out.push(frameRow(theme.fg("dim", `… ${preview.remaining} more lines (${RESULT_TOGGLE_HINT})`), resultBg, w, edge));
+					out.push(framePadding(resultBg, w, edge));
 					return out.join("\n");
 				};
 
@@ -179,7 +180,7 @@ export function registerBashTool(
 
 			if (ctx.isError) {
 				const message = (tc || "Error").split("\n").map((line) => theme.fg("error", line));
-				return frameText(text, (width) => frameResult(theme, width, message, theme.getBgAnsi?.("toolErrorBg")));
+				return frameText(text, (width) => frameResult(theme, width, message, theme.getBgAnsi?.("toolErrorBg"), cardEdgeColor("error", theme)));
 			}
 			const fc = result.content?.[0];
 			return frameText(text, (width) => frameResult(theme, width, [theme.fg("dim", fc && "text" in fc ? String(fc.text).slice(0, 120) : "done")]));

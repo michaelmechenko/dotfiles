@@ -37,6 +37,21 @@ return {
         "latex",
         "xml",
         "yaml",
+        -- shell + config filetypes. No "jsonc"/"tmux"/"ghostty"/"conf" parsers exist on
+        -- the main branch: jsonc reuses the json parser via the plugin's own filetype
+        -- registration, the rest stay on vim's regex syntax.
+        "bash",
+        "zsh",
+        "json",
+        "toml",
+        "ini",
+        "diff",
+        "dockerfile",
+        "nix",
+        "perl",
+        "hcl",
+        "terraform",
+        "scss",
       }
       local installed = require("nvim-treesitter.config").get_installed()
       local missing = vim.iter(ensure_installed)
@@ -48,9 +63,20 @@ return {
 
       -- Enable treesitter highlight and indent for all filetypes
       vim.api.nvim_create_autocmd("FileType", {
-        callback = function()
-          pcall(vim.treesitter.start)
-          vim.bo.indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
+        callback = function(ev)
+          local lang = vim.treesitter.language.get_lang(ev.match)
+          -- A parser alone is NOT enough to hand over from vim's regex syntax.
+          -- vim.treesitter.start() asserts only that a parser resolves; with no
+          -- highlights query it still blanks 'syntax' and attaches a highlighter that
+          -- yields zero captures, and it does NOT error -- so pcall() can't detect the
+          -- failure. Require the query first, so a parser-without-queries (e.g. a stale
+          -- master-branch .so) degrades to regex syntax instead of to nothing at all.
+          if not (lang and vim.treesitter.query.get(lang, "highlights")) then
+            return
+          end
+          if pcall(vim.treesitter.start, ev.buf, lang) then
+            vim.bo[ev.buf].indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
+          end
         end,
       })
     end,

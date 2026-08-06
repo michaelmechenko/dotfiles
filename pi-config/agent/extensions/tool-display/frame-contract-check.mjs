@@ -30,6 +30,21 @@ assert.doesNotMatch(diff, /\$\{RST\}\$\{FG_DIM\}›\$\{RST\}/);
 assert.doesNotMatch(diff, /if \(hasMore && w > 2\) row \+=/);
 const bash = await readFile(resolve(root, "pretty/src/tools/bash.ts"), "utf8");
 assert.doesNotMatch(bash, /const header = `\$\{TOOL_RESULT_INDENT\}/);
+assert.match(bash, /import \{ truncateToWidth \} from "@earendil-works\/pi-tui";/, "bash must import truncateToWidth for multiline fitting");
+assert.match(bash, /const resultBg = isErr \? theme\.getBgAnsi\?\.\("toolErrorBg"\) : theme\.getBgAnsi\?\.\("toolSuccessBg"\);/, "bash result rows must use an explicit semantic background");
+assert.match(bash, /frameDivider\(theme, resultBg, w\)/, "bash result divider must carry the result background");
+assert.match(bash, /cmdLines\.length - 2} more lines/, "collapsed multiline bash calls must show a continuation count");
+
+const host = await readFile(resolve(root, "tool-display/host-decorator.ts"), "utf8");
+assert.match(host, /Symbol\.for\("@earendil-works\/pi-coding-agent:theme"\)/, "host decorator must read the shared theme singleton via its stable symbol");
+assert.match(host, /Symbol\.for\("pi\.tool-display\.hostDecorator\.v1"\)/, "host decorator must be idempotent across reloads");
+assert.match(host, /if \(this\.getRenderShell\?\.\(\) === "self"\)/, "host decorator must leave self-shell tools untouched");
+assert.match(host, /statusIcon/, "host decorator must prefix a status marker");
+assert.match(host, /frameRow|applyBg/, "host decorator must frame rows with the semantic background");
+assert.match(host, /return origRender\.call\(this, width\);/, "host decorator must fall back to the original render on any failure");
+const index = await readFile(resolve(root, "tool-display/index.ts"), "utf8");
+assert.match(index, /import \{ installHostDecorator \} from "\.\/host-decorator\.js";/, "tool-display must install the host decorator");
+assert.match(index, /installHostDecorator\(\);/, "tool-display must call installHostDecorator");
 
 const ansi = "\x1b[38;2;1;2;3mhello\x1b[0m";
 const visible = ansi.replace(/\x1b\[[0-9;]*m/g, "").length;

@@ -1,8 +1,10 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Key } from "@earendil-works/pi-tui";
+import { installHostDecorator } from "./host-decorator.js";
 import { refreshToolRows, resetToolResultsExpanded, toggleToolResultsExpanded } from "./state.js";
 
 export default function (pi: ExtensionAPI): void {
+	installHostDecorator();
 	pi.on("session_start", () => {
 		resetToolResultsExpanded();
 	});

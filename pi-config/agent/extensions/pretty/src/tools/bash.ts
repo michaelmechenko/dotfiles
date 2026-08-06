@@ -1,6 +1,7 @@
 /* pi-pretty: bash tool -- command execution with styled output. */
 
 import type { AgentToolResult, ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
+import { truncateToWidth } from "@earendil-works/pi-tui";
 import { resolveBaseBackground, TOOL_RESULT_INDENT, termWidth } from "../config.js";
 import { compactErrorLines, inferBashExitCode, stripBashExitStatusLine } from "../helpers.js";
 import { fillToolBackground, renderFrameStatus, renderToolDuration, renderToolError } from "../render.js";
@@ -71,20 +72,24 @@ export function registerBashTool(
 			const buildHeader = (width: number): string => {
 				const tw = width || 80;
 				const t = typeof args.timeout === "number" ? ` ${theme.fg("muted", `(timeout ${args.timeout}s)`)}` : "";
-				const headerBudget = ctx.expanded ? tw : Math.max(8, tw - 20);
-				const cmd =
-					rawCmd.length === 0
-						? theme.fg("toolOutput", "...")
-						: !ctx.expanded && rawCmd.length > headerBudget
-							? `${rawCmd.slice(0, Math.max(1, headerBudget))}…`
-							: rawCmd;
-				const indentedCmd = cmd.replace(/\n/g, `\n${TOOL_RESULT_INDENT}  `);
-				const headerLine = renderFrameStatus({
-					title: `$ ${indentedCmd}${t}`,
-					status: ctx.isError ? "error" : "pending",
-					theme,
-				});
-				return frameRows(["", headerLine], theme.getBgAnsi?.("toolSuccessBg"), tw);
+				const status = ctx.isError ? "error" : "pending";
+				const bg = theme.getBgAnsi?.("toolSuccessBg");
+				const fit = (line: string, max: number): string => truncateToWidth(line, Math.max(1, max), "…");
+				const cmdLines = rawCmd.length === 0 ? [theme.fg("toolOutput", "...")] : rawCmd.split("\n");
+				const budget = Math.max(8, tw - 4);
+				const line0Budget = t ? Math.max(8, tw - 22) : budget;
+				const rows: string[] = [""];
+				if (ctx.expanded || cmdLines.length <= 2) {
+					rows.push(renderFrameStatus({ title: `$ ${fit(cmdLines[0], line0Budget)}${t}`, status, theme }));
+					for (let i = 1; i < cmdLines.length; i++) {
+						rows.push(`${TOOL_RESULT_INDENT}  ${fit(cmdLines[i], budget)}`);
+					}
+				} else {
+					rows.push(renderFrameStatus({ title: `$ ${fit(cmdLines[0], line0Budget)}${t}`, status, theme }));
+					rows.push(`${TOOL_RESULT_INDENT}  ${fit(cmdLines[1], budget)}`);
+					rows.push(`${TOOL_RESULT_INDENT}${theme.fg("dim", `… ${cmdLines.length - 2} more lines (${RESULT_TOGGLE_HINT})`)}`);
+				}
+				return frameRows(rows, bg, tw);
 			};
 
 			text.setText(buildHeader(termWidth()));
@@ -139,16 +144,18 @@ export function registerBashTool(
 				const header = `${resultIcon} ${info}`;
 				const rw = termWidth();
 
+				const resultBg = isErr ? theme.getBgAnsi?.("toolErrorBg") : theme.getBgAnsi?.("toolSuccessBg");
+
 				const renderFn = (w: number) => {
-					if (!output.trim()) return frameResult(theme, w, [header]);
+					if (!output.trim()) return frameResult(theme, w, [header], resultBg);
 					const preview = previewResult(output, resultsExpanded ? Number.MAX_SAFE_INTEGER : 3);
 					const out = [
-						frameDivider(theme, undefined, w),
-						frameRow(header, undefined, w),
-						...preview.body.split("\n").map((line: string) => frameRow(line, undefined, w)),
+						frameDivider(theme, resultBg, w),
+						frameRow(header, resultBg, w),
+						...preview.body.split("\n").map((line: string) => frameRow(line, resultBg, w)),
 					];
-					if (preview.remaining) out.push(frameRow(theme.fg("dim", `… ${preview.remaining} more lines (${RESULT_TOGGLE_HINT})`), undefined, w));
-					out.push(framePadding(undefined, w));
+					if (preview.remaining) out.push(frameRow(theme.fg("dim", `… ${preview.remaining} more lines (${RESULT_TOGGLE_HINT})`), resultBg, w));
+					out.push(framePadding(resultBg, w));
 					return out.join("\n");
 				};
 

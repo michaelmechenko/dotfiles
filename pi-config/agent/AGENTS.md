@@ -68,7 +68,7 @@
 
 ## Custom tool rendering
 
-Custom outer framing is intentionally limited to the `read`, `bash`, and diff renderer paths. Other extensions must use Pi's default tool shell and result presentation. Keep renderer-specific layout out of execution-only tools.
+Custom outer framing is intentionally limited to the `read`, `bash`, and diff renderer paths (`renderShell: "self"`). The single exception is the `tool-display` host-level decorator over Pi’s `ToolExecutionComponent`: it adds a status-marker prefix and a call/result divider to every tool that still uses Pi’s default `Box` shell (built-in `find`/`grep`/`ls` and any extension tool without `renderShell: "self"`), without re-implementing any tool’s renderer or touching self-shell tools. It is guarded and falls back to Pi’s unmodified render on any error or unrecognized component shape. Do not add another per-extension renderer or frame layer; reuse `tool-display/` instead. Keep renderer-specific layout out of execution-only tools.
 
 ## Response Shaping
 

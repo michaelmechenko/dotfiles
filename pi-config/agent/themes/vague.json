@@ -3,7 +3,7 @@
 	"name": "vague",
 	"vars": {
 		"canvas": "#100E11",
-		"surfaceActive": "#16141a",
+		"surfaceActive": "#1A161C",
 		"surfaceChrome": "#1C1C24",
 		"surfaceHighlight": "#2A2A35",
 		"surfaceTintRose": "#381f27",

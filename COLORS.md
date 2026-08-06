@@ -26,16 +26,16 @@ Single source of truth for colors used across tmux, Ghostty, and zsh (via ohmypo
 |---|---|---|
 | `text` | `#BEBEBE` | Ghostty `foreground`; nvim editor fg (`vague.lua` `colors.fg`) |
 | `text-ui` | `#9094A0` | nvim WinBar fg (`dropbar.lua`) — slightly dimmer than `text` for chrome/breadcrumb text |
-| `text-muted` | `#656a80` | tmux `@color-inactive` — secondary UI text (border fg, inactive footer-label/default-marker fg, status secondary text, bell-state); tmux copy-mode non-current line numbers (`copy-mode-line-number-style`, dim); nvim devicons, dropbar `DropBarIconKindDefault`, lualine inactive-buffer fg; nvim `FloatBorder` fg; Claude statusline dir/model/ctx text; Claude theme `inactive` token; moor preview overflow hints |
+| `text-muted` | `#656a80` | tmux `@color-inactive` — secondary UI text (border fg, inactive footer dashes/non-red stars/default-marker fg and all non-centre underline segments, status secondary text, bell-state); tmux copy-mode non-current line numbers (`copy-mode-line-number-style`, dim); nvim devicons, dropbar `DropBarIconKindDefault`, lualine inactive-buffer fg; nvim `FloatBorder` fg; Claude statusline dir/model/ctx text; Claude theme `inactive` token; moor preview overflow hints |
 | `text-default` | `#a9b1d6` | tmux `@color-default` — window-status text (the colored window names in the status bar). **Not referenced elsewhere.** |
 
 ### Accents
 
 | Role | Hex | Where used |
 |---|---|---|
-| `accent-primary` (rose) | `#d8647e` | tmux `@color-rose`; tmux ephemeral session indicator + zoomed border center; Ghostty ANSI 1; ohmyposh path segment; nvim lualine `replace`-mode status/location block |
-| `accent-secondary` (lavender) | `#aeaed1` | tmux `@color-ephemeral` / `@color-lavender2` / `@color-float`; tmux pane-border-active fg; Ghostty ANSI 6 + ANSI 12 (ANSI 12 override → Claude Code code-block syntax highlighting, since its dark-ansi theme has no syntax token); ohmyposh session segment; nvim lualine `normal`/`command`-mode status/location block |
-| `accent-tertiary` (dusty pink) | `#bb9dbd` | tmux `@color-dusty_pink`; Ghostty ANSI 2; ohmyposh transient prompt + git segment; nvim lualine `visual`-mode status/location block |
+| `accent-primary` (rose) | `#d8647e` | tmux `@color-rose` — inactive labeled-footer stars/label text (label underline only); three central stars of an unlabeled marker and its five-glyph central underline; tmux ephemeral session indicator + zoomed border center; Ghostty ANSI 1; ohmyposh path segment; nvim lualine `replace`-mode status/location block |
+| `accent-secondary` (lavender) | `#aeaed1` | tmux `@color-ephemeral` / `@color-lavender2` / `@color-float`; tmux active pane-border fg and active-footer decoration/non-centre stars; Ghostty ANSI 6 + ANSI 12 (ANSI 12 override → Claude Code code-block syntax highlighting, since its dark-ansi theme has no syntax token); ohmyposh session segment; nvim lualine `normal`/`command`-mode status/location block |
+| `accent-tertiary` (dusty pink) | `#bb9dbd` | tmux `@color-dusty_pink` — active-footer underline, active labeled text, and three central stars of an active unlabeled marker; Ghostty ANSI 2; ohmyposh transient prompt + git segment; nvim lualine `visual`-mode status/location block |
 | `accent-highlight` (pale lavender) | `#bebedb` | tmux `@color-lavender` / `@color-active` — current window status; tmux copy-mode current line number (`copy-mode-current-line-number-style`, bold) |
 | `accent-info` (slate) | `#8ba9c1` | ohmyposh executiontime segment; nvim `FoldColumn` fg (`surface-fold`); Claude theme `planMode` token. **No tmux usage. No longer Ghostty ANSI 12** — that slot was remapped to `accent-secondary` lavender (`#aeaed1`). |
 | `accent-periwinkle` | `#9b9bcc` | nvim render-md inline code (`RenderMarkdownCodeInline` fg, bg cleared — fenced blocks keep their bg) + table borders (`RenderMarkdownTableHead` / `RenderMarkdownTableRow` fg; Head otherwise default-links to `@markup.heading` = blue `c.keyword`). A blue-violet between `accent-info` slate and `accent-secondary` lavender. **nvim-only.** |
@@ -73,7 +73,7 @@ Two places drift by one hex digit. The fixes are mechanical — pick one of the 
 
 ### Recommended normalization (not yet applied)
 
-- Lavender accent (`c9b1c9` vs `c9b1ca`): pick **`#c9b1ca`** (Ghostty's value, since the palette is the larger contract). Update the tmux pane-border-format on line 254 of `~/.config/tmux.conf` to use `#c9b1ca`.
+- Lavender accent (`c9b1c9` vs `c9b1ca`): pick **`#c9b1ca`** (Ghostty's value, since the palette is the larger contract). Update the tmux pane-border-format on line 342 of `~/.config/tmux.conf` to use `#c9b1ca`.
 - Warm sand (`F5CC96` vs `f5cb96`): pick **`#f5cb96`** (Ghostty's value). Update `~/.config/ohmyposh/base.json` git template — both occurrences of `#F5CC96` become `#f5cb96`.
 
 ### Tmux-only colors (not in Ghostty's palette)

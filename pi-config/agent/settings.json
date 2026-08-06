@@ -19,20 +19,17 @@
   "extensions": [
     "-extensions/hidden-thinking-label/index.ts",
     "-extensions/minimal-mode/index.ts",
-    "+extensions/titlebar-spinner/index.ts",
     "-extensions/permission-gate/index.ts",
-    "+extensions/plan-mode/index.ts"
+    "+extensions/plan-mode/index.ts",
+    "-extensions/titlebar-spinner/index.ts"
   ],
   "defaultThinkingLevel": "high",
   "skills": [
-    "-skills/handoff/SKILL.md",
-    "-skills/last-20-percent/SKILL.md",
     "-skills/tdd/SKILL.md",
-    "-skills/teach/SKILL.md",
     "-skills/terminate-slop/SKILL.md",
     "-skills/to-spec/SKILL.md",
-    "-skills/to-tickets/SKILL.md",
-    "+skills/resolving-merge-conflicts/SKILL.md"
+    "-skills/to-tickets/SKILL.md"
   ],
-  "hideThinkingBlock": true
+  "hideThinkingBlock": true,
+  "quietStartup": false
 }

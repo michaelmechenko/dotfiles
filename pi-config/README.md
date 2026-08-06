@@ -130,6 +130,14 @@ resolution this extension uses internally. To pick up upstream changes, diff aga
 
 `tool-display/` supplies the shared framing and `ctrl+shift+o` result-detail toggle used by the restored `read`/`bash` and diff renderers. Other custom tools use Pi's default shell and result presentation.
 
+`image-proxy/` is a locally-written, image-only vision proxy (inspired by [`pungggi/pi-multimodal-proxy`](https://github.com/pungggi/pi-multimodal-proxy), scoped down to "I only care about reading images"). It exists so the configured text-only Ollama models can still understand images: when the active model lacks image input, attached/pasted images are described once by a fixed vision route and the description text is spliced into the user message in place of each image block, so the text model never receives an image block it can't render. An `analyze_image` tool lets the agent describe an explicit local image file (PNG/JPEG/GIF/WebP/BMP) on demand, regardless of the active model.
+
+- **Fixed vision route:** `openai-codex/gpt-5.6-luna`, resolved from the existing catalog — no new provider is registered and no credentials are duplicated. Luna is already authenticated as the default model, so the route works with no extra setup. Changing the route means editing `VISION_PROVIDER`/`VISION_MODEL_ID` at the top of `image-proxy/index.ts` (no picker, no persisted config, by design).
+- **Fallback only:** when the active model already supports images (the OpenAI/Codex and OpenCode GPT-5.x entries do), the proxy steps aside entirely — no analysis, no block replacement.
+- **Two pieces:** `before_agent_start` analyzes attached images (in parallel, low reasoning) and stores results keyed by an image-data hash in a per-session `WeakMap`; `context` replaces image blocks in user messages with a fenced `<image_proxy_description>` block looked up by that hash, on every turn (so historical images stay described across turns). The `analyze_image` tool is a normal tool result — no injection, no stripping.
+- **Deliberately omitted vs. upstream:** video, audio, YouTube download, image cropping, session image recall (`image="…"` ids), path auto-detection from prompt text, a model picker, persistent configuration, and per-session data-egress consent. Image data is sent to the configured Luna route by design — that is the whole point.
+- **Tests:** `npm test` in `extensions/image-proxy/` runs pure-helper unit tests (path/MIME, fence building + close-tag neutralization, image-block replacement, hashing) via `node --experimental-strip-types --test` — no pi packages resolved at test time, no live model calls. The first extension in this repo to ship tests.
+
 ## Keybindings (`agent/keybindings.json`)
 
 Only remaps pi's own closed, built-in `KEYBINDINGS` registry (namespaced ids like `tui.input.newLine`,

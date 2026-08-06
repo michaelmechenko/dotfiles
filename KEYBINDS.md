@@ -254,7 +254,7 @@ Type a query; every matching substring in the current viewport gets a single-key
 | Key | Scope | Action |
 | --- | --- | --- |
 | `M-V` | root | `even-vertical` layout |
-| `M-H` | root | `main-vertical` (main pane 50% width, others stacked right) |
+| `M-H` | root | Cycle next preset layout (`next-layout`; 7 presets, wraps) |
 | `M-v` | root | `tiled` layout |
 
 ### Session / float / popup

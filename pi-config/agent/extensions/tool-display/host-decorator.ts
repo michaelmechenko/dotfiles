@@ -29,7 +29,7 @@
 
 import { ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
 import { visibleWidth } from "@earendil-works/pi-tui";
-import { cardEdgeColor, isBorderedCard, type ToolFrameTheme } from "./frame.js";
+import { BORDERED_MUTATION_TOOLS, cardEdgeColor, isBorderedCard, type ToolFrameTheme } from "./frame.js";
 
 const THEME_KEY = Symbol.for("@earendil-works/pi-coding-agent:theme");
 const PATCH_FLAG = Symbol.for("pi.tool-display.hostDecorator.v1");
@@ -106,9 +106,15 @@ function decoratedBox(box: any, instance: any, width: number, theme: any): strin
 		}
 	}
 
-	// Divider + result content (only when a result row exists).
+	// Divider + result content (only when a result row exists). Mutation tools
+	// (write/edit/apply_patch) are rendered by the diff extension, which frames
+	// its own result body with a top divider — inserting ours too would stack two
+	// dashed lines, so we skip the host divider for those tools.
 	if (resultChild) {
-		out.push(applyBg(`${edge}${theme.fg("dim", "─".repeat(contentWidth))}`, width, bgFn));
+		const toolName = String(instance.toolName ?? "");
+		if (!BORDERED_MUTATION_TOOLS.has(toolName)) {
+			out.push(applyBg(`${edge}${theme.fg("dim", "─".repeat(contentWidth))}`, width, bgFn));
+		}
 		for (const line of resultChild.render(contentWidth)) out.push(applyBg(`${edge}${line}`, width, bgFn));
 	}
 

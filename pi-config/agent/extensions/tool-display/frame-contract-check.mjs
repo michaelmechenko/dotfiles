@@ -45,6 +45,8 @@ assert.match(host, /if \(this\.getRenderShell\?\.\(\) === "self"\)/, "host decor
 assert.match(host, /statusIcon/, "host decorator must prefix a status marker");
 assert.match(host, /return cardEdgeColor\(cardState\(instance\), theme as ToolFrameTheme\);/, "host decorator must use the complete styled edge token");
 assert.doesNotMatch(host, /cardEdgeColor\(cardState\(instance\), theme as ToolFrameTheme\)\}▌/, "host decorator must not append a second edge glyph");
+assert.match(host, /BORDERED_MUTATION_TOOLS/, "host decorator must know the mutation tool set so it can defer their body divider to the diff renderer");
+assert.match(host, /if \(!BORDERED_MUTATION_TOOLS\.has\(toolName\)\)/, "host decorator must skip its own divider for diff-rendered mutation tools to avoid stacked dashed lines");
 assert.match(host, /frameRow|applyBg/, "host decorator must frame rows with the semantic background");
 assert.match(host, /return origRender\.call\(this, width\);/, "host decorator must fall back to the original render on any failure");
 const index = await readFile(resolve(root, "tool-display/index.ts"), "utf8");

@@ -325,12 +325,14 @@ Lists panes outside the current session in an fzf popup with fixed columns (incl
 - **M-g** — same as `alt-g` (enter ripgrep mode)
 - **M-T** — toggle close/open (press again to close active popup)
 
-### `M-o` — tmux-fzf-url (`tmux-fzf-url-open`)
-Surfaces URLs **and** file paths/bare filenames (via a custom path regex) from the visible pane content into fzf. Records the origin pane in `TMUX_OPEN_PANE` so the shared opener can resolve relative paths + split off it.
-- **select a file** → nvim split (via `tmux-open-target`)
-- **select a URL / non-file** → `open`
-- **M-j/M-k** — navigate up/down
-- **M-o** — toggle close/open (press again to close active popup)
+### `M-o` — URL/path picker (`tmux-open-picker`)
+Two side-by-side lists over the visible pane content: **URLs** (left) and validated **files/directories** (right, resolved against the pane's cwd). The origin pane is passed explicitly (`'#{pane_id}'`); no global `TMUX_OPEN_PANE` state.
+- **Tab / h / l** — switch columns
+- **j / k or ↑/↓** — move within the active column
+- **type** — incremental substring filter on the active column; **Backspace** deletes
+- **Enter on a URL** → open in the browser
+- **Enter on a path** → action menu: **n**=nvim split, **f**=Finder (reveal file / open dir), **c**=copy to clipboard
+- **M-o / Esc / q** — toggle close/open (press again to close active popup)
 
 ### `M-K` — extrakto (`tmux-extrakto-launch`)
 Extract words/lines/URLs from pane content (default grab area = window full) into fzf. Records the origin pane in `TMUX_OPEN_PANE`; `@extrakto_open_tool` routes ctrl-o opens through the shared `tmux-open-target` (files → nvim split, else `open`). Keeps `FZF_DEFAULT_OPTS` palette (`@extrakto_fzf_unset_default_opts "false"`).

@@ -91,7 +91,7 @@ ZSH_HIGHLIGHT_STYLES[path_prefix]=none
 #   export EDITOR='nvim'
 # fi
 export EDITOR='nvim'
-alias el='nvim .'
+alias el="nvim +'Neotree filesystem reveal float reveal_force_cwd'"
 
 # Compilation flags
 # export ARCHFLAGS="-arch x86_64"

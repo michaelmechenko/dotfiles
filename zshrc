@@ -91,6 +91,7 @@ ZSH_HIGHLIGHT_STYLES[path_prefix]=none
 #   export EDITOR='nvim'
 # fi
 export EDITOR='nvim'
+alias el='nvim .'
 
 # Compilation flags
 # export ARCHFLAGS="-arch x86_64"

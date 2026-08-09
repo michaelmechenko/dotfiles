@@ -158,6 +158,7 @@ All `cmd-ctrl-alt-*` (bound in `init.lua`).
 | `cmd-ctrl-alt-p` | Toggle SketchyBar profile full ↔ performance (swap + flag only; **does not reload**) |
 | `cmd-ctrl-alt-o` | Reload SketchyBar from disk (sole reload path) |
 | `cmd-ctrl-alt-shift-o` | Toggle AeroSpace server on/off |
+| `cmd-ctrl-alt-shift-b` | Toggle only the `borders` daemon (`borders.lua`); SketchyBar and AeroSpace stay running |
 
 ## Notes
 - **Keyswap (`cmd-shift-b`):** swaps the roles of `cmd-N` (workspace) and `cmd-shift-N` (window). The SketchyBar `keyswap` item shows `*` while the swap is active. Default state: no flag, `cmd-N` = workspace.

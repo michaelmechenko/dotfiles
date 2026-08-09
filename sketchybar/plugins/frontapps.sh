@@ -194,11 +194,13 @@ CUR_COLORS="$(printf '%s\n' "$WINDOW_DATA" | awk -F'\t' '
     print $3" "c
   }' | sort)"
 PREV_COLORS="$(sort /tmp/aerospace_border_colors 2>/dev/null || true)"
-{ set +e
-  comm -23 <(printf '%s\n' "$CUR_COLORS") <(printf '%s\n' "$PREV_COLORS") | while read -r id c; do
-    [ -n "$id" ] && "$BORDERS" apply-to=$id active_color=$c inactive_color=$INACT >/dev/null 2>&1
-  done
-  set -e; }
+if [ ! -e /tmp/borders_disabled ]; then
+  { set +e
+    comm -23 <(printf '%s\n' "$CUR_COLORS") <(printf '%s\n' "$PREV_COLORS") | while read -r id c; do
+      [ -n "$id" ] && "$BORDERS" apply-to=$id active_color=$c inactive_color=$INACT >/dev/null 2>&1
+    done
+    set -e; }
+fi
 printf '%s\n' "$CUR_COLORS" > /tmp/aerospace_border_colors
 
 # An event arrived while rebuilding → run one more pass to capture final state.

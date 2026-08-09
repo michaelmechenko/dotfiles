@@ -105,24 +105,26 @@ return {
         hl["LspInlayHint"]               = { fg = "#606079", italic = true }
         hl["GitSignsCurrentLineBlame"]   = { fg = "#606079" }
         hl["ComplHint"]                  = { fg = "#606079" }
-        hl["RenderMarkdownH1"]         = { fg = "#f3be7c", bg = "None" }
-        hl["RenderMarkdownH2"]         = { fg = "#bb9dbd", bg = "None" }
-        hl["RenderMarkdownH3"]         = { fg = "#aeaed1", bg = "None" }
-        hl["RenderMarkdownH4"]         = { fg = "#f3be7c", bg = "None" }
-        hl["RenderMarkdownH5"]         = { fg = "#bb9dbd", bg = "None" }
-        hl["RenderMarkdownH6"]         = { fg = "#aeaed1", bg = "None" }
-        hl["RenderMarkdownH1Bg"]         = { fg = "#f3be7c", bg = "None" }
-        hl["RenderMarkdownH2Bg"]         = { fg = "#bb9dbd", bg = "None" }
-        hl["RenderMarkdownH3Bg"]         = { fg = "#aeaed1", bg = "None" }
-        hl["RenderMarkdownH4Bg"]         = { fg = "#f3be7c", bg = "None" }
-        hl["RenderMarkdownH5Bg"]         = { fg = "#bb9dbd", bg = "None" }
-        hl["RenderMarkdownH6Bg"]         = { fg = "#aeaed1", bg = "None" }
-        -- hl["RenderMarkdownH1Bg"]         = { bg"#f3be7c" = "#352f37" }
-        -- hl["RenderMarkdownH2Bg"]         = { bg"#f3be7c" = "#33333a" }
-        -- hl["RenderMarkdownH3Bg"]         = { bg = "#40362a" }
-        -- hl["RenderMarkdownH4Bg"]         = { bg = "#352f37" }
-        -- hl["RenderMarkdownH5Bg"]         = { bg = "#33333a" }
-        -- hl["RenderMarkdownH6Bg"]         = { bg = "#40362a" }
+        -- Heading contract (see COLORS.md surface-heading-h1/h2/h3):
+        --   * Treesitter captures @markup.heading.N.markdown own the heading FOREGROUND
+        --     (the vivid icon/text color). They are set above (pink/lavender/amber cycle).
+        --   * render-markdown's defaults already link RenderMarkdownH1..H6 to those
+        --     captures (core/colors.lua, default = true). We deliberately do NOT override
+        --     RenderMarkdownH1..H6 here — leaving them unset lets the plugin's links win and
+        --     keeps rendered icons in sync with raw syntax, instead of the old shifted
+        --     amber/pink/lavender sequence that diverged from Treesitter.
+        --   * The *Bg groups own only the decorative heading FILL surface. render-markdown
+        --     derives the heading background AND the underline/border fg (via bg_as_fg,
+        --     since render-md.lua sets border = true, border_prefix = true) from this bg,
+        --     so we set bg only and leave fg unset. Old override set fg + bg = "None",
+        --     which made bg_as_fg return invisible and silently dropped the documented
+        --     surface-heading backgrounds.
+        hl["RenderMarkdownH1Bg"]         = { bg = "#352f37" }
+        hl["RenderMarkdownH2Bg"]         = { bg = "#33333a" }
+        hl["RenderMarkdownH3Bg"]         = { bg = "#40362a" }
+        hl["RenderMarkdownH4Bg"]         = { bg = "#352f37" }
+        hl["RenderMarkdownH5Bg"]         = { bg = "#33333a" }
+        hl["RenderMarkdownH6Bg"]         = { bg = "#40362a" }
         -- inline `code`: periwinkle fg, no background; fenced blocks keep their bg
         hl["RenderMarkdownCodeInline"]   = { fg = "#9b9bcc", bg = "None" }
         -- table borders: periwinkle (Head default-links to @markup.heading = blue keyword)

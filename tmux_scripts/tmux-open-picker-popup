@@ -1,0 +1,7 @@
+#!/bin/sh
+# Launch the M-o picker after tmux has expanded the triggering pane's format.
+# `display-popup` does not expand formats inside its nested command string, so
+# the pane id must be expanded by the outer `run-shell` binding first.
+pane="$1"
+exec tmux display-popup -E -w 80% -h 60% -T "open" \
+  "python3 ~/.config/tmux_scripts/tmux-open-picker '$pane'"

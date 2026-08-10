@@ -95,6 +95,29 @@ LOUT="$(OPEN_TARGET_DRY_RUN=1 "$TARGET" "$TMP/src/main.rs" 2>&1)"
 echo "$LOUT" | grep -qF 'split-window' && ok "sidebar legacy open -> nvim split" || bad "sidebar legacy" "$LOUT"
 unset TMUX_OPEN_PANE
 
+# Regression: run-shell must expand #{pane_id} before the launcher calls
+# display-popup; display-popup leaves formats literal inside its nested command.
+LAUNCH_LOG="$TMP/launcher.log"
+FAKE_LAUNCH="$TMP/fake-launch"
+mkdir -p "$FAKE_LAUNCH"
+cat >"$FAKE_LAUNCH/tmux" <<EOF
+#!/bin/sh
+printf '%s\\n' "\$@" >"$LAUNCH_LOG"
+EOF
+chmod +x "$FAKE_LAUNCH/tmux"
+"$TMUX_BIN" -L "$SRV" set-environment -g PATH "$FAKE_LAUNCH"
+"$TMUX_BIN" -L "$SRV" run-shell "$CONF/tmux-open-picker-popup '#{pane_id}'"
+for _ in $(seq 1 20); do
+  [ -f "$LAUNCH_LOG" ] && break
+  sleep 0.05
+done
+if grep -Fxq "python3 ~/.config/tmux_scripts/tmux-open-picker '$PANE'" "$LAUNCH_LOG" 2>/dev/null && \
+   grep -Fxq 'display-popup' "$LAUNCH_LOG" 2>/dev/null; then
+  ok "launcher expands origin pane before display-popup"
+else
+  bad "launcher kept pane format literal" "$(cat "$LAUNCH_LOG" 2>/dev/null)"
+fi
+
 echo
 echo "pass=$pass fail=$fail"
 [ "$fail" -eq 0 ]

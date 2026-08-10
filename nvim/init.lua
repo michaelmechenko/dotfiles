@@ -83,7 +83,7 @@ vim.api.nvim_create_autocmd("LspAttach", {
   end,
 })
 
-vim.opt.wrap = false
+vim.opt.wrap = true
 vim.opt.list = true
 vim.opt.listchars = { extends = "»", precedes = "«", tab = "  " }
 

@@ -115,6 +115,13 @@ def main():
     print(("ok   " if ok else "FAIL ") + "menu [l Enter Esc q] " + (info if not ok else ""))
     if not ok:
         fails += 1
+    # URL copy: press c in the URL column (default focus when URLs exist), then q quit.
+    # Verifies the c key handler doesn't crash the curses UI.
+    ok, info = run_scenario("url-copy", "see https://example.com/x\n", ["/tmp"],
+                            key=b"c" + b"q", winsize=(24, 80))
+    print(("ok   " if ok else "FAIL ") + "url-copy [c q] " + (info if not ok else ""))
+    if not ok:
+        fails += 1
     print("fails=%d" % fails)
     sys.exit(1 if fails else 0)
 

@@ -326,11 +326,12 @@ Lists panes outside the current session in an fzf popup with fixed columns (incl
 - **M-T** — toggle close/open (press again to close active popup)
 
 ### `M-o` — URL/path picker (`tmux-open-picker`)
-Two side-by-side lists over the visible pane content: **URLs** (left) and validated **files/directories** (right, resolved against the pane's cwd). The origin pane is passed explicitly (`'#{pane_id}'`); no global `TMUX_OPEN_PANE` state.
+Two side-by-side lists over the visible pane content: **URLs** (left) and validated **files/directories** (right). Paths are resolved against [pane cwd, git root, parent directories] — paths containing `/` try all roots (so `src/main.rs` from a subdirectory resolves via the project root); bare filenames (no `/`) only try the pane cwd to avoid false positives. Punctuation-wrapped paths like `(src/main.rs)` or `src/main.rs,` are trimmed before resolution. The origin pane is passed explicitly (`'#{pane_id}'`); no global `TMUX_OPEN_PANE` state.
 - **Tab / h / l** — switch columns
 - **j / k or ↑/↓** — move within the active column
 - **type** — incremental substring filter on the active column; **Backspace** deletes
 - **Enter on a URL** → open in the browser
+- **c on a URL** → copy to clipboard (popup stays open)
 - **Enter on a path** → action menu: **n**=nvim split, **f**=Finder (reveal file / open dir), **c**=copy to clipboard
 - **M-o / Esc / q** — toggle close/open (press again to close active popup)
 

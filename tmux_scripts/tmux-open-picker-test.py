@@ -192,6 +192,97 @@ class PathExtraction(unittest.TestCase):
     def test_empty(self):
         self.assertEqual(self._candidates(""), [])
 
+    # --- punctuation trimming (display text preserved, resolution uses trimmed) ---
+
+    def test_paren_wrapped(self):
+        cs = self._candidates("see (src/main.rs) here")
+        self.assertEqual(len(cs), 1)
+        self.assertEqual(cs[0]["path"], os.path.join(self.root, "src", "main.rs"))
+        self.assertEqual(cs[0]["display"], "(src/main.rs)")
+
+    def test_bracket_wrapped(self):
+        cs = self._candidates("see [src/main.rs] here")
+        self.assertEqual(len(cs), 1)
+        self.assertEqual(cs[0]["path"], os.path.join(self.root, "src", "main.rs"))
+
+    def test_brace_wrapped(self):
+        cs = self._candidates("see {src/main.rs} here")
+        self.assertEqual(len(cs), 1)
+        self.assertEqual(cs[0]["path"], os.path.join(self.root, "src", "main.rs"))
+
+    def test_trailing_comma(self):
+        cs = self._candidates("see src/main.rs, and more")
+        self.assertEqual(len(cs), 1)
+        self.assertEqual(cs[0]["path"], os.path.join(self.root, "src", "main.rs"))
+
+    def test_trailing_period(self):
+        cs = self._candidates("see src/main.rs.")
+        self.assertEqual(len(cs), 1)
+        self.assertEqual(cs[0]["path"], os.path.join(self.root, "src", "main.rs"))
+
+    def test_trailing_semicolon(self):
+        cs = self._candidates("see src/main.rs; next")
+        self.assertEqual(len(cs), 1)
+        self.assertEqual(cs[0]["path"], os.path.join(self.root, "src", "main.rs"))
+
+    def test_paren_wrapped_with_line(self):
+        cs = self._candidates("error at (src/main.rs:42)")
+        self.assertEqual(len(cs), 1)
+        self.assertEqual(cs[0]["line"], "42")
+        self.assertEqual(cs[0]["path"], os.path.join(self.root, "src", "main.rs"))
+
+    def test_trailing_comma_with_line(self):
+        cs = self._candidates("error at src/main.rs:42, fix it")
+        self.assertEqual(len(cs), 1)
+        self.assertEqual(cs[0]["line"], "42")
+
+    # --- parent-relative paths ---
+
+    def test_parent_relative(self):
+        cs = self.m.extract_path_candidates("see ../src/main.rs", os.path.join(self.root, "docs"))
+        self.assertEqual(len(cs), 1)
+        self.assertEqual(cs[0]["path"], os.path.join(self.root, "src", "main.rs"))
+
+    def test_parent_relative_with_line(self):
+        cs = self.m.extract_path_candidates("see ../src/main.rs:7", os.path.join(self.root, "docs"))
+        self.assertEqual(len(cs), 1)
+        self.assertEqual(cs[0]["line"], "7")
+        self.assertEqual(cs[0]["path"], os.path.join(self.root, "src", "main.rs"))
+
+    def test_double_parent_relative(self):
+        cs = self.m.extract_path_candidates("see ../../src/main.rs", os.path.join(self.root, "docs", "sub"))
+        self.assertEqual(len(cs), 1)
+        self.assertEqual(cs[0]["path"], os.path.join(self.root, "src", "main.rs"))
+
+    # --- multi-root resolution (parent chain) ---
+
+    def test_resolves_via_parent(self):
+        # src/main.rs from root/docs doesn't exist relative to docs, but the
+        # parent chain tries root and finds root/src/main.rs.
+        cs = self.m.extract_path_candidates("see src/main.rs", os.path.join(self.root, "docs"))
+        self.assertEqual(len(cs), 1)
+        self.assertEqual(cs[0]["path"], os.path.join(self.root, "src", "main.rs"))
+
+    def test_resolves_via_grandparent(self):
+        os.makedirs(os.path.join(self.root, "docs", "sub"))
+        cs = self.m.extract_path_candidates("see src/main.rs", os.path.join(self.root, "docs", "sub"))
+        self.assertEqual(len(cs), 1)
+        self.assertEqual(cs[0]["path"], os.path.join(self.root, "src", "main.rs"))
+
+    def test_git_root_resolution(self):
+        import subprocess
+        subprocess.run(["git", "init", "-q", self.root], check=True, capture_output=True)
+        # create a subdirectory two levels deep so git root differs from cwd
+        deep = os.path.join(self.root, "a", "b")
+        os.makedirs(deep)
+        open(os.path.join(self.root, "src", "main.rs"), "w").close()
+        cs = self.m.extract_path_candidates("see src/main.rs", deep)
+        self.assertEqual(len(cs), 1)
+        # git rev-parse returns the realpath (/private/var on macOS), so compare
+        # via realpath to avoid /var vs /private/var symlink mismatch.
+        self.assertEqual(os.path.realpath(cs[0]["path"]),
+                         os.path.realpath(os.path.join(self.root, "src", "main.rs")))
+
 
 class AnsiStrip(unittest.TestCase):
     def setUp(self):
@@ -214,7 +305,101 @@ class Classification(unittest.TestCase):
     def test_paths_need_cwd(self):
         root = make_tree()
         self.assertEqual(len(self.m.extract_path_candidates("src/main.rs", root)), 1)
-        self.assertEqual(len(self.m.extract_path_candidates("src/main.rs", os.path.join(root, "docs"))), 0)
+        # Multi-root: src/main.rs from root/docs resolves via the parent root.
+        self.assertEqual(len(self.m.extract_path_candidates("src/main.rs", os.path.join(root, "docs"))), 1)
+
+    def test_path_not_found_anywhere(self):
+        root = make_tree()
+        # A path that exists in no root (cwd, git root, or any parent) is omitted.
+        self.assertEqual(len(self.m.extract_path_candidates("nope/missing.rs", root)), 0)
+
+
+class TrimPunctuation(unittest.TestCase):
+    def setUp(self):
+        self.m = load_module()
+
+    def test_parens(self):
+        self.assertEqual(self.m._trim_punctuation("(src/main.rs)"), "src/main.rs")
+
+    def test_brackets(self):
+        self.assertEqual(self.m._trim_punctuation("[src/main.rs]"), "src/main.rs")
+
+    def test_braces(self):
+        self.assertEqual(self.m._trim_punctuation("{src/main.rs}"), "src/main.rs")
+
+    def test_trailing_comma(self):
+        self.assertEqual(self.m._trim_punctuation("src/main.rs,"), "src/main.rs")
+
+    def test_trailing_period(self):
+        self.assertEqual(self.m._trim_punctuation("src/main.rs."), "src/main.rs")
+
+    def test_trailing_semicolon(self):
+        self.assertEqual(self.m._trim_punctuation("src/main.rs;"), "src/main.rs")
+
+    def test_trailing_bang(self):
+        self.assertEqual(self.m._trim_punctuation("src/main.rs!"), "src/main.rs")
+
+    def test_trailing_question(self):
+        self.assertEqual(self.m._trim_punctuation("src/main.rs?"), "src/main.rs")
+
+    def test_leading_dot_preserved(self):
+        self.assertEqual(self.m._trim_punctuation("./foo"), "./foo")
+        self.assertEqual(self.m._trim_punctuation(".zshrc"), ".zshrc")
+        self.assertEqual(self.m._trim_punctuation("../bar"), "../bar")
+
+    def test_tilde_preserved(self):
+        self.assertEqual(self.m._trim_punctuation("~/foo"), "~/foo")
+
+    def test_nested_wrapping(self):
+        self.assertEqual(self.m._trim_punctuation("((src/main.rs))"), "src/main.rs")
+
+    def test_empty_after_trim(self):
+        self.assertEqual(self.m._trim_punctuation("(,)"), "")
+
+    def test_no_change(self):
+        self.assertEqual(self.m._trim_punctuation("src/main.rs"), "src/main.rs")
+
+
+class ResolutionRoots(unittest.TestCase):
+    def setUp(self):
+        self.m = load_module()
+
+    def test_cwd_first(self):
+        root = make_tree()
+        roots = self.m._resolution_roots(root)
+        self.assertEqual(roots[0], root)
+
+    def test_parent_chain_no_git(self):
+        root = make_tree()
+        deep = os.path.join(root, "a", "b")
+        os.makedirs(deep)
+        roots = self.m._resolution_roots(deep)
+        self.assertEqual(roots[0], deep)
+        self.assertIn(os.path.join(root, "a"), roots)
+        self.assertIn(root, roots)
+        # / should never be a resolution root
+        self.assertNotIn("/", roots)
+
+    def test_git_root_included(self):
+        import subprocess
+        root = make_tree()
+        subprocess.run(["git", "init", "-q", root], check=True, capture_output=True)
+        deep = os.path.join(root, "a", "b")
+        os.makedirs(deep)
+        roots = self.m._resolution_roots(deep)
+        self.assertEqual(roots[0], deep)
+        self.assertIn(root, roots)
+        # git root appears before parent chain entries
+        self.assertLess(roots.index(root), len(roots))
+
+    def test_dedup_when_parent_is_git_root(self):
+        import subprocess
+        root = make_tree()
+        subprocess.run(["git", "init", "-q", root], check=True, capture_output=True)
+        # cwd's parent IS the git root — should appear only once
+        cwd = os.path.join(root, "src")
+        roots = self.m._resolution_roots(cwd)
+        self.assertEqual(roots.count(root), 1)
 
 
 class MenuMapping(unittest.TestCase):

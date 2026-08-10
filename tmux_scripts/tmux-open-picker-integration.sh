@@ -26,9 +26,10 @@ cleanup() { tmux -L "$SRV" kill-server 2>/dev/null; rm -rf "$TMP"; }
 trap cleanup EXIT
 
 # fixture tree
-mkdir -p "$TMP/src" "$TMP/docs"
+mkdir -p "$TMP/src" "$TMP/docs" "$TMP/lib"
 : >"$TMP/notes.txt"; : >"$TMP/src/main.rs"
 : >"$TMP/docs/my file.md"; : >"$TMP/Makefile"; : >"$TMP/.zshrc"
+: >"$TMP/lib/utils.rs"; : >"$TMP/lib/helper.rs"
 
 # fixture content printed into the pane via `cat` (preserves quotes verbatim)
 FX="$TMP/fixture.txt"
@@ -45,6 +46,9 @@ missing/nope.rs
 www.foo.bar/x
 2.2.2.2:9
 README
+see (lib/utils.rs) here
+open lib/helper.rs,
+error at [src/main.rs:99]
 EOF
 
 tmux -L "$SRV" new-session -d -s s -x 200 -y 50 -c "$TMP" 2>/dev/null
@@ -89,6 +93,28 @@ echo "$OUT" | grep -E '^PATH docs/ - dir$' >/dev/null && ok "real capture: direc
 echo "$OUT" | grep -E '^PATH ' | grep -qF 'nope' && bad "nonexistent leaked into paths" "$OUT" || ok "nonexistent omitted from paths"
 echo "$OUT" | grep -E '^PATH ' | grep -qF 'README' && bad "nonexistent bare name leaked" "$OUT" || ok "nonexistent bare name omitted"
 
+# punctuation-wrapped paths: (lib/utils.rs) and lib/utils.rs, resolve to the same file.
+# src/main.rs:42:7 already resolves to $TMP/src/main.rs, so [src/main.rs:99] is deduped —
+# verify the paren-wrapped lib path appears instead.
+echo "$OUT" | grep -E '^PATH \(lib/utils\.rs\) - file$' >/dev/null && ok "real capture: paren-wrapped path" || bad "paren-wrapped" "$OUT"
+echo "$OUT" | grep -E '^PATH lib/helper\.rs, - file$' >/dev/null && ok "real capture: trailing-comma path" || bad "trailing-comma path" "$OUT"
+
+# multi-root: a subpane whose cwd is $TMP/lib should resolve src/main.rs via the
+# parent $TMP (path contains / so the parent chain is tried).
+SUBPANE="$(tmux -L "$SRV" split-window -t "$PANE" -c "$TMP/lib" -P -F '#{pane_id}')"
+tmux -L "$SRV" send-keys -t "$SUBPANE" "echo src/main.rs" Enter
+for _ in $(seq 1 20); do
+  if tmux -L "$SRV" capture-pane -t "$SUBPANE" -p | grep -qF 'src/main.rs'; then break; fi
+  sleep 0.05
+done
+OUT2="$(python3 -c "$PY" "$CONF" "$SUBPANE" 2>&1)"
+echo "$OUT2" | grep -E '^PATH src/main\.rs - file$' >/dev/null && ok "multi-root: path resolves via parent from subpane" || bad "multi-root parent" "$OUT2"
+
+# URL copy: tmux-open-target copy <pane> <url> -> pbcopy (dry-run)
+COUT="$(OPEN_TARGET_DRY_RUN=1 "$TARGET" copy "$PANE" https://example.com/x 2>&1)"
+echo "$COUT" | grep -qF 'pbcopy' && ok "url copy -> pbcopy" || bad "url copy pbcopy" "$COUT"
+echo "$COUT" | grep -qF 'https://example.com/x' && ok "url copy carries url" || bad "url copy carries url" "$COUT"
+
 # sidebar legacy path: TMUX_OPEN_PANE set + single path arg -> nvim split (dry-run)
 export TMUX_OPEN_PANE="$PANE"
 LOUT="$(OPEN_TARGET_DRY_RUN=1 "$TARGET" "$TMP/src/main.rs" 2>&1)"
@@ -97,6 +123,9 @@ unset TMUX_OPEN_PANE
 
 # Regression: run-shell must expand #{pane_id} before the launcher calls
 # display-popup; display-popup leaves formats literal inside its nested command.
+# Reselect the original pane first — the multi-root test above created a subpane
+# which changed the active pane.
+tmux -L "$SRV" select-pane -t "$PANE" 2>/dev/null
 LAUNCH_LOG="$TMP/launcher.log"
 FAKE_LAUNCH="$TMP/fake-launch"
 mkdir -p "$FAKE_LAUNCH"

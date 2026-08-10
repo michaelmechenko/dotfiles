@@ -118,10 +118,63 @@ _LINE_RE = re.compile(r"""(?P<path>.*?)(?::(?P<line>\d+))?(?::\d+)?$""")
 
 _BAD_EXT_CHARS = re.compile(r"""[<>|?*\x00-\x1f]""")
 
+# Punctuation wrapping paths in terminal output: (src/main.rs), [foo], {bar},
+# or trailing sentence punctuation: src/main.rs, src/main.rs.  Leading dots and
+# tilde are NOT stripped — they are path-significant (./, ../, .zshrc, ~/).
+_LEADING_PUNCT = "([{"
+_TRAILING_PUNCT = ")]},;:!?.'\""
 
-def _resolve(candidate, cwd):
-    """Resolve a candidate string against cwd; return (abs_path, line, is_dir)
-    or None if it does not name an existing file or directory."""
+
+def _trim_punctuation(s):
+    """Strip wrapping brackets and trailing sentence punctuation so candidates
+    like (src/main.rs) or src/main.rs, resolve to the real path."""
+    s = s.lstrip(_LEADING_PUNCT)
+    s = s.rstrip(_TRAILING_PUNCT)
+    return s
+
+
+def _git_root(cwd):
+    """Return the git toplevel for cwd, or None if not a git repo."""
+    try:
+        out = subprocess.run(
+            ["git", "-C", cwd, "rev-parse", "--show-toplevel"],
+            check=True, capture_output=True, text=True,
+        ).stdout.strip()
+        return out or None
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
+        return None
+
+
+def _resolution_roots(cwd):
+    """Ordered candidate roots for relative-path resolution:
+    [cwd, git_root, *parents(cwd) up to git_root or /]).  Deduplicates roots
+    that resolve to the same path (e.g. when cwd's parent IS the git root)."""
+    roots = [cwd]
+    seen = {cwd}
+    gr = _git_root(cwd)
+    if gr and gr not in seen:
+        roots.append(gr)
+        seen.add(gr)
+    # walk up from cwd's parent, stopping at git root or filesystem root
+    stop = gr or "/"
+    parent = os.path.dirname(cwd)
+    while parent and parent != stop and parent not in seen:
+        roots.append(parent)
+        seen.add(parent)
+        if parent == "/":
+            break
+        parent = os.path.dirname(parent)
+    return roots
+
+
+def _resolve(candidate, roots):
+    """Resolve a candidate string against the given roots; return
+    (abs_path, line, is_dir) or None if it does not name an existing file or
+    directory in any root.  Display text is preserved by the caller — only the
+    resolution path is trimmed."""
+    if not candidate or candidate in (".", "..", "~"):
+        return None
+    candidate = _trim_punctuation(candidate)
     if not candidate or candidate in (".", "..", "~"):
         return None
     if _BAD_EXT_CHARS.search(candidate):
@@ -136,19 +189,30 @@ def _resolve(candidate, cwd):
         path = os.path.expanduser(path)
     if path.startswith("/"):
         abs_path = os.path.normpath(path)
-    else:
-        abs_path = os.path.normpath(os.path.join(cwd, path))
-    if os.path.isdir(abs_path):
-        return (abs_path, line, True)
-    if os.path.isfile(abs_path):
-        return (abs_path, line, False)
+        if os.path.isdir(abs_path):
+            return (abs_path, line, True)
+        if os.path.isfile(abs_path):
+            return (abs_path, line, False)
+        return None
+    # relative: bare filenames (no /) only try cwd to avoid false positives
+    # (e.g. "at" matching /var/at via the parent chain); paths with / try all
+    # roots in precedence order (cwd, git root, parent chain).
+    roots_to_try = roots if "/" in path else roots[:1]
+    for root in roots_to_try:
+        abs_path = os.path.normpath(os.path.join(root, path))
+        if os.path.isdir(abs_path):
+            return (abs_path, line, True)
+        if os.path.isfile(abs_path):
+            return (abs_path, line, False)
     return None
 
 
 def extract_path_candidates(text, cwd):
     """Return validated filesystem targets as dicts in appearance order, deduped
-    by resolved path. Each dict: {display, path, line, is_dir}."""
+    by resolved path. Each dict: {display, path, line, is_dir}.  Relative paths
+    are resolved against [cwd, git_root, *parents] — see _resolution_roots."""
     text = strip_ansi(text)
+    roots = _resolution_roots(cwd)
     # record byte ranges already consumed by URL extraction so a URL string is
     # not also treated as a path candidate
     taken = [False] * len(text)
@@ -174,7 +238,7 @@ def extract_path_candidates(text, cwd):
         # drop an obvious URL-looking token that escaped the byte map
         if "://" in g or g.startswith(("www.", "git@")):
             continue
-        res = _resolve(g, cwd)
+        res = _resolve(g, roots)
         if not res:
             continue
         abs_path, line, is_dir = res
@@ -307,8 +371,11 @@ def main(pane):
         sel_col = 1 if not urls and paths else 0
         cursors = [0, 0]
         queries = ["", ""]
-        hint = "Tab/h/l switch  j/k move  Enter open  / search  q/Esc close"
         while True:
+            if sel_col == 0:
+                hint = "Tab/h/l switch  j/k move  Enter=open  c=copy  / search  q/Esc close"
+            else:
+                hint = "Tab/h/l switch  j/k move  Enter=menu(n/f/c)  / search  q/Esc close"
             url_idxs, path_idxs, c0, c1 = _draw(
                 stdscr, urls, paths, sel_col, cursors, queries, hint)
             ch = stdscr.getch()
@@ -351,6 +418,10 @@ def main(pane):
                     _dispatch(action, pane, cand["path"], line)
                     if action == "nvim":
                         break  # nvim split takes over; close popup
+            elif ch == ord("c") and sel_col == 0 and url_idxs:
+                # URL copy: mirror path-copy semantics without closing the popup
+                # so the user can copy more URLs or open one with Enter.
+                _dispatch("copy", pane, urls[c0])
             elif ch == ord("/"):
                 hint = "type to filter active column, Backspace deletes, Esc closes search"
                 # fallthrough handled by printable catch below; just update hint

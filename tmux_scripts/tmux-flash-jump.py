@@ -39,17 +39,22 @@ both were tried and found to break jumps on soft-wrapped lines:
     boundary -- so: move vertically by row-delta first, then horizontally
     by the remaining column-delta.
 
-Known limitation (accepted, no new dependency): column math assumes 1
-character = 1 terminal column. A match on a line containing a wide glyph
-(nerd font icons, etc.) before it may land 1-2 columns off.
+Terminal-cell mapping uses the standard library: tabs, East Asian
+wide/full-width glyphs, and combining marks before a match preserve both the
+overlay alignment and relative copy-mode cursor movement. Complex emoji ZWJ
+clusters and terminals that render East Asian ambiguous-width glyphs as wide
+remain outside this deliberately dependency-free mapping.
 """
 
+import json
+import os
 import re
 import select
 import subprocess
 import sys
 import termios
 import tty
+import unicodedata
 
 LABEL_CHARS = "asdfghjklqwertyuiopzxcvbnmASDFGHJKLQWERTYUIOPZXCVBNM"
 
@@ -66,6 +71,7 @@ RESET = "\033[0m"
 CLEAR_SCREEN = "\033[2J\033[H"
 HIDE_CURSOR = "\033[?25l"
 SHOW_CURSOR = "\033[?25h"
+DEBUG_LOG = "/tmp/tmux-flash-jump-debug.jsonl"
 
 
 # --------------------------------------------------------------------------
@@ -73,12 +79,38 @@ SHOW_CURSOR = "\033[?25h"
 # --------------------------------------------------------------------------
 
 
+class TmuxError(RuntimeError):
+    pass
+
+
 def run_tmux(args: list[str]) -> str:
-    """Run a tmux command, return stdout (stripped of a single trailing newline)."""
+    """Run a tmux command or raise a concise, actionable error."""
     result = subprocess.run(
         ["tmux", *args], capture_output=True, text=True, check=False
     )
+    if result.returncode:
+        detail = result.stderr.strip() or result.stdout.strip() or "unknown error"
+        raise TmuxError(f"tmux {' '.join(args[:2])}: {detail}")
     return result.stdout
+
+
+def debug_enabled() -> bool:
+    return (
+        os.environ.get("TMUX_FLASH_JUMP_DEBUG") == "1"
+        or run_tmux(["show-options", "-gqv", "@flash_jump_debug"]).strip() == "1"
+    )
+
+
+def debug_log(enabled: bool, event: str, **fields) -> None:
+    """Append metadata only; never write captured pane content or query text."""
+    if not enabled:
+        return
+    record = {"event": event, **fields}
+    fd = os.open(DEBUG_LOG, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+    try:
+        os.write(fd, (json.dumps(record, sort_keys=True) + "\n").encode())
+    finally:
+        os.close(fd)
 
 
 def tmux_color(option: str, fallback: str) -> str:
@@ -92,7 +124,10 @@ def hex_to_ansi_fg(hex_colour: str) -> str:
     h = hex_colour.lstrip("#")
     if len(h) != 6:
         return ""
-    r, g, b = (int(h[i : i + 2], 16) for i in (0, 2, 4))
+    try:
+        r, g, b = (int(h[i : i + 2], 16) for i in (0, 2, 4))
+    except ValueError:
+        return ""
     return f"\033[38;2;{r};{g};{b}m"
 
 
@@ -111,6 +146,17 @@ def get_geometry(pane_id: str) -> tuple[int, int, int, int]:
     return left, top, width, height
 
 
+def get_status_geometry() -> tuple[str, int]:
+    """Return the status position and number of status rows."""
+    position = run_tmux(["show-options", "-gqv", "status-position"]).strip()
+    value = run_tmux(["show-options", "-gqv", "status"]).strip()
+    try:
+        lines = int(value)
+    except ValueError:
+        lines = 0
+    return position, max(lines, 0)
+
+
 def get_cursor(pane_id: str) -> tuple[int, int]:
     """Return (y, x) of the copy-mode cursor, 0-indexed within the viewport."""
     out = run_tmux(
@@ -123,12 +169,17 @@ def get_cursor(pane_id: str) -> tuple[int, int]:
 def capture_lines(pane_id: str) -> list[str]:
     """Capture the pane's current viewport, one entry per physical row.
 
+    `capture-pane -p` terminates every physical row with a newline. Remove
+    only that final separator: `str.split("\\n")` directly creates a phantom
+    extra row, which previously desynchronised the popup from the viewport.
     Deliberately no -J (see module docstring) and no -e (no ANSI colour --
     the overlay applies its own dim/highlight/label styling, so the
     original colours aren't needed and skipping -e sidesteps ANSI-aware
     indexing entirely).
     """
     out = run_tmux(["capture-pane", "-p", "-t", pane_id])
+    if out.endswith("\n"):
+        out = out[:-1]
     return out.split("\n")
 
 
@@ -138,16 +189,84 @@ def capture_lines(pane_id: str) -> list[str]:
 
 
 class Match:
-    __slots__ = ("line", "col", "end_col", "label")
+    __slots__ = ("line", "col", "end_col", "display_col", "label")
 
-    def __init__(self, line: int, col: int, end_col: int):
+    def __init__(self, line: int, col: int, end_col: int, display_col: int):
+        # col/end_col index Python characters for slicing and matching;
+        # display_col is the terminal-cell position used for proximity.
         self.line = line
         self.col = col
         self.end_col = end_col
+        self.display_col = display_col
         self.label: str | None = None
 
     def __repr__(self):
         return f"Match(line={self.line}, col={self.col}, end_col={self.end_col}, label={self.label!r})"
+
+
+def cell_width(char: str, column: int) -> int:
+    """Return a character's terminal-cell width at `column`."""
+    if char == "\t":
+        return 8 - (column % 8)
+    if unicodedata.combining(char) or char in ("\u200d", "\ufe0e", "\ufe0f"):
+        return 0
+    if unicodedata.east_asian_width(char) in ("W", "F"):
+        return 2
+    return 1
+
+
+def display_width(text: str) -> int:
+    column = 0
+    for char in text:
+        column += cell_width(char, column)
+    return column
+
+
+def clip_to_width(text: str, width: int) -> str:
+    """Keep whole terminal characters that fit in `width` cells."""
+    column = 0
+    kept = []
+    for char in text:
+        char_width = cell_width(char, column)
+        if char_width and column + char_width > width:
+            break
+        kept.append(char)
+        column += char_width
+    return "".join(kept)
+
+
+def motion_index_for_source_index(text: str, source_index: int) -> int:
+    """Map a source character index to tmux cursor-right/left movements."""
+    motion_index = 0
+    for index, char in enumerate(text):
+        if index >= source_index:
+            break
+        if cell_width(char, display_width(text[:index])):
+            motion_index += 1
+    return motion_index
+
+
+def motion_index_for_column(text: str, column: int) -> int:
+    """Map a copy_cursor_x terminal column to a cursor movement index."""
+    display_column = 0
+    motion_index = 0
+    for char in text:
+        if display_column >= column:
+            break
+        char_width = cell_width(char, display_column)
+        if char_width:
+            display_column += char_width
+            motion_index += 1
+    # Copy mode may retain a sticky column past a short row. Those blank cells
+    # are traversed one at a time.
+    return motion_index + max(column - display_column, 0)
+
+
+def relative_cursor_steps(text: str, current_column: int, target_index: int) -> int:
+    return (
+        motion_index_for_source_index(text, target_index)
+        - motion_index_for_column(text, current_column)
+    )
 
 
 def find_matches(lines: list[str], query: str) -> list[Match]:
@@ -170,14 +289,20 @@ def find_matches(lines: list[str], query: str) -> list[Match]:
             found = haystack.find(needle, pos)
             if found < 0:
                 break
-            matches.append(Match(line_idx, found, found + len(needle)))
+            matches.append(
+                Match(line_idx, found, found + len(needle), display_width(line[:found]))
+            )
             pos = found + len(needle)  # non-overlapping
 
     return matches
 
 
 def assign_labels(
-    lines: list[str], matches: list[Match], query: str, cursor: tuple[int, int]
+    lines: list[str],
+    matches: list[Match],
+    query: str,
+    cursor: tuple[int, int],
+    visible_rows: int | None = None,
 ) -> None:
     """Assign a single-key label to as many matches as possible, in place.
 
@@ -188,7 +313,8 @@ def assign_labels(
     flash-copy.tmux's search_interface.py labelling rule: excluding
     continuation chars from the whole label pool, not just per-match, is
     what makes "typed char matches an assigned label" unambiguously mean
-    "select that label", never "keep narrowing the search").
+    "select that label", never "keep narrowing the search"). `visible_rows`
+    excludes prompt-row matches from receiving an invisible label.
     """
     if not matches:
         return
@@ -204,11 +330,13 @@ def assign_labels(
 
     ordered = sorted(
         matches,
-        key=lambda m: (abs(m.line - cursor_y), abs(m.col - cursor_x)),
+        key=lambda m: (abs(m.line - cursor_y), abs(m.display_col - cursor_x)),
     )
 
     used: set[str] = set()
     for match in ordered:
+        if visible_rows is not None and match.line >= visible_rows:
+            continue
         for c in LABEL_CHARS:
             lc = c.lower()
             if c in used or lc in query_chars or lc in continuation_chars:
@@ -243,12 +371,12 @@ def render_frame(
 
     for i in range(height):
         if i == status_row:
-            prompt = f" search: {query}"
-            out_lines.append(f"{RESET}{prompt}"[:width].ljust(width))
+            prompt = clip_to_width(f" search: {query}", width)
+            out_lines.append(f"{RESET}{prompt}" + (" " * (width - display_width(prompt))))
             continue
 
         raw = lines[i] if i < len(lines) else ""
-        raw = raw[:width].ljust(width)
+        raw = clip_to_width(raw, width)
         line_matches = sorted(by_line.get(i, []), key=lambda m: m.col)
 
         rendered = []
@@ -257,13 +385,19 @@ def render_frame(
             if m.col < cursor:
                 continue  # defensive: skip overlap from a stale index
             rendered.append(dim_fg + raw[cursor : m.col])
-            rendered.append(match_fg + raw[m.col : m.end_col])
-            if m.label and m.end_col < width:
-                rendered.append(label_fg + m.label)
-                cursor = m.end_col + 1
+            if m.label:
+                # A label occupies the first cell of its own (non-overlapping)
+                # match. Preserve a tab or wide glyph's full cell span so the
+                # rest of the overlay stays aligned with the underlying pane.
+                first = raw[m.col : m.col + 1]
+                replacement_padding = max(display_width(first) - 1, 0)
+                rendered.append(label_fg + m.label + (" " * replacement_padding))
+                rendered.append(match_fg + raw[m.col + 1 : m.end_col])
             else:
-                cursor = m.end_col
-        rendered.append(dim_fg + raw[cursor:width])
+                rendered.append(match_fg + raw[m.col : m.end_col])
+            cursor = m.end_col
+        rendered.append(dim_fg + raw[cursor:])
+        rendered.append(dim_fg + (" " * max(width - display_width(raw), 0)))
         out_lines.append("".join(rendered) + RESET)
 
     return CLEAR_SCREEN + "\r\n".join(out_lines)
@@ -291,13 +425,30 @@ def read_key() -> str:
 
 
 def interactive_main(pane_id: str) -> None:
-    lines = capture_lines(pane_id)
+    captured_lines = capture_lines(pane_id)
     cursor = get_cursor(pane_id)
-    height = len(lines)
-    width = max((len(line) for line in lines), default=0)
-    # Fall back to the pane's real width if content is short/blank.
-    geo_width = int(run_tmux(["display-message", "-t", pane_id, "-p", "#{pane_width}"]).strip() or width)
-    width = max(width, geo_width, 1)
+    geometry = run_tmux(
+        ["display-message", "-t", pane_id, "-p", "#{pane_width} #{pane_height}"]
+    ).strip()
+    geo_width, height = (int(value) for value in geometry.split())
+    # The last popup row belongs to the prompt. Search only the visible
+    # content rows, then pad a short capture defensively without inventing a
+    # target for the prompt row.
+    content_height = max(height - 1, 0)
+    lines = captured_lines[:content_height]
+    lines.extend([""] * (content_height - len(lines)))
+    width = max(max((len(line) for line in lines), default=0), geo_width, 1)
+    debug = debug_enabled()
+    debug_log(
+        debug,
+        "start",
+        pane=pane_id,
+        cursor={"y": cursor[0], "x": cursor[1]},
+        geometry={"width": geo_width, "height": height},
+        captured_rows=len(captured_lines),
+        searchable_rows=content_height,
+        row_cell_widths=[display_width(line) for line in lines],
+    )
 
     dim_fg = hex_to_ansi_fg(tmux_color("@color-inactive", "#656a80"))
     match_fg = hex_to_ansi_fg(tmux_color("@color-lavender2", "#aeaed1"))
@@ -316,21 +467,40 @@ def interactive_main(pane_id: str) -> None:
 
     def jump_to(match: Match) -> None:
         cur_y, cur_x = get_cursor(pane_id)
+        debug_log(
+            debug,
+            "jump_start",
+            target={"line": match.line, "index": match.col, "cell": match.display_col, "label": match.label},
+            cursor={"y": cur_y, "x": cur_x},
+        )
         dy = match.line - cur_y
         if dy > 0:
             run_tmux(["send-keys", "-t", pane_id, "-X", "-N", str(dy), "cursor-down"])
         elif dy < 0:
             run_tmux(["send-keys", "-t", pane_id, "-X", "-N", str(-dy), "cursor-up"])
 
-        _, cur_x_after = get_cursor(pane_id)
-        dx = match.col - cur_x_after
-        if dx > 0:
-            run_tmux(["send-keys", "-t", pane_id, "-X", "-N", str(dx), "cursor-right"])
-        elif dx < 0:
-            run_tmux(["send-keys", "-t", pane_id, "-X", "-N", str(-dx), "cursor-left"])
+        cur_y_after, cur_x_after = get_cursor(pane_id)
+        target_line = lines[match.line]
+        steps = relative_cursor_steps(target_line, cur_x_after, match.col)
+        debug_log(
+            debug,
+            "jump_horizontal",
+            cursor_after_vertical={"y": cur_y_after, "x": cur_x_after},
+            vertical_delta=dy,
+            horizontal_steps=steps,
+            target_row_cells=display_width(target_line),
+        )
+        if steps > 0:
+            run_tmux(["send-keys", "-t", pane_id, "-X", "-N", str(steps), "cursor-right"])
+        elif steps < 0:
+            run_tmux(["send-keys", "-t", pane_id, "-X", "-N", str(-steps), "cursor-left"])
+        final_y, final_x = get_cursor(pane_id)
+        debug_log(debug, "jump_end", cursor={"y": final_y, "x": final_x})
 
+    raw_mode = False
     try:
         tty.setcbreak(fd)
+        raw_mode = True
         sys.stdout.write(HIDE_CURSOR)
         redraw()
 
@@ -338,6 +508,7 @@ def interactive_main(pane_id: str) -> None:
             ch = read_key()
 
             if ch in (CTRL_C, ESC):
+                debug_log(debug, "cancel", cursor={"y": get_cursor(pane_id)[0], "x": get_cursor(pane_id)[1]})
                 break
 
             if ch in (BACKSPACE, BACKSPACE_ALT):
@@ -350,11 +521,18 @@ def interactive_main(pane_id: str) -> None:
                 if matches:
                     nearest = min(
                         matches,
-                        key=lambda m: (abs(m.line - cursor[0]), abs(m.col - cursor[1])),
+                        key=lambda m: (
+                            abs(m.line - cursor[0]),
+                            abs(m.display_col - cursor[1]),
+                        ),
                     )
+                    debug_log(debug, "select_nearest", label=nearest.label)
                     jump_to(nearest)
+                else:
+                    debug_log(debug, "select_nearest", label=None)
                 break
             elif matches and any(m.label == ch for m in matches):
+                debug_log(debug, "select_label", label=ch)
                 jump_to(next(m for m in matches if m.label == ch))
                 break
             elif ch.isprintable():
@@ -363,12 +541,22 @@ def interactive_main(pane_id: str) -> None:
                 continue
 
             matches = find_matches(lines, query)
-            assign_labels(lines, matches, query, cursor)
+            assign_labels(lines, matches, query, cursor, visible_rows=content_height)
+            debug_log(
+                debug,
+                "matches",
+                query_length=len(query),
+                targets=[
+                    {"line": m.line, "index": m.col, "cell": m.display_col, "label": m.label}
+                    for m in matches
+                ],
+            )
             redraw()
     finally:
         sys.stdout.write(SHOW_CURSOR + RESET)
         sys.stdout.flush()
-        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        if raw_mode:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
 
 # --------------------------------------------------------------------------
@@ -378,17 +566,29 @@ def interactive_main(pane_id: str) -> None:
 
 def launcher_main(pane_id: str) -> None:
     left, top, width, height = get_geometry(pane_id)
+    status_position, status_lines = get_status_geometry()
+    # pane_top is window-relative, while display-popup -y is client-relative.
+    # A top status bar shifts the entire window down by its number of rows.
+    popup_top = top + status_lines if status_position == "top" else top
+    debug = debug_enabled()
+    debug_log(
+        debug,
+        "launch",
+        pane=pane_id,
+        pane_geometry={"left": left, "top": top, "width": width, "height": height},
+        popup_geometry={"left": left, "top": popup_top, "width": width, "height": height},
+        status={"position": status_position, "lines": status_lines},
+    )
     script = __file__
-    subprocess.run(
+    run_tmux(
         [
-            "tmux",
             "display-popup",
             "-B",
             "-E",
             "-x",
             str(left),
             "-y",
-            str(top),
+            str(popup_top),
             "-w",
             str(width),
             "-h",
@@ -396,8 +596,7 @@ def launcher_main(pane_id: str) -> None:
             script,
             "--interactive",
             pane_id,
-        ],
-        check=False,
+        ]
     )
 
 
@@ -462,22 +661,25 @@ def self_test() -> int:
 
 def main() -> None:
     args = sys.argv[1:]
+    try:
+        if args and args[0] == "--self-test":
+            sys.exit(self_test())
 
-    if args and args[0] == "--self-test":
-        sys.exit(self_test())
+        if args and args[0] == "--interactive":
+            if len(args) < 2:
+                print("usage: tmux-flash-jump.py --interactive <pane_id>", file=sys.stderr)
+                sys.exit(2)
+            interactive_main(args[1])
+            return
 
-    if args and args[0] == "--interactive":
-        if len(args) < 2:
-            print("usage: tmux-flash-jump.py --interactive <pane_id>", file=sys.stderr)
+        if not args:
+            print("usage: tmux-flash-jump.py <pane_id>", file=sys.stderr)
             sys.exit(2)
-        interactive_main(args[1])
-        return
 
-    if not args:
-        print("usage: tmux-flash-jump.py <pane_id>", file=sys.stderr)
-        sys.exit(2)
-
-    launcher_main(args[0])
+        launcher_main(args[0])
+    except (TmuxError, ValueError, termios.error) as error:
+        print(f"tmux-flash-jump: {error}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

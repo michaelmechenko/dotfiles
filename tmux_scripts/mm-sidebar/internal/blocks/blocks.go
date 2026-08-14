@@ -51,6 +51,22 @@ type Block interface {
 	View(width int) string
 }
 
+// BlockMsg marks a message owned by a docked block, so the model can broadcast
+// it to every block without naming each concrete type.
+//
+// Without this the model's Update had one type-switch arm per block message, and
+// a new block's message fell through to the default arm -- its Update was never
+// called, so it fetched, published, and rendered nothing, silently. That made
+// the "adding a block is one type plus one Factories entry" contract false for
+// any block that carries its own data. Implement this on every block message.
+//
+// The method is EXPORTED on purpose. An unexported marker would seal the
+// interface to this package, so a block living in a sibling package
+// (internal/<name>/, which tmux-sidebar-build's glob already covers) could never
+// satisfy it -- reintroducing the same "your message goes nowhere" failure one
+// package over. A test in package main caught exactly that.
+type BlockMsg interface{ IsBlockMsg() }
+
 // Expandable is the optional half of Block: a block that is holding data it
 // isn't showing, and can show more of it when the layout has space going spare.
 //

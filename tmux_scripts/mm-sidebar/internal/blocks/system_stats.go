@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -20,6 +21,8 @@ type SystemStatsMsg struct {
 	Disk int // percent of / used
 	Batt int // percent, -1 when absent (desktop / no battery reported)
 }
+
+func (SystemStatsMsg) IsBlockMsg() {}
 
 // SystemStats is the read-only cpu/mem/disk/battery glance -- the piece of
 // agent-manager's persistent "computer" panel this sidebar adopted.
@@ -133,12 +136,6 @@ func pct(n int) string { return strconv.Itoa(n) + "%" }
 // sketchybar/plugins/cpu.sh. Like that script it can exceed 100 briefly on a
 // sampling artifact, so the result is clamped for display.
 func sampleCPU() int {
-	cores := 1
-	if out, err := exec.Command("sysctl", "-n", "machdep.cpu.thread_count").Output(); err == nil {
-		if n, err := strconv.Atoi(strings.TrimSpace(string(out))); err == nil && n > 0 {
-			cores = n
-		}
-	}
 	out, err := exec.Command("ps", "-eo", "pcpu=").Output()
 	if err != nil {
 		return 0
@@ -149,20 +146,58 @@ func sampleCPU() int {
 			sum += v
 		}
 	}
-	return clampPct(int(sum/float64(cores) + 0.5))
+	return clampPct(int(sum/float64(cpuThreads()) + 0.5))
+}
+
+// cpuThreads and memTotal are MACHINE CONSTANTS. They were being re-read by
+// sysctl on every 5s sample -- two forks per tick, forever, for values that
+// cannot change while the process lives. Resolved once, on first use.
+var (
+	cpuThreadsOnce sync.Once
+	cpuThreadsVal  = 1
+
+	memTotalOnce sync.Once
+	memTotalVal  int64
+)
+
+func cpuThreads() int {
+	cpuThreadsOnce.Do(func() {
+		out, err := exec.Command("sysctl", "-n", "machdep.cpu.thread_count").Output()
+		if err != nil {
+			return
+		}
+		if n, err := strconv.Atoi(strings.TrimSpace(string(out))); err == nil && n > 0 {
+			cpuThreadsVal = n
+		}
+	})
+	return cpuThreadsVal
+}
+
+// memTotal returns total RAM in bytes, or 0 if it couldn't be read.
+func memTotal() int64 {
+	memTotalOnce.Do(func() {
+		out, err := exec.Command("sysctl", "-n", "hw.memsize").Output()
+		if err != nil {
+			return
+		}
+		if n, err := strconv.ParseInt(strings.TrimSpace(string(out)), 10, 64); err == nil && n > 0 {
+			memTotalVal = n
+		}
+	})
+	return memTotalVal
 }
 
 var vmStatPages = regexp.MustCompile(`(?m)^Pages (free|inactive):\s+(\d+)`)
 
+// vmStatPageSize was being compiled INSIDE sampleMem, i.e. recompiled every 5s
+// forever, while its sibling above was already hoisted correctly.
+var vmStatPageSize = regexp.MustCompile(`page size of (\d+) bytes`)
+
 // sampleMem approximates used memory as 1 - (free+inactive)/total. Approximate
 // by design: it is a glance, not an Activity Monitor replacement.
 func sampleMem() int {
-	totalOut, err := exec.Command("sysctl", "-n", "hw.memsize").Output()
-	if err != nil {
-		return 0
-	}
-	total, err := strconv.ParseInt(strings.TrimSpace(string(totalOut)), 10, 64)
-	if err != nil || total <= 0 {
+	total := memTotal()
+	if total <= 0 {
 		return 0
 	}
 	out, err := exec.Command("vm_stat").Output()
@@ -171,7 +206,7 @@ func sampleMem() int {
 	}
 	text := string(out)
 	pageSize := int64(4096)
-	if m := regexp.MustCompile(`page size of (\d+) bytes`).FindStringSubmatch(text); len(m) == 2 {
+	if m := vmStatPageSize.FindStringSubmatch(text); len(m) == 2 {
 		if n, err := strconv.ParseInt(m[1], 10, 64); err == nil && n > 0 {
 			pageSize = n
 		}

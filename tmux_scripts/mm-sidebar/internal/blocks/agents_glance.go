@@ -26,6 +26,8 @@ type AgentRowsMsg struct {
 	Rows []agents.Row
 }
 
+func (AgentRowsMsg) IsBlockMsg() {}
+
 // AgentsGlance is a read-only condensed agent status block: always visible
 // regardless of the active navigator tab, capped, and sorted by urgency so the
 // rows that most need attention are the ones that survive truncation.

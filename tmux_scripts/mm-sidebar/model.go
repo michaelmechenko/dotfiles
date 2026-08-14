@@ -163,17 +163,20 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	// AgentRowsMsg is a BlockMsg too, so this arm MUST stay above the generic one
+	// (Go takes the first matching case). It is listed separately only because of
+	// the feed re-arm, which is model-owned resolver plumbing rather than
+	// something a block knows about.
 	case blocks.AgentRowsMsg:
-		for _, b := range m.docked {
-			b.Update(msg)
-		}
+		m.broadcast(msg)
 		// Re-arm the reader: the feed goroutine publishes one result per sweep.
 		return m, m.feed.wait()
 
-	case blocks.SystemStatsMsg:
-		for _, b := range m.docked {
-			b.Update(msg)
-		}
+	// Every other block message, including ones added later. Blocks ignore
+	// messages they don't own, so a broadcast is cheaper than a registry lookup
+	// and keeps model.go out of the "add a block" recipe entirely.
+	case blocks.BlockMsg:
+		m.broadcast(msg)
 		return m, nil
 
 	case editDoneMsg:
@@ -182,6 +185,15 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(tea.ClearScreen, m.refreshState())
 	}
 	return m, nil
+}
+
+// broadcast hands a block message to every docked block. Blocks absorb only
+// their own message type and ignore the rest, which is what lets a new block
+// arrive without model.go learning its name.
+func (m *model) broadcast(msg tea.Msg) {
+	for _, b := range m.docked {
+		b.Update(msg)
+	}
 }
 
 // ---- state refresh --------------------------------------------------------
@@ -344,7 +356,7 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 
 func (m *model) navFirstLine() int {
 	if m.showHelp {
-		return headerLines + len(helpText)
+		return headerLines + helpLineCount
 	}
 	return headerLines
 }
@@ -443,10 +455,24 @@ func (m *model) setSource(idx int) tea.Cmd {
 	m.srcIdx = idx
 	m.sel = 0
 	m.rows = nil
-	if m.winTarget != "" {
-		tmuxio.SetWinOpt(m.winTarget, "@sidebar_source", nav.Sources[idx].ID())
+	// Persist the tab OFF the input path. This used to call SetWinOpt inline --
+	// a ~20ms tmux fork blocking the key loop on every 1-N / Tab / S-Tab press,
+	// the last synchronous fork left on the keypress path. Nothing reads the
+	// option back until the next Query, so there is no ordering requirement.
+	return tea.Batch(m.persistSource(idx), m.refreshState())
+}
+
+// persistSource writes @sidebar_source in the background. Returns nil when the
+// window target isn't known yet (no WindowSizeMsg / Query has landed).
+func (m *model) persistSource(idx int) tea.Cmd {
+	if m.winTarget == "" {
+		return nil
 	}
-	return m.refreshState()
+	target, id := m.winTarget, nav.Sources[idx].ID()
+	return func() tea.Msg {
+		tmuxio.SetWinOpt(target, "@sidebar_source", id)
+		return nil
+	}
 }
 
 func (m *model) cycleTab(delta int) tea.Cmd {
@@ -602,22 +628,32 @@ func (m *model) headerLines() []string {
 	}
 }
 
-// helpText is the '?' overlay's content. Its LENGTH is the overlay's height:
-// navFirstLine (which maps a click's Y back to a row) and View's line budget
-// both derive from it, so adding a line here can't silently offset the mouse
-// mapping by one.
-var helpText = []string{
-	"j/k ↑/↓ move    1-4/Tab switch tab",
-	"Enter   act     r       refetch",
-	"g/G     top/end ?       toggle help",
-	"q/Esc   close   click   select row",
-	"filetree: Backspace = up one dir",
-	"agents: click row = switch to it",
+// helpLineCount is the '?' overlay's height. navFirstLine (which maps a click's
+// Y back to a row) and View's line budget both derive from it, so the overlay
+// must always render exactly this many lines -- a line's CONTENT may vary, the
+// COUNT may not, or the mouse mapping silently offsets by one.
+const helpLineCount = 6
+
+// helpOverlay is the '?' overlay's content, exactly helpLineCount lines.
+//
+// The tab-count is derived from nav.Sources rather than written out, because the
+// tab strip (headerLines) already derives from it: hardcoding "1-4" here meant
+// registering a fifth tab left the help telling a comfortable lie.
+func helpOverlay() []string {
+	return []string{
+		"j/k ↑/↓ move    1-" + strconv.Itoa(len(nav.Sources)) + "/Tab switch tab",
+		"Enter   act     r       refetch",
+		"g/G     top/end ?       toggle help",
+		"q/Esc   close   click   select row",
+		"filetree: Backspace = up one dir",
+		"blocks: click a row to act on it",
+	}
 }
 
 func (m *model) helpLines() []string {
-	out := make([]string, 0, len(helpText))
-	for _, l := range helpText {
+	lines := helpOverlay()
+	out := make([]string, 0, len(lines))
+	for _, l := range lines {
 		out = append(out, clipLine(m.theme.Muted.Render(l), m.width))
 	}
 	return out

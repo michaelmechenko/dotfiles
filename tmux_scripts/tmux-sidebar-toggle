@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tmux-sidebar-toggle -- M-Tab / M-S-Tab / prefix-Tab entry point for the
+# tmux-sidebar-toggle -- M-Tab / M-BTab / prefix-Tab entry point for the
 # mm-sidebar pane. TWO MODES, one per keybinding:
 #
 #   (default)  OPEN/CLOSE     no sidebar -> open it, focus it

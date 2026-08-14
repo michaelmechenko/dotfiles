@@ -67,7 +67,7 @@ matching `#{pane_height}` each time.
 | Path | Role |
 | --- | --- |
 | `tmux_scripts/mm-sidebar/` | The Go module. `go.mod`/`go.sum` tracked; binary gitignored. |
-| `tmux_scripts/tmux-sidebar-toggle` | `M-Tab` / `M-S-Tab` / `prefix Tab` / `prefix BTab` entry point. Open/close, focus switch, pane lifecycle. |
+| `tmux_scripts/tmux-sidebar-toggle` | `M-Tab` / `M-BTab` / `prefix Tab` / `prefix BTab` entry point. Open/close, focus switch, pane lifecycle. |
 | `tmux_scripts/tmux-sidebar-build` | Builds the binary on demand; prints its path, or exits 1 so callers can fall back. |
 | `tmux_scripts/tmux-sidebar-repin` | Restores every sidebar pane to its configured width after a resize. |
 | `tmux_scripts/tmux-agent-ls` | Thin wrapper over `mm-sidebar agents` (the only copy of the join). |
@@ -98,7 +98,7 @@ sidebar presence — mirroring neo-tree's per-tab isolation.
 | Option | Meaning |
 | --- | --- |
 | `@sidebar_pane_id` | The sidebar pane. Unset when closed. |
-| `@sidebar_content_pane` | The pane the sidebar navigates/opens into. Retargeted to whichever pane you `M-S-Tab` *from*. |
+| `@sidebar_content_pane` | The pane the sidebar navigates/opens into. Retargeted to whichever pane you `M-BTab` *from*. |
 | `@sidebar_source` | Active tab — any `nav.Source`'s `ID()` (`sessions`\|`windows`\|`filetree`\|`scratch`). **Deliberately not cleared on close**, so re-opening restores your tab. An unrecognized value falls back to the first registered source. |
 | `@sidebar_saved_layout` | The window's `window_layout` from just before the sidebar opened, replayed on close to undo the squeeze. Cleared on close, including when the replay is rejected as stale. |
 
@@ -123,7 +123,7 @@ cwd when the content pane actually **changes** (tracked via `ftLastPane`), never
 on every refresh — otherwise `Backspace`-navigate-up would be silently reset on
 the next 2s poll.
 
-## `M-Tab` / `M-S-Tab`: two gestures, one script
+## `M-Tab` / `M-BTab`: two gestures, one script
 
 One entry point, dispatched on argv: no argument is open/close, `--focus` is the
 three-state focus switch, `--close` only ever closes.
@@ -132,9 +132,9 @@ three-state focus switch, `--close` only ever closes.
 | --- | --- | --- |
 | `M-Tab` / `prefix Tab` | no sidebar in this window | open it — **focus does not move** |
 | `M-Tab` / `prefix Tab` | open (from **anywhere**) | close it — pane killed, geometry restored |
-| `M-S-Tab` / `prefix BTab` | no sidebar in this window | open **and** focus the sidebar |
-| `M-S-Tab` / `prefix BTab` | open, sidebar not active | retarget `@sidebar_content_pane` at this pane, focus the sidebar |
-| `M-S-Tab` / `prefix BTab` | open, sidebar active | focus the window's **last active pane** — sidebar stays open |
+| `M-BTab` / `prefix BTab` | no sidebar in this window | open **and** focus the sidebar |
+| `M-BTab` / `prefix BTab` | open, sidebar not active | retarget `@sidebar_content_pane` at this pane, focus the sidebar |
+| `M-BTab` / `prefix BTab` | open, sidebar active | focus the window's **last active pane** — sidebar stays open |
 
 `M-Tab` opening without moving focus is why the split carries `-d`; `--focus`
 selects the pane explicitly afterwards. `select-pane -T` (the title marker) was
@@ -189,7 +189,7 @@ Implementation notes:
 
 ### Reachability
 
-Three pieces must stay aligned for `M-Tab` and `M-S-Tab`:
+Three pieces must stay aligned for `M-Tab` and `M-BTab`:
 
 1. **Ghostty** (`ghostty/config`): `keybind = alt+tab=csi:9;3u` and
    `keybind = alt+shift+tab=csi:9;4u`. Tab is keycode 9; the CSI-u modifier is
@@ -200,6 +200,29 @@ Three pieces must stay aligned for `M-Tab` and `M-S-Tab`:
    `#{||:#{popup_width},#{==:#{session_name},nnn}}` so they forward raw inside
    any popup or the `nnn` session, matching the `M-j`/`M-q` pattern.
 
+> **The focus bind must be spelled `M-BTab`, never `M-S-Tab`.** tmux rewrites
+> Shift+Tab to Backtab on the **input** path (`tty-keys.c`,
+> `tty_keys_extended_key`):
+>
+> ```c
+> /* Convert S-Tab into Backtab. */
+> if ((nkey & KEYC_MASK_KEY) == '\011' && (nkey & KEYC_SHIFT))
+> 	nkey = KEYC_BTAB | (nkey & ~KEYC_MASK_KEY & ~KEYC_SHIFT);
+> ```
+>
+> so Ghostty's `\e[9;4u` arrives as `M-BTab`. The **bind** parser
+> (`key-string.c`) applies no such conversion, so `bind -n M-S-Tab` is accepted
+> and echoed back verbatim by `list-keys` while never matching a real keypress.
+> It was spelled that way from revision 3 until revision 5 and **the gesture
+> silently never fired once** — `list-keys` showing the bind is not evidence it
+> can match. `M-Tab` was unaffected because `\e[9;3u` carries no Shift, and
+> `prefix BTab` worked because the prefix fallback already used the right name;
+> that asymmetry, three lines apart in `tmux.conf`, was the tell.
+>
+> `prefix r` only ever *sets*, so after fixing it clear the dead bind once:
+> `tmux unbind -n M-S-Tab`. And `tmux send-keys` cannot test any of this —
+> root-table binds only fire on keys arriving from the terminal.
+
 **`prefix Tab` / `prefix BTab` are bound to the same script as terminal-agnostic
 fallbacks.** The `M-` forms exist only because of (1); from another emulator, or
 over SSH from a machine without those mappings, they silently do nothing. The
@@ -208,7 +231,7 @@ prefix table needs no terminal cooperation, so the sidebar is never unreachable.
 switch — the same two modes, not a third behavior.
 
 Note the sidebar's own `Tab`/`S-Tab` (cycle navigator tabs) don't collide: those
-are unmodified keys delivered to the focused pane, while `M-Tab`/`M-S-Tab` are
+are unmodified keys delivered to the focused pane, while `M-Tab`/`M-BTab` are
 root-table binds tmux consumes before the pane ever sees them.
 
 ### Pane geometry: the sidebar squeezes its neighbors
@@ -725,7 +748,7 @@ in the other.
 `#{@user_option}` token/separator pattern `Query` uses). One `show -gqv` per role
 measured **20ms each, 112ms for the set** — paid before Bubble Tea starts, i.e. as
 a blank pane, on every `M-Tab` open. That is the same gesture whose respawn cost
-justified splitting `M-S-Tab` out, so seven forks was the worst possible place to
+justified splitting `M-BTab` out, so seven forks was the worst possible place to
 spend them.
 
 The active-tab chip sets fg and bg **explicitly** (canvas on lavender, bold) and
@@ -881,6 +904,6 @@ instant. It was deferred because the holding session's window gets tiled by
 AeroSpace, needing an autohide/floating workspace or an AeroSpace exclusion.
 
 **It is no longer wanted.** Its only purpose was hiding the respawn cost of
-kill-on-close, and `M-S-Tab` (the focus switch) means the sidebar isn't killed
+kill-on-close, and `M-BTab` (the focus switch) means the sidebar isn't killed
 incidentally in the first place — the respawn is only paid on a deliberate
 `M-Tab` dismissal. Don't reintroduce it.

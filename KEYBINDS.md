@@ -279,9 +279,9 @@ Type a query; every matching substring in the popup's visible content rows gets 
 | `M-C` | root | New session (prompt) |
 | `M-s` | root | Session picker fzf popup (`tmux-session-ls`) |
 | `M-Tab` | root | Open / close the mm-sidebar (`tmux-sidebar-toggle`; see tmux sidebar section) |
-| `M-S-Tab` | root | Switch focus to / from the mm-sidebar without closing it (`--focus`) |
+| `M-BTab` | root | Switch focus to / from the mm-sidebar without closing it (`--focus`) |
 | `prefix Tab` | prefix | Same open/close, terminal-agnostic fallback for `M-Tab` |
-| `prefix BTab` | prefix | Same focus switch, terminal-agnostic fallback for `M-S-Tab` |
+| `prefix BTab` | prefix | Same focus switch, terminal-agnostic fallback for `M-BTab` |
 | `M-:` | root | Switch client to prev session (by index) |
 | `M-[` | root | Switch client to prev session |
 | `M-"` | root | Switch client to next session (by index) |
@@ -405,18 +405,18 @@ In-nnn plugin keys (`;` prefix — nnn requires it for plugins):
 
 A leftmost, full-window-height, 36-column pane toggled by `M-Tab`. Runs a compiled Go/Bubble Tea TUI (`tmux_scripts/mm-sidebar`, built on demand by `tmux-sidebar-build`) inside the pane — not fzf, not nnn. Renders a stack of blocks: a 2-line header, a flexible 4-tab **navigator** (sessions / windows / filetree / scratch), and fixed-height **docked blocks** below it (`agents_glance`, `system_stats`) that stay visible regardless of which navigator tab is active — inspired by [agent-manager](https://github.com/YoanWai/agent-manager)'s session-tree-plus-persistent-gauges layout. Window-scoped state (`@sidebar_pane_id` / `@sidebar_content_pane` / `@sidebar_source`) so each window remembers its own tab.
 
-**Two gestures, one script.** `M-Tab` opens and closes; `M-S-Tab` moves focus
+**Two gestures, one script.** `M-Tab` opens and closes; `M-BTab` moves focus
 without ever killing the pane:
 
 | Key | State | Result |
 | --- | --- | --- |
 | `M-Tab` | no sidebar in this window | open it (`split-window -h -f -b -d -l 36`, leftmost, full height) — **focus does not move** |
 | `M-Tab` | open (from anywhere) | **close it** — pane killed, other panes' sizes restored |
-| `M-S-Tab` | no sidebar in this window | open it **and** focus it |
-| `M-S-Tab` | open, sidebar not active | focus the sidebar (and retarget it at the pane you came from) |
-| `M-S-Tab` | open, sidebar active | focus the window's **last active pane** — **sidebar stays open** |
+| `M-BTab` | no sidebar in this window | open it **and** focus it |
+| `M-BTab` | open, sidebar not active | focus the sidebar (and retarget it at the pane you came from) |
+| `M-BTab` | open, sidebar active | focus the window's **last active pane** — **sidebar stays open** |
 
-`M-S-Tab` is the cheap gesture: peek at the tree and come back with no process
+`M-BTab` is the cheap gesture: peek at the tree and come back with no process
 respawn. `M-Tab` is the one that actually dismisses, so the respawn is only paid
 when that's the intent — and it leaves the active pane alone, so opening the
 sidebar never interrupts what you were typing in.
@@ -427,7 +427,7 @@ differ once focus has bounced between content panes.
 | Key | Scope | Action |
 | --- | --- | --- |
 | `M-Tab` | root | Open / close the sidebar, without moving focus on open. Guarded like `M-j`/`M-q`: forwards raw inside any popup or the `nnn` session |
-| `M-S-Tab` | root | Focus switch (three states above), pane stays alive. Same popup/nnn guard |
+| `M-BTab` | root | Focus switch (three states above), pane stays alive. Same popup/nnn guard |
 | `prefix Tab` | prefix | Identical open/close, reachable from **any** terminal. The `M-` forms only arrive via Ghostty's `alt+tab=csi:9;3u` / `alt+shift+tab=csi:9;4u` mappings, so the prefix table is the fallback over SSH / other emulators |
 | `prefix BTab` | prefix | Identical focus switch, same fallback rationale |
 

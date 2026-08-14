@@ -1,41 +1,126 @@
 #!/usr/bin/env bash
-# Shared "open a selected token" handler for the fzf-style pickers (extrakto, tmux-fzf-url,
-# shell Ctrl-T). An existing file opens in nvim in a split to the right of the origin pane;
-# anything else (URLs, dirs, non-existent paths) falls through to `open`.
+# Shared "open a selected token" handler.
 #
-# Origin pane: $TMUX_OPEN_PANE when a launcher set it — extrakto and tmux-fzf-url run this
-# opener detached (via `tmux run-shell`/the picker subprocess), so they pass the pane through
-# the global tmux environment. Shell Ctrl-T sets nothing, so we fall back to the active pane.
-sel="$1"
-line="${2:-}"
-case "$line" in *[!0-9]*) line="" ;; esac   # accept only a numeric line
-pane="${TMUX_OPEN_PANE:-}"
-[ -n "$pane" ] || pane=$(tmux display -p '#{pane_id}' 2>/dev/null)
-cwd=$(tmux display -p -t "$pane" '#{pane_current_path}' 2>/dev/null)
+#   Legacy (backward-compatible, used by extrakto / sidebar / shell Ctrl-T):
+#     tmux-open-target <sel> [line]
+#       sel joined from all args when the first is not an action keyword
+#       (so a Ctrl-T path with spaces still resolves as one selection).
+#       file  -> nvim split off the origin pane
+#       dir   -> `open <dir>` (Finder)
+#       url   -> `open <url>` (browser)
+#       other -> `open <sel>`
+#
+#   Explicit (used by tmux-open-picker, no global TMUX_OPEN_PANE state):
+#     tmux-open-target <action> <pane> <target> [line]
+#       action in {open, copy, finder, nvim}
+#       open    file->nvim split; dir->Finder; url->browser
+#       nvim    force nvim split (file or dir)
+#       finder  file->`open -R` (reveal); dir->`open` (open in Finder)
+#       copy    resolved target -> pbcopy
+#
+# Origin pane: $TMUX_OPEN_PANE (legacy) or the explicit $2 (new mode).
+#
+# OPEN_TARGET_DRY_RUN=1 prints the final command instead of executing it
+# (test seam for tmux-open-target-test.sh).
 
-case "$sel" in
-  "~")   sel="$HOME" ;;
-  "~/"*) sel="$HOME/${sel#\~/}" ;;
-esac
-case "$sel" in
-  /*) path="$sel" ;;
-  *)  path="$cwd/$sel" ;;
-esac
+ACTIONS="open copy finder nvim"
+is_action() { case "$1" in open|copy|finder|nvim) return 0;; *) return 1;; esac; }
 
-if [ -f "$path" ]; then
-  # tmux runs the split command via `sh -c`, so shell-quote the path (it comes from
-  # picker-selected pane text and may contain quotes/metacharacters) to avoid injection.
-  printf -v q '%q' "$path"
+dry() { [ "${OPEN_TARGET_DRY_RUN:-0}" = 1 ]; }
+
+pane_cwd() { tmux display -p -t "$1" '#{pane_current_path}' 2>/dev/null; }
+
+# resolve <target> <pane> -> sets RPATH (absolute) and KIND in {file,dir,url,other}
+resolve() {
+  local t="$1" pane="$2" cwd p
+  cwd=$(pane_cwd "$pane")
+  case "$t" in
+    "~")   t="$HOME" ;;
+    "~/"*) t="$HOME/${t#\~/}" ;;
+  esac
+  case "$t" in
+    *://*) KIND=url;  RPATH="$t"; return ;;
+  esac
+  case "$t" in
+    /*) p="$t" ;;
+    *)  p="$cwd/$t" ;;
+  esac
+  if [ -d "$p" ]; then KIND=dir;  RPATH="$p"; return; fi
+  if [ -f "$p" ]; then KIND=file; RPATH="$p"; return; fi
+  KIND=other; RPATH="$t"
+}
+
+# nvim_split <pane> <target> <line>  — placement mirrors tmux-claude-open-split:
+# 1 pane -> split right; 2+ panes -> stack above the rightmost pane.
+nvim_split() {
+  local pane="$1" target="$2" line="${3:-}" cwd npanes rp q cmd
+  case "$line" in *[!0-9]*) line="" ;; esac
+  cwd=$(pane_cwd "$pane")
+  printf -v q '%q' "$target"
   [ -n "$line" ] && cmd="nvim +$line -- $q" || cmd="nvim -- $q"
-  # Placement mirrors tmux-claude-open-split, scoped to the origin pane's window:
-  #   1 pane  -> split right;  2+ panes -> stack above the rightmost pane.
   npanes=$(tmux display -p -t "$pane" '#{window_panes}' 2>/dev/null)
   if [ "${npanes:-1}" -le 1 ]; then
+    if dry; then echo "split-window -h -t $pane -c $cwd $cmd"; return; fi
     tmux split-window -h -t "$pane" -c "$cwd" "$cmd"
   else
     rp=$(tmux list-panes -t "$pane" -F '#{pane_left} #{pane_id}' | sort -n | tail -1 | cut -d' ' -f2)
+    if dry; then echo "split-window -v -b -t $rp -c $cwd $cmd"; return; fi
     tmux split-window -v -b -t "$rp" -c "$cwd" "$cmd"
   fi
-else
-  open "$sel"
-fi
+}
+
+# do_open <pane> <target>  — legacy/default open behavior
+do_open() {
+  local pane="$1" target="$2"
+  resolve "$target" "$pane"
+  case "$KIND" in
+    file) nvim_split "$pane" "$RPATH" "${3:-}" ;;
+    dir)  if dry; then echo "open $RPATH"; return; fi; open "$RPATH" ;;
+    *)    if dry; then echo "open $RPATH"; return; fi; open "$RPATH" ;;
+  esac
+}
+
+do_nvim() {
+  local pane="$1" target="$2" line="${3:-}"
+  resolve "$target" "$pane"
+  nvim_split "$pane" "$RPATH" "$line"
+}
+
+do_finder() {
+  local pane="$1" target="$2"
+  resolve "$target" "$pane"
+  case "$KIND" in
+    file) if dry; then echo "open -R $RPATH"; return; fi; open -R "$RPATH" ;;
+    dir)  if dry; then echo "open $RPATH";    return; fi; open "$RPATH" ;;
+    *)    if dry; then echo "open -R $RPATH"; return; fi; open -R "$RPATH" 2>/dev/null || open "$RPATH" ;;
+  esac
+}
+
+do_copy() {
+  local pane="$1" target="$2"
+  resolve "$target" "$pane"
+  if dry; then echo "printf '%s' $RPATH | pbcopy"; return; fi
+  printf '%s' "$RPATH" | pbcopy
+}
+
+main() {
+  if [ "$#" -ge 3 ] && is_action "$1"; then
+    local action="$1" pane="$2" target="$3" line="${4:-}"
+    case "$action" in
+      open)   do_open   "$pane" "$target" "$line" ;;
+      nvim)   do_nvim   "$pane" "$target" "$line" ;;
+      finder) do_finder "$pane" "$target" ;;
+      copy)   do_copy   "$pane" "$target" ;;
+    esac
+    return
+  fi
+  # Legacy: join all args (so Ctrl-T paths with spaces resolve as one selection).
+  local sel="$*" line=""
+  # explicit trailing :line only honored when exactly 2 args (current contract)
+  if [ "$#" -eq 2 ]; then sel="$1"; line="$2"; fi
+  local pane="${TMUX_OPEN_PANE:-}"
+  [ -n "$pane" ] || pane=$(tmux display -p '#{pane_id}' 2>/dev/null)
+  do_open "$pane" "$sel" "$line"
+}
+
+main "$@"

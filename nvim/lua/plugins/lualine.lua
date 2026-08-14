@@ -19,7 +19,7 @@ local filetype_spacing = {
         padding = { left = 1, right = 1 },
         use_mode_colors = true,
 
-        mode = 1,
+        mode = 2,
         -- 0: Shows buffer name
         -- 1: Shows buffer index
         -- 2: Shows buffer name + buffer index
@@ -136,7 +136,7 @@ return {
             padding = { left = 1, right = 1 },
             -- use_mode_colors=true,
 
-            mode = 1,
+            mode = 2,
             -- 0: Shows buffer name
             -- 1: Shows buffer index
             -- 2: Shows buffer name + buffer index
@@ -165,21 +165,21 @@ return {
           },
         },
         lualine_c = {
-          {
-            "filename",
-            path = 4,
-            padding = { left = 0 },
-            symbols = {
-              modified = '[+]',  -- Text to show when the file is modified.
-              readonly = '',     -- Text to show when the file is non-modifiable or readonly.
-              unnamed = '',      -- Text to show for unnamed buffers.
-              newfile = '[new]', -- Text to show for newly created file before first write
-            },
-            -- color = {
-            --   fg = "c9c7cd",
-            --   bg = "None"
-            -- }
-          }
+          -- {
+          --   "filename",
+          --   path = 4,
+          --   padding = { left = 0 },
+          --   symbols = {
+          --     modified = '[+]',  -- Text to show when the file is modified.
+          --     readonly = '',     -- Text to show when the file is non-modifiable or readonly.
+          --     unnamed = '',      -- Text to show for unnamed buffers.
+          --     newfile = '[new]', -- Text to show for newly created file before first write
+          --   },
+          --   -- color = {
+          --   --   fg = "c9c7cd",
+          --   --   bg = "None"
+          --   -- }
+          -- }
         },
         lualine_x = {
           -- {

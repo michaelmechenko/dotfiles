@@ -47,6 +47,7 @@ import (
 	"time"
 
 	"mm-sidebar/internal/tmuxio"
+	"mm-sidebar/internal/trace"
 )
 
 // Agent kinds, used as the 9th field of the TSV schema.
@@ -179,38 +180,23 @@ func (r *Resolver) WatchDirs() []string {
 	return []string{r.claudeSessDir, r.claudeStateDir, r.piStateDir}
 }
 
-// traceEnabled turns on per-phase timing to stderr (MMS_TRACE=1).
-//
-// This exists because a resolve was once observed taking far longer than its
-// parts should (a 1.3s outlier in 8 runs, and one unreproducible 62s on a
-// heavily loaded machine). The sweep is off the input path so an outlier only
-// costs freshness, but "which of tmux / ps / lsof stalled" should be an
-// observation, not a guess.
-var traceEnabled = os.Getenv("MMS_TRACE") == "1"
-
-func trace(phase string, start time.Time) {
-	if traceEnabled {
-		fmt.Fprintf(os.Stderr, "mms-trace %-16s %6.1fms\n", phase, float64(time.Since(start).Microseconds())/1000)
-	}
-}
-
 // Resolve returns the current agent rows: Claude rows first (in sessions-dir
 // order, matching tmux-claude-ls), then pi rows.
 func (r *Resolver) Resolve() ([]Row, error) {
-	if traceEnabled {
-		defer trace("resolve-total", time.Now())
+	if trace.Enabled {
+		defer trace.Phase("resolve-total", time.Now())
 	}
 
 	t := time.Now()
 	panes, err := tmuxio.ListPanes()
-	trace("tmux-list-panes", t)
+	trace.Phase("tmux-list-panes", t)
 	if err != nil {
 		return nil, err
 	}
 
 	t = time.Now()
 	claudeSessions := r.readClaudeSessions()
-	trace("claude-sessions", t)
+	trace.Phase("claude-sessions", t)
 	piRecords := r.readPiRecords()
 	registryKey := piRecordsKey(piRecords)
 
@@ -231,7 +217,7 @@ func (r *Resolver) Resolve() ([]Row, error) {
 	if needPS {
 		t = time.Now()
 		r.refreshProcessTable(panes, claudeSessions)
-		trace("process-table", t)
+		trace.Phase("process-table", t)
 		r.panePIDsKey = key
 		r.piRegistryKey = registryKey
 	}
@@ -535,7 +521,7 @@ func (r *Resolver) refreshProcessTable(panes []tmuxio.PaneRow, sessions []claude
 	// on long command lines.
 	t := time.Now()
 	out, err := exec.Command("ps", "-eww", "-o", "pid=,ppid=,args=").Output()
-	trace("  ps-eww", t)
+	trace.Phase("  ps-eww", t)
 	if err != nil {
 		return
 	}
@@ -628,7 +614,7 @@ func (r *Resolver) refreshPiCwds() {
 	// that process's cwd (with -d cwd selecting only the cwd descriptor).
 	t := time.Now()
 	out, err := exec.Command("lsof", "-a", "-d", "cwd", "-Fn", "-p", strings.Join(missing, ",")).Output()
-	trace("  lsof-cwd", t)
+	trace.Phase("  lsof-cwd", t)
 	if err != nil && len(out) == 0 {
 		return
 	}

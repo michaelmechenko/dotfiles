@@ -17,6 +17,7 @@ import (
 	"mm-sidebar/internal/nav"
 	"mm-sidebar/internal/theme"
 	"mm-sidebar/internal/tmuxio"
+	"mm-sidebar/internal/trace"
 )
 
 // Layout constants.
@@ -57,6 +58,11 @@ type model struct {
 	// would read Height() values that layout resets and re-grants every frame.
 	blockLines []blockHit
 	showHelp   bool
+
+	// fetchKey identifies the inputs `rows` was last fetched for: source id,
+	// content pane, filetree root and the tmux fingerprint. refreshState skips
+	// the source's Fetch entirely while it is unchanged.
+	fetchKey string
 
 	// Filetree browse root. Only re-derived from the content pane's cwd when the
 	// content pane actually changes (tracked by ftLastPane), so Backspace-up
@@ -99,6 +105,10 @@ type stateMsg struct {
 	ftRoot      string
 	srcIdx      int
 	rows        []nav.Row
+	// fetchKey identifies the inputs `rows` was fetched for. Empty means the
+	// source was NOT re-fetched this poll and the model must keep its cached
+	// rows -- see refreshState.
+	fetchKey string
 }
 
 // tickMsg fires a block's own cadence. Blocks with genuinely different
@@ -117,7 +127,7 @@ type editDoneMsg struct{}
 func (m *model) Init() tea.Cmd {
 	cmds := []tea.Cmd{
 		tea.ClearScreen, // the pane may still show shell output from before the split
-		m.refreshState(),
+		m.refreshState(false),
 		m.feed.wait(),
 		m.feed.watch(),
 		tea.Tick(navTickInterval, func(time.Time) tea.Msg { return navTickMsg{} }),
@@ -151,7 +161,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case navTickMsg:
 		return m, tea.Batch(
-			m.refreshState(),
+			m.refreshState(false),
 			tea.Tick(navTickInterval, func(time.Time) tea.Msg { return navTickMsg{} }),
 		)
 
@@ -182,7 +192,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case editDoneMsg:
 		// Returning from nvim: repaint from scratch and re-read everything, since
 		// the buffer may have changed and the screen is whatever nvim left.
-		return m, tea.Batch(tea.ClearScreen, m.refreshState())
+		return m, tea.Batch(tea.ClearScreen, m.refreshState(true))
 	}
 	return m, nil
 }
@@ -200,16 +210,34 @@ func (m *model) broadcast(msg tea.Msg) {
 
 // refreshState gathers the tmux snapshot, resolves the content pane, and fetches
 // the active tab's rows -- all in one Cmd, off the input path.
-func (m *model) refreshState() tea.Cmd {
+//
+// The source Fetch is GATED. Through revision 4 it ran unconditionally every
+// 2s, and on the sessions/panes tabs it shells tmux-fzf-nav, which itself forks
+// display-message + list-sessions + list-panes + awk: ~8 processes every two
+// seconds, forever, whether or not anything had changed. It now runs only when
+// fetchKey moves -- i.e. when the tab, the content pane, the filetree root, or
+// the tmux fingerprint (Snapshot.Fingerprint) actually differs.
+//
+// Because the key includes the source id and the root, a tab switch and a
+// Backspace-ascend both invalidate it on their own and need no special casing.
+// force is for the inputs the key CANNOT see: an explicit `r`, and returning
+// from the scratch editor (the file changed; no tmux state did).
+func (m *model) refreshState(force bool) tea.Cmd {
 	srcIdx := m.srcIdx
 	ftRoot := m.ftRoot
 	ftLastPane := m.ftLastPane
+	lastKey := m.fetchKey
 	th := m.theme
 	return func() tea.Msg {
+		if trace.Enabled {
+			defer trace.Phase("refresh-total", time.Now())
+		}
+		t := time.Now()
 		snap, err := tmuxio.Query()
 		if err != nil {
 			return nil
 		}
+		trace.Phase("tmux-query", t)
 
 		// The persisted tab is authoritative: tmux-sidebar-toggle may have set
 		// @sidebar_source before this process started, and it survives a
@@ -218,10 +246,20 @@ func (m *model) refreshState() tea.Cmd {
 			srcIdx = nav.SourceByID(snap.Source)
 		}
 
-		content := resolveContentPane(snap)
+		// One batched list-panes answers both "is the content pane alive" and
+		// "what is its cwd". Those used to be two extra display-message forks
+		// per poll.
+		t = time.Now()
+		panes := tmuxio.PaneSet{}
+		if rows, err := tmuxio.ListPanes(); err == nil {
+			panes = tmuxio.NewPaneSet(rows)
+		}
+		trace.Phase("tmux-list-panes", t)
+
+		content := resolveContentPane(snap, panes)
 		cwd := ""
 		if content != "" {
-			cwd = tmuxio.PaneCurrentPath(content)
+			cwd = panes.CurrentPath(content)
 		}
 		if cwd == "" {
 			cwd = homeDir()
@@ -232,15 +270,30 @@ func (m *model) refreshState() tea.Cmd {
 			ftRoot = cwd
 		}
 
+		key := strings.Join([]string{
+			nav.Sources[srcIdx].ID(), content, ftRoot, snap.Fingerprint,
+		}, "\x1f")
+		if !force && key == lastKey {
+			trace.Phase("source-skipped", time.Now())
+			// Nothing the active source renders has changed. Report the fresh
+			// snapshot but leave fetchKey empty so applyState keeps its rows.
+			return stateMsg{snap: snap, contentPane: content, ftRoot: ftRoot, srcIdx: srcIdx}
+		}
+
 		// One registry lookup, no per-tab switch: adding a Source needs no edit
 		// here.
+		t = time.Now()
 		rows := nav.Sources[srcIdx].Fetch(nav.Ctx{
 			Theme:       th,
 			Cwd:         cwd,
 			ContentPane: content,
 			Root:        ftRoot,
 		})
-		return stateMsg{snap: snap, contentPane: content, ftRoot: ftRoot, srcIdx: srcIdx, rows: rows}
+		trace.Phase("source-fetch:"+nav.Sources[srcIdx].ID(), t)
+		return stateMsg{
+			snap: snap, contentPane: content, ftRoot: ftRoot,
+			srcIdx: srcIdx, rows: rows, fetchKey: key,
+		}
 	}
 }
 
@@ -251,7 +304,10 @@ func (m *model) applyState(msg stateMsg) {
 	m.ftLastPane = msg.contentPane
 	m.ftRoot = msg.ftRoot
 	m.srcIdx = msg.srcIdx
-	m.rows = msg.rows
+	if msg.fetchKey != "" {
+		m.rows = msg.rows
+		m.fetchKey = msg.fetchKey
+	}
 	m.clampSel()
 	// WindowSizeMsg is the normal source of geometry, but the very first render
 	// can land before it arrives; the snapshot has the same numbers.
@@ -264,8 +320,8 @@ func (m *model) applyState(msg stateMsg) {
 // recorded pane is gone, the pane immediately right of the sidebar is the content
 // area by construction (the sidebar is always leftmost and full height) -- the
 // neo-tree "don't lose track of the target window" guarantee.
-func resolveContentPane(snap tmuxio.Snapshot) string {
-	if snap.ContentPane != "" && tmuxio.PaneAlive(snap.ContentPane) {
+func resolveContentPane(snap tmuxio.Snapshot, panes tmuxio.PaneSet) string {
+	if snap.ContentPane != "" && panes.Alive(snap.ContentPane) {
 		return snap.ContentPane
 	}
 	found := tmuxio.RightOfPane(snap.PaneLeft)
@@ -292,7 +348,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.sel = len(m.rows) - 1
 		m.clampSel()
 	case "r":
-		return m, tea.Batch(m.refreshState(), m.fetchAllBlocks())
+		return m, tea.Batch(m.refreshState(true), m.fetchAllBlocks())
 	case "?":
 		m.showHelp = !m.showHelp
 	case "tab":
@@ -459,7 +515,7 @@ func (m *model) setSource(idx int) tea.Cmd {
 	// a ~20ms tmux fork blocking the key loop on every 1-N / Tab / S-Tab press,
 	// the last synchronous fork left on the keypress path. Nothing reads the
 	// option back until the next Query, so there is no ordering requirement.
-	return tea.Batch(m.persistSource(idx), m.refreshState())
+	return tea.Batch(m.persistSource(idx), m.refreshState(false))
 }
 
 // persistSource writes @sidebar_source in the background. Returns nil when the
@@ -494,7 +550,7 @@ func (m *model) ascend() tea.Cmd {
 	}
 	m.ftRoot = root
 	m.sel = 0
-	return m.refreshState()
+	return m.refreshState(false)
 }
 
 // navCtx builds the Source context from current model state. refreshState builds

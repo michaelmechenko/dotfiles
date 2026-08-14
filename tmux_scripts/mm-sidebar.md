@@ -85,6 +85,7 @@ matching `#{pane_height}` each time.
 | `internal/agents` | The Claude + pi pane join. |
 | `internal/nav` | The navigator tabs (`Source` registry) and their `Enter` actions. |
 | `internal/blocks` | The `Block` interface, the `Factories` registry, and the docked blocks. |
+| `internal/trace` | `MMS_TRACE=1` per-phase timing, shared by every package. |
 
 Within `internal/nav`: `source.go` is the contract plus the `Sources` registry,
 one file per source (`sessions.go`, `windows.go`, `filetree.go`, `scratch.go`),
@@ -122,6 +123,44 @@ target window" guarantee.
 cwd when the content pane actually **changes** (tracked via `ftLastPane`), never
 on every refresh — otherwise `Backspace`-navigate-up would be silently reset on
 the next 2s poll.
+
+### The poll is gated (revision 5)
+
+Through revision 4 `refreshState` ran the active source's `Fetch()` on **every**
+2s tick, unconditionally. On the sessions/panes tabs that shells `tmux-fzf-nav`,
+which itself forks `display-message` + `list-sessions` + `list-panes` + `awk`:
+roughly **8 processes every two seconds, forever**, whether or not anything had
+changed. The agent join had a fingerprint discipline from day one; the navigator
+— the thing running four times more often — never got one.
+
+It now fetches only when `fetchKey` moves. The key is
+`source id ⟂ content pane ⟂ filetree root ⟂ Snapshot.Fingerprint`, so a tab
+switch and a `Backspace`-ascend invalidate it on their own and need no special
+casing. An explicit `force` covers what the key cannot see: `r`, and returning
+from the scratch editor (the file changed; no tmux state did).
+
+`Snapshot.Fingerprint` rides along in the existing `Query()` fork, so the gate
+costs nothing. **Two things about its format string are load-bearing:**
+
+- **No trailing comma inside `#{W:…}`.** tmux loop formats take a second
+  argument that is the format for the CURRENT session/window — it is *not* a
+  separator. `#{W:>…,}` therefore renders each session's current window as the
+  empty string, silently omitting exactly the window you are most likely to be
+  changing. Measured: with the comma 5 of 7 windows appeared; without it, all 7.
+  Verified live after the fix by renaming a session's *current* window and
+  confirming it triggers exactly one refetch.
+- **Separators must stay `:` / `;` / `>`.** A `.`-separated variant was tried and
+  silently dropped a whole session.
+
+Measured with `MMS_TRACE=1`: first poll `source-fetch:sessions 53.3ms`, then
+`source-skipped 0.0ms` on every subsequent poll; `refresh-total` 83.6ms → ~27ms.
+Creating a window produced exactly **one** refetch and then settled back to zero.
+
+Two per-tick `display-message` forks also went away in the same pass:
+`PaneAlive` and `PaneCurrentPath` are now answered from `tmuxio.PaneSet`, an
+index over the single batched `ListPanes()` read ("alive" == "present in the
+list"). Both functions were **deleted** rather than left unused, so the
+fork-per-pane path can't quietly come back.
 
 ## `M-Tab` / `M-BTab`: two gestures, one script
 
@@ -659,8 +698,13 @@ Measured with `MMS_TRACE=1` over ~9s: 5 resolves, **1** paid the `ps` sweep
 version, including a session with no discoverable transcript and one in each of
 the four states.
 
-**Use `MMS_TRACE=1` before theorizing about a slow sweep.** It logs per-phase
-timings to stderr. It exists because a 1.3s outlier appeared in 8 runs (and once,
+**Use `MMS_TRACE=1` before theorizing about a slow anything.** It logs per-phase
+timings to stderr. It lives in `internal/trace` (`trace.Enabled` / `trace.Phase`)
+rather than inside `internal/agents`, where it started — and that placement is
+precisely why the ungated navigator poll above went unnoticed for two revisions:
+the agent sweep was the only thing instrumented, so it was the only thing anyone
+measured. Phases now cover `refresh-total`, `tmux-query`, `tmux-list-panes`,
+`source-fetch:<id>` / `source-skipped`, and the resolver's own. It exists because a 1.3s outlier appeared in 8 runs (and once,
 on a heavily loaded machine, an unreproducible 62s) — the sweep being off the
 input path means an outlier costs freshness, never responsiveness, but "which of
 tmux / ps / lsof stalled" should be an observation, not a guess.

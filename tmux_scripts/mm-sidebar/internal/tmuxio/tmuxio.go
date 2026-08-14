@@ -50,7 +50,31 @@ type Snapshot struct {
 	// nothing ever consumed.
 	ContentPane string
 	Source      string
+
+	// Fingerprint changes exactly when something the navigator renders changes:
+	// the set of sessions, their attach state, and every window's index, name,
+	// pane count, foreground command and cwd. Callers compare it between polls
+	// to decide whether a source needs re-fetching at all.
+	Fingerprint string
 }
+
+// fingerprintToken is a nested #{S:...#{W:...}} loop over every session and
+// window. It rides along in Query's existing fork, so it costs nothing.
+//
+// TWO THINGS ABOUT IT ARE LOAD-BEARING AND BOTH HAVE BITTEN:
+//
+//   - NO TRAILING COMMA inside #{W:...}. tmux loop formats take a SECOND
+//     argument that is the format used for the CURRENT session/window -- it is
+//     not a separator. `#{W:>...,}` therefore renders the current window as the
+//     empty string, silently omitting one window per session from the
+//     fingerprint. That is precisely the window whose command or pane count you
+//     are most likely to be changing, so the gate would never fire for it.
+//     Measured: with the comma, 5 of 7 windows appeared; without it, all 7.
+//   - Separators must stay ':' / ';' / '>'. A '.'-separated variant was tried
+//     and silently dropped a whole session.
+const fingerprintToken = "#{S:#{session_id}#{session_attached}" +
+	"#{W:>#{window_index}#{window_name}#{window_panes}" +
+	"#{pane_current_command}#{pane_current_path}};}"
 
 // snapshotTokens must stay in lockstep with the field order in Query below.
 var snapshotTokens = []string{
@@ -62,6 +86,7 @@ var snapshotTokens = []string{
 	"#{window_panes}",
 	"#{@sidebar_content_pane}",
 	"#{@sidebar_source}",
+	fingerprintToken,
 }
 
 // Query fetches a Snapshot in one tmux fork.
@@ -83,6 +108,7 @@ func Query() (Snapshot, error) {
 	s.WindowPanes = atoi(f[5])
 	s.ContentPane = f[6]
 	s.Source = f[7]
+	s.Fingerprint = f[8]
 	return s, nil
 }
 
@@ -102,23 +128,10 @@ func UnsetWinOpt(winTarget, name string) {
 	RunQuiet("set-option", "-wqu", "-t", winTarget, name)
 }
 
-// PaneAlive reports whether a pane id still refers to a live pane.
-func PaneAlive(paneID string) bool {
-	if paneID == "" {
-		return false
-	}
-	_, err := Run("display-message", "-p", "-t", paneID, "#{pane_id}")
-	return err == nil
-}
-
-// PaneCurrentPath returns a pane's cwd, or "" if the pane is gone.
-func PaneCurrentPath(paneID string) string {
-	out, err := Run("display-message", "-p", "-t", paneID, "#{pane_current_path}")
-	if err != nil {
-		return ""
-	}
-	return out
-}
+// NOTE: there is deliberately no PaneAlive/PaneCurrentPath here. Both were
+// per-pane display-message forks paid on EVERY poll; both questions are now
+// answered from PaneSet, off the single batched ListPanes call. Don't add them
+// back -- reach for ListPanes/NewPaneSet instead.
 
 // PaneTarget resolves a pane id to a "session_id:window_index" target, used by
 // FocusPane to switch the client before selecting the pane.
@@ -162,6 +175,7 @@ type PaneRow struct {
 	SessionName string
 	WindowName  string
 	Command     string // pane_current_command
+	CurrentPath string // pane_current_path
 }
 
 var paneRowTokens = []string{
@@ -171,6 +185,37 @@ var paneRowTokens = []string{
 	"#{session_name}",
 	"#{window_name}",
 	"#{pane_current_command}",
+	"#{pane_current_path}",
+}
+
+// PaneSet indexes a ListPanes result by pane id so callers can answer "is this
+// pane alive" and "what is its cwd" from the ONE batched fork, instead of the
+// two extra per-tick display-message forks those questions used to cost.
+type PaneSet map[string]PaneRow
+
+// NewPaneSet indexes rows by pane id.
+func NewPaneSet(rows []PaneRow) PaneSet {
+	m := make(PaneSet, len(rows))
+	for _, r := range rows {
+		m[r.PaneID] = r
+	}
+	return m
+}
+
+// Alive reports whether a pane id is still present. A pane that list-panes -a
+// does not report does not exist -- that is the same question PaneAlive forked
+// to ask.
+func (p PaneSet) Alive(paneID string) bool {
+	if paneID == "" {
+		return false
+	}
+	_, ok := p[paneID]
+	return ok
+}
+
+// CurrentPath returns a pane's cwd, or "" when the pane is gone.
+func (p PaneSet) CurrentPath(paneID string) string {
+	return p[paneID].CurrentPath
 }
 
 // ListPanes returns every pane in every session in one tmux fork. This is the
@@ -196,6 +241,7 @@ func ListPanes() ([]PaneRow, error) {
 			SessionName: f[3],
 			WindowName:  f[4],
 			Command:     f[5],
+			CurrentPath: f[6],
 		})
 	}
 	return rows, nil

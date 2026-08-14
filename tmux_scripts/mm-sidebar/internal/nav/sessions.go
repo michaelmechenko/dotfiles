@@ -20,17 +20,17 @@ func sessionRow(th theme.Theme, f []string) ([]string, bool) {
 	if len(f) < 8 {
 		return nil, false
 	}
-	name, windows, attached, cwd, current := f[3], f[4], f[5], f[6], f[7]
+	// Field 8 (current-session flag) is deliberately not read. It used to accent
+	// the name of the session this sidebar lives in, which was noise: you are
+	// always in that session, so the marker never distinguished anything you
+	// were choosing between. tmux-fzf-nav still emits it for other consumers.
+	name, windows, attached, cwd := f[3], f[4], f[5], f[6]
 
 	dot := " "
 	if attached == "1" {
 		dot = "●"
 	}
-	nameStyle := th.Text
-	if current == "1" {
-		nameStyle = th.Accent // the session this sidebar lives in
-	}
-	first := nameStyle.Render(padTo(name, nameCol)) + " " +
+	first := th.Text.Render(padTo(name, nameCol)) + " " +
 		th.Muted.Render(padTo(windows+"w", metaCol)) + " " +
 		th.Accent.Render(dot)
 	return []string{first, "  " + th.Muted.Render(truncLeft(cwd, cwdCol))}, true

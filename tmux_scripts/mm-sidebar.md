@@ -47,7 +47,6 @@ window-list with appended widgets rather than switchable sources.
 │ cpu  ▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░ 58%      │
 │ mem  ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░ 83%      │
 │ disk ▓▓▓▓▓▓▓▓▓░░░░░░░░░░░ 48%      │
-│ batt ▓░░░░░░░░░░░░░░░░░░░ 5%       │
 │                                    │  unused space collects at the BOTTOM
 │                                    │
 └────────────────────────────────────┘
@@ -521,13 +520,18 @@ menu and this glance encode state identically.
 
 ### Docked block: `system_stats`
 
-Read-only cpu/mem/disk/battery, on its own 5s cadence (machine load doesn't need
+Read-only cpu/mem/disk, on its own 5s cadence (machine load doesn't need
 per-keystroke freshness, and the `ps -eo pcpu` sample is the priciest recurring
 call). Reuses commands already trusted in this repo rather than inventing a
 measurement approach: core-count-normalized `ps -eo pcpu` per
-`sketchybar/plugins/cpu.sh`, `pmset -g batt` per `battery.sh`, plus
-`vm_stat`/`hw.memsize` for memory (approximate by design). Battery renders only
-when a percentage is reported, so a desktop shows no misleading `0%`.
+`sketchybar/plugins/cpu.sh`, plus `vm_stat`/`hw.memsize` for memory (approximate
+by design).
+
+**Battery was removed in revision 5.** Charge is already on the macOS menu bar
+and in SketchyBar, so the row spent a gauge line — and a `pmset -g batt` fork
+per sample — restating something always visible in two other places. `Height()`
+is now the constant **4**, which also removes the one place a block's height
+depended on its sampled *values* rather than on cached state.
 
 **`cpuThreads()` and `memTotal()` are cached behind `sync.Once`.** They read
 `sysctl -n machdep.cpu.thread_count` and `hw.memsize`, which are machine
@@ -544,14 +548,14 @@ measured on this machine `/` reports **5%** while the data volume reports
 rounding difference from the truth. Falls back to `/` if the path is absent.
 
 Each metric renders as a **20-cell block bar** — `▓` fill in `accent-secondary`
-(or `accent-primary` rose when hot: cpu/mem/disk ≥ 85%, battery ≤ 20%), `░` track
+(or `accent-primary` rose when hot: cpu/mem/disk ≥ 85%), `░` track
 in `divider-subtle`, then the numeric percent. This is the gauge half of
 agent-manager's "computer" panel that revision 3 rendered as bare text. Bar width
 is a fixed constant rather than width-reactive; `clip` handles a narrower pane.
 
 **A nonzero reading floors at one filled cell.** At 20 cells anything under 5%
 divides to an all-track bar indistinguishable from 0% — and it would also drop
-the hot/low color entirely, which is exactly backwards for a 4% battery.
+the hot color entirely.
 
 ## Navigator tabs
 
@@ -580,8 +584,8 @@ Reusing `tmux-fzf-nav` is what keeps the sidebar's session order identical to th
 Rows render as **two lines**: identity on the first, cwd on the second.
 
 ```
-▶ float          2w   ●        session name (accent when it's this session),
-    ~/.config                  window count, ● when attached; cwd below
+▶ float          2w   ●        session name, window count, ● when attached;
+    ~/.config                  cwd below
 
 ▶ 2:conf         nvim          window index:name, foreground command
     ~/.config                  cwd below

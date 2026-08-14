@@ -19,19 +19,22 @@ type SystemStatsMsg struct {
 	CPU  int // percent of all threads
 	Mem  int // percent used (approximate; see sampleMem)
 	Disk int // percent of / used
-	Batt int // percent, -1 when absent (desktop / no battery reported)
 }
 
 func (SystemStatsMsg) IsBlockMsg() {}
 
-// SystemStats is the read-only cpu/mem/disk/battery glance -- the piece of
+// SystemStats is the read-only cpu/mem/disk glance -- the piece of
 // agent-manager's persistent "computer" panel this sidebar adopted.
 //
 // It reuses the measurement commands already trusted elsewhere in this repo
 // rather than inventing a new approach: CPU via the same core-count-normalized
-// `ps -eo pcpu` sum as sketchybar/plugins/cpu.sh, battery via the same
-// `pmset -g batt` parse as sketchybar/plugins/battery.sh, disk via `df -H /`,
-// memory via vm_stat page counts against hw.memsize.
+// `ps -eo pcpu` sum as sketchybar/plugins/cpu.sh, disk via `df -H /`, memory via
+// vm_stat page counts against hw.memsize.
+//
+// Battery was dropped in revision 5: the machine this runs on is a laptop whose
+// charge is already on the macOS menu bar and in SketchyBar, so the row spent a
+// gauge line (and a `pmset -g batt` fork per sample) restating something always
+// visible two other places.
 type SystemStats struct {
 	theme theme.Theme
 	have  bool
@@ -39,7 +42,7 @@ type SystemStats struct {
 }
 
 func NewSystemStats(th theme.Theme) *SystemStats {
-	return &SystemStats{theme: th, stats: SystemStatsMsg{Batt: -1}}
+	return &SystemStats{theme: th}
 }
 
 func (b *SystemStats) ID() string { return "system_stats" }
@@ -57,7 +60,6 @@ func (b *SystemStats) Fetch() tea.Cmd {
 			CPU:  sampleCPU(),
 			Mem:  sampleMem(),
 			Disk: sampleDisk(),
-			Batt: sampleBattery(),
 		}
 	}
 }
@@ -73,14 +75,9 @@ func (b *SystemStats) Update(msg tea.Msg) {
 // handles a narrower pane.
 const gaugeWidth = 20
 
-// Height: label + one gauge line per metric (battery omitted when absent).
-func (b *SystemStats) Height() int {
-	h := 4 // label + cpu + mem + disk
-	if !b.have || b.stats.Batt >= 0 {
-		h++
-	}
-	return h
-}
+// Height: label + one gauge line per metric. Constant -- it does not depend on
+// the sampled values, so the block never changes height under the layout.
+func (b *SystemStats) Height() int { return 4 }
 
 func (b *SystemStats) View(width int) string {
 	lines := []string{label(b.theme.Accent, "system")}
@@ -100,23 +97,20 @@ func (b *SystemStats) View(width int) string {
 		b.gauge("mem", s.Mem, s.Mem >= 85),
 		b.gauge("disk", s.Disk, s.Disk >= 85),
 	)
-	if s.Batt >= 0 {
-		lines = append(lines, b.gauge("batt", s.Batt, s.Batt <= 20))
-	}
 	return join(lines, width)
 }
 
-// gauge renders "labl ▓▓▓░░… NN%": fill in the accent (rose when hot -- high
-// load, or a LOW battery), track in the divider-subtle role so it reads as
-// background, value in the ordinary row-text style.
+// gauge renders "labl ▓▓▓░░… NN%": fill in the accent (rose when hot), track in
+// the divider-subtle role so it reads as background, value in the ordinary
+// row-text style.
 func (b *SystemStats) gauge(name string, val int, hot bool) string {
 	for len(name) < 4 {
 		name += " "
 	}
 	fill := val * gaugeWidth / 100
 	// Floor a nonzero reading at one cell: at 20 cells anything under 5% rounds
-	// to an all-track bar indistinguishable from 0, which also drops the hot/low
-	// color entirely -- exactly backwards for a 4% battery.
+	// to an all-track bar indistinguishable from 0, which also drops the hot
+	// color entirely.
 	if fill == 0 && val > 0 {
 		fill = 1
 	}
@@ -250,26 +244,6 @@ func sampleDisk() int {
 	n, err := strconv.Atoi(strings.TrimSuffix(f[4], "%"))
 	if err != nil {
 		return 0
-	}
-	return clampPct(n)
-}
-
-var battPct = regexp.MustCompile(`(\d+)%`)
-
-// sampleBattery returns -1 when no percentage is reported, so View can omit the
-// field entirely instead of showing a misleading 0%.
-func sampleBattery() int {
-	out, err := exec.Command("pmset", "-g", "batt").Output()
-	if err != nil {
-		return -1
-	}
-	m := battPct.FindStringSubmatch(string(out))
-	if len(m) != 2 {
-		return -1
-	}
-	n, err := strconv.Atoi(m[1])
-	if err != nil {
-		return -1
 	}
 	return clampPct(n)
 }

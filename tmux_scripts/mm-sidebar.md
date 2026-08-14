@@ -739,22 +739,37 @@ window auto-names itself `node`. Every such pane therefore reported a permanent
 `thinking`. The comparison is now against the resolved pi process's own argv[0]
 basename, which is what the recipe intended.
 
-### The 9-field TSV schema
+### The 10-field TSV schema
 
 `mm-sidebar agents` emits, tab-separated:
 
 ```
-sessionId  pane_id  target  session_name  state  name  transcript  window_name  agent
+sessionId  pane_id  target  session_name  state  name  transcript  window_name  agent  cwd
 ```
 
 `agent` ∈ `claude` | `pi`; `state` ∈ `awaiting-permission` | `waiting` |
-`thinking` | `idle`.
+`thinking` | `idle`. `cwd` is the owning **pane's** `pane_current_path` — for pi
+that is deliberately the pane's cwd and not the pi *process's* cwd (which
+`piTranscript` uses to find the session dir), so both agent kinds' `cwd` means
+the same thing and can be joined against a repo root.
+
+**`cwd` was APPENDED as field 10 in revision 5, never inserted.** Fields 1-9 are
+a contract with shell consumers; verified byte-identical after the change by
+diffing `cut -f1-9` against the pre-change binary. Appending is still not free,
+though — see the next paragraph.
 
 **No field is ever emitted empty** — `-` is the placeholder. bash's `read` with
 `IFS=$'\t'` collapses *consecutive* delimiters regardless of what IFS is set to
 (tab is always "IFS whitespace" to bash's field splitter), so one genuinely empty
 field shifts every later field left by one. That is exactly what produced the old
 `[]` empty agent tag, with `wname`/`agent` silently swapped.
+
+**Appending a field breaks any consumer that reads exactly N variables**, because
+bash's `read` puts every remaining field into the LAST variable. Adding `cwd`
+made the legacy dispatcher's 9-variable read return
+`agent="claude<TAB>/Users/…"`, rendering a garbled `[claude /Users/…]` tag.
+`tmux_scripts/tmux-sidebar` now ends its `read` with a trailing `_rest` catch-all
+so a future append cannot corrupt it again; do the same in any new consumer.
 
 `tmux_scripts/tmux-agent-ls` is a **thin wrapper** over this. Its only fallback,
 if the binary can't be built, is the Claude-only path it already contained

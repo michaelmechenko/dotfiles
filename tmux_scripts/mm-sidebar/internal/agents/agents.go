@@ -64,10 +64,13 @@ const (
 	StateIdle               = "idle"
 )
 
-// Row is one agent pane. Field order matches the 9-field TSV schema that
+// Row is one agent pane. Field order matches the 10-field TSV schema that
 // tmux-agent-ls emits and that every consumer parses:
 //
-//	sessionId pane_id target session_name state name transcript window_name agent
+//	sessionId pane_id target session_name state name transcript window_name agent cwd
+//
+// cwd is field 10 and was APPENDED, never inserted -- fields 1-9 are a contract
+// with existing shell consumers and must stay byte-identical.
 //
 // No field is ever emitted empty -- a genuinely empty field silently collapses
 // in bash's tab-delimited `read` (tab counts as IFS whitespace no matter what
@@ -84,6 +87,10 @@ type Row struct {
 	Transcript  string
 	WindowName  string
 	Agent       string
+	// Cwd is the owning pane's pane_current_path. It rides along on the batched
+	// ListPanes read (zero extra forks) and is the join key for repo-aware
+	// surfaces: agent -> cwd -> repo root -> worktree/branch/diff.
+	Cwd string
 }
 
 // StateRank orders rows by how much they need attention: blocked on the user
@@ -100,12 +107,12 @@ func StateRank(state string) int {
 	}
 }
 
-// TSV renders the row in the 9-field schema, substituting "-" for any empty
+// TSV renders the row in the 10-field schema, substituting "-" for any empty
 // field (see the Row doc comment for why empty fields are forbidden).
 func (r Row) TSV() string {
 	f := []string{
 		r.SessionID, r.PaneID, r.Target, r.SessionName,
-		r.State, r.Name, r.Transcript, r.WindowName, r.Agent,
+		r.State, r.Name, r.Transcript, r.WindowName, r.Agent, r.Cwd,
 	}
 	for i, v := range f {
 		if v == "" {
@@ -333,6 +340,7 @@ func (r *Resolver) claudeRows(sessions []claudeSession, byPanePID map[int]tmuxio
 			Transcript:  r.claudeTranscript(s.SessionID),
 			WindowName:  pane.WindowName,
 			Agent:       AgentClaude,
+			Cwd:         pane.CurrentPath,
 		})
 	}
 	return rows
@@ -394,7 +402,12 @@ func (r *Resolver) piRows(panes []tmuxio.PaneRow, records map[int]piRecord) []Ro
 			rows = append(rows, Row{
 				SessionID: record.SessionID, PaneID: p.PaneID, Target: p.Target,
 				SessionName: p.SessionName, State: piState(p.Command, proc.comm),
-				Name: "-", Transcript: record.SessionFile, WindowName: p.WindowName, Agent: AgentPi,
+				Name: "-", Transcript: record.SessionFile, WindowName: p.WindowName,
+				Agent: AgentPi,
+				// The PANE's cwd, matching the legacy path below and Claude's
+				// rows -- NOT record.Cwd (the pi process's own cwd). Both
+				// agents' Cwd must mean the same thing for the repo join.
+				Cwd: p.CurrentPath,
 			})
 			exactPanes[p.PanePID] = true
 		}
@@ -413,9 +426,22 @@ func (r *Resolver) piRows(panes []tmuxio.PaneRow, records map[int]piRecord) []Ro
 			continue
 		}
 		rows = append(rows, Row{
-			SessionID: "pi:" + strconv.Itoa(proc.pid), PaneID: p.PaneID, Target: p.Target,
-			SessionName: p.SessionName, State: piState(p.Command, proc.comm),
-			Name: "-", Transcript: transcript, WindowName: p.WindowName, Agent: AgentPi,
+			// pi exposes no stable session id to join on, so the pid stands in
+			// -- same convention as tmux-agent-ls.
+			SessionID:   "pi:" + strconv.Itoa(proc.pid),
+			PaneID:      p.PaneID,
+			Target:      p.Target,
+			SessionName: p.SessionName,
+			State:       piState(p.Command, proc.comm),
+			Name:        "-",
+			Transcript:  transcript,
+			WindowName:  p.WindowName,
+			Agent:       AgentPi,
+			// The PANE's cwd, deliberately, not the pi process's own cwd
+			// (which piTranscript above uses to find the session dir). Both
+			// agents' Cwd must mean the same thing for the repo join, and for
+			// Claude only the pane's is available.
+			Cwd: p.CurrentPath,
 		})
 	}
 	return rows

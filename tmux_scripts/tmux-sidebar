@@ -258,10 +258,15 @@ fetch_agents_glance() {
   agents_glance_row_count=0
   agents_glance_more=0
   [ -x "$AGENT_LS" ] || return 0
-  local sid pane target sname state name transcript wname agent
+  # _rest absorbs every field past `agent`. tmux-agent-ls grew a 10th field
+  # (cwd) in revision 5, and bash's `read` puts ALL remaining fields into the
+  # LAST variable -- without _rest, agent would come back as "claude<TAB>/path"
+  # and the [$agent] tag below would render garbage. Keep a trailing catch-all
+  # here so a future field append can't silently corrupt this row again.
+  local sid pane target sname state name transcript wname agent _rest
   local -a all_rows=() all_ranks=()
   local n=0
-  while IFS=$'\t' read -r sid pane target sname state name transcript wname agent; do
+  while IFS=$'\t' read -r sid pane target sname state name transcript wname agent _rest; do
     local rank color tag loc disp
     case "$state" in
       awaiting-permission) rank=0; color="$COLOR_ROSE";     tag="!perm";;

@@ -2,12 +2,18 @@ package nav
 
 import "mm-sidebar/internal/theme"
 
-// Windows lists the current session's panes.
+// Windows lists the current session's PANES, one row each -- a 3-pane window
+// produces three rows sharing a sid:win target. It is user-facing as "panes"
+// for that reason; only the ID still says "windows".
 type Windows struct{}
 
+// ID stays "windows" deliberately. It is the value persisted in the
+// @sidebar_source window option, and SourceByID falls back to the first source
+// on an unknown id -- so renaming it would silently reset every window's saved
+// tab to "sessions" on upgrade. The label is cosmetic; the id is state.
 func (Windows) ID() string    { return "windows" }
-func (Windows) Short() string { return "win" }
-func (Windows) Title() string { return "windows" }
+func (Windows) Short() string { return "pane" }
+func (Windows) Title() string { return "panes" }
 
 func (Windows) Fetch(c Ctx) []Row {
 	return fetchFzfNav(c.Theme, "--list-windows", windowRow)

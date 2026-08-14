@@ -43,9 +43,13 @@ type Snapshot struct {
 	WindowPanes int
 
 	// Window-scoped state options (empty string when unset).
-	SidebarPaneID string
-	ContentPane   string
-	Source        string
+	//
+	// @sidebar_pane_id is deliberately NOT read here. It is the toggle script's
+	// liveness flag, and inside a running sidebar it is by definition this pane
+	// -- PaneID above already answers that. It used to be parsed into a field
+	// nothing ever consumed.
+	ContentPane string
+	Source      string
 }
 
 // snapshotTokens must stay in lockstep with the field order in Query below.
@@ -56,7 +60,6 @@ var snapshotTokens = []string{
 	"#{pane_width}",
 	"#{pane_height}",
 	"#{window_panes}",
-	"#{@sidebar_pane_id}",
 	"#{@sidebar_content_pane}",
 	"#{@sidebar_source}",
 }
@@ -78,9 +81,8 @@ func Query() (Snapshot, error) {
 	s.PaneWidth = atoi(f[3])
 	s.PaneHeight = atoi(f[4])
 	s.WindowPanes = atoi(f[5])
-	s.SidebarPaneID = f[6]
-	s.ContentPane = f[7]
-	s.Source = f[8]
+	s.ContentPane = f[6]
+	s.Source = f[7]
 	return s, nil
 }
 

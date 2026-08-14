@@ -306,15 +306,32 @@ That's it: the strip, the `1`..`N` keys, `Tab`/`S-Tab` cycling, and
 
 1. New file in `internal/blocks/`, one type implementing `Block` (see below).
 2. Add a `Factory` entry to `blocks.Factories`.
+3. **Implement `blocks.BlockMsg` on every message type the block carries** —
+   a one-line `func (YourMsg) IsBlockMsg() {}`.
 
 Its position in that slice is both render order and **degradation priority** — a
 short pane drops blocks from the END first, so put a more important block earlier.
 Constructors take whatever they need from `blocks.Deps`; add a field there if a new
 block needs a shared resource.
 
+Step 3 is not optional and used to be missing. `model.Update` type-switched on
+each block message **by name**, so a third block's message fell through the
+default arm and its `Update` was never called: it fetched, published, and
+rendered nothing, with no error anywhere. There is now one generic
+`case blocks.BlockMsg:` arm that broadcasts to every block, which is what makes
+"one type plus one entry" true. `AgentRowsMsg` keeps a case of its own **above**
+the generic one (Go takes the first matching case) purely for its feed re-arm,
+which is model-owned resolver plumbing.
+
+`IsBlockMsg` is **exported on purpose.** An unexported marker seals the interface
+to package `blocks`, so a block living in a sibling `internal/<name>/` package
+could never satisfy it — reintroducing the same silent failure one package over.
+A test in package `main` caught exactly that.
+
 Two hard rules: `View(width)` must emit **exactly `Height()` lines**, and
 `Height()` must be computed from already-cached state (never fetch in it, since the
-layout calls it several times per frame).
+layout calls it several times per frame). Both are enforced by a property test
+that iterates `blocks.Factories`, so a new block is covered automatically.
 
 ### Make something clickable
 
@@ -450,6 +467,14 @@ measurement approach: core-count-normalized `ps -eo pcpu` per
 `vm_stat`/`hw.memsize` for memory (approximate by design). Battery renders only
 when a percentage is reported, so a desktop shows no misleading `0%`.
 
+**`cpuThreads()` and `memTotal()` are cached behind `sync.Once`.** They read
+`sysctl -n machdep.cpu.thread_count` and `hw.memsize`, which are machine
+constants — they were being re-forked on every 5s sample, forever, for values
+that cannot change while the process lives. A `regexp.MustCompile` for the
+`vm_stat` page size was also being recompiled inside `sampleMem` each sample
+(its sibling `vmStatPages` was already hoisted correctly); it is now
+`vmStatPageSize` at package level. **6 forks per 5s → 4.**
+
 **Disk measures `/System/Volumes/Data`, not `/`.** On a modern macOS install `/`
 is the sealed read-only system volume, so `df /` is not a "disk full" gauge —
 measured on this machine `/` reports **5%** while the data volume reports
@@ -471,10 +496,17 @@ the hot/low color entirely, which is exactly backwards for a 4% battery.
 Each tab is a `nav.Source` in the `nav.Sources` registry — see **Extending** for
 how to add one.
 
+**The `panes` tab's `ID()` is still `"windows"`, deliberately.** It emits one row
+per *pane* (a 3-pane window yields three rows sharing a `sid:win` target), so the
+label was corrected — but the id is the value persisted in `@sidebar_source`, and
+`SourceByID` falls back to the first source on an unknown id. Renaming it would
+silently reset every window's remembered tab to `sessions`. Label is cosmetic;
+id is state.
+
 | Tab | Data source | `Enter` action | Extra keys |
 | --- | --- | --- | --- |
 | sessions | `tmux-fzf-nav --list-sessions` | `switch-client` + `select-pane` | — |
-| windows | `tmux-fzf-nav --list-windows` | `switch-client` + `select-pane` | — |
+| panes (id `windows`) | `tmux-fzf-nav --list-windows` | `switch-client` + `select-pane` | — |
 | filetree | `os.ReadDir`, 2 levels, over the content pane's cwd | dir → `split-window -h -c <dir>` in the content pane; file → `tmux-open-target` | `Backspace` = up one level (via `Ascender`) |
 | scratch | `~/.config/tmux_scratch/{global,<slug>}.md` | `tea.ExecProcess(nvim)` | — |
 
@@ -800,6 +832,26 @@ of `ansi.Style` signature errors. Pin `x/ansi v0.10.1`, and leave
 
 `tmux-sidebar-build` swallows compiler output so a broken tree can't break
 `M-Tab`. Run `go build ./...` in the module directly to see errors.
+
+## Tests
+
+`go test ./...` in the module. 10 tests, all pure logic — nothing shells out to
+tmux, so they run anywhere:
+
+- `model_test.go` — the **Leak A regression guard**: a stub block with a message
+  type `model.go` has never heard of must still reach that block's `Update`. Plus
+  the help-overlay invariants (`len(helpOverlay()) == helpLineCount`, and the tab
+  count is derived from `nav.Sources` rather than written out).
+- `internal/blocks/blocks_test.go` — a **property test over `blocks.Factories`**
+  asserting `View(width)` emits exactly `Height()` lines across a grid of widths;
+  `Height()` stability without an intervening `Update`; unique block IDs (the
+  tick router matches by ID, so a duplicate would starve its twin); non-zero
+  `Interval()` (a zero would spin `tea.Tick`); the `sync.Once` machine-constant
+  cache; and `gauge()` against out-of-range percentages, since `sampleCPU` can
+  briefly exceed 100 and `strings.Repeat` panics on a negative count.
+
+Construct blocks with a **buffered** `Deps.Agents` channel — `AgentsGlance.Fetch`
+does a non-blocking send and needs somewhere for it to go.
 
 ## Follow-ups
 

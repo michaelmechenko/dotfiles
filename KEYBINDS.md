@@ -11,6 +11,10 @@ Reference for all active keybinds across AeroSpace (`aerospace/aerospace.toml`),
 | `cmd-left` | Move pi editor to the start of the current line (Ghostty → `super+left`) |
 | `cmd-right` | Move pi editor to the end of the current line (Ghostty → `super+right`) |
 | `ctrl+r` | Rename the current live pi session (`session-rename/`) |
+| `ctrl+p` | Cycle plan-mode access: none → plan → read-only → none; an idle execution pauses and re-enters plan mode |
+| `ctrl+alt+p` / `ctrl+alt+t` | Toggle the plan execution progress widget |
+| `/plan` / `/plan-review` | Enter structured planning or review a ready plan; execution opens the destination/model wizard |
+| `/read-only` / `/mode` | Enter standalone read-only mode / cycle the three plan-mode access states |
 | `/rename [name]` | Rename the current live pi session; omit `name` to open a prompt |
 
 ## AeroSpace — main mode

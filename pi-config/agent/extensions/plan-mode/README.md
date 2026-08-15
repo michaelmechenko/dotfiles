@@ -1,55 +1,69 @@
 # Plan Mode Extension
 
-A read-only planning workflow with structured plan revisions, tracked execution, and a required closeout.
+Structured planning and execution with separate access restrictions.
+
+## Modes
+
+`Ctrl+P` cycles without opening a dialog:
+
+```
+none → plan → read-only → none
+```
+
+- **plan** — read-only inspection plus `plan_update`; creates or revises the authoritative structured plan.
+- **read-only** — the same positive read-only tool allowlist and bash restrictions, without any plan tools or plan updates.
+- **none** — restores the exact active-tool set captured before entering the restricted cycle. A preserved plan is shown as `none (plan paused)`, not as an active restriction.
+
+Mode changes wait for Pi to be idle. Pressing `Ctrl+P` while an idle plan is executing pauses it, restores the planning model, then enters plan mode.
 
 ## Workflow
 
-1. `/plan` enters read-only planning. The agent investigates, asks contextual clarifying questions when needed, then calls `plan_update` with a goal, top-level steps, verification criteria, and follow-up work.
-2. The plan review dialog lets you execute, recalibrate, or keep planning.
-3. Execution switches to the configured execution model, currently `opencode/gpt-5.6-luna` at medium thinking. The planning model and the exact active-tool set are restored when the workflow pauses or completes.
-4. The agent calls `plan_step` immediately after each completed or skipped step. If scope changes or a blocker invalidates pending work, it calls `plan_update` again rather than requiring a new `/plan` cycle.
-5. After every step is terminal, the agent must call `plan_complete`. Its closeout records the goal, outcome, end state, verification, deviations, and next steps.
+1. `/plan` enters structured planning. The agent investigates, asks focused questions when needed, then calls `plan_update` with a goal, top-level steps, verification criteria, and follow-up work.
+2. A ready plan can be reviewed with `/plan-review`. Execute opens one wizard: destination, then model policy.
+3. Destinations are the current session, clipboard, or a new window in the current tmux session. Clipboard copies canonical plan Markdown and leaves the plan ready in plan mode.
+4. Execution tracks each terminal step with `plan_step`; `plan_complete` records outcome, end state, verification, deviations, and next steps.
+
+`/read-only` enters standalone inspection mode. `/mode` cycles the three access modes. `/plan-edit`, `/todos`, `/pause`, and `/plan-widget` retain their existing roles.
 
 ## Recalibration and interruption
 
-Pressing Escape uses Pi's normal abort behavior. Once the agent has settled, plan mode shows the interrupted step and offers:
+After Pi settles from an interrupted execution, the existing resume, recalibrate, status-adjustment, and pause choices remain available. Recalibration restores plan restrictions and the planning model; a successful `plan_update` resumes with the previously selected execution model. Pi's normal retry lifecycle settles before this prompt is shown.
 
-- resume the current step;
-- recalibrate from the current state;
-- adjust statuses in `/todos`; or
-- pause the plan.
+## Execution models
 
-Recalibration opens an editor for the requested change, restores read-only planning and the planning model, then resumes execution automatically after the agent calls `plan_update`.
+The execution wizard offers:
 
-Pi already retries retryable 5xx and connection failures. Plan mode waits for Pi's retry lifecycle to settle before it shows an interruption dialog, so a `503` or `Connection error.` does not prematurely stop execution. Account, quota, and billing failures remain terminal.
+- current provider/model/thinking;
+- the saved plan execution default;
+- a one-run provider/model/thinking choice; or
+- a choice saved as the plan execution default.
 
-## Commands
+The saved default is only `agent/plan-mode.json`'s `executionModel`; it never changes Pi's global `defaultProvider` or `defaultModel`. Temporary current-session switches use Pi's public model APIs so session history stays correct, then restore the global defaults through `SettingsManager`. A forced process kill between those operations is the narrow remaining window where Pi's global defaults can be left temporarily changed.
 
-- `/plan` — start planning, or pause an active workflow.
-- `/plan-review` — execute, recalibrate, edit, pause, or discard the active plan.
-- `/plan-edit` — manually edit top-level steps.
-- `/plan-widget` — toggle compact/full progress.
-- `/todos` — inspect or correct step statuses.
-- `/pause` — pause execution.
-- `Ctrl+P` — enter plan mode when inactive; otherwise open the active plan workflow.
-- `Ctrl+Alt+P` or `Ctrl+Alt+T` — toggle compact/full progress.
+## Tmux handoff
+
+Tmux is offered only inside a tmux pane. The extension writes a mode-`0600`, one-time handoff file under `agent/plan-handoffs/`, then invokes `tmux new-window` with argv and environment variables only; plan text is never interpolated into shell source. The child validates and deletes the handoff before restoring the plan as executing.
 
 ## Configuration
 
-`~/.config/pi-config/agent/plan-mode.json` configures the execution model:
+`agent/plan-mode.json` stores the plan execution default:
 
 ```json
 {
   "executionModel": {
-    "provider": "opencode",
-    "model": "gpt-5.6-luna",
-    "thinkingLevel": "medium"
+    "provider": "ollama-cloud",
+    "model": "glm-5.2",
+    "thinkingLevel": "high"
   }
 }
 ```
 
-If the configured model is unavailable or unauthenticated, plan mode warns and continues with the current model. Pi's public `setModel()` also updates its global default model; normal pause/completion/shutdown restores the saved planning model, but a forced process kill can leave the execution model selected.
+Unknown keys are preserved when the wizard saves a new execution default.
 
-## Read-only mode
+## Tests
 
-Planning and recalibration use a positive allowlist of read-only tools plus `plan_update`, rather than only disabling `edit` and `write`. Bash is additionally restricted to read-only commands.
+```sh
+cd ~/.config/pi-config/agent/extensions/plan-mode
+node --experimental-strip-types --test *.test.ts
+./tmux-handoff-smoke-test.sh
+```

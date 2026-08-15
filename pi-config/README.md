@@ -57,7 +57,7 @@ file extension isn't part of the extension's identity), plain `kebab-case` names
 | `titlebar-spinner/` | Braille spinner in the terminal title bar while the agent works |
 | `working-indicator-off/` | Disables pi's animated inline working spinner (`ctx.ui.setWorkingIndicator({ frames: [] })`) to avoid tmux redraw issues |
 | `thinking-label/` | Lowercases the "Thinking..." placeholder shown for collapsed thinking blocks (`hideThinkingBlock: true`) to `thinking...`, via `ctx.ui.setHiddenThinkingLabel()`. A prior `hidden-thinking-label/` extension exposed this as a full `/thinking-label [text]` command and was removed as unneeded; this is a fixed, no-command replacement |
-| `plan-mode/` | `/plan` read-only structured planning mode. `plan_update` creates or revises the authoritative top-level plan without exiting execution; `plan_step` tracks progress; `plan_complete` records a required outcome/end-state/verification/next-steps closeout. Escape presents resume/recalibrate/status/pause options only after Pi's retry lifecycle settles. Execution defaults to `opencode/gpt-5.6-luna` at medium thinking via `agent/plan-mode.json`, then restores the saved planning model. `/todos` manually adjusts statuses; `/plan-edit` edits top-level steps; progress is collapsible via `/plan-widget`, `Ctrl+Alt+T`, or `Ctrl+P`. |
+| `plan-mode/` | Structured plan workflow plus separate restricted access modes. `Ctrl+P` cycles `none → plan → read-only → none`; plan exposes read-only tools plus `plan_update`, while standalone read-only exposes only the shared positive allowlist. `/plan-review` executes through a destination/model wizard: current session, clipboard, or a new tmux window; model policy is current, saved plan default, choose once, or choose-and-save. `plan_step` tracks progress and `plan_complete` records closeout. The saved execution default is only `agent/plan-mode.json`'s `executionModel`; temporary model switches restore Pi global defaults. `/todos`, `/plan-edit`, `/pause`, and `/plan-widget` remain available. |
 | `subagent/` | Delegate tasks to isolated `pi` subprocess agents (single/parallel/chain modes); see [Agents & Prompts](#agents--prompts) |
 | `prompt-stash/` | Claude Code-style Ctrl+S "stash or restore prompt": stashes and clears a non-empty editor, restores it on the next Ctrl+S press when the editor is empty. In-memory only (per pi process, cleared on `session_shutdown`); no cursor-position or pasted-image restore since pi's extension API doesn't expose those. Not vendored from anywhere — written directly against pi's `registerShortcut` + `ctx.ui.getEditorText`/`setEditorText` API. Ctrl+S collides with two built-in shortcuts: `app.models.save` (only live inside the `/scoped-models` picker) and `app.session.toggleSort` (only live inside the `/resume` session picker); `agent/keybindings.json` rebinds them to `ctrl+shift+s` and `ctrl+shift+r` respectively to resolve it — prompt-stash keeps the Claude Code-matching key |
 
@@ -160,7 +160,7 @@ extension's shortcut via `keybindings.json`** — verified against `@earendil-wo
 | `skill-toggle/` | `ctrl+shift+e` |
 | `prompt-stash/` | `ctrl+s` |
 | `tool-display/` | `ctrl+shift+o` — toggle details for the restored `read`, `bash`, and diff result renderers; `ctrl+o` remains Pi's built-in call-detail toggle |
-| `plan-mode/` | `ctrl+p` enters plan mode when inactive, otherwise opens the active plan workflow; `ctrl+alt+p` and `ctrl+alt+t` toggle the progress widget |
+| `plan-mode/` | `ctrl+p` cycles `none → plan → read-only → none` without opening a review dialog; `ctrl+alt+p` and `ctrl+alt+t` toggle the progress widget |
 | `thinking-controls/` | `ctrl+tab` (Ghostty sends F13) — cycle the current model's thinking level backward; `shift+tab` remains Pi's forward cycle |
 | `session-rename/` | `ctrl+r` or `/rename [name]` — rename the current live session |
 
@@ -168,7 +168,7 @@ extension's shortcut via `keybindings.json`** — verified against `@earendil-wo
 collide with core defaults, so `keybindings.json` frees those keys up:
 
 - `app.model.cycleForward` (default `ctrl+p`) and `app.model.cycleBackward` (default `shift+ctrl+p`)
-  are cleared (`[]`) — model cycling is dropped in favor of entering or reviewing plan mode on `ctrl+p`.
+  are cleared (`[]`) — model cycling is dropped in favor of plan-mode access cycling on `ctrl+p`.
 - `app.model.select` (default `ctrl+l`) gets `ctrl+shift+p` added, so the freed-up `ctrl+shift+p` opens
   the model selector (same UI as `/model`) instead of cycling models.
 - `tui.editor.cursorLineEnd` (default `["end", "ctrl+e"]`) drops the `ctrl+e` alias, keeping only `end`,

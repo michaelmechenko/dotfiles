@@ -3,6 +3,12 @@ import { basename, dirname, join, resolve } from "node:path";
 import type { ModelSnapshot, PlanState } from "./plan-state.ts";
 import { isModelSnapshot } from "./config.ts";
 
+export interface TmuxTarget {
+	session: string;
+	window: string;
+	pane: string;
+}
+
 export interface ExecutionPacket {
 	version: 1;
 	plan: PlanState;
@@ -60,16 +66,28 @@ export function consumeExecutionPacket(agentDir: string, handoffPath: string): E
 	}
 }
 
-export function buildTmuxNewWindowArgs(tmuxSession: string, cwd: string, handoffPath: string, model: ModelSnapshot): string[] {
+function handoffEnvironment(handoffPath: string, model: ModelSnapshot): string[] {
 	if (!isModelSnapshot(model)) throw new Error("Invalid execution model.");
 	return [
-		"new-window", "-t", tmuxSession, "-c", cwd,
 		"-e", `PI_PLAN_HANDOFF=${handoffPath}`,
 		"-e", `PI_PLAN_PROVIDER=${model.provider}`,
 		"-e", `PI_PLAN_MODEL=${model.model}`,
 		"-e", `PI_PLAN_THINKING=${model.thinkingLevel}`,
-		"pi --provider \"$PI_PLAN_PROVIDER\" --model \"$PI_PLAN_MODEL\" --thinking \"$PI_PLAN_THINKING\"",
 	];
+}
+
+function handoffCommand(): string {
+	return "pi --provider \"$PI_PLAN_PROVIDER\" --model \"$PI_PLAN_MODEL\" --thinking \"$PI_PLAN_THINKING\"";
+}
+
+/** Detached so creating a handoff never selects its window. */
+export function buildTmuxNewWindowArgs(target: TmuxTarget, cwd: string, handoffPath: string, model: ModelSnapshot): string[] {
+	return ["new-window", "-d", "-t", target.session, "-c", cwd, ...handoffEnvironment(handoffPath, model), handoffCommand()];
+}
+
+/** Detached horizontal split in the source window, preserving the source pane focus. */
+export function buildTmuxDetachedPaneArgs(target: TmuxTarget, cwd: string, handoffPath: string, model: ModelSnapshot): string[] {
+	return ["split-window", "-d", "-h", "-t", target.window, "-c", cwd, ...handoffEnvironment(handoffPath, model), handoffCommand()];
 }
 
 function isExecutionPacket(value: unknown): value is ExecutionPacket {

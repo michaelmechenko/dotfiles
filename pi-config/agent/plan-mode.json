@@ -1,7 +1,0 @@
-{
-  "executionModel": {
-    "provider": "ollama-cloud",
-    "model": "glm-5.2",
-    "thinkingLevel": "high"
-  }
-}

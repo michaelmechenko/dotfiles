@@ -19,8 +19,8 @@ Mode changes wait for Pi to be idle. Pressing `Ctrl+P` while an idle plan is exe
 ## Workflow
 
 1. `/plan` enters structured planning. The agent investigates, asks focused questions when needed, then calls `plan_update` with a goal, top-level steps, verification criteria, and follow-up work.
-2. A ready plan can be reviewed with `/plan-review`. Execute opens one wizard: destination, then model policy.
-3. Destinations are the current session, clipboard, or a new window in the current tmux session. Clipboard copies canonical plan Markdown and leaves the plan ready in plan mode.
+2. A ready plan can be reviewed with `/plan-review`. Execute opens one settings screen; cycle values in place, then choose explicit Execute or Cancel rows.
+3. Destinations are the current session, clipboard, a detached horizontal pane in the current tmux window, or a detached window in the current tmux session. The tmux rows appear only when the source pane resolves to both a session and window. Clipboard copies canonical plan Markdown and leaves the plan ready in plan mode.
 4. Execution tracks each terminal step with `plan_step`; `plan_complete` records outcome, end state, verification, deviations, and next steps.
 
 `/read-only` enters standalone inspection mode. `/mode` cycles the three access modes. `/plan-edit`, `/todos`, `/pause`, and `/plan-widget` retain their existing roles.
@@ -31,18 +31,13 @@ After Pi settles from an interrupted execution, the existing resume, recalibrate
 
 ## Execution models
 
-The execution wizard offers:
-
-- current provider/model/thinking;
-- the saved plan execution default;
-- a one-run provider/model/thinking choice; or
-- a choice saved as the plan execution default.
+The execution settings screen offers current provider/model/thinking, the saved plan execution default, or a one-run provider/model/thinking choice. A separate `Save as plan default` toggle applies only to the chosen model. Clipboard hides irrelevant model controls and does not resolve or mutate model state.
 
 The saved default is only `agent/plan-mode.json`'s `executionModel`; it never changes Pi's global `defaultProvider` or `defaultModel`. Temporary current-session switches use Pi's public model APIs so session history stays correct, then restore the global defaults through `SettingsManager`. A forced process kill between those operations is the narrow remaining window where Pi's global defaults can be left temporarily changed.
 
 ## Tmux handoff
 
-Tmux is offered only inside a tmux pane. The extension writes a mode-`0600`, one-time handoff file under `agent/plan-handoffs/`, then invokes `tmux new-window` with argv and environment variables only; plan text is never interpolated into shell source. The child validates and deletes the handoff before restoring the plan as executing.
+Tmux is offered only inside a resolved tmux pane. The extension writes a mode-`0600`, one-time handoff file under `agent/plan-handoffs/`, then invokes detached `tmux new-window` or detached horizontal `tmux split-window` with argv and handoff/model environment variables only; plan text is never interpolated into shell source. Both preserve the source cwd and leave the source pane/window selected. A failed launch deletes the handoff and leaves the source plan ready. The child validates and deletes the handoff before restoring the plan as executing.
 
 ## Configuration
 

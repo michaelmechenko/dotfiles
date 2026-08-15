@@ -1,0 +1,62 @@
+import type { ModelSnapshot, ThinkingLevel } from "./plan-state.ts";
+
+export type ExecutionDestination = "current" | "clipboard" | "tmux-pane" | "tmux-window";
+export type ModelPolicy = "current" | "saved" | "choose";
+
+export interface ModelCandidate {
+	provider: string;
+	model: string;
+	thinkingLevels: ThinkingLevel[];
+}
+
+export interface ExecutionSettings {
+	destination: ExecutionDestination;
+	modelPolicy: ModelPolicy;
+	provider?: string;
+	model?: string;
+	thinkingLevel?: ThinkingLevel;
+	saveDefault: boolean;
+}
+
+export interface ResolvedExecution {
+	destination: ExecutionDestination;
+	model?: ModelSnapshot;
+	saveDefault: boolean;
+}
+
+export type ResolveExecutionResult = { ok: true; value: ResolvedExecution } | { ok: false; error: string };
+
+export function modelKey(model: Pick<ModelSnapshot, "provider" | "model">): string {
+	return `${model.provider}\u0000${model.model}`;
+}
+
+export function candidateFor(candidates: ModelCandidate[], provider?: string, model?: string): ModelCandidate | undefined {
+	return candidates.find((candidate) => candidate.provider === provider && candidate.model === model);
+}
+
+export function createExecutionSettings(current?: ModelSnapshot): ExecutionSettings {
+	return {
+		destination: "current",
+		modelPolicy: "current",
+		provider: current?.provider,
+		model: current?.model,
+		thinkingLevel: current?.thinkingLevel,
+		saveDefault: false,
+	};
+}
+
+/** Resolve without side effects. Callers persist only after a successful choose-and-save execution. */
+export function resolveExecutionSettings(settings: ExecutionSettings, current: ModelSnapshot | undefined, saved: ModelSnapshot | undefined, candidates: ModelCandidate[]): ResolveExecutionResult {
+	if (settings.destination === "clipboard") return { ok: true, value: { destination: "clipboard", saveDefault: false } };
+	const selected = settings.modelPolicy === "current" ? current : settings.modelPolicy === "saved" ? saved : chooseSnapshot(settings, candidates);
+	if (!selected) return { ok: false, error: settings.modelPolicy === "saved" ? "The saved plan execution default is invalid or unavailable." : "Select an available execution provider, model, and thinking level." };
+	const candidate = candidateFor(candidates, selected.provider, selected.model);
+	if (!candidate || !candidate.thinkingLevels.includes(selected.thinkingLevel)) return { ok: false, error: `Execution model ${selected.provider}/${selected.model} is unavailable.` };
+	return { ok: true, value: { destination: settings.destination, model: selected, saveDefault: settings.modelPolicy === "choose" && settings.saveDefault } };
+}
+
+function chooseSnapshot(settings: ExecutionSettings, candidates: ModelCandidate[]): ModelSnapshot | undefined {
+	const candidate = candidateFor(candidates, settings.provider, settings.model);
+	if (!candidate || !settings.thinkingLevel || !candidate.thinkingLevels.includes(settings.thinkingLevel)) return undefined;
+	return { provider: candidate.provider, model: candidate.model, thinkingLevel: settings.thinkingLevel };
+}

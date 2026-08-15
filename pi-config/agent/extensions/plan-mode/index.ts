@@ -1,10 +1,11 @@
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { getSupportedThinkingLevels, StringEnum, type AssistantMessage } from "@earendil-works/pi-ai";
-import { copyToClipboard, getAgentDir, SettingsManager, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { Key, matchesKey, truncateToWidth } from "@earendil-works/pi-tui";
+import { copyToClipboard, getAgentDir, getSettingsListTheme, SettingsManager, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { Container, Key, matchesKey, type SettingItem, SettingsList, truncateToWidth } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { isModelSnapshot, loadPlanModeConfig, savePlanModeConfig } from "./config.ts";
-import { buildTmuxNewWindowArgs, consumeExecutionPacket, deleteExecutionPacket, renderPlanMarkdown, writeExecutionPacket } from "./execution-handoff.ts";
+import { buildTmuxDetachedPaneArgs, buildTmuxNewWindowArgs, consumeExecutionPacket, deleteExecutionPacket, renderPlanMarkdown, type TmuxTarget, writeExecutionPacket } from "./execution-handoff.ts";
+import { candidateFor, createExecutionSettings, resolveExecutionSettings, type ExecutionDestination, type ExecutionSettings, type ModelCandidate } from "./execution-settings.ts";
 import { deletePlanFile, readPlanFile, writePlanFile } from "./plan-file.ts";
 import { applyPlanUpdate, canClosePlan, createPlanState, enterRestrictedMode, isStepDone, leaveRestrictedMode, migratePlanState, pendingSteps, type ModelSnapshot, type PlanCloseout, type PlanState, type ThinkingLevel } from "./plan-state.ts";
 import { checkRestrictedToolCall, checkRestrictedUserBash, PLAN_EXECUTION_TOOLS, PLAN_UPDATE_TOOL, restrictedTools, restrictionGuidance } from "./restricted-mode.ts";
@@ -132,69 +133,106 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 		restoreTools(); await restorePlanningModel(ctx); persist(); updateUi(ctx);
 	}
 
-	async function chooseModel(ctx: ExtensionContext, saveDefault: boolean): Promise<ModelSnapshot | undefined> {
-		const candidates = ctx.scopedModels.length
-			? ctx.scopedModels.map((item) => ({ model: item.model, thinkingLevel: item.thinkingLevel as ThinkingLevel | undefined }))
-			: ctx.modelRegistry.getAvailable().map((model) => ({ model, thinkingLevel: undefined }));
-		const providers = [...new Set(candidates.map((candidate) => candidate.model.provider))];
-		const provider = await ctx.ui.select("Execution provider", providers);
-		if (!provider) return undefined;
-		const models = candidates.filter((candidate) => candidate.model.provider === provider);
-		const id = await ctx.ui.select("Execution model", models.map((candidate) => candidate.model.id));
-		const candidate = models.find((item) => item.model.id === id);
-		if (!candidate) return undefined;
-		const levels = candidate.thinkingLevel ? [candidate.thinkingLevel] : getSupportedThinkingLevels(candidate.model).map(String) as ThinkingLevel[];
-		const thinkingLevel = candidate.thinkingLevel ?? await ctx.ui.select("Thinking level", levels);
-		const snapshot = thinkingLevel ? { provider: candidate.model.provider, model: candidate.model.id, thinkingLevel: thinkingLevel as ThinkingLevel } : undefined;
-		if (!snapshot || !isModelSnapshot(snapshot)) return undefined;
-		if (saveDefault) savePlanModeConfig(snapshot, agentDir);
-		return snapshot;
+	function executionCandidates(ctx: ExtensionContext, current: ModelSnapshot | undefined, saved: ModelSnapshot | undefined): ModelCandidate[] {
+		const raw = ctx.scopedModels.length
+			? ctx.scopedModels.map((item) => ({ provider: item.model.provider, model: item.model.id, thinkingLevel: item.thinkingLevel as ThinkingLevel }))
+			: ctx.modelRegistry.getAvailable().flatMap((model) => getSupportedThinkingLevels(model).map(String).map((thinkingLevel) => ({ provider: model.provider, model: model.id, thinkingLevel: thinkingLevel as ThinkingLevel })));
+		for (const snapshot of [current, saved]) {
+			const model = snapshot && ctx.modelRegistry.find(snapshot.provider, snapshot.model);
+			if (snapshot && model && getSupportedThinkingLevels(model).map(String).includes(snapshot.thinkingLevel)) raw.push({ provider: snapshot.provider, model: snapshot.model, thinkingLevel: snapshot.thinkingLevel });
+		}
+		const grouped = new Map<string, ModelCandidate>();
+		for (const item of raw) {
+			const key = `${item.provider}\u0000${item.model}`;
+			const candidate = grouped.get(key) ?? { provider: item.provider, model: item.model, thinkingLevels: [] };
+			if (!candidate.thinkingLevels.includes(item.thinkingLevel)) candidate.thinkingLevels.push(item.thinkingLevel);
+			grouped.set(key, candidate);
+		}
+		return [...grouped.values()];
 	}
-	async function chooseExecutionPolicy(ctx: ExtensionContext): Promise<ModelSnapshot | undefined> {
-		const policy = await ctx.ui.select("Execution model", ["Current provider/model/thinking", "Saved plan execution default", "Choose for this run", "Choose and save as plan execution default"]);
-		if (policy === "Current provider/model/thinking") return snapshotModel(ctx);
-		if (policy === "Saved plan execution default") return loadPlanModeConfig(agentDir).executionModel;
-		if (policy === "Choose for this run") return chooseModel(ctx, false);
-		if (policy === "Choose and save as plan execution default") return chooseModel(ctx, true);
-		return undefined;
-	}
-	async function resolveTmuxSession(): Promise<string | undefined> {
+	async function resolveTmuxTarget(): Promise<TmuxTarget | undefined> {
 		if (!process.env.TMUX || !process.env.TMUX_PANE) return undefined;
 		try {
-			const result = await pi.exec("tmux", ["display-message", "-p", "-t", process.env.TMUX_PANE, "#{session_name}"], { timeout: 3_000 });
-			return result.code === 0 && result.stdout.trim() ? result.stdout.trim() : undefined;
+			const result = await pi.exec("tmux", ["display-message", "-p", "-t", process.env.TMUX_PANE, "#{session_name}\t#{window_id}\t#{pane_id}"], { timeout: 3_000 });
+			const [session, window, pane] = result.stdout.trim().split("\t");
+			return result.code === 0 && session && window && pane ? { session, window, pane } : undefined;
 		} catch { return undefined; }
+	}
+	async function executionSettings(ctx: ExtensionContext, tmux: TmuxTarget | undefined): Promise<ExecutionSettings | undefined> {
+		const current = snapshotModel(ctx);
+		const saved = loadPlanModeConfig(agentDir).executionModel;
+		const candidates = executionCandidates(ctx, current, saved);
+		let settings = createExecutionSettings(current);
+		return ctx.ui.custom<ExecutionSettings | undefined>((tui, theme, _kb, done) => {
+			const destinations: { value: ExecutionDestination; label: string }[] = [
+				{ value: "current", label: "Current Pi session" },
+				{ value: "clipboard", label: "Copy plan to clipboard" },
+				...(tmux ? [{ value: "tmux-pane" as const, label: "Detached pane in current tmux window" }, { value: "tmux-window" as const, label: "Detached window in current tmux session" }] : []),
+			];
+			let list: SettingsList;
+			const refresh = () => { list = new SettingsList(items(), 10, getSettingsListTheme(), change, () => done(undefined)); tui.requestRender(); };
+			const item = (id: string, label: string, currentValue: string, values: string[], description?: string): SettingItem => ({ id, label, currentValue, values, description });
+			const items = (): SettingItem[] => {
+				const destination = destinations.find((value) => value.value === settings.destination) ?? destinations[0]!;
+				const rows: SettingItem[] = [item("destination", "Destination", destination.label, destinations.map((value) => value.label))];
+				if (settings.destination !== "clipboard") rows.push(item("policy", "Model policy", settings.modelPolicy === "current" ? "Current session model" : settings.modelPolicy === "saved" ? "Saved plan default" : "Choose model", ["Current session model", "Saved plan default", "Choose model"]));
+				if (settings.destination !== "clipboard" && settings.modelPolicy === "choose") {
+					const providers = [...new Set(candidates.map((candidate) => candidate.provider))];
+					const provider = providers.includes(settings.provider ?? "") ? settings.provider! : providers[0] ?? "(none)";
+					const models = candidates.filter((candidate) => candidate.provider === provider);
+					const model = models.some((candidate) => candidate.model === settings.model) ? settings.model! : models[0]?.model ?? "(none)";
+					const candidate = candidateFor(candidates, provider, model);
+					const thinking = candidate?.thinkingLevels.includes(settings.thinkingLevel as ThinkingLevel) ? settings.thinkingLevel! : candidate?.thinkingLevels[0] ?? "(none)";
+					settings = { ...settings, provider, model, thinkingLevel: thinking === "(none)" ? undefined : thinking as ThinkingLevel };
+					rows.push(item("provider", "Provider", provider, providers), item("model", "Model", model, models.map((candidate) => candidate.model)), item("thinking", "Thinking", thinking, candidate?.thinkingLevels ?? []), item("save", "Save as plan default", settings.saveDefault ? "Yes" : "No", ["No", "Yes"]));
+				}
+				rows.push(item("execute", "Action", "Execute", ["Execute"], "Starts only after this screen validates."), item("cancel", "Action", "Cancel", ["Cancel"], "Leaves the ready plan unchanged."));
+				return rows;
+			};
+			const change = (id: string, value: string) => {
+				if (id === "execute") return done(settings);
+				if (id === "cancel") return done(undefined);
+				if (id === "destination") settings = { ...settings, destination: destinations.find((item) => item.label === value)?.value ?? settings.destination };
+				else if (id === "policy") settings = { ...settings, modelPolicy: value === "Current session model" ? "current" : value === "Saved plan default" ? "saved" : "choose" };
+				else if (id === "provider") settings = { ...settings, provider: value, model: undefined, thinkingLevel: undefined };
+				else if (id === "model") settings = { ...settings, model: value, thinkingLevel: undefined };
+				else if (id === "thinking") settings = { ...settings, thinkingLevel: value as ThinkingLevel };
+				else if (id === "save") settings = { ...settings, saveDefault: value === "Yes" };
+				refresh();
+			};
+			const container = new Container();
+			container.addChild({ render: () => [theme.fg("accent", theme.bold("Execution settings")), theme.fg("dim", "↑↓ select • enter/space cycle • esc cancel"), ""], invalidate() {} });
+			refresh();
+			container.addChild({ render: (width: number) => list.render(width), invalidate: () => list.invalidate(), handleInput: (data: string) => list.handleInput(data) });
+			return { render: (width) => container.render(width), invalidate: () => container.invalidate(), handleInput: (data) => { if (matchesKey(data, Key.escape) || matchesKey(data, "ctrl+c")) return done(undefined); list.handleInput(data); tui.requestRender(); } };
+		});
 	}
 	async function beginExecution(ctx: ExtensionContext, model: ModelSnapshot): Promise<void> {
 		if (!state.steps.length || !isModelSnapshot(model)) return;
 		const resolved = ctx.modelRegistry.find(model.provider, model.model);
 		if (!resolved) return ctx.ui.notify(`Execution model ${model.provider}/${model.model} is unavailable.`, "warning");
-		if (!state.planningModel) state = { ...state, planningModel: snapshotModel(ctx) };
+		const planningModel = state.planningModel ?? snapshotModel(ctx);
 		if (!(await setExecutionModelPreservingDefaults(pi, ctx, model, agentDir))) return ctx.ui.notify(`Execution model ${model.provider}/${model.model} is unavailable or unauthenticated.`, "warning");
-		state = { ...state, phase: "executing", accessMode: "none", executionModel: model, awaitingReview: false, resumeAfterRevision: false, completionRequested: false };
+		state = { ...state, planningModel, phase: "executing", accessMode: "none", executionModel: model, awaitingReview: false, resumeAfterRevision: false, completionRequested: false };
 		executionTools(); persist(); showPlan(ctx);
 		pi.sendMessage({ customType: "plan-execution-context", content: `[PLAN EXECUTION]\n${planContext()}\n\nExecute pending steps in order. Call plan_step immediately after each completed or skipped step. If scope or blockers alter pending work, call plan_update. After every step is terminal, call plan_complete with outcome, end state, verification, deviations, and next steps.`, display: true }, { triggerTurn: true, deliverAs: "followUp" });
 	}
 	async function executeWizard(ctx: ExtensionContext): Promise<void> {
-		const tmuxSession = await resolveTmuxSession();
-		const destination = await ctx.ui.select("Execute ready plan", [...(tmuxSession ? ["Continue in this Pi session", "Open a new tmux window"] : ["Continue in this Pi session"]), "Copy plan to clipboard", "Cancel and stay planning"]);
-		if (destination === "Copy plan to clipboard") {
-			await copyToClipboard(renderPlanMarkdown(state));
-			ctx.ui.notify("Plan copied to the clipboard.", "info");
-			return;
-		}
-		if (!destination || destination === "Cancel and stay planning") return;
-		const model = await chooseExecutionPolicy(ctx);
-		if (!model || !ctx.modelRegistry.find(model.provider, model.model)) return;
-		if (destination === "Continue in this Pi session") return beginExecution(ctx, model);
-		if (!tmuxSession) return;
-		const packetPath = writeExecutionPacket(agentDir, { version: 1, plan: { ...state, phase: "executing", accessMode: "none" }, markdown: renderPlanMarkdown(state), source: { sessionId, cwd: ctx.cwd, tmuxSession }, model });
+		const tmux = await resolveTmuxTarget();
+		const settings = await executionSettings(ctx, tmux);
+		if (!settings) return;
+		const resolution = resolveExecutionSettings(settings, snapshotModel(ctx), loadPlanModeConfig(agentDir).executionModel, executionCandidates(ctx, snapshotModel(ctx), loadPlanModeConfig(agentDir).executionModel));
+		if (!resolution.ok) return ctx.ui.notify(resolution.error, "warning");
+		if (resolution.value.destination === "clipboard") { await copyToClipboard(renderPlanMarkdown(state)); ctx.ui.notify("Plan copied to the clipboard.", "info"); return; }
+		const model = resolution.value.model!;
+		if (resolution.value.saveDefault) savePlanModeConfig(model, agentDir);
+		if (resolution.value.destination === "current") return beginExecution(ctx, model);
+		if (!tmux) return;
+		const packetPath = writeExecutionPacket(agentDir, { version: 1, plan: { ...state, phase: "executing", accessMode: "none" }, markdown: renderPlanMarkdown(state), source: { sessionId, cwd: ctx.cwd, tmuxSession: tmux.session }, model });
+		const args = resolution.value.destination === "tmux-pane" ? buildTmuxDetachedPaneArgs(tmux, ctx.cwd, packetPath, model) : buildTmuxNewWindowArgs(tmux, ctx.cwd, packetPath, model);
 		try {
-			const launch = await pi.exec("tmux", buildTmuxNewWindowArgs(tmuxSession, ctx.cwd, packetPath, model), { timeout: 5_000 });
-			if (launch.code !== 0) {
-				deleteExecutionPacket(agentDir, packetPath);
-				return ctx.ui.notify(`Could not launch tmux handoff: ${launch.stderr.trim() || "tmux failed"}`, "warning");
-			}
+			const launch = await pi.exec("tmux", args, { timeout: 5_000 });
+			if (launch.code !== 0) throw new Error(launch.stderr.trim() || "tmux failed");
 		} catch (error) {
 			deleteExecutionPacket(agentDir, packetPath);
 			return ctx.ui.notify(`Could not launch tmux handoff: ${error instanceof Error ? error.message : "tmux failed"}`, "warning");

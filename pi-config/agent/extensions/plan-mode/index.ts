@@ -162,7 +162,7 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 		const current = snapshotModel(ctx);
 		const saved = loadPlanModeConfig(agentDir).executionModel;
 		const candidates = executionCandidates(ctx, current, saved);
-		let settings = createExecutionSettings(current);
+		let settings = createExecutionSettings(current, tmux ? "tmux-pane" : "current", "saved");
 		return ctx.ui.custom<ExecutionSettings | undefined>((tui, theme, _kb, done) => {
 			const destinations: { value: ExecutionDestination; label: string }[] = [
 				{ value: "current", label: "Current Pi session" },

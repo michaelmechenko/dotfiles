@@ -34,10 +34,10 @@ export function candidateFor(candidates: ModelCandidate[], provider?: string, mo
 	return candidates.find((candidate) => candidate.provider === provider && candidate.model === model);
 }
 
-export function createExecutionSettings(current?: ModelSnapshot): ExecutionSettings {
+export function createExecutionSettings(current?: ModelSnapshot, destination: ExecutionDestination = "current", modelPolicy: ModelPolicy = "current"): ExecutionSettings {
 	return {
-		destination: "current",
-		modelPolicy: "current",
+		destination,
+		modelPolicy,
 		provider: current?.provider,
 		model: current?.model,
 		thinkingLevel: current?.thinkingLevel,

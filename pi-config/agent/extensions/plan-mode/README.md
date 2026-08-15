@@ -31,7 +31,7 @@ After Pi settles from an interrupted execution, the existing resume, recalibrate
 
 ## Execution models
 
-The execution settings screen offers current provider/model/thinking, the saved plan execution default, or a one-run provider/model/thinking choice. A separate `Save as plan default` toggle applies only to the chosen model. Clipboard hides irrelevant model controls and does not resolve or mutate model state.
+The execution settings screen defaults to a detached pane in the current tmux window and the saved plan execution default. Outside tmux, the destination falls back to the current Pi session. It also offers current provider/model/thinking or a one-run provider/model/thinking choice. A separate `Save as plan default` toggle applies only to the chosen model. Clipboard hides irrelevant model controls and does not resolve or mutate model state.
 
 The saved default is only `agent/plan-mode.json`'s `executionModel`; it never changes Pi's global `defaultProvider` or `defaultModel`. Temporary current-session switches use Pi's public model APIs so session history stays correct, then restore the global defaults through `SettingsManager`. A forced process kill between those operations is the narrow remaining window where Pi's global defaults can be left temporarily changed.
 

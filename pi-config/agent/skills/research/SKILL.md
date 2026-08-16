@@ -3,10 +3,12 @@ name: research
 description: Investigate a question against high-trust primary sources and capture the findings as a Markdown file in the repo. Use when the user wants a topic researched, docs or API facts gathered, or reading legwork delegated to an isolated subagent.
 ---
 
-Delegate the research to an isolated subagent (the `subagent` tool, `agent: "worker"`) so the reading and source-following happens in its own context window instead of polluting the main conversation.
+Delegate deep research to an isolated `subagent` with `agent: "researcher"`, so source-following stays out of the parent context.
 
-Its job:
+Give it a compact task contract: the research question, scope, required primary sources, target Markdown path, and decision the parent needs to make. It must:
 
-1. Investigate the question against **primary sources** — official docs, source code, specs, first-party APIs — not a secondary write-up of them. Follow every claim back to the source that owns it.
-2. Write the findings to a single Markdown file, citing each claim's source.
-3. Save it where the repo already keeps such notes; match the existing convention, and if there is none, put it somewhere sensible and say where.
+1. Investigate against **primary sources** — official docs, source code, specs, first-party APIs — not secondary summaries. Follow each claim to the owning source.
+2. Write one detailed cited Markdown brief at the agreed repository path.
+3. Return only a compact handoff: brief path, key findings, recommendation, and material gaps.
+
+Keep the parent responsible for the final decision and any code changes. Do not delegate trivial lookups or concurrent writing work.

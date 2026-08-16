@@ -192,10 +192,10 @@ and the repo-root `.gitignore` entry for `agent/extensions/*/node_modules`).
 
 `agent/agents/*.md` and `agent/prompts/*.md` back the `subagent` extension:
 
-- **Agents** (user-level, always loaded): `scout` (fast recon, OpenCode GPT-5.6 Luna), `planner` (implementation plans, OpenCode GPT-5.6 Luna), `reviewer` (code review, OpenCode GPT-5.6 Terra), `worker` (general-purpose, OpenCode GPT-5.6 Terra, full tools).
+- **Agents** (user-level, always loaded): `scout` (fast recon, OpenCode GPT-5.6 Luna), `planner` (implementation plans, OpenCode GPT-5.6 Luna), `reviewer` (code review, OpenCode GPT-5.6 Terra), `researcher` (primary-source cited briefs with compact handoffs, OpenCode GPT-5.6 Terra), `worker` (bounded implementation, OpenCode GPT-5.6 Terra, full tools).
 - **Prompts** (workflow presets): `/implement` (scout → planner → worker), `/scout-and-plan` (scout → planner), `/implement-and-review` (worker → reviewer → worker).
 
-Project-local `.pi/agents/*.md` only load if a subagent call passes `agentScope: "both"` or `"project"` — see `extensions/subagent/README.md`.
+Project-local `.pi/agents/*.md` only load if a subagent call passes `agentScope: "both"` or `"project"`. The foreground-only runner projects throttled child state through Pi's default tool shell, bounds output and runtime, and uses mode-0600 temporary task files; see `extensions/subagent/README.md`.
 
 **`heyhuynhgiabuu/pi-task` was evaluated and not vendored.** It adds background (non-blocking) tasks
 with tmux/HerdR pane observability, restart-recovery, and durable resumable `conversation_id` subagent

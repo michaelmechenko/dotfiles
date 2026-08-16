@@ -35,21 +35,17 @@ plugins=(macos zsh-syntax-highlighting zsh-autosuggestions)
 
 source $ZSH/oh-my-zsh.sh
 
-# Tab: insert the first match immediately when there are fewer than
-# TAB_MENU_THRESHOLD candidates (skip the list); at or above the threshold, fall
-# back to oh-my-zsh's default completion behavior (list first, select on
-# repeated Tab) - blindly picking "whichever sorts first" isn't useful once the
-# match set is huge. Implemented as a custom completion widget (rather than
-# `setopt menu_complete`, which can't be made conditional on match count) that
-# wraps the same `_main_complete` the stock Tab binding uses, then forces menu
-# completion via `compstate[insert]=menu` only when under threshold.
+# Tab's no-autosuggestion fallback: insert the first match immediately when there
+# are fewer than TAB_MENU_THRESHOLD candidates (skip the list); at or above the
+# threshold, fall back to oh-my-zsh's default completion behavior (list first,
+# select on repeated Tab). This custom completion widget wraps the same
+# `_main_complete` the stock Tab binding uses, then forces menu completion via
+# `compstate[insert]=menu` only when under the threshold.
 TAB_MENU_THRESHOLD=65
 
 typeset -g _PRE_TAB_BUFFER="" _PRE_TAB_CURSOR=0
 
 _tab_complete_threshold() {
-  _PRE_TAB_BUFFER=$BUFFER
-  _PRE_TAB_CURSOR=$CURSOR
   _main_complete "$@"
   if (( compstate[nmatches] > 0 && compstate[nmatches] < TAB_MENU_THRESHOLD )); then
     compstate[insert]=menu
@@ -58,18 +54,14 @@ _tab_complete_threshold() {
 zle -C tab-complete-threshold complete-word _tab_complete_threshold
 bindkey '^I' tab-complete-threshold
 
-# Backspace immediately after Tab restores the buffer to its pre-Tab state
-# (undoes the completion) instead of deleting a single character. $LASTWIDGET
-# is zsh's own read-only "name of the previously executed widget" parameter,
-# so this is naturally one-shot: a second consecutive Backspace sees
-# $LASTWIDGET as this same widget and falls through to a normal delete.
-# Compares against whatever is *currently* bound to Tab rather than the
-# hardcoded widget name, since fzf's shell integration (sourced below) wraps
-# it in its own `fzf-completion` widget and becomes the one ZLE actually
-# dispatches on Tab.
+# Backspace immediately after Shift+Tab restores the buffer to its pre-completion
+# state instead of deleting a single character. $LASTWIDGET is zsh's own
+# read-only "name of the previously executed widget" parameter, so this is
+# naturally one-shot: a second consecutive Backspace sees this widget and falls
+# through to a normal delete. The final Shift+Tab dispatcher is installed after
+# fzf below.
 _tab_undo_backspace() {
-  local tab_widget=${${(z)$(bindkey '^I')}[2]}
-  if [[ $LASTWIDGET == $tab_widget ]]; then
+  if [[ $LASTWIDGET == _tab_autosuggest_or_complete ]]; then
     BUFFER=$_PRE_TAB_BUFFER
     CURSOR=$_PRE_TAB_CURSOR
   else
@@ -97,6 +89,34 @@ alias el="nvim +'Neotree filesystem reveal float reveal_force_cwd'"
 # export ARCHFLAGS="-arch x86_64"
 
 eval "$(fzf --zsh)"
+
+# Plain Tab uses zsh's native list-then-menu flow. AUTO_LIST displays an
+# ambiguous set on the first press; AUTO_MENU cycles it on repeated presses.
+# Disable LIST_AMBIGUOUS so a shared prefix never suppresses that first list.
+# The named _generic context scopes no-select to this path, avoiding
+# oh-my-zsh's global interactive `menu select` redraw behavior.
+unsetopt list_ambiguous
+setopt auto_list auto_menu
+zle -C tab-ordinary complete-word _generic
+zstyle ':completion:tab-ordinary::::' menu 'auto no-select'
+bindkey '^I' tab-ordinary
+
+# Shift+Tab keeps the former Tab behavior. zsh-autosuggestions deliberately
+# ignores this underscore-prefixed widget, so it sees POSTDISPLAY before
+# completion clears it. With a suggestion, reuse Ctrl+E's whitespace-delimited
+# partial acceptance; otherwise delegate to fzf, whose captured fallback is
+# tab-complete-threshold above. Snapshot here so Backspace can undo either path.
+_tab_autosuggest_or_complete() {
+  _PRE_TAB_BUFFER=$BUFFER
+  _PRE_TAB_CURSOR=$CURSOR
+  if [[ -n $POSTDISPLAY ]]; then
+    zle _accept_word_or_eol
+  else
+    zle fzf-completion
+  fi
+}
+zle -N _tab_autosuggest_or_complete
+bindkey '^[[Z' _tab_autosuggest_or_complete
 
 # fzf colors → vague palette (applies to fzcd, tmux-fzf-url, fzf-tab, shell fzf).
 # bg/bg+/gutter/preview-bg = -1 (transparent). Left bar indicator via pointer=▌ #8787af.

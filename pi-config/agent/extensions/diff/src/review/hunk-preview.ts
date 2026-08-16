@@ -862,8 +862,8 @@ export async function renderUnified(
 				index++;
 				continue;
 			}
-			const totalWidth = Math.min(renderWidth, 72);
-			const padding = Math.max(0, totalWidth - label.length - 2);
+			const totalWidth = renderWidth;
+			const padding = Math.max(0, totalWidth - label.length);
 			const left = Math.floor(padding / 2);
 			const right = padding - left;
 			output.push(`${BG_BASE}${FG_DIM}${"─".repeat(left)}${label}${"─".repeat(right)}${RST}`);
@@ -925,7 +925,7 @@ export async function renderUnified(
 	}
 
 	if (diff.lines.length > visible.length) {
-		output.push(`${BG_BASE}${FG_DIM}  … ${diff.lines.length - visible.length} more lines${RST}`);
+		output.push(`${BG_BASE}${FG_DIM}  … ${diff.lines.length - visible.length} more lines — ctrl+o${RST}`);
 	}
 	return output.join("\n");
 }
@@ -1049,13 +1049,23 @@ export async function renderSplit(
 	}
 
 	for (const row of visible) {
+		if (row.left?.type === "sep" || row.right?.type === "sep") {
+			const separator = row.left?.type === "sep" ? row.left : row.right;
+			const label = separator ? sepLabelUnified(getSepStyle(), separator.hunkMeta, separator.newNum, separator.content) : "";
+			if (label) {
+				const padding = Math.max(0, renderWidth - label.length);
+				const left = Math.floor(padding / 2);
+				const right = padding - left;
+				output.push(`${BG_BASE}${FG_DIM}${"─".repeat(left)}${label}${"─".repeat(right)}${RST}`);
+			}
+			continue;
+		}
 		const isPairedChange = row.left?.type === "del" && row.right?.type === "add";
 		const wordDiff =
 			isPairedChange && row.left && row.right ? wordDiffAnalysis(row.left.content, row.right.content) : null;
 		const wordDiffBalanced = wordDiff && wordDiff.oldRanges.length > 0 && wordDiff.newRanges.length > 0;
-		const leftHighlight = row.left && row.left.type !== "sep" ? (leftHighlights[leftIndex++] ?? row.left.content) : "";
-		const rightHighlight =
-			row.right && row.right.type !== "sep" ? (rightHighlights[rightIndex++] ?? row.right.content) : "";
+		const leftHighlight = row.left ? (leftHighlights[leftIndex++] ?? row.left.content) : "";
+		const rightHighlight = row.right ? (rightHighlights[rightIndex++] ?? row.right.content) : "";
 		const leftHalf = buildHalf(
 			row.left,
 			leftHighlight,
@@ -1080,6 +1090,6 @@ export async function renderSplit(
 	}
 
 	if (rows.length > visible.length)
-		output.push(`${BG_BASE}${FG_DIM}  … ${rows.length - visible.length} more lines${RST}`);
+		output.push(`${BG_BASE}${FG_DIM}  … ${rows.length - visible.length} more lines — ctrl+o${RST}`);
 	return output.join("\n");
 }

@@ -196,7 +196,7 @@ export function getSepStyle(): HunkSeparatorStyle {
 /**
  * Generate a hunk separator label for the unified view.
  * Returns the full label including spacing, or an empty string when no useful label exists.
- * If `content` is non-empty, it is used directly (e.g. "───── Edit 2 ─────").
+ * If `content` is non-empty, it is used as a semantic label (e.g. "Edit 2").
  */
 export function sepLabelUnified(
 	style: HunkSeparatorStyle,
@@ -204,7 +204,7 @@ export function sepLabelUnified(
 	gap: number | null,
 	content?: string,
 ): string {
-	// Custom content (e.g. multi-edit separators) takes precedence
+	// Custom content (e.g. a multi-edit label) takes precedence
 	if (content) return ` ${content} `;
 	const ctx = hunkMeta?.context;
 	switch (style) {
@@ -232,7 +232,7 @@ export function sepLabelUnified(
 /**
  * Generate a hunk separator label for the split view.
  * Returns useful context/gap labels without decorative ellipses.
- * If `content` is non-empty, it is used directly (e.g. "───── Edit 2 ─────").
+ * If `content` is non-empty, it is used as a semantic label (e.g. "Edit 2").
  */
 export function sepLabelSplit(
 	style: HunkSeparatorStyle,
@@ -240,7 +240,7 @@ export function sepLabelSplit(
 	gap: number | null,
 	content?: string,
 ): string {
-	// Custom content (e.g. multi-edit separators) takes precedence
+	// Custom content (e.g. a multi-edit label) takes precedence
 	if (content) return `${content}`;
 	const ctx = hunkMeta?.context;
 	switch (style) {

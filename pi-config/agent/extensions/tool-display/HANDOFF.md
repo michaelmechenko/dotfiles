@@ -50,7 +50,7 @@ Every custom tool frame should render:
 
 Every outer row must have exactly one plain space at both edges after ANSI-aware fitting. Status markers share one column. Line-number, tree, search, and diff gutters are interior content and must not change the outer frame padding.
 
-`ctrl+o` controls Pi call details. `ctrl+shift+o` controls extension-owned result details. Continuation hints should appear only where content is omitted.
+`ctrl+o` controls Pi result details. `ctrl+shift+o` controls extension-owned call/input details. Continuation hints should appear only where content is omitted.
 
 ## Recent control changes
 

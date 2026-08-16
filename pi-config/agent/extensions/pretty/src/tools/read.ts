@@ -18,7 +18,6 @@ import { fillToolBackground, fillToolCallBackground, renderFrameStatus, renderFi
 import { resolveTextCtor } from "../tui-text.js";
 import type { ReadDetails, RenderCtxLike, SdkToolDef, TextContent, ThemeLike } from "../types.js";
 import { wrapExecuteWithMetrics } from "./metrics.js";
-import { areToolResultsExpanded, RESULT_TOGGLE_HINT } from "../../../tool-display/state.js";
 import { cardEdgeColor, frameDivider, framePadding, frameResult, frameRow, frameRows, frameText } from "../../../tool-display/frame.js";
 
 type Result = AgentToolResult<Record<string, unknown>>;
@@ -129,7 +128,7 @@ export function registerReadTool(
 				const total = lines.length;
 				const filePath = String(d.filePath ?? "");
 				const skillName = getSkillName(filePath, d.content);
-				if (!areToolResultsExpanded()) {
+				if (!ctx.expanded) {
 					const previewCount = Math.min(total, 3);
 					const width = Math.max(1, tw - 7);
 					const preview = lines.slice(0, previewCount).map((line, index) => {
@@ -137,7 +136,7 @@ export function registerReadTool(
 						const code = line.length > width ? `${line.slice(0, Math.max(0, width - 1))}${FG_DIM}›${RST}` : line;
 						return `${TOOL_RESULT_INDENT}${FG_LNUM}${lineNo}${RST} ${FG_RULE}│${RST} ${code}`;
 					});
-					const more = total > previewCount ? `\n${TOOL_RESULT_INDENT}${FG_DIM}… ${total - previewCount} more lines — ${RESULT_TOGGLE_HINT}${RST}` : "";
+					const more = total > previewCount ? `\n${TOOL_RESULT_INDENT}${FG_DIM}… ${total - previewCount} more lines — ctrl+o${RST}` : "";
 					const summary = `${theme.fg("success", "✓")} ${FG_DIM}${total} lines${RST}`;
 					const rows = preview.map((line) => line);
 					if (more) rows.push(more.trimStart());

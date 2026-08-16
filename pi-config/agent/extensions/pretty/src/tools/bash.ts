@@ -8,7 +8,7 @@ import { fillToolBackground, renderFrameStatus, renderToolDuration, renderToolEr
 import { resolveTextCtor } from "../tui-text.js";
 import type { BashDetails, ComponentLike, RenderCtxLike, SdkToolDef, TextContent, ThemeLike } from "../types.js";
 import { wrapExecuteWithMetrics } from "./metrics.js";
-import { areToolResultsExpanded, previewResult, RESULT_TOGGLE_HINT } from "../../../tool-display/state.js";
+import { areToolCallsExpanded, CALL_TOGGLE_HINT, previewResult } from "../../../tool-display/state.js";
 import { cardEdgeColor, frameDivider, framePadding, frameResult, frameRow, frameRows, frameText } from "../../../tool-display/frame.js";
 
 type Result = AgentToolResult<Record<string, unknown>>;
@@ -79,7 +79,7 @@ export function registerBashTool(
 				const budget = Math.max(8, tw - 4);
 				const line0Budget = t ? Math.max(8, tw - 22) : budget;
 				const rows: string[] = [""];
-				if (ctx.expanded || cmdLines.length <= 2) {
+				if (areToolCallsExpanded() || cmdLines.length <= 2) {
 					rows.push(renderFrameStatus({ title: `$ ${fit(cmdLines[0], line0Budget)}${t}`, status, theme }));
 					for (let i = 1; i < cmdLines.length; i++) {
 						rows.push(`${TOOL_RESULT_INDENT}  ${fit(cmdLines[i], budget)}`);
@@ -87,7 +87,7 @@ export function registerBashTool(
 				} else {
 					rows.push(renderFrameStatus({ title: `$ ${fit(cmdLines[0], line0Budget)}${t}`, status, theme }));
 					rows.push(`${TOOL_RESULT_INDENT}  ${fit(cmdLines[1], budget)}`);
-					rows.push(`${TOOL_RESULT_INDENT}${theme.fg("dim", `… ${cmdLines.length - 2} more lines (${RESULT_TOGGLE_HINT})`)}`);
+					rows.push(`${TOOL_RESULT_INDENT}${theme.fg("dim", `… ${cmdLines.length - 2} more lines (${CALL_TOGGLE_HINT})`)}`);
 				}
 				return frameRows(rows, bg, tw);
 			};
@@ -100,7 +100,7 @@ export function registerBashTool(
 				let key: string | undefined;
 				(text as unknown as Record<string, unknown>).render = (w: number) => {
 					const width = Math.max(1, Math.floor(w || termWidth()));
-					const k = `bashCall:${ctx.expanded ? "1" : "0"}:${width}:${ctx.isError ? "1" : "0"}:${rawCmd.length}`;
+					const k = `bashCall:${areToolCallsExpanded() ? "1" : "0"}:${width}:${ctx.isError ? "1" : "0"}:${rawCmd.length}`;
 					if (key !== k) {
 						text.setText(buildHeader(width));
 						key = k;
@@ -135,7 +135,7 @@ export function registerBashTool(
 				const cleaned = stripBashExitStatusLine(d.text);
 				const output = isErr ? compactErrorLines(cleaned).join("\n") : cleaned;
 				const lineCount = output.split("\n").length;
-				const resultsExpanded = areToolResultsExpanded();
+				const resultsExpanded = !!ctx.expanded;
 				const info = [`${lineCount} lines`, renderToolDuration(result)]
 					.filter(Boolean)
 					.map((part) => theme.fg("dim", part))
@@ -149,13 +149,13 @@ export function registerBashTool(
 
 				const renderFn = (w: number) => {
 					if (!output.trim()) return frameResult(theme, w, [header], resultBg, edge);
-					const preview = previewResult(output, resultsExpanded ? Number.MAX_SAFE_INTEGER : 3);
+					const preview = previewResult(output, 3, resultsExpanded);
 					const out = [
 						frameDivider(theme, resultBg, w, edge),
 						frameRow(header, resultBg, w, edge),
 						...preview.body.split("\n").map((line: string) => frameRow(line, resultBg, w, edge)),
 					];
-					if (preview.remaining) out.push(frameRow(theme.fg("dim", `… ${preview.remaining} more lines (${RESULT_TOGGLE_HINT})`), resultBg, w, edge));
+					if (preview.remaining) out.push(frameRow(theme.fg("dim", `… ${preview.remaining} more lines (ctrl+o)`), resultBg, w, edge));
 					out.push(framePadding(resultBg, w, edge));
 					return out.join("\n");
 				};

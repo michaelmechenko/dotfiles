@@ -1105,8 +1105,8 @@ async function renderUnified(
 				idx++;
 				continue;
 			}
-			const totalW = Math.min(tw, 72);
-			const pad = Math.max(0, totalW - label.length - 2);
+			const totalW = tw;
+			const pad = Math.max(0, totalW - label.length);
 			const half1 = Math.floor(pad / 2),
 				half2 = pad - half1;
 			out.push(`${BG_BASE}${FG_DIM}${"─".repeat(half1)}${label}${"─".repeat(half2)}${RST}`);
@@ -1174,7 +1174,7 @@ async function renderUnified(
 	}
 
 	if (diff.lines.length > vis.length) {
-		out.push(`${BG_BASE}${FG_DIM}  … ${diff.lines.length - vis.length} more lines${RST}`);
+		out.push(`${BG_BASE}${FG_DIM}  … ${diff.lines.length - vis.length} more lines — ctrl+o${RST}`);
 	}
 	return out.join("\n");
 }
@@ -1301,6 +1301,17 @@ async function renderSplit(
 	out.push(`${BG_BASE}${hdrOld}${" ".repeat(Math.max(0, half - nw))}${hdrNew}`);
 
 	for (const r of vis) {
+		if (r.left?.type === "sep" || r.right?.type === "sep") {
+			const separator = r.left?.type === "sep" ? r.left : r.right;
+			const label = separator ? sepLabelUnified(getSepStyle(), separator.hunkMeta, separator.newNum, separator.content) : "";
+			if (label) {
+				const pad = Math.max(0, tw - label.length);
+				const left = Math.floor(pad / 2);
+				const right = pad - left;
+				out.push(`${BG_BASE}${FG_DIM}${"─".repeat(left)}${label}${"─".repeat(right)}${RST}`);
+			}
+			continue;
+		}
 		const leftLine = r.left,
 			rightLine = r.right;
 		const paired = leftLine && rightLine && leftLine.type === "del" && rightLine.type === "add";
@@ -1340,7 +1351,7 @@ async function renderSplit(
 	}
 
 	if (rows.length > vis.length) {
-		out.push(`${BG_BASE}${FG_DIM}  … ${rows.length - vis.length} more lines${RST}`);
+		out.push(`${BG_BASE}${FG_DIM}  … ${rows.length - vis.length} more lines — ctrl+o${RST}`);
 	}
 	return out.join("\n");
 }
@@ -1575,7 +1586,7 @@ export default async function diffRendererExtension(pi: ExtensionAPI): Promise<v
 						}),
 					parsed,
 					detectDiffLanguage(change.path),
-					MAX_PREVIEW_LINES,
+					resultPreviewLimit(MAX_PREVIEW_LINES, !!ctx.expanded),
 					theme,
 					ctx,
 					{ previewBottomPad: 0, compactGutter: true },
@@ -1619,7 +1630,7 @@ export default async function diffRendererExtension(pi: ExtensionAPI): Promise<v
 				}),
 			{ lines, added, removed, chars },
 			mixedLanguage ? undefined : language,
-			MAX_PREVIEW_LINES,
+			resultPreviewLimit(MAX_PREVIEW_LINES, !!ctx.expanded),
 			theme,
 			ctx,
 			{ previewBottomPad: 0, compactGutter: true },
@@ -1718,6 +1729,14 @@ export default async function diffRendererExtension(pi: ExtensionAPI): Promise<v
 		return ` ${theme.fg("muted", `(${diffLineCount} diff lines)`)}`;
 	}
 
+	function resultPreviewLimit(compactLimit: number, expanded: boolean): number {
+		return expanded ? Number.MAX_SAFE_INTEGER : compactLimit;
+	}
+
+	function diffContentKey(diff: ParsedDiff): string {
+		return JSON.stringify(diff.lines.map(({ type, oldNum, newNum, content, hunkMeta }) => [type, oldNum, newNum, content, hunkMeta]));
+	}
+
 	function setToolHeaderText(
 		text: { __piDiffTask?: unknown; setText(text: string): void; render?: (width: number) => string[] },
 		meta: string,
@@ -1752,6 +1771,7 @@ export default async function diffRendererExtension(pi: ExtensionAPI): Promise<v
 	): void {
 		clearToolHeaderBg(text);
 		const themeKey = sharedThemeCacheKey(theme);
+		const contentKey = diffContentKey(diff);
 		const colors = resolvePreviewDiffColors(theme);
 		const header = frame?.omitHeader
 			? (_width: number) => ""
@@ -1781,7 +1801,7 @@ export default async function diffRendererExtension(pi: ExtensionAPI): Promise<v
 			invalidate: ctx.invalidate,
 			key: (width: number) => {
 				const headerKey = frame?.omitHeader ? "" : header(width);
-				return `${keyPrefix}:${themeKey}:${width}:${headerKey}:${diff.lines.length}:${language ?? ""}:${frame?.omitHeader ? "oh" : "h"}:${frame?.headerLeftPad ?? 0}:${frame?.topPad ?? 0}:${frame?.bottomPad ?? 0}:${frame?.previewBottomPad ?? 0}:${frame?.compactGutter ? "cg" : "rg"}:${frame?.bodyLeftPad ?? 0}`;
+				return `${keyPrefix}:${themeKey}:${width}:${headerKey}:${contentKey}:${maxLines}:${language ?? ""}:${frame?.omitHeader ? "oh" : "h"}:${frame?.headerLeftPad ?? 0}:${frame?.topPad ?? 0}:${frame?.bottomPad ?? 0}:${frame?.previewBottomPad ?? 0}:${frame?.compactGutter ? "cg" : "rg"}:${frame?.bodyLeftPad ?? 0}`;
 			},
 			render: async (width: number) =>
 				joinHeaderBody(
@@ -1934,7 +1954,7 @@ export default async function diffRendererExtension(pi: ExtensionAPI): Promise<v
 			}
 			const d = result.details;
 			if (d?._type === "diff") {
-				setDiffPreviewTask(text, "wd", "", d.diff, d.language, MAX_RENDER_LINES, theme, ctx, {
+				setDiffPreviewTask(text, "wd", "", d.diff, d.language, resultPreviewLimit(MAX_RENDER_LINES, !!ctx.expanded), theme, ctx, {
 					omitHeader: true,
 					previewBottomPad: 0,
 					compactGutter: true,
@@ -2115,7 +2135,7 @@ export default async function diffRendererExtension(pi: ExtensionAPI): Promise<v
 												type: "sep" as const,
 												oldNum: null,
 												newNum: null,
-												content: `───── Edit ${i + 1} ─────`,
+												content: `Edit ${i + 1}`,
 											},
 										]
 									: []),
@@ -2188,7 +2208,7 @@ export default async function diffRendererExtension(pi: ExtensionAPI): Promise<v
 									type: "sep" as const,
 									oldNum: null,
 									newNum: null,
-									content: `───── Edit ${i + 1} ─────`,
+									content: `Edit ${i + 1}`,
 								},
 							]
 						: []),
@@ -2285,7 +2305,7 @@ export default async function diffRendererExtension(pi: ExtensionAPI): Promise<v
 			}
 			const d = result.details;
 			if (d?._type === "editInfo" && d.diff) {
-				setDiffPreviewTask(text, "ed", "", d.diff, d.language, MAX_PREVIEW_LINES, theme, ctx, {
+				setDiffPreviewTask(text, "ed", "", d.diff, d.language, resultPreviewLimit(MAX_PREVIEW_LINES, !!ctx.expanded), theme, ctx, {
 					omitHeader: true,
 					previewBottomPad: EDIT_DIFF_RESULT_FRAME.previewBottomPad,
 					compactGutter: true,
@@ -2297,7 +2317,7 @@ export default async function diffRendererExtension(pi: ExtensionAPI): Promise<v
 			if (d?._type === "multiEditInfo") {
 				const { editCount, diffLineCount, diff, language } = d;
 				if (diff) {
-					setDiffPreviewTask(text, "me", "", diff, language, MAX_PREVIEW_LINES, theme, ctx, {
+					setDiffPreviewTask(text, "me", "", diff, language, resultPreviewLimit(MAX_PREVIEW_LINES, !!ctx.expanded), theme, ctx, {
 						omitHeader: true,
 						previewBottomPad: EDIT_DIFF_RESULT_FRAME.previewBottomPad,
 						compactGutter: true,

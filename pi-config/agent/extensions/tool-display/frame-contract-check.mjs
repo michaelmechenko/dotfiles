@@ -7,6 +7,10 @@ const { access } = await import("node:fs/promises");
 await assert.rejects(access(resolve(root, "pretty/src/frame.ts")), /ENOENT/);
 const frame = await readFile(resolve(root, "tool-display/frame.ts"), "utf8");
 const diff = await readFile(resolve(root, "diff/src/index.ts"), "utf8");
+const hunkPreview = await readFile(resolve(root, "diff/src/review/hunk-preview.ts"), "utf8");
+const toolDisplayState = await readFile(resolve(root, "tool-display/state.ts"), "utf8");
+const toolDisplayIndex = await readFile(resolve(root, "tool-display/index.ts"), "utf8");
+const readTool = await readFile(resolve(root, "pretty/src/tools/read.ts"), "utf8");
 
 assert.match(frame, /export const FRAME_OUTER_INDENT = " ";/);
 assert.match(frame, /export const EDGE_GLYPH = "▌";/, "accent edge glyph must stay canonical");
@@ -37,6 +41,26 @@ assert.match(bash, /import \{ truncateToWidth \} from "@earendil-works\/pi-tui";
 assert.match(bash, /const resultBg = isErr \? theme\.getBgAnsi\?\.\("toolErrorBg"\) : theme\.getBgAnsi\?\.\("toolSuccessBg"\);/, "bash result rows must use an explicit semantic background");
 assert.match(bash, /frameDivider\(theme, resultBg, w(?:, edge)?\)/, "bash result divider must carry the result background");
 assert.match(bash, /cmdLines\.length - 2} more lines/, "collapsed multiline bash calls must show a continuation count");
+assert.match(bash, /areToolCallsExpanded\(\)/, "multiline bash calls must use extension-owned call state");
+assert.match(bash, /const resultsExpanded = !!ctx\.expanded;/, "bash results must use native expansion state");
+assert.match(bash, /more lines \(ctrl\+o\)/, "bash result continuation must name the native result shortcut");
+assert.match(readTool, /if \(!ctx\.expanded\)/, "read results must use native expansion state");
+assert.match(readTool, /more lines — ctrl\+o/, "read continuation must name the native result shortcut");
+
+assert.match(toolDisplayState, /callsExpanded: boolean/, "tool-display state must own call detail only");
+assert.match(toolDisplayState, /CALL_TOGGLE_HINT = "ctrl\+shift\+o"/, "call hint must name Ctrl+Shift+O");
+assert.doesNotMatch(toolDisplayState, /resultsExpanded|setToolsExpanded|refreshToolRows/, "tool-display state must not mutate native result expansion");
+assert.match(toolDisplayIndex, /toggleToolCallsExpanded\(\)/, "Ctrl+Shift+O must toggle call state");
+assert.doesNotMatch(toolDisplayIndex, /setToolsExpanded|refreshToolRows/, "Ctrl+Shift+O must not refresh native result rows");
+
+assert.match(diff, /function resultPreviewLimit\(compactLimit: number, expanded: boolean\)/, "diff must select a limit from native result state");
+assert.match(diff, /const contentKey = diffContentKey\(diff\);/, "diff cache keys must include content");
+assert.match(diff, /:\$\{contentKey\}:\$\{maxLines\}:/, "diff cache keys must include selected preview limit");
+assert.doesNotMatch(diff, /───── Edit \$\{i \+ 1\} ─────/, "multi-edit data must carry semantic labels only");
+assert.match(diff, /content: `Edit \$\{i \+ 1\}`/, "both multi-edit branches must emit semantic labels");
+assert.doesNotMatch(hunkPreview, /Math\.min\(renderWidth, 72\)/, "multi-edit dividers must not cap at 72 columns");
+assert.match(hunkPreview, /const totalWidth = renderWidth;/, "unified dividers must span the full result width");
+assert.match(hunkPreview, /row\.left\?\.type === "sep" \|\| row\.right\?\.type === "sep"/, "split rendering must own one full-width separator");
 
 const host = await readFile(resolve(root, "tool-display/host-decorator.ts"), "utf8");
 assert.match(host, /Symbol\.for\("@earendil-works\/pi-coding-agent:theme"\)/, "host decorator must read the shared theme singleton via its stable symbol");

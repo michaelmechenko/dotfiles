@@ -81,6 +81,13 @@ Custom outer framing is intentionally limited to the `read`, `bash`, and diff re
 - Cap lists at 5 items; beyond that, split into must-do vs. nice-to-have (or similarly ranked buckets)
 - No recap after finishing a task, no "let me know if you need anything else" closers
 
+## Tmux and parallel execution
+
+- Use the local `tmux` tool only for active-session work; select an exact managed job before `peek` or `mute`.
+- Do not poll tmux panes. Completion is durable and silence is an explicit one-shot notification; mute silence when it is expected.
+- Never terminate tmux sessions, windows, panes, or released plan workers automatically. Startup rollback may close only an exact ownership-tagged, unreleased worker pane.
+- Parallel plan workstreams must own disjoint paths and execute only their assigned steps. The source coordinator performs cross-workstream verification and closeout.
+
 ## Safety
 
 - Never expose secrets, tokens, credentials, or private keys

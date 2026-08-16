@@ -39,6 +39,12 @@ The saved default is only `agent/plan-mode.json`'s `executionModel`; it never ch
 
 Tmux is offered only inside a resolved tmux pane. The extension writes a mode-`0600`, one-time handoff file under `agent/plan-handoffs/`, then invokes detached `tmux new-window` or detached vertical `tmux split-window` below the source pane with argv and handoff/model environment variables only; plan text is never interpolated into shell source. Both preserve the source cwd and leave the source pane/window selected. The source becomes handed-off only after the child consumes the packet and writes a bounded acknowledgement; launch or acknowledgement failure deletes stale packet files and leaves the source plan ready. A choose-and-save default is persisted only after current-session model activation or tmux acknowledgement succeeds.
 
+## Parallel workstreams
+
+`plan_update` optionally accepts 2–6 workstreams. Each declares a unique lowercase `id`, title, objective, assigned plan-step numbers, and owned relative paths. Workstreams must partition every top-level step exactly once and their paths must not overlap. Plan state v5 maps assigned display numbers to stable internal step IDs; a recalibration or manual edit clears mappings unless it supplies a complete rebuilt workstream declaration.
+
+Parallel tmux execution creates one private packet and one detached, ownership-tagged window per stream in declaration order. Workers acknowledge startup first, then wait behind a shared release barrier. A failed launch removes packets and closes only exact tagged unreleased panes; released workers are never automatically terminated. Each worker writes an atomic closeout report. The source plan records the durable run reference and reconciles report availability on restart; the coordinator remains responsible for final cross-workstream verification and `plan_complete`.
+
 ## Configuration
 
 `agent/plan-mode.json` stores the plan execution default:
@@ -61,4 +67,5 @@ Unknown keys are preserved when the wizard saves a new execution default.
 cd ~/.config/pi-config/agent/extensions/plan-mode
 node --experimental-strip-types --test *.test.ts
 ./tmux-handoff-smoke-test.sh
+cd ../tmux && node --experimental-strip-types --test *.test.ts
 ```

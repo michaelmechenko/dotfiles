@@ -652,14 +652,18 @@ tmux / ps / lsof stalled" should be an observation, not a guess.
   Transcripts are located **by sessionId**, not by deriving the slug from a cwd —
   `projects/<slug>` collapses `/`, `.` **and** `_` all to `-`, so the mapping
   isn't reversible across path types.
-- **pi:** a pane whose direct child is pi (`comm == pi`, or Node running
-  `*/pi-coding-agent/dist/cli.js`) → that process's cwd → pi's
-  `--<cwd sans leading slash, remaining slashes as dashes>--` session directory
-  (dots stay literal) → the newest `*.jsonl` there.
+- **pi:** `extensions/session-state/` writes `/tmp/pi-session-state/<pid>.json`
+  atomically on every session start/reload/new/resume/fork. It holds the exact
+  session ID, transcript path, and cwd. The resolver validates that the record's
+  PID is a live pi process, that its cwd still matches, and that its session file
+  is inside pi's session store. A pi process may equal `pane_pid` after shell
+  `exec`, or be its direct child. Only unreloaded older pi instances use the
+  marked compatibility fallback: cwd → pi's `--<cwd sans leading slash,
+  remaining slashes as dashes>--` session directory → newest `*.jsonl`.
 
-**fsnotify** watches `claude/sessions/` and `/tmp/claude-session-state/`, so
-Claude state changes push rather than waiting for the next tick. pi has no
-equivalent file, which is why the periodic tick remains the backstop.
+**fsnotify** watches `claude/sessions/`, `/tmp/claude-session-state/`, and
+`/tmp/pi-session-state/`, so agent state changes push rather than waiting for
+the next tick. The periodic tick remains the backstop for legacy pi detection.
 
 **One deliberate behavior fix:** pi state was `idle` only when
 `pane_current_command == "pi"`, but pi is a Node CLI whose `comm` is `node` on

@@ -787,11 +787,11 @@ func (f *agentFeed) wait() tea.Cmd {
 	}
 }
 
-// watchCmd turns Claude's on-disk state into pushes. Claude Code writes live
-// status into claude/sessions/<pid>.json and the Notification hook writes/clears
-// /tmp/claude-session-state/<sessionId>, so watching both surfaces a state change
-// as soon as it happens instead of on the next poll. pi has no equivalent file,
-// which is why the periodic tick remains the backstop.
+// watchCmd turns agent on-disk state into pushes. Claude Code writes live status
+// into claude/sessions/<pid>.json and the Notification hook writes/clears
+// /tmp/claude-session-state/<sessionId>; pi publishes exact identity under
+// /tmp/pi-session-state/<pid>.json. Watching these surfaces updates rows without
+// waiting for the next poll; the periodic tick remains the legacy backstop.
 //
 // The watcher runs for the process lifetime and only ever triggers a sweep; it
 // never touches model state, so it needs no synchronization.

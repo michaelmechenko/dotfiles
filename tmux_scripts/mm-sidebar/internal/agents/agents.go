@@ -7,7 +7,8 @@
 // loop was a single blocking read, a keypress landing inside a sweep waited on
 // the whole thing.
 //
-// The join recipes themselves are unchanged -- they are ported, not redesigned:
+// Claude's recipe is ported. pi now prefers its authoritative PID-keyed runtime
+// registry, retaining the former cwd/newest recipe only for compatibility:
 //
 //   - Claude: a `claude` process's ppid IS its owning tmux pane's pane_pid.
 //     cwd is NOT a usable key (many sessions share one cwd). Live status comes
@@ -16,10 +17,9 @@
 //     Transcripts are located by sessionId (the projects/<slug> dir name
 //     collapses /, . and _ all to '-', so deriving the slug from a cwd is
 //     unreliable across path types).
-//   - pi: a pane whose direct child is pi (comm `pi`, or Node running
-//     */pi-coding-agent/dist/cli.js) -> that process's cwd -> pi's
-//     `--<cwd sans leading slash, remaining slashes as dashes>--` session
-//     directory (dots stay literal) -> the newest *.jsonl there.
+//   - pi: /tmp/pi-session-state/<pid>.json supplies the exact session ID and
+//     transcript. The process may be pane_pid after exec or a direct child. A
+//     validated cwd -> newest-transcript lookup remains only as fallback.
 //
 // What changed is the cost model. Per Resolve() in steady state:
 //
@@ -122,13 +122,15 @@ type Resolver struct {
 	claudeProjDir  string
 	claudeStateDir string
 	piSessDir      string
+	piStateDir     string
 
-	panePIDsKey string            // fingerprint of the current pane->pid set
-	piByPanePID map[int]piProc    // pane_pid -> resolved pi process (absent = probed, not pi)
-	probedCmd   map[int]string    // pane_pid -> pane_current_command as of the last sweep
-	cwdByPID    map[int]string    // pi pid -> cwd (stable for the process lifetime)
-	ppidByPID   map[int]int       // agent pid -> ppid (stable for the process lifetime)
-	transcript  map[string]string // claude sessionId -> transcript path
+	panePIDsKey   string            // fingerprint of the current pane->pid set
+	piRegistryKey string            // fingerprint of valid on-disk pi records
+	piByPanePID   map[int]piProc    // pane_pid -> resolved pi process (absent = probed, not pi)
+	probedCmd     map[int]string    // pane_pid -> pane_current_command as of the last sweep
+	cwdByPID      map[int]string    // pi pid -> cwd (stable for the process lifetime)
+	ppidByPID     map[int]int       // agent pid -> ppid (stable for the process lifetime)
+	transcript    map[string]string // claude sessionId -> transcript path
 }
 
 // nodeComm is what pi's process reports on releases that don't set their own
@@ -139,6 +141,13 @@ const nodeComm = "node"
 type piProc struct {
 	pid  int
 	comm string // argv[0] basename: "pi" on recent releases, "node" on older ones
+}
+
+type piRecord struct {
+	PID         int    `json:"pid"`
+	SessionID   string `json:"sessionId"`
+	SessionFile string `json:"sessionFile"`
+	Cwd         string `json:"cwd"`
 }
 
 // NewResolver builds a Resolver rooted at the standard config locations.
@@ -153,6 +162,7 @@ func NewResolver() *Resolver {
 		claudeProjDir:  filepath.Join(cfg, "claude", "projects"),
 		claudeStateDir: "/tmp/claude-session-state",
 		piSessDir:      filepath.Join(cfg, "pi-config", "agent", "sessions"),
+		piStateDir:     "/tmp/pi-session-state",
 		piByPanePID:    map[int]piProc{},
 		probedCmd:      map[int]string{},
 		cwdByPID:       map[int]string{},
@@ -166,7 +176,7 @@ func NewResolver() *Resolver {
 // writes/clears the permission-state files, so an fsnotify watch on both turns
 // agent-state updates into pushes instead of poll hits.
 func (r *Resolver) WatchDirs() []string {
-	return []string{r.claudeSessDir, r.claudeStateDir}
+	return []string{r.claudeSessDir, r.claudeStateDir, r.piStateDir}
 }
 
 // traceEnabled turns on per-phase timing to stderr (MMS_TRACE=1).
@@ -201,12 +211,14 @@ func (r *Resolver) Resolve() ([]Row, error) {
 	t = time.Now()
 	claudeSessions := r.readClaudeSessions()
 	trace("claude-sessions", t)
+	piRecords := r.readPiRecords()
+	registryKey := piRecordsKey(piRecords)
 
 	// Decide whether the process table is needed this round. It is the single
 	// priciest call here (~90ms, and 260ms on a loaded machine), so it only runs
 	// on an actual structural change.
 	key := panePIDsKey(panes)
-	needPS := key != r.panePIDsKey
+	needPS := key != r.panePIDsKey || registryKey != r.piRegistryKey
 	for _, s := range claudeSessions {
 		if _, ok := r.ppidByPID[s.PID]; !ok {
 			needPS = true
@@ -221,6 +233,7 @@ func (r *Resolver) Resolve() ([]Row, error) {
 		r.refreshProcessTable(panes, claudeSessions)
 		trace("process-table", t)
 		r.panePIDsKey = key
+		r.piRegistryKey = registryKey
 	}
 
 	byPanePID := make(map[int]tmuxio.PaneRow, len(panes))
@@ -230,18 +243,16 @@ func (r *Resolver) Resolve() ([]Row, error) {
 
 	rows := make([]Row, 0, len(claudeSessions)+len(r.piByPanePID))
 	rows = append(rows, r.claudeRows(claudeSessions, byPanePID)...)
-	rows = append(rows, r.piRows(panes)...)
+	rows = append(rows, r.piRows(panes, piRecords)...)
 	return rows, nil
 }
 
 // piSetChanged reports whether the set of pi processes may have changed without
 // the pane set changing -- the one structural event panePIDsKey cannot see.
 //
-// A pane's pane_pid is its SHELL's pid, so launching pi inside an already-open
-// pane changes no pane pid, and pi (unlike Claude) writes no session file whose
-// uncached ppid would force the sweep. The result was that a pi session started
-// in an existing pane never appeared at all until some unrelated pane happened
-// to open or close, and a quit pi left its row up just as long.
+// Registry changes now force a sweep for exact pi identity, but this remains the
+// no-registry backstop. A pane's pane_pid can remain its shell while pi starts
+// as a child, so its process may change without the pane-set fingerprint moving.
 //
 // Both directions are detected without a fork:
 //
@@ -384,40 +395,93 @@ func (r *Resolver) claudeTranscript(sessionID string) string {
 
 // ---- pi -------------------------------------------------------------------
 
-func (r *Resolver) piRows(panes []tmuxio.PaneRow) []Row {
+func (r *Resolver) piRows(panes []tmuxio.PaneRow, records map[int]piRecord) []Row {
 	var rows []Row
+	exactPanes := map[int]bool{}
 	for _, p := range panes {
 		proc, ok := r.piByPanePID[p.PanePID]
 		if !ok {
 			continue
 		}
-		cwd := r.cwdByPID[proc.pid]
-		if cwd == "" {
+		record, exact := records[proc.pid]
+		if exact && r.cwdByPID[proc.pid] == record.Cwd {
+			rows = append(rows, Row{
+				SessionID: record.SessionID, PaneID: p.PaneID, Target: p.Target,
+				SessionName: p.SessionName, State: piState(p.Command, proc.comm),
+				Name: "-", Transcript: record.SessionFile, WindowName: p.WindowName, Agent: AgentPi,
+			})
+			exactPanes[p.PanePID] = true
+		}
+	}
+	for _, p := range panes {
+		if exactPanes[p.PanePID] {
 			continue
 		}
+		proc, ok := r.piByPanePID[p.PanePID]
+		if !ok {
+			continue
+		}
+		cwd := r.cwdByPID[proc.pid]
 		transcript := r.piTranscript(cwd)
-		if transcript == "" {
+		if cwd == "" || transcript == "" {
 			continue
 		}
 		rows = append(rows, Row{
-			// pi exposes no stable session id to join on, so the pid stands in
-			// -- same convention as tmux-agent-ls.
-			SessionID:   "pi:" + strconv.Itoa(proc.pid),
-			PaneID:      p.PaneID,
-			Target:      p.Target,
-			SessionName: p.SessionName,
-			State:       piState(p.Command, proc.comm),
-			Name:        "-",
-			Transcript:  transcript,
-			WindowName:  p.WindowName,
-			Agent:       AgentPi,
+			SessionID: "pi:" + strconv.Itoa(proc.pid), PaneID: p.PaneID, Target: p.Target,
+			SessionName: p.SessionName, State: piState(p.Command, proc.comm),
+			Name: "-", Transcript: transcript, WindowName: p.WindowName, Agent: AgentPi,
 		})
 	}
 	return rows
 }
 
-// piState infers activity: pi has no live status file like Claude's
-// sessions/<pid>.json. The pane's foreground command being pi's own executable
+// readPiRecords is direct filesystem I/O only. Process identity and cwd are
+// verified later against the batched process/lsof caches before a row is shown.
+func (r *Resolver) readPiRecords() map[int]piRecord {
+	entries, err := os.ReadDir(r.piStateDir)
+	if err != nil {
+		return nil
+	}
+	records := map[int]piRecord{}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(r.piStateDir, entry.Name()))
+		if err != nil {
+			continue
+		}
+		var record piRecord
+		if json.Unmarshal(data, &record) != nil || record.PID <= 0 || record.SessionID == "" || record.Cwd == "" || record.SessionFile == "" {
+			continue
+		}
+		if entry.Name() != strconv.Itoa(record.PID)+".json" || !strings.HasPrefix(record.SessionFile, r.piSessDir+string(filepath.Separator)) {
+			continue
+		}
+		if info, err := os.Stat(record.SessionFile); err != nil || info.IsDir() {
+			continue
+		}
+		records[record.PID] = record
+	}
+	return records
+}
+
+func piRecordsKey(records map[int]piRecord) string {
+	keys := make([]int, 0, len(records))
+	for pid := range records {
+		keys = append(keys, pid)
+	}
+	sort.Ints(keys)
+	var b strings.Builder
+	for _, pid := range keys {
+		r := records[pid]
+		fmt.Fprintf(&b, "%d:%s:%s:%s\n", pid, r.SessionID, r.SessionFile, r.Cwd)
+	}
+	return b.String()
+}
+
+// piState infers activity. The registry carries identity, not activity, so the
+// pane's foreground command being pi's own executable
 // means pi is sitting at its prompt; anything else means pi has spawned a child
 // that is currently in the foreground.
 //
@@ -501,17 +565,22 @@ func (r *Resolver) refreshProcessTable(panes []tmuxio.PaneRow, sessions []claude
 	}
 	r.ppidByPID = next
 
-	// pi identity per pane: a direct child of the pane's process that is pi.
+	// pi identity per pane: pi may be pane_pid itself after exec, or a direct
+	// child while the pane's shell remains alive.
 	panePIDs := make(map[int]bool, len(panes))
 	for _, p := range panes {
 		panePIDs[p.PanePID] = true
 	}
 	nextPi := map[int]piProc{}
 	for pid, p := range procs {
-		if !panePIDs[p.ppid] || !isPiProcess(p.comm, p.args) {
+		if !isPiProcess(p.comm, p.args) {
 			continue
 		}
-		nextPi[p.ppid] = piProc{pid: pid, comm: p.comm}
+		if panePIDs[pid] {
+			nextPi[pid] = piProc{pid: pid, comm: p.comm}
+		} else if panePIDs[p.ppid] {
+			nextPi[p.ppid] = piProc{pid: pid, comm: p.comm}
+		}
 	}
 	r.piByPanePID = nextPi
 

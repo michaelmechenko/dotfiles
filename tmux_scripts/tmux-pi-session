@@ -1,43 +1,95 @@
 #!/bin/sh
-# Resolve the pi process and newest transcript for a tmux pane.
+# Resolve a pi process for a tmux pane.
 # Output: pid<TAB>cwd<TAB>transcript<TAB>session_id
+#
+# Exact resolution reads the PID-keyed registry published by pi's session-state
+# extension. Its session ID and transcript are authoritative even when several
+# pi processes share a cwd. Legacy mode falls back to cwd -> newest transcript
+# only for callers that predate the registry; use --exact for snapshots.
 
 set -f
 
+exact=false
+case ${1:-} in
+    --exact) exact=true; shift ;;
+esac
 pane_pid=${1:-}
 [ -n "$pane_pid" ] || exit 2
 
-PI_SESS_DIR="$HOME/.config/pi-config/agent/sessions"
+PI_SESS_DIR=${PI_SESS_DIR:-"$HOME/.config/pi-config/agent/sessions"}
+PI_STATE_DIR=${PI_STATE_DIR:-/tmp/pi-session-state}
 
-for candidate in $(pgrep -P "$pane_pid" 2>/dev/null || true); do
-    comm=$(ps -o comm= -p "$candidate" 2>/dev/null | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-    args=$(ps -ww -o args= -p "$candidate" 2>/dev/null | sed 's/^[[:space:]]*//')
+trim() {
+    sed 's/^[[:space:]]*//;s/[[:space:]]*$//'
+}
 
-    # Recent pi releases set their process name to pi. Older/current Node
-    # launches may retain node, so identify the CLI by its package path too.
+is_pi() {
+    candidate=$1
+    comm=$(ps -o comm= -p "$candidate" 2>/dev/null | trim)
+    args=$(ps -ww -o args= -p "$candidate" 2>/dev/null | trim)
     case "$comm:$args" in
-        pi:*|*:*/pi-coding-agent/dist/cli.js*) ;;
-        *) continue ;;
+        pi:*|*:*/pi-coding-agent/dist/cli.js*) return 0 ;;
     esac
+    return 1
+}
 
-    cwd=$(lsof -a -p "$candidate" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | tail -1)
-    [ -n "$cwd" ] || exit 1
+process_cwd() {
+    lsof -a -p "$1" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | tail -1
+}
 
+exact_record() {
+    candidate=$1
+    cwd=$2
+    record="$PI_STATE_DIR/$candidate.json"
+    [ -f "$record" ] || return 1
+
+    # Do not read the transcript itself. The record must belong to this live
+    # process and name an existing session file below pi's configured store.
+    parsed=$(jq -er --argjson pid "$candidate" --arg cwd "$cwd" --arg root "$PI_SESS_DIR/" '
+        select(.pid == $pid and .cwd == $cwd)
+        | select((.sessionId | type) == "string" and (.sessionId | length) > 0)
+        | select((.sessionFile | type) == "string" and (.sessionFile | startswith($root)))
+        | [.sessionFile, .sessionId] | @tsv
+    ' "$record" 2>/dev/null) || return 1
+    transcript=${parsed%%	*}
+    session_id=${parsed#*	}
+    [ "$transcript" != "$parsed" ] || return 1
+    [ -f "$transcript" ] || return 1
+    printf '%s\t%s\t%s\t%s\n' "$candidate" "$cwd" "$transcript" "$session_id"
+}
+
+legacy_record() {
+    candidate=$1
+    cwd=$2
     slug="--$(printf '%s' "${cwd#/}" | tr '/' '-')--"
     sess_dir="$PI_SESS_DIR/$slug"
-    [ -d "$sess_dir" ] || exit 1
-
+    [ -d "$sess_dir" ] || return 1
     transcript=$( (set +f; ls -t "$sess_dir"/*.jsonl 2>/dev/null | head -1) )
-    [ -f "$transcript" ] || exit 1
-
+    [ -f "$transcript" ] || return 1
     session_id=$(basename "$transcript" .jsonl | sed 's/^.*_//')
     printf '%s\t%s\t%s\t%s\n' "$candidate" "$cwd" "$transcript" "$session_id"
-    exit 0
+}
+
+# A pane can retain its shell (pi is a direct child) or exec-replace it (pi is
+# pane_pid). De-duplicate the latter shape before probing children.
+candidates="$pane_pid"
+kids=$(pgrep -P "$pane_pid" 2>/dev/null || true)
+[ -n "$kids" ] && candidates="$candidates $kids"
+
+for candidate in $candidates; do
+    is_pi "$candidate" || continue
+    cwd=$(process_cwd "$candidate")
+    [ -n "$cwd" ] || continue
+
+    exact_record "$candidate" "$cwd" && exit 0
+    "$exact" && exit 1
+    legacy_record "$candidate" "$cwd" && exit 0
 done
 
 exit 1
 
 # Diagnostic usage:
-#   tmux_scripts/tmux-pi-session <pane_pid>
-# It exits 0 and prints the resolved process/cwd/transcript/session id for pi,
-# and exits 1 for a non-pi pane or a pane without a transcript.
+#   tmux_scripts/tmux-pi-session [--exact] <pane_pid>
+# --exact succeeds only for a live matching pi process with a valid registry
+# record. The default retains the explicitly non-authoritative cwd/newest
+# fallback for unreloaded older pi processes.

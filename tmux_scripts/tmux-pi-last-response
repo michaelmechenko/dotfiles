@@ -3,11 +3,9 @@
 # split (side placement via tmux-claude-open-split — generic despite the
 # name, it just opens a given file to the right).
 #
-# pi has no live pid-keyed session-state file like Claude Code's
-# claude/sessions/<pid>.json, so the session is located by process tree + cwd
-# instead: tmux-pi-session identifies the pane's direct pi/Node child, converts
-# its cwd to pi's session-dir name (`--`, then its slash-separated path with
-# dashes, then `--`; dots remain literal), and selects the newest *.jsonl.
+# tmux-pi-session prefers pi's PID-keyed session-state registry, so it opens
+# the exact transcript for this process. Unreloaded older pi processes degrade
+# explicitly to its legacy cwd -> newest-transcript fallback.
 
 origin=$(tmux display -p '#{pane_id}')
 pane_pid=$(tmux display -p -t "$origin" '#{pane_pid}')

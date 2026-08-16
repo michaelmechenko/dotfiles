@@ -4,9 +4,8 @@
 # human-readable markdown tree, under ~/.config/tmux_sessions/. A pane running
 # Claude Code is recorded with its sessionId (recovered via the pane's process
 # tree -> ~/.config/claude/sessions/<pid>.json), and a pane running pi is
-# recorded with its session id (recovered the same way tmux-pi-last-response
-# does: direct `pi` child pid -> cwd via lsof -> pi's session-dir naming -> newest
-# *.jsonl's uuid). `tload` uses these to OFFER (not auto-run) a resume.
+# recorded with its exact session id from pi's PID-keyed runtime registry.
+# `tload` uses these to OFFER (not auto-run) a resume.
 #   usage: tsave [name]   (name defaults to a timestamp)
 
 set -e
@@ -53,11 +52,10 @@ claude_session() {
     return 0
 }
 
-# Echo the pi session id for a pane (given its pane_pid), or nothing. The
-# shared resolver handles both pi-named processes and Node processes running
-# pi's CLI; dots remain literal in pi's session-directory name.
+# Echo the exact pi session id for a pane (given its pane_pid), or nothing.
+# Snapshots must never serialize cwd/newest inference as authoritative.
 pi_session() {
-    info=$($HOME/.config/tmux_scripts/tmux-pi-session "$1" 2>/dev/null) || return 0
+    info=$($HOME/.config/tmux_scripts/tmux-pi-session --exact "$1" 2>/dev/null) || return 0
     printf '%s' "$(printf '%s' "$info" | awk -F '\t' '{print $4}')"
 }
 
@@ -84,7 +82,14 @@ tmux list-panes -a -F "$fmt" | while IFS="$TAB" read -r session widx wname layou
 
     csid=$(claude_session "$ppid")
     psid=""
-    [ -z "$csid" ] && psid=$(pi_session "$ppid")
+    if [ -z "$csid" ]; then
+        psid=$(pi_session "$ppid")
+        if [ -z "$psid" ]; then
+            case "$cmd" in
+                pi|node) printf 'tsave: unresolved pi pane %s (pid %s); no pi session saved\n' "$session:$widx.$pidx" "$ppid" >&2 ;;
+            esac
+        fi
+    fi
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
         "$session" "$widx" "$wname" "$layout" "$wactive" "$pidx" "$pactive" "$ppid" "$cwd" "$cmd" "$sid" "$title" "$csid" "$psid"
 done >"$tmp"

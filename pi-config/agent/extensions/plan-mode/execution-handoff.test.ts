@@ -28,7 +28,7 @@ test("detached tmux argv preserves cwd, source focus, and no plan text", () => {
 	const windowArgs = buildTmuxNewWindowArgs(target, "/tmp/project", "/tmp/handoff.json", model);
 	const paneArgs = buildTmuxDetachedPaneArgs(target, "/tmp/project", "/tmp/handoff.json", model);
 	assert.deepEqual(windowArgs.slice(0, 6), ["new-window", "-d", "-t", "work", "-c", "/tmp/project"]);
-	assert.deepEqual(paneArgs.slice(0, 7), ["split-window", "-d", "-h", "-t", "@4", "-c", "/tmp/project"]);
+	assert.deepEqual(paneArgs.slice(0, 7), ["split-window", "-d", "-v", "-t", "%9", "-c", "/tmp/project"]);
 	for (const args of [windowArgs, paneArgs]) {
 		assert.ok(args.includes("PI_PLAN_HANDOFF=/tmp/handoff.json"));
 		assert.match(args.at(-1) ?? "", /^pi --provider/);

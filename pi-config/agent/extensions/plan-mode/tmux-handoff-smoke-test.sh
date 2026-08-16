@@ -45,7 +45,7 @@ tmux -L "$socket" new-window -d -t source -c "$workdir" \
 [ "$(tmux -L "$socket" display-message -p '#{window_id}')" = "$window" ]
 
 handoff=$(packet)
-tmux -L "$socket" split-window -d -h -t "$window" -c "$workdir" \
+tmux -L "$socket" split-window -d -v -t "$pane" -c "$workdir" \
 	-e "PI_PLAN_HANDOFF=$handoff" -e 'PI_PLAN_PROVIDER=stub' -e 'PI_PLAN_MODEL=stub-model' -e 'PI_PLAN_THINKING=low' \
 	'pi --provider "$PI_PLAN_PROVIDER" --model "$PI_PLAN_MODEL" --thinking "$PI_PLAN_THINKING"'
 [ "$(tmux -L "$socket" display-message -p '#{pane_id}')" = "$pane" ]

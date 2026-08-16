@@ -85,9 +85,9 @@ export function buildTmuxNewWindowArgs(target: TmuxTarget, cwd: string, handoffP
 	return ["new-window", "-d", "-t", target.session, "-c", cwd, ...handoffEnvironment(handoffPath, model), handoffCommand()];
 }
 
-/** Detached horizontal split in the source window, preserving the source pane focus. */
+/** Detached vertical split below the source pane, preserving the source pane focus. */
 export function buildTmuxDetachedPaneArgs(target: TmuxTarget, cwd: string, handoffPath: string, model: ModelSnapshot): string[] {
-	return ["split-window", "-d", "-h", "-t", target.window, "-c", cwd, ...handoffEnvironment(handoffPath, model), handoffCommand()];
+	return ["split-window", "-d", "-v", "-t", target.pane, "-c", cwd, ...handoffEnvironment(handoffPath, model), handoffCommand()];
 }
 
 function isExecutionPacket(value: unknown): value is ExecutionPacket {

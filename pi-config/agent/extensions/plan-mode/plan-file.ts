@@ -79,6 +79,7 @@ export function readPlanFile(agentDir: string, sessionId: string): TodoItem[] {
 		const text = match[2].trim();
 		if (!text) continue;
 		items.push({
+			id: `file-${items.length + 1}`,
 			step: items.length + 1,
 			text,
 			completed: marker === "x" || marker === "X",
@@ -89,7 +90,7 @@ export function readPlanFile(agentDir: string, sessionId: string): TodoItem[] {
 	if (items.length === 0) {
 		// Fallback: parse as numbered list (old-style plan text)
 		const texts = parsePlanEditText(content);
-		return texts.map((text, i) => ({ step: i + 1, text, completed: false, skipped: false }));
+		return texts.map((text, i) => ({ id: `file-${i + 1}`, step: i + 1, text, completed: false, skipped: false }));
 	}
 
 	return items;

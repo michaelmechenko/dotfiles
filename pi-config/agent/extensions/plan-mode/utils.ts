@@ -101,6 +101,8 @@ export function isSafeCommand(command: string): boolean {
 }
 
 export interface TodoItem {
+	/** Stable internal identity; display numbering can change after plan edits. */
+	id: string;
 	step: number;
 	text: string;
 	completed: boolean;
@@ -141,7 +143,7 @@ export function extractTodoItems(message: string): TodoItem[] {
 		if (text.length > 5 && !text.startsWith("`") && !text.startsWith("/") && !text.startsWith("-")) {
 			const cleaned = cleanStepText(text);
 			if (cleaned.length > 3) {
-				items.push({ step: items.length + 1, text: cleaned, completed: false, skipped: false });
+				items.push({ id: `extracted-${items.length + 1}`, step: items.length + 1, text: cleaned, completed: false, skipped: false });
 			}
 		}
 	}
@@ -169,6 +171,7 @@ export function mergePlanSteps(existing: TodoItem[], newTexts: string[]): TodoIt
 	return newTexts.map((text, i) => {
 		const prev = byText.get(text.trim().toLowerCase());
 		return {
+			id: prev?.id ?? `edited-${i + 1}`,
 			step: i + 1,
 			text,
 			completed: prev?.completed ?? false,

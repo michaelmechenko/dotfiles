@@ -1,6 +1,7 @@
-import { getAgentDir, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { getAgentDir, SessionManager, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { StringEnum } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
+import { forkSessionAtCurrentPoint, launchForkPane } from "./fork.ts";
 import { attachInGhostty, createJob, launchJob, listJobs, muteJob, peekJob, reconcileJobs, resolveTmuxTarget, scheduleSilence, type TmuxExec } from "./runtime.ts";
 
 const Action = StringEnum(["run", "attach", "peek", "list", "mute"] as const);
@@ -56,6 +57,17 @@ export default function tmuxExtension(pi: ExtensionAPI): void {
 			return { content: [{ type: "text", text: `Started tmux job ${job.id} in ${job.window}/${job.pane}.` }], details: { job } };
 		},
 	});
+	pi.registerCommand("tmux:fork", { description: "Duplicate the current session into a new tmux pane", handler: async (_args, ctx) => {
+		await ctx.waitForIdle();
+		const resolved = await target(); if (!resolved) return ctx.ui.notify("/tmux:fork requires an active TMUX_PANE.", "warning");
+		const sessionFile = ctx.sessionManager.getSessionFile(); const leafId = ctx.sessionManager.getLeafId();
+		if (!sessionFile || !leafId) return ctx.ui.notify("The current session has not been saved yet.", "warning");
+		try {
+			const forkPath = forkSessionAtCurrentPoint((path, sessionDir) => SessionManager.open(path, sessionDir), sessionFile, leafId);
+			const launched = await launchForkPane(exec, resolved, forkPath);
+			ctx.ui.notify(`Forked the current session into pane ${launched.pane}.`, "info");
+		} catch (error) { ctx.ui.notify(error instanceof Error ? error.message : "Could not fork the session.", "warning"); }
+	} });
 	pi.registerCommand("tmux", { description: "Open a new Ghostty client attached to the active tmux session", handler: async (_args, ctx) => { const resolved = await target(); if (!resolved) return ctx.ui.notify("tmux requires an active TMUX_PANE.", "warning"); await attachInGhostty(systemExec, resolved); } });
 	pi.registerCommand("tmux:cat", { description: "Insert managed tmux job output into the editor", handler: async (args, ctx) => { const id = args.trim(); if (!id) return ctx.ui.notify("Usage: /tmux:cat <jobId>", "warning"); try { ctx.ui.pasteToEditor((await peekJob(exec, agentDir, id)).output); } catch (error) { ctx.ui.notify(error instanceof Error ? error.message : "Could not capture tmux job.", "warning"); } } });
 	pi.on("session_start", async (_event, ctx) => { await reconcile(ctx); for (const job of listJobs(agentDir)) schedule(ctx, job.id); });

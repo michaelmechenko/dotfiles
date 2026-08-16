@@ -1,6 +1,6 @@
 import { existsSync, unlinkSync } from "node:fs";
 import { dirname } from "node:path";
-import type { TmuxExec, TmuxTarget } from "./runtime.ts";
+import { spawnedPiCommand, splitDirectionArgs, type TmuxExec, type TmuxPaneDirection, type TmuxTarget } from "./runtime.ts";
 
 interface BranchSession { createBranchedSession(leafId: string): string | undefined; }
 type OpenSession = (sessionFile: string, sessionDir: string) => BranchSession;
@@ -13,17 +13,17 @@ export function forkSessionAtCurrentPoint(openSession: OpenSession, sessionFile:
 	return forkPath;
 }
 
-export function buildForkPaneArgs(target: TmuxTarget, forkPath: string): string[] {
+export function buildForkPaneArgs(target: TmuxTarget, forkPath: string, direction: TmuxPaneDirection = "below"): string[] {
 	return [
-		"split-window", "-d", "-v", "-P", "-F", "#{pane_id}\t#{window_id}",
+		"split-window", "-d", splitDirectionArgs(direction), "-P", "-F", "#{pane_id}\t#{window_id}",
 		"-t", target.pane, "-c", target.cwd,
 		"-e", `PI_TMUX_FORK_SESSION=${forkPath}`,
-		"pi --session \"$PI_TMUX_FORK_SESSION\"",
+		spawnedPiCommand("pi --session \"$PI_TMUX_FORK_SESSION\""),
 	];
 }
 
-export async function launchForkPane(exec: TmuxExec, target: TmuxTarget, forkPath: string): Promise<{ pane: string; window: string }> {
-	const result = await exec(buildForkPaneArgs(target, forkPath), 5_000);
+export async function launchForkPane(exec: TmuxExec, target: TmuxTarget, forkPath: string, direction: TmuxPaneDirection = "below"): Promise<{ pane: string; window: string }> {
+	const result = await exec(buildForkPaneArgs(target, forkPath, direction), 5_000);
 	if (result.code !== 0) {
 		try { unlinkSync(forkPath); } catch { /* rollback only the fork created for this launch */ }
 		throw new Error(result.stderr.trim() || "Could not launch the forked tmux pane.");

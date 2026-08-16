@@ -3,11 +3,17 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { boundOutput, createJob, jobPath, launchJob, listJobs, muteJob, reconcileJobs, resolveTmuxTarget, type TmuxExec } from "./runtime.ts";
+import { boundOutput, createJob, jobPath, launchJob, listJobs, muteJob, reconcileJobs, resolveTmuxTarget, spawnedPiCommand, splitDirectionArgs, type TmuxExec } from "./runtime.ts";
 
 const target = { session: "work", window: "@1", pane: "%2", cwd: "/tmp/work" };
 const calls: string[][] = [];
 const exec: TmuxExec = async (args) => { calls.push(args); if (args[0] === "display-message") return { code: 0, stdout: "work\t@1\t%2\t/tmp/work\n", stderr: "" }; if (args[0] === "new-window" || args[0] === "split-window") return { code: 0, stdout: "%9\t@8\n", stderr: "" }; return { code: 0, stdout: "log\n", stderr: "" }; };
+
+test("spawned Pi commands retain a login shell and split placement is explicit", () => {
+	assert.equal(spawnedPiCommand("pi --session x"), "pi --session x; exec \"${SHELL:-/bin/zsh}\" -l");
+	assert.equal(splitDirectionArgs("below"), "-v");
+	assert.equal(splitDirectionArgs("right"), "-h");
+});
 
 test("runtime resolves active target and launches a private argv-only job", async () => {
 	const dir = mkdtempSync(join(tmpdir(), "pi-tmux-")); const previous = process.env.TMUX; const previousPane = process.env.TMUX_PANE;

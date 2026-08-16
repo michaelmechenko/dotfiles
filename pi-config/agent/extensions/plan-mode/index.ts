@@ -1,6 +1,6 @@
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { getSupportedThinkingLevels, StringEnum, type AssistantMessage } from "@earendil-works/pi-ai";
-import { copyToClipboard, getAgentDir, getSettingsListTheme, SettingsManager, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { copyToClipboard, getAgentDir, getSettingsListTheme, SettingsManager, type ExtensionAPI, type ExtensionCommandContext, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Container, Key, matchesKey, type SettingItem, SettingsList, truncateToWidth } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { isModelSnapshot, loadPlanModeConfig, savePlanModeConfig } from "./config.ts";
@@ -73,6 +73,7 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 	let sessionId = "";
 	let handledStoppedAssistantTimestamp: number | undefined;
 	let workerReportPath: string | undefined;
+	let pendingCurrentPanePacket: { handoffPath: string; saveDefault: boolean } | undefined;
 	const agentDir = getAgentDir();
 
 	function availableTools(): string[] { return pi.getAllTools().map((tool) => tool.name); }
@@ -171,7 +172,7 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 			const destinations: { value: ExecutionDestination; label: string }[] = [
 				{ value: "current", label: "Current Pi session" },
 				{ value: "clipboard", label: "Copy plan to clipboard" },
-				...(tmux ? [{ value: "tmux-pane" as const, label: "Detached pane in current tmux window" }, { value: "tmux-window" as const, label: "Detached window in current tmux session" }] : []),
+				...(tmux ? [{ value: "tmux-current" as const, label: "New Pi session in current pane" }, { value: "tmux-pane" as const, label: "Detached pane in current tmux window" }, { value: "tmux-window" as const, label: "Detached window in current tmux session" }] : []),
 			];
 			let list: SettingsList;
 			let selectedId = "destination";
@@ -181,6 +182,7 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 				const destination = destinations.find((value) => value.value === settings.destination) ?? destinations[0]!;
 				const rows: SettingItem[] = [item("destination", "Destination", destination.label, destinations.map((value) => value.label))];
 				if (settings.destination !== "clipboard") rows.push(item("policy", "Model policy", settings.modelPolicy === "current" ? "Current session model" : settings.modelPolicy === "saved" ? "Saved plan default" : "Choose model", ["Current session model", "Saved plan default", "Choose model"]));
+				if (settings.destination === "tmux-pane") rows.push(item("direction", "Pane placement", settings.paneDirection === "right" ? "Right" : "Below", ["Below", "Right"]));
 				if (settings.destination !== "clipboard" && settings.modelPolicy === "choose") {
 					const providers = [...new Set(candidates.map((candidate) => candidate.provider))];
 					const provider = providers.includes(settings.provider ?? "") ? settings.provider! : providers[0] ?? "(none)";
@@ -200,6 +202,7 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 				if (id === "cancel") return done(undefined);
 				if (id === "destination") settings = { ...settings, destination: destinations.find((item) => item.label === value)?.value ?? settings.destination };
 				else if (id === "policy") settings = { ...settings, modelPolicy: value === "Current session model" ? "current" : value === "Saved plan default" ? "saved" : "choose" };
+				else if (id === "direction") settings = { ...settings, paneDirection: value === "Right" ? "right" : "below" };
 				else if (id === "provider") settings = { ...settings, provider: value, model: undefined, thinkingLevel: undefined };
 				else if (id === "model") settings = { ...settings, model: value, thinkingLevel: undefined };
 				else if (id === "thinking") settings = { ...settings, thinkingLevel: value as ThinkingLevel };
@@ -213,16 +216,26 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 			return { render: (width) => container.render(width), invalidate: () => container.invalidate(), handleInput: (data) => { if (matchesKey(data, Key.escape) || matchesKey(data, "ctrl+c")) return done(undefined); list.handleInput(data); tui.requestRender(); } };
 		});
 	}
-	async function beginExecution(ctx: ExtensionContext, model: ModelSnapshot): Promise<boolean> {
+	async function beginExecution(ctx: ExtensionContext, model: ModelSnapshot, source?: { sessionId: string; cwd: string; tmuxSession?: string }): Promise<boolean> {
 		if (!state.steps.length || !isModelSnapshot(model)) return false;
 		const resolved = ctx.modelRegistry.find(model.provider, model.model);
 		if (!resolved) { ctx.ui.notify(`Execution model ${model.provider}/${model.model} is unavailable.`, "warning"); return false; }
 		const planningModel = state.planningModel ?? snapshotModel(ctx);
 		if (!(await setExecutionModelPreservingDefaults(pi, ctx, model, agentDir))) { ctx.ui.notify(`Execution model ${model.provider}/${model.model} is unavailable or unauthenticated.`, "warning"); return false; }
-		state = { ...state, planningModel, phase: "executing", accessMode: "none", executionModel: model, executionSource: { sessionId, cwd: ctx.cwd }, awaitingReview: false, resumeAfterRevision: false, completionRequested: false };
+		const executionSource = source ?? { sessionId, cwd: ctx.cwd };
+		state = { ...state, planningModel, phase: "executing", accessMode: "none", executionModel: model, executionSource, awaitingReview: false, resumeAfterRevision: false, completionRequested: false };
 		executionTools(); persist(); showPlan(ctx);
-		pi.sendMessage({ customType: "plan-execution-kickoff", content: renderExecutionContext(state, { sessionId, cwd: ctx.cwd }), display: true }, { triggerTurn: true, deliverAs: "followUp" });
+		pi.sendMessage({ customType: "plan-execution-kickoff", content: renderExecutionContext(state, executionSource), display: true }, { triggerTurn: true, deliverAs: "followUp" });
 		return true;
+	}
+	async function replaceWithExecutionSession(ctx: ExtensionCommandContext, request: { handoffPath: string; saveDefault: boolean }): Promise<void> {
+		const parentSession = ctx.sessionManager.getSessionFile();
+		const result = await ctx.newSession({
+			parentSession,
+			setup: async (manager) => { manager.appendCustomEntry("plan-mode-new-session-execution", request); },
+			withSession: async (replacement) => { await replacement.sendUserMessage("/plan-review", { expandPromptTemplates: true }); },
+		});
+		if (result.cancelled) deleteExecutionPacket(agentDir, request.handoffPath);
 	}
 	async function executeWizard(ctx: ExtensionContext): Promise<void> {
 		const tmux = await resolveTmuxTarget();
@@ -235,6 +248,11 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 		if (resolution.value.destination === "current") { if (await beginExecution(ctx, model) && resolution.value.saveDefault) savePlanModeConfig(model, agentDir); return; }
 		if (!tmux) return;
 		const source = { sessionId, cwd: ctx.cwd, tmuxSession: tmux.session };
+		if (resolution.value.destination === "tmux-current") {
+			pendingCurrentPanePacket = { handoffPath: writeExecutionPacket(agentDir, { version: 2, plan: { ...state, phase: "executing", accessMode: "none" }, source, model }), saveDefault: resolution.value.saveDefault };
+			pi.sendUserMessage("/plan-review", { expandPromptTemplates: true });
+			return;
+		}
 		if (state.workstreams?.length) {
 			try {
 				const run = createParallelRun(agentDir, { ...state, phase: "executing", accessMode: "none" }, source, model);
@@ -245,7 +263,7 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 			return;
 		}
 		const packetPath = writeExecutionPacket(agentDir, { version: 2, plan: { ...state, phase: "executing", accessMode: "none" }, source, model });
-		const args = resolution.value.destination === "tmux-pane" ? buildTmuxDetachedPaneArgs(tmux, ctx.cwd, packetPath, model) : buildTmuxNewWindowArgs(tmux, ctx.cwd, packetPath, model);
+		const args = resolution.value.destination === "tmux-pane" ? buildTmuxDetachedPaneArgs(tmux, ctx.cwd, packetPath, model, resolution.value.paneDirection) : buildTmuxNewWindowArgs(tmux, ctx.cwd, packetPath, model);
 		try {
 			const launch = await pi.exec("tmux", args, { timeout: 5_000 });
 			if (launch.code !== 0) throw new Error(launch.stderr.trim() || "tmux failed");
@@ -276,7 +294,25 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 		if (sessionId) deletePlanFile(agentDir, sessionId);
 		persist(); updateUi(ctx);
 	}
-	async function reviewPlan(ctx: ExtensionContext): Promise<void> {
+	async function reviewPlan(ctx: ExtensionCommandContext): Promise<void> {
+		if (pendingCurrentPanePacket) {
+			const request = pendingCurrentPanePacket;
+			pendingCurrentPanePacket = undefined;
+			try { await replaceWithExecutionSession(ctx, request); } catch (error) { deleteExecutionPacket(agentDir, request.handoffPath); ctx.ui.notify(`Could not create the execution session: ${error instanceof Error ? error.message : "session replacement failed"}`, "warning"); }
+			return;
+		}
+		const request = [...ctx.sessionManager.getBranch()].reverse().find((entry) => entry.type === "custom" && entry.customType === "plan-mode-new-session-execution") as { data?: { handoffPath?: unknown; saveDefault?: unknown } } | undefined;
+		const handoffPath = typeof request?.data?.handoffPath === "string" ? request.data.handoffPath : undefined;
+		const saveDefault = request?.data?.saveDefault === true;
+		if (handoffPath && !state.steps.length) {
+			const packet = consumeExecutionPacket(agentDir, handoffPath);
+			if (!packet || !acknowledgeExecutionPacket(agentDir, handoffPath)) return ctx.ui.notify("The new-session execution handoff is unavailable.", "warning");
+			state = { ...packet.plan, version: 5, phase: "ready", accessMode: "none", awaitingReview: false, executionSource: packet.source, planningModel: undefined, toolsBeforePlan: pi.getActiveTools().filter((name) => !PLAN_EXECUTION_TOOLS.includes(name)) };
+			const started = await beginExecution(ctx, packet.model, packet.source);
+			if (started && saveDefault) savePlanModeConfig(packet.model, agentDir);
+			deleteExecutionPacket(agentDir, handoffPath);
+			return;
+		}
 		if (!state.steps.length) { enterPlan(ctx); return; }
 		if (state.parallelRun) {
 			const run = readParallelRun(agentDir, state.parallelRun.id);

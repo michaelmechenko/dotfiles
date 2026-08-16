@@ -4,7 +4,12 @@ import { join, resolve } from "node:path";
 export interface TmuxExecResult { code: number; stdout: string; stderr: string; }
 export type TmuxExec = (args: string[], timeout?: number) => Promise<TmuxExecResult>;
 export interface TmuxTarget { session: string; window: string; pane: string; cwd: string; }
+export type TmuxPaneDirection = "below" | "right";
 export type TmuxJobState = "running" | "completed" | "failed" | "muted";
+
+/** Static Pi launch commands remain usable after Pi exits without affecting managed job wrappers. */
+export function spawnedPiCommand(command: string): string { return `${command}; exec "\${SHELL:-/bin/zsh}" -l`; }
+export function splitDirectionArgs(direction: TmuxPaneDirection): "-v" | "-h" { return direction === "right" ? "-h" : "-v"; }
 export interface TmuxJob { version: 1; id: string; command: string; target: TmuxTarget; pane: string; window: string; createdAt: number; silenceSeconds?: number; silenceNotifiedAt?: number; state: TmuxJobState; exitCode?: number; muted: boolean; }
 export interface TmuxEvent { job: TmuxJob; kind: "completed" | "failed"; output: string; }
 

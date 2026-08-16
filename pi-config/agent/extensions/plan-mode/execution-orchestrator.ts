@@ -2,6 +2,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, unlinkSync,
 import { join } from "node:path";
 import type { ModelSnapshot, PlanState, Workstream } from "./plan-state.ts";
 import { acknowledgeExecutionPacket, deleteExecutionPacket, type ExecutionPacket, waitForExecutionAcknowledgement, writeExecutionPacket } from "./execution-handoff.ts";
+import { spawnedPiCommand } from "../tmux/runtime.ts";
 
 export interface WorkerTarget { pane: string; window: string; }
 export interface WorkerRecord { streamId: string; packetPath: string; releasePath: string; target?: WorkerTarget; acknowledged: boolean; reportPath: string; }
@@ -25,7 +26,7 @@ export async function launchParallelRun(exec: TmuxRunner, agentDir: string, run:
 	try {
 		for (const worker of current.workers) {
 			const stream = plan.workstreams.find((item) => item.id === worker.streamId)!;
-			const result = await exec(["new-window", "-d", "-P", "-F", "#{pane_id}\t#{window_id}", "-t", current.source.tmuxSession, "-c", current.source.cwd, "-e", `PI_PLAN_HANDOFF=${worker.packetPath}`, "-e", `PI_PLAN_PROVIDER=${current.model.provider}`, "-e", `PI_PLAN_MODEL=${current.model.model}`, "-e", `PI_PLAN_THINKING=${current.model.thinkingLevel}`, "-e", `PI_PLAN_STREAM=${stream.id}`, "pi --provider \"$PI_PLAN_PROVIDER\" --model \"$PI_PLAN_MODEL\" --thinking \"$PI_PLAN_THINKING\""]); if (result.code !== 0) throw new Error(result.stderr || "tmux worker launch failed");
+			const result = await exec(["new-window", "-d", "-P", "-F", "#{pane_id}\t#{window_id}", "-t", current.source.tmuxSession, "-c", current.source.cwd, "-e", `PI_PLAN_HANDOFF=${worker.packetPath}`, "-e", `PI_PLAN_PROVIDER=${current.model.provider}`, "-e", `PI_PLAN_MODEL=${current.model.model}`, "-e", `PI_PLAN_THINKING=${current.model.thinkingLevel}`, "-e", `PI_PLAN_STREAM=${stream.id}`, spawnedPiCommand("pi --provider \"$PI_PLAN_PROVIDER\" --model \"$PI_PLAN_MODEL\" --thinking \"$PI_PLAN_THINKING\"")]); if (result.code !== 0) throw new Error(result.stderr || "tmux worker launch failed");
 			const [pane, window] = result.stdout.trim().split("\t"); if (!pane || !window) throw new Error("tmux worker target was not returned");
 			const tagged = await exec(["set-option", "-p", "-t", pane, "@pi_plan_parallel_run", current.id], 3_000); if (tagged.code !== 0) throw new Error("could not tag worker pane");
 			current = { ...current, workers: current.workers.map((item) => item.streamId === stream.id ? { ...item, target: { pane, window } } : item) }; writeRun(agentDir, current);

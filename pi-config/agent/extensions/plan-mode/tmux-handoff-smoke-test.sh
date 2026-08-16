@@ -33,30 +33,40 @@ packet() {
 }
 
 tmux -L "$socket" -f /dev/null new-session -d -s source -c "$workdir"
-tmux -L "$socket" set-option -g remain-on-exit on
 pane=$(tmux -L "$socket" display-message -p '#{pane_id}')
 window=$(tmux -L "$socket" display-message -p '#{window_id}')
 
 handoff=$(packet)
 tmux -L "$socket" new-window -d -t source -c "$workdir" \
 	-e "PI_PLAN_HANDOFF=$handoff" -e 'PI_PLAN_PROVIDER=stub' -e 'PI_PLAN_MODEL=stub-model' -e 'PI_PLAN_THINKING=low' \
-	'pi --provider "$PI_PLAN_PROVIDER" --model "$PI_PLAN_MODEL" --thinking "$PI_PLAN_THINKING"'
+	'pi --provider "$PI_PLAN_PROVIDER" --model "$PI_PLAN_MODEL" --thinking "$PI_PLAN_THINKING"; exec /bin/sh -l'
 [ "$(tmux -L "$socket" display-message -p '#{pane_id}')" = "$pane" ]
 [ "$(tmux -L "$socket" display-message -p '#{window_id}')" = "$window" ]
 
 handoff=$(packet)
 tmux -L "$socket" split-window -d -v -t "$pane" -c "$workdir" \
 	-e "PI_PLAN_HANDOFF=$handoff" -e 'PI_PLAN_PROVIDER=stub' -e 'PI_PLAN_MODEL=stub-model' -e 'PI_PLAN_THINKING=low' \
-	'pi --provider "$PI_PLAN_PROVIDER" --model "$PI_PLAN_MODEL" --thinking "$PI_PLAN_THINKING"'
+	'pi --provider "$PI_PLAN_PROVIDER" --model "$PI_PLAN_MODEL" --thinking "$PI_PLAN_THINKING"; exec /bin/sh -l'
+[ "$(tmux -L "$socket" display-message -p '#{pane_id}')" = "$pane" ]
+[ "$(tmux -L "$socket" display-message -p '#{window_id}')" = "$window" ]
+
+handoff=$(packet)
+right=$(tmux -L "$socket" split-window -d -h -P -F '#{pane_id}' -t "$pane" -c "$workdir" \
+	-e "PI_PLAN_HANDOFF=$handoff" -e 'PI_PLAN_PROVIDER=stub' -e 'PI_PLAN_MODEL=stub-model' -e 'PI_PLAN_THINKING=low' \
+	'pi --provider "$PI_PLAN_PROVIDER" --model "$PI_PLAN_MODEL" --thinking "$PI_PLAN_THINKING"; exec /bin/sh -l')
 [ "$(tmux -L "$socket" display-message -p '#{pane_id}')" = "$pane" ]
 [ "$(tmux -L "$socket" display-message -p '#{window_id}')" = "$window" ]
 
 for _ in $(seq 1 40); do
-	[ "$(wc -l < "$result" 2>/dev/null || printf 0)" -eq 2 ] && [ "$(wc -l < "$result.status" 2>/dev/null || printf 0)" -eq 2 ] && break
+	[ "$(wc -l < "$result" 2>/dev/null || printf 0)" -eq 3 ] && [ "$(wc -l < "$result.status" 2>/dev/null || printf 0)" -eq 3 ] && break
 	sleep 0.05
 done
 [ "$(sort "$result" | uniq)" = "$workdir|stub|stub-model|low" ]
 [ "$(sort "$result.status" | uniq)" = "0" ]
+tmux -L "$socket" list-panes -t "$window" -F '#{pane_id} #{pane_dead}' | awk '$2 != 0 { bad = 1 } END { exit bad }'
+right_left=$(tmux -L "$socket" display-message -p -t "$right" '#{pane_left}')
+source_left=$(tmux -L "$socket" display-message -p -t "$pane" '#{pane_left}')
+[ "$right_left" -gt "$source_left" ]
 [ ! -s "$result.consume" ]
 find "$agent_dir/plan-handoffs" -name "*.ack" -delete
 [ "$(find "$agent_dir/plan-handoffs" -type f | wc -l)" -eq 0 ]

@@ -25,9 +25,10 @@ test("fork pane is detached, preserves cwd and focus target, and passes no sessi
 	assert.ok(args.includes(target.pane));
 	assert.ok(args.includes(target.cwd));
 	assert.ok(args.includes(`PI_TMUX_FORK_SESSION=${path}`));
-	assert.equal(args.at(-1), "pi --session \"$PI_TMUX_FORK_SESSION\"");
+	assert.equal(args.at(-1), "pi --session \"$PI_TMUX_FORK_SESSION\"; exec \"${SHELL:-/bin/zsh}\" -l");
+	assert.ok(buildForkPaneArgs(target, path, "right").includes("-h"));
 	const exec: TmuxExec = async () => ({ code: 0, stdout: "%9\t@1\n", stderr: "" });
-	assert.deepEqual(await launchForkPane(exec, target, path), { pane: "%9", window: "@1" });
+	assert.deepEqual(await launchForkPane(exec, target, path, "right"), { pane: "%9", window: "@1" });
 });
 
 test("failed pane launch removes only the newly created fork file", async () => {

@@ -3,6 +3,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import type { ModelSnapshot, PlanState } from "./plan-state.ts";
 import { isPlanState } from "./plan-state.ts";
 import { isModelSnapshot } from "./config.ts";
+import { spawnedPiCommand, splitDirectionArgs, type TmuxPaneDirection } from "../tmux/runtime.ts";
 
 export interface TmuxTarget { session: string; window: string; pane: string; }
 export interface ExecutionPacket { version: 2; plan: PlanState; source: { sessionId: string; cwd: string; tmuxSession: string }; model: ModelSnapshot; releasePath?: string; reportPath?: string; }
@@ -47,8 +48,8 @@ export async function waitForExecutionAcknowledgement(agentDir: string, handoffP
 }
 function acknowledgementPath(handoffPath: string): string { return `${handoffPath}.ack`; }
 function handoffEnvironment(handoffPath: string, model: ModelSnapshot): string[] { if (!isModelSnapshot(model)) throw new Error("Invalid execution model."); return ["-e", `PI_PLAN_HANDOFF=${handoffPath}`, "-e", `PI_PLAN_PROVIDER=${model.provider}`, "-e", `PI_PLAN_MODEL=${model.model}`, "-e", `PI_PLAN_THINKING=${model.thinkingLevel}`]; }
-function handoffCommand(): string { return "pi --provider \"$PI_PLAN_PROVIDER\" --model \"$PI_PLAN_MODEL\" --thinking \"$PI_PLAN_THINKING\""; }
+function handoffCommand(): string { return spawnedPiCommand("pi --provider \"$PI_PLAN_PROVIDER\" --model \"$PI_PLAN_MODEL\" --thinking \"$PI_PLAN_THINKING\""); }
 export function buildTmuxNewWindowArgs(target: TmuxTarget, cwd: string, handoffPath: string, model: ModelSnapshot): string[] { return ["new-window", "-d", "-t", target.session, "-c", cwd, ...handoffEnvironment(handoffPath, model), handoffCommand()]; }
-export function buildTmuxDetachedPaneArgs(target: TmuxTarget, cwd: string, handoffPath: string, model: ModelSnapshot): string[] { return ["split-window", "-d", "-v", "-t", target.pane, "-c", cwd, ...handoffEnvironment(handoffPath, model), handoffCommand()]; }
+export function buildTmuxDetachedPaneArgs(target: TmuxTarget, cwd: string, handoffPath: string, model: ModelSnapshot, direction: TmuxPaneDirection = "below"): string[] { return ["split-window", "-d", splitDirectionArgs(direction), "-t", target.pane, "-c", cwd, ...handoffEnvironment(handoffPath, model), handoffCommand()]; }
 function isPrivatePath(agentDir: string, candidate: string): boolean { const dir = resolve(handoffDirectory(agentDir)); const path = resolve(candidate); return dirname(path) === dir && !basename(path).includes(".."); }
 function isExecutionPacket(value: unknown): value is ExecutionPacket { if (!value || typeof value !== "object") return false; const packet = value as Partial<ExecutionPacket>; return packet.version === 2 && isModelSnapshot(packet.model) && isPlanState(packet.plan) && !!packet.source && typeof packet.source === "object" && typeof packet.source.sessionId === "string" && typeof packet.source.cwd === "string" && typeof packet.source.tmuxSession === "string" && (packet.releasePath === undefined || typeof packet.releasePath === "string") && (packet.reportPath === undefined || typeof packet.reportPath === "string"); }

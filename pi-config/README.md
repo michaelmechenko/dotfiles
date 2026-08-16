@@ -299,27 +299,25 @@ interface-kit, junior-to-senior, loop-factory}`.
 
 ### Fork changes from upstream `dmmulroy-config/home/.pi/agent/extensions/web-tools/`
 
-Upstream's `websearch` called `https://m.mulroy.dev/m/e` — dmmulroy's personal proxy in front of Exa,
-with no caller-side API key. Since we have our own `$EXA_API_KEY`, the fork instead calls Exa's
-official hosted MCP endpoint directly:
+Upstream's `websearch` called `https://m.mulroy.dev/m/e`, dmmulroy's personal Exa proxy. This fork
+uses the official structured APIs instead and retains caller-owned credentials:
 
-- `settings.ts` — `searchEndpoint` default changed to `https://mcp.exa.ai/mcp`; added `readExaApiKey()`
-  which reads `process.env.EXA_API_KEY` into the settings' new `search.apiKey` field (wrapped in
-  `Redacted` so it can't be accidentally logged/serialized).
-- `types.ts` — added `search.apiKey?: Redacted<string>` to `WebToolsSettings`.
-- `providers/exa.ts` — `ExaSearchProvider` takes an optional `apiKey` constructor param, sends it as
-  the `x-api-key` header (the header Exa's docs specify for `mcp.exa.ai`), and returns a clear
-  `SearchProviderReturnedError` ("EXA_API_KEY is not set") instead of making an unauthenticated call
-  when the key is missing.
-- `websearch.ts` — `createSearchProvider` unwraps `settings.apiKey` via `Redacted.value()` and passes
-  it through to `ExaSearchProvider`.
+- Exa is the default provider: `POST https://api.exa.ai/search`, required `$EXA_API_KEY`, sent as
+  `x-api-key`. The adapter sends structured `query` / `numResults` / `type` JSON and schema-checks
+  the response; the old MCP JSON-RPC/SSE text parser is removed.
+- Parallel is an explicitly selected provider (`WEB_TOOLS_SEARCH_PROVIDER=parallel`):
+  `POST https://api.parallel.ai/v1/search`, optional `$PARALLEL_API_KEY` sent as a Bearer token.
+  It maps `fast` to Parallel `fast`, and `auto`/`deep` to `advanced`; it never silently falls back
+  from Exa.
+- `settings.ts` separates fetch and search defaults, supports documented `WEB_TOOLS_*` endpoint and
+  behavior overrides, and models provider configuration as a redacted discriminated union.
+- `providers/http.ts` is the shared bounded JSON transport. Both providers cap responses at 1 MB and
+  return normalized results. The extension still has no custom renderer: `tool-display/` owns the
+  shared presentation.
 
-The JSON-RPC `tools/call` / `web_search_exa` request shape and the MCP/SSE response parsing
-(`providers/exa-protocol.ts`, `providers/exa-results.ts`) are untouched — confirmed against Exa's
-real `mcp.exa.ai` endpoint, which speaks the same protocol dmmulroy's proxy did.
-
-Needs its own `npm install --ignore-scripts` in `extensions/web-tools/` (deps: `html-to-text`,
-`linkedom`, `turndown`, `turndown-plugin-gfm`) — already done; re-run after any dependency bump.
+The extension declares matching Pi/TypeBox peers plus local dev dependencies; run `npm install` and
+`npm run check` in `extensions/web-tools/` after dependency changes. See its README and
+`research/web-tools-provider-apis.md` for configuration and official API-source links.
 
 ## Naming convention
 

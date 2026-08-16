@@ -3,11 +3,11 @@
 Pi extension that registers two public-web tools:
 
 - `webfetch` — fetch one public URL as markdown, text, html, or an inline raster image
-- `websearch` — search the public web for current information and candidate URLs
+- `websearch` — search the public web through an explicitly selected provider
 
-## Tools
+Tool output uses Pi's default shell and the shared `tool-display/` decorator. This extension does not own a renderer.
 
-### `webfetch`
+## `webfetch`
 
 Parameters:
 
@@ -15,98 +15,65 @@ Parameters:
 - `format` — optional: `markdown`, `text`, `html`
 - `timeout` — optional timeout in seconds, clamped to `1..120`
 
-Current defaults:
+Defaults: markdown, 30 seconds, 5 MB response limit, private-host blocking, five redirects, and the `opencode` Cloudflare fallback user agent.
 
-- `defaultFormat`: `markdown`
-- `timeoutSeconds`: `30`
-- `maxResponseBytes`: `5 MB`
-- `blockPrivateHosts`: `true`
-- `maxRedirects`: `5`
-- `fallbackUserAgent`: `opencode`
+Only `http://` and `https://` URLs are accepted. Userinfo credentials are rejected and redacted in diagnostics. Raster `png`, `jpeg`, `gif`, and `webp` responses are returned inline; HTML is converted to markdown or text; binary content is rejected.
 
-Behavior notes:
-
-- only `http://` and `https://` URLs are supported
-- URL userinfo credentials (`https://user:pass@example.com`) are rejected and redacted in diagnostics
-- private/local hosts and IPs are blocked by default
-- raster images (`png`, `jpeg`, `gif`, `webp`) are returned inline as images
-- HTML is converted to markdown or text when requested
-- binary content is rejected
-- if a site returns `403` with `cf-mitigated: challenge`, the tool retries with the fallback user agent
-
-### `websearch`
+## `websearch`
 
 Parameters:
 
 - `query` — required
 - `maxResults` — optional, clamped to `1..20`
-- `depth` — optional: `auto`, `fast`, `deep` (`deep` is accepted as a compatibility alias and mapped to `fast`)
+- `depth` — optional: `auto`, `fast`, `deep`
 
-Current defaults:
+All provider responses are capped at 1 MB. An empty `results` array is a valid successful response.
 
-- `enabled`: `true`
-- `provider`: `exa`
-- `endpoint`: configured in `settings.ts`
-- `timeoutSeconds`: `25`
-- `defaultMaxResults`: `8`
-- `defaultDepth`: `auto`
+### Exa (default)
 
-Behavior notes:
+- Endpoint: `https://api.exa.ai/search`
+- Credential: required `EXA_API_KEY`, sent as `x-api-key`
+- Request: structured JSON with `query`, `numResults`, `type`, and bounded text content
+- Depth: `auto`, `fast`, and `deep` map directly to Exa search types
 
-- uses the configured Exa MCP-compatible endpoint
-- Exa currently supports provider depths `auto` and `fast`; tool input `deep` is downgraded to `fast`
-- search responses are limited to `1 MB`
-- provider requests currently send:
-  - `livecrawl: "fallback"`
-  - `contextMaxCharacters: 2000`
+### Parallel (explicit selection only)
+
+- Endpoint: `https://api.parallel.ai/v1/search`
+- Credential: optional `PARALLEL_API_KEY`, sent as `Authorization: Bearer …`
+- Request: structured JSON with `search_queries`, `objective`, `mode`, and `advanced_settings.max_results`
+- Depth: `fast` maps to Parallel `fast`; `auto` and `deep` map to its higher-quality `advanced` mode because Parallel has no depth field
+
+Parallel is never used as an automatic Exa fallback.
 
 ## Configuration
 
-The extension has an internal settings shape:
+Settings are built from stable defaults and optional environment variables. Invalid numeric, enum, or endpoint overrides fall back to the corresponding default.
 
-```ts
-{
-  fetch: {
-    defaultFormat: "markdown" | "text" | "html";
-    timeoutSeconds: number;
-    maxResponseBytes: number;
-    blockPrivateHosts: boolean;
-    maxRedirects: number;
-    fallbackUserAgent: string;
-  };
-  search: {
-    enabled: boolean;
-    provider: "exa";
-    endpoint: PublicHttpUrl;
-    timeoutSeconds: number;
-    defaultMaxResults: number;
-    defaultDepth: "auto" | "fast" | "deep";
-  };
-}
+| Area | Variables |
+| --- | --- |
+| Fetch | `WEB_TOOLS_FETCH_DEFAULT_FORMAT`, `WEB_TOOLS_FETCH_TIMEOUT_SECONDS`, `WEB_TOOLS_FETCH_MAX_RESPONSE_BYTES`, `WEB_TOOLS_FETCH_BLOCK_PRIVATE_HOSTS`, `WEB_TOOLS_FETCH_MAX_REDIRECTS`, `WEB_TOOLS_FETCH_FALLBACK_USER_AGENT` |
+| Search common | `WEB_TOOLS_SEARCH_ENABLED`, `WEB_TOOLS_SEARCH_PROVIDER` (`exa` or `parallel`), `WEB_TOOLS_SEARCH_ENDPOINT`, `WEB_TOOLS_SEARCH_TIMEOUT_SECONDS`, `WEB_TOOLS_SEARCH_DEFAULT_MAX_RESULTS`, `WEB_TOOLS_SEARCH_DEFAULT_DEPTH` |
+| Exa | `EXA_API_KEY`, `WEB_TOOLS_EXA_ENDPOINT` |
+| Parallel | `PARALLEL_API_KEY`, `WEB_TOOLS_PARALLEL_ENDPOINT` |
+
+`WEB_TOOLS_SEARCH_ENDPOINT` overrides the selected provider's endpoint. Provider credentials are wrapped in `Redacted` values and are not rendered or serialized by the extension.
+
+## Development
+
+Install dependencies with `npm install` in this directory, then run:
+
+```sh
+npm run check
 ```
 
-But in the current implementation, these are hardcoded defaults in `settings.ts`.
+The package declares the Pi and TypeBox runtime contracts as peers and installs matching versions for local typechecking/tests.
 
-That means:
+## Source map
 
-- `webfetch.format` and `webfetch.timeout` can be overridden per call
-- `websearch.maxResults` and `websearch.depth` can be overridden per call
-- the underlying defaults are not currently exposed through Pi settings, extension settings, or env vars
-
-To change the defaults, edit:
-
-- `home/.pi/agent/extensions/web-tools/settings.ts`
-
-## Source of truth
-
-- extension entry: `home/.pi/agent/extensions/web-tools/index.ts`
-- settings/defaults: `home/.pi/agent/extensions/web-tools/settings.ts`
-- fetch Pi adapter: `home/.pi/agent/extensions/web-tools/webfetch.ts`
-- fetch service: `home/.pi/agent/extensions/web-tools/fetch-page.ts`
-- public web adapter: `home/.pi/agent/extensions/web-tools/network.ts`
-- search Pi adapter: `home/.pi/agent/extensions/web-tools/websearch.ts`
-- search service: `home/.pi/agent/extensions/web-tools/search-web.ts`
-- Exa provider adapter: `home/.pi/agent/extensions/web-tools/providers/exa.ts`
-- Exa protocol parser: `home/.pi/agent/extensions/web-tools/providers/exa-protocol.ts`
-- Exa result parser: `home/.pi/agent/extensions/web-tools/providers/exa-results.ts`
-- tool output projection: `home/.pi/agent/extensions/web-tools/tool-output.ts`
+- entry: `index.ts`
+- settings: `settings.ts`
+- fetch service and public client: `fetch-page.ts`, `network.ts`
+- search service and Pi adapter: `search-web.ts`, `websearch.ts`
+- bounded provider transport: `providers/http.ts`
+- structured providers: `providers/exa.ts`, `providers/parallel.ts`
+- Pi tool-result projection: `tool-output.ts`

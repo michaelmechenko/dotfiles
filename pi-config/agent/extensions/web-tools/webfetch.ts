@@ -1,10 +1,8 @@
 import { formatSize } from "@earendil-works/pi-coding-agent";
 import { StringEnum } from "@earendil-works/pi-ai";
-import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { FetchPage, type FetchPageError } from "./fetch-page.ts";
 import { createOperationSignal, FetchPublicWebClient, isOperationTimeoutError } from "./network.ts";
-import { getTextContent } from "./render.ts";
 import { getWebToolsSettings, WEB_FETCH_FORMATS, type ToolInputParseError } from "./settings.ts";
 import {
 	TempFileToolOutputStore,
@@ -29,11 +27,6 @@ export interface WebFetchToolComposition {
 	readonly settings: WebToolsSettings;
 	readonly fetchPage: FetchPage;
 	readonly outputStore: ToolOutputStore;
-}
-
-interface RenderTheme {
-	fg(name: string, value: string): string;
-	bold(value: string): string;
 }
 
 type WebFetchBoundaryError = ToolInputParseError | ParsePublicHttpUrlError | FetchPageError | ToolOutputStoreError;

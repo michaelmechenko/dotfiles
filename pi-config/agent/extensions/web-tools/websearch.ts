@@ -1,11 +1,11 @@
 import { StringEnum } from "@earendil-works/pi-ai";
-import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { createOperationSignal, isOperationTimeoutError } from "./network.ts";
-import { FetchHttpTextClient, ExaSearchProvider } from "./providers/exa.ts";
+import { ExaSearchProvider } from "./providers/exa.ts";
+import { FetchHttpTextClient } from "./providers/http.ts";
+import { ParallelSearchProvider } from "./providers/parallel.ts";
 import { Redacted } from "./redacted.ts";
 import type { SearchProvider } from "./providers/types.ts";
-import { getTextContent } from "./render.ts";
 import { SearchWeb, type SearchWebError } from "./search-web.ts";
 import { getWebToolsSettings, SEARCH_DEPTHS, type ToolInputParseError } from "./settings.ts";
 import {
@@ -26,11 +26,6 @@ export interface WebSearchToolComposition {
 	readonly settings: WebToolsSettings;
 	readonly searchWeb: SearchWeb;
 	readonly outputStore: ToolOutputStore;
-}
-
-interface RenderTheme {
-	fg(name: string, value: string): string;
-	bold(value: string): string;
 }
 
 type WebSearchBoundaryError = ToolInputParseError | ParseSearchQueryError | SearchWebError | ToolOutputStoreError;
@@ -55,7 +50,7 @@ export function createWebSearchTool(composition?: WebSearchToolComposition) {
 			depth: Type.Optional(
 				StringEnum([...SEARCH_DEPTHS], {
 					description:
-						"Search depth. Overrides the web-tools search default depth setting. 'deep' is accepted as a compatibility alias and mapped to 'fast' for the current Exa provider.",
+						"Search depth. Overrides the web-tools search default depth setting. Exa supports all values directly; Parallel maps auto and deep to advanced.",
 				}),
 			),
 		}),
@@ -127,13 +122,12 @@ function createDefaultWebSearchComposition(): WebSearchToolComposition {
 }
 
 function createSearchProvider(settings: WebToolsSettings["search"]): SearchProvider {
+	const http = new FetchHttpTextClient();
 	switch (settings.provider) {
 		case "exa":
-			return new ExaSearchProvider(
-				settings.endpoint,
-				new FetchHttpTextClient(),
-				settings.apiKey ? Redacted.value(settings.apiKey) : undefined,
-			);
+			return new ExaSearchProvider(settings.endpoint, http, settings.apiKey ? Redacted.value(settings.apiKey) : undefined);
+		case "parallel":
+			return new ParallelSearchProvider(settings.endpoint, http, settings.apiKey ? Redacted.value(settings.apiKey) : undefined);
 	}
 }
 

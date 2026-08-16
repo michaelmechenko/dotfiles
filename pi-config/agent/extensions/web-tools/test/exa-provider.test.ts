@@ -1,97 +1,81 @@
-import test from "node:test";
 import assert from "node:assert/strict";
-import { ok, type Result } from "../result.ts";
-import { parsePublicHttpUrl, parseSearchQuery } from "../types.ts";
+import test from "node:test";
+import { err, ok, type Result } from "../result.ts";
+import { ExaSearchProvider } from "../providers/exa.ts";
 import {
-	ExaSearchProvider,
+	MAX_SEARCH_RESPONSE_BYTES,
 	type HttpClientError,
 	type HttpJsonRequest,
 	type HttpTextClient,
 	type HttpTextResponse,
-} from "../providers/exa.ts";
-
-const LEGACY_PROVIDER_TEXT = [
-	"Title: Example Domain",
-	"URL: https://example.com/",
-	"Text: Example Domain",
-	"",
-	"Documentation-safe example domain.",
-].join("\n");
+} from "../providers/http.ts";
+import { parsePublicHttpUrl, parseSearchQuery } from "../types.ts";
 
 class RecordingHttpTextClient implements HttpTextClient {
 	readonly requests: HttpJsonRequest[] = [];
-
 	constructor(private readonly response: Result<HttpTextResponse, HttpClientError>) {}
-
-	async postJson(
-		request: HttpJsonRequest,
-		_options?: { readonly signal?: AbortSignal },
-	): Promise<Result<HttpTextResponse, HttpClientError>> {
+	async postJson(request: HttpJsonRequest): Promise<Result<HttpTextResponse, HttpClientError>> {
 		this.requests.push(request);
 		return this.response;
 	}
 }
 
-test("ExaSearchProvider sends fast when deep is requested", async () => {
-	const http = new RecordingHttpTextClient(
-		ok({
-			status: 200,
-			statusText: "OK",
-			headers: new Headers({ "content-type": "application/json" }),
-			bodyText: JSON.stringify({ result: { content: [{ type: "text", text: LEGACY_PROVIDER_TEXT }] } }),
-			bytes: 123,
-		}),
-	);
-	const endpoint = parsePublicHttpUrl("https://example.test/mcp");
-	const query = parseSearchQuery("example");
-	assert.equal(endpoint._tag, "ok");
-	assert.equal(query._tag, "ok");
-
-	const provider = new ExaSearchProvider(endpoint.value, http);
-	const result = await provider.search({ query: query.value, maxResults: 5, depth: "deep" });
-
-	assert.equal(result._tag, "ok");
-	assert.equal(result.value.length, 1);
-	const requestBody = http.requests[0]?.body;
-	assert.ok(isEncodedExaRequest(requestBody));
-	assert.equal(requestBody.params.arguments.type, "fast");
+const endpoint = expectUrl("https://api.exa.ai/search");
+const query = expectQuery("example");
+const response = (body: unknown): Result<HttpTextResponse, HttpClientError> => ok({
+	status: 200,
+	statusText: "OK",
+	headers: new Headers({ "content-type": "application/json" }),
+	bodyText: JSON.stringify(body),
+	bytes: 100,
 });
 
-test("ExaSearchProvider returns safe provider errors", async () => {
-	const http = new RecordingHttpTextClient(
-		ok({
-			status: 200,
-			statusText: "OK",
-			headers: new Headers({ "content-type": "text/event-stream" }),
-			bodyText: `event: message\ndata: ${JSON.stringify({ result: { isError: true, content: [{ type: "text", text: "raw provider details" }] } })}\n\n`,
-			bytes: 123,
-		}),
-	);
-	const endpoint = parsePublicHttpUrl("https://example.test/mcp");
-	const query = parseSearchQuery("example");
-	assert.equal(endpoint._tag, "ok");
-	assert.equal(query._tag, "ok");
+test("ExaSearchProvider requires EXA_API_KEY without leaking credentials", async () => {
+	const http = new RecordingHttpTextClient(response({ results: [] }));
+	const result = await new ExaSearchProvider(endpoint, http).search({ query, maxResults: 5, depth: "auto" });
+	assert.deepEqual(result, { _tag: "err", error: { _tag: "SearchProviderReturnedError", provider: "exa", safeMessage: "websearch is unavailable: EXA_API_KEY is not set." } });
+	assert.equal(http.requests.length, 0);
+});
 
-	const provider = new ExaSearchProvider(endpoint.value, http);
-	const result = await provider.search({ query: query.value, maxResults: 5, depth: "fast" });
-
-	assert.deepEqual(result, {
-		_tag: "err",
-		error: { _tag: "SearchProviderReturnedError", provider: "exa", safeMessage: "Search provider returned an error" },
+test("ExaSearchProvider sends structured requests and normalizes bounded results", async () => {
+	const http = new RecordingHttpTextClient(response({
+		results: [
+			{ title: "Example", url: "https://example.com/", text: "  Useful text  ", publishedDate: "2026-01-01", score: 0.8 },
+			{ title: "Ignored", url: "mailto:test@example.com" },
+		],
+	}));
+	const result = await new ExaSearchProvider(endpoint, http, "secret").search({ query, maxResults: 1, depth: "deep" });
+	assert.deepEqual(result, { _tag: "ok", value: [{ title: "Example", url: "https://example.com/", snippet: "Useful text", publishedAt: "2026-01-01", score: 0.8 }] });
+	assert.deepEqual(http.requests[0], {
+		url: endpoint,
+		headers: { accept: "application/json", "content-type": "application/json", "x-api-key": "secret" },
+		body: { query, numResults: 1, type: "deep", contents: { text: { maxCharacters: 2000 } } },
+		maxResponseBytes: MAX_SEARCH_RESPONSE_BYTES,
 	});
 });
 
-function isEncodedExaRequest(value: unknown): value is { readonly params: { readonly arguments: { readonly type: string } } } {
-	return (
-		typeof value === "object" &&
-		value !== null &&
-		"params" in value &&
-		typeof value.params === "object" &&
-		value.params !== null &&
-		"arguments" in value.params &&
-		typeof value.params.arguments === "object" &&
-		value.params.arguments !== null &&
-		"type" in value.params.arguments &&
-		typeof value.params.arguments.type === "string"
-	);
+test("ExaSearchProvider accepts empty results and rejects invalid payloads", async () => {
+	const empty = await new ExaSearchProvider(endpoint, new RecordingHttpTextClient(response({ results: [] })), "key").search({ query, maxResults: 5, depth: "fast" });
+	assert.deepEqual(empty, { _tag: "ok", value: [] });
+	const invalid = await new ExaSearchProvider(endpoint, new RecordingHttpTextClient(response({ nope: [] })), "key").search({ query, maxResults: 5, depth: "fast" });
+	assert.deepEqual(invalid, { _tag: "err", error: { _tag: "SearchProviderProtocolInvalid", provider: "exa", reason: "Missing results array" } });
+});
+
+test("ExaSearchProvider maps cancellation and response limits", async () => {
+	const cancelled = await new ExaSearchProvider(endpoint, new RecordingHttpTextClient(err({ _tag: "HttpCancelled" })), "key").search({ query, maxResults: 5, depth: "auto" });
+	assert.equal(cancelled._tag, "err");
+	assert.equal(cancelled.error._tag, "SearchProviderCancelled");
+	const tooLarge = await new ExaSearchProvider(endpoint, new RecordingHttpTextClient(err({ _tag: "HttpResponseTooLarge", maxBytes: MAX_SEARCH_RESPONSE_BYTES })), "key").search({ query, maxResults: 5, depth: "auto" });
+	assert.deepEqual(tooLarge, { _tag: "err", error: { _tag: "SearchProviderResponseTooLarge", provider: "exa", maxBytes: MAX_SEARCH_RESPONSE_BYTES } });
+});
+
+function expectUrl(value: string) {
+	const parsed = parsePublicHttpUrl(value);
+	assert.equal(parsed._tag, "ok");
+	return parsed.value;
+}
+function expectQuery(value: string) {
+	const parsed = parseSearchQuery(value);
+	assert.equal(parsed._tag, "ok");
+	return parsed.value;
 }

@@ -11,7 +11,7 @@ export type SearchQuery = string & { readonly __brand: "SearchQuery" };
 
 export type WebFetchFormat = "markdown" | "text" | "html";
 export type SearchDepth = "auto" | "fast" | "deep";
-export type SearchProviderName = "exa";
+export type SearchProviderName = "exa" | "parallel";
 export type ContentKind = "html" | "text" | "raster-image" | "svg" | "binary";
 
 export type ParsePublicHttpUrlError =
@@ -22,24 +22,37 @@ export type ParsePublicHttpUrlError =
 
 export type ParseSearchQueryError = { readonly _tag: "EmptySearchQuery" };
 
+export interface WebFetchSettings {
+	readonly defaultFormat: WebFetchFormat;
+	readonly timeoutSeconds: number;
+	readonly maxResponseBytes: number;
+	readonly blockPrivateHosts: boolean;
+	readonly maxRedirects: number;
+	readonly fallbackUserAgent: string;
+}
+
+interface SearchSettingsBase {
+	readonly enabled: boolean;
+	readonly timeoutSeconds: number;
+	readonly defaultMaxResults: number;
+	readonly defaultDepth: SearchDepth;
+}
+
+export type SearchSettings =
+	| (SearchSettingsBase & {
+			readonly provider: "exa";
+			readonly endpoint: PublicHttpUrl;
+			readonly apiKey?: RedactedValue<string>;
+		})
+	| (SearchSettingsBase & {
+			readonly provider: "parallel";
+			readonly endpoint: PublicHttpUrl;
+			readonly apiKey?: RedactedValue<string>;
+		});
+
 export interface WebToolsSettings {
-	readonly fetch: {
-		readonly defaultFormat: WebFetchFormat;
-		readonly timeoutSeconds: number;
-		readonly maxResponseBytes: number;
-		readonly blockPrivateHosts: boolean;
-		readonly maxRedirects: number;
-		readonly fallbackUserAgent: string;
-	};
-	readonly search: {
-		readonly enabled: boolean;
-		readonly provider: SearchProviderName;
-		readonly endpoint: PublicHttpUrl;
-		readonly apiKey?: RedactedValue<string> | undefined;
-		readonly timeoutSeconds: number;
-		readonly defaultMaxResults: number;
-		readonly defaultDepth: SearchDepth;
-	};
+	readonly fetch: WebFetchSettings;
+	readonly search: SearchSettings;
 }
 
 export interface ParsedContentType {
@@ -87,18 +100,13 @@ export interface WebSearchDetails {
 /** Parse and normalize a public HTTP(S) URL from boundary input. */
 export function parsePublicHttpUrl(input: string): Result<PublicHttpUrl, ParsePublicHttpUrlError> {
 	const trimmed = input.trim();
-	if (!trimmed) {
-		return err({ _tag: "EmptyUrl" });
-	}
+	if (!trimmed) return err({ _tag: "EmptyUrl" });
 
 	const schemeMatch = /^([a-z][a-z0-9+.-]*):/i.exec(trimmed);
 	const protocol = schemeMatch?.[1]?.toLowerCase();
 	const normalized = trimmed.toLowerCase();
 	if (!normalized.startsWith("http://") && !normalized.startsWith("https://")) {
-		if (protocol) {
-			return err({ _tag: "UnsupportedUrlProtocol", protocol: `${protocol}:` });
-		}
-		return err({ _tag: "UnsupportedUrlProtocol" });
+		return err(protocol ? { _tag: "UnsupportedUrlProtocol", protocol: `${protocol}:` } : { _tag: "UnsupportedUrlProtocol" });
 	}
 
 	let url: URL;
@@ -107,44 +115,25 @@ export function parsePublicHttpUrl(input: string): Result<PublicHttpUrl, ParsePu
 	} catch {
 		return err({ _tag: "InvalidUrl", input: Redacted.make(trimmed) });
 	}
-
-	if (url.protocol !== "http:" && url.protocol !== "https:") {
-		return err({ _tag: "UnsupportedUrlProtocol", protocol: url.protocol });
-	}
-
-	if (url.username || url.password) {
-		return err({ _tag: "UrlCredentialsUnsupported", url: Redacted.make(url.toString()) });
-	}
-
-	// SAFETY: URL parsing succeeded, credentials are absent, and the protocol is restricted to public HTTP(S).
+	if (url.protocol !== "http:" && url.protocol !== "https:") return err({ _tag: "UnsupportedUrlProtocol", protocol: url.protocol });
+	if (url.username || url.password) return err({ _tag: "UrlCredentialsUnsupported", url: Redacted.make(url.toString()) });
 	return ok(url.toString() as PublicHttpUrl);
 }
 
 /** Parse and trim a non-empty search query from boundary input. */
 export function parseSearchQuery(input: string): Result<SearchQuery, ParseSearchQueryError> {
 	const query = input.trim();
-	if (!query) {
-		return err({ _tag: "EmptySearchQuery" });
-	}
-
-	// SAFETY: query is trimmed and non-empty.
-	return ok(query as SearchQuery);
+	return query ? ok(query as SearchQuery) : err({ _tag: "EmptySearchQuery" });
 }
 
 /** Format URL-like UI text without exposing URL userinfo credentials. */
 export function redactUrlCredentialsForDisplay(input: unknown): string {
 	const raw = String(input);
 	const trimmed = raw.trim();
-	if (!trimmed) {
-		return raw;
-	}
-
+	if (!trimmed) return raw;
 	try {
 		const url = new URL(trimmed);
-		if (url.username || url.password) {
-			return String(Redacted.make(trimmed));
-		}
-		return url.toString();
+		return url.username || url.password ? String(Redacted.make(trimmed)) : url.toString();
 	} catch {
 		return looksLikeCredentialedAbsoluteUrl(trimmed) ? String(Redacted.make(trimmed)) : raw;
 	}

@@ -25,7 +25,6 @@
     "./html.ts",
     "./truncation.ts",
     "./temp.ts",
-    "./render.ts",
     "./tool-output.ts",
     "./webfetch.ts",
     "./websearch.ts",

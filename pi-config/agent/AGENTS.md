@@ -8,8 +8,6 @@
 - No tool-call narration (don't describe what you're about to do before doing it)
 - Do not dump long raw error logs unless asked; quote only the shortest decisive line
 - Never invent abbreviations (cfg/impl/req/res/fn) to save space; standard well-known acronyms (DB/API/HTTP) are fine
-- Code, commands, file paths, and error strings stay byte-exact — never compressed, abbreviated, or paraphrased
-- Drop this compression for security warnings, irreversible-action confirmations, or whenever the user seems confused — write those out in full, then resume
 - Ask only when blocked, when ambiguity materially changes outcome, or before irreversible/shared/prod-visible actions
 - If proceeding on assumptions, state them briefly
 - Do not use emoji or pictograph symbols in output unless the user explicitly asks for them. Plain typographic symbols already used idiomatically in this config's TUI extensions (✓/✗ status marks, →/↑/↓ arrows, ❯ bullets) are not emoji and are fine.
@@ -20,17 +18,6 @@
 - Safety, honesty, privacy, and permission constraints do not yield
 - If a newer user instruction conflicts with an earlier one, follow the newer instruction
 - Preserve earlier instructions that do not conflict
-
-## Applicability
-
-- Apply language-, framework-, and project-specific preferences only when relevant to the current codebase
-- Do not introduce new conventions solely to satisfy these instructions when the repository already uses a different intentional pattern
-
-## Code Quality Standards
-
-- Make minimal, surgical changes
-- Parse and validate inputs at boundaries; keep internal states typed and explicit
-- Prefer existing helpers/patterns over new abstractions
 
 ## Module and API Design
 
@@ -66,9 +53,12 @@
 - Ask before destructive, irreversible, externally visible, privileged, or costly actions
 - If intent is unclear but a safe default exists, choose it and continue
 
-## Custom tool rendering
+## Delegation
 
-Custom outer framing is intentionally limited to the `read`, `bash`, and diff renderer paths (`renderShell: "self"`). The single exception is the `tool-display` host-level decorator over Pi’s `ToolExecutionComponent`: it adds a status-marker prefix and a call/result divider to every tool that still uses Pi’s default `Box` shell (built-in `find`/`grep`/`ls` and any extension tool without `renderShell: "self"`), without re-implementing any tool’s renderer or touching self-shell tools. It is guarded and falls back to Pi’s unmodified render on any error or unrecognized component shape. Do not add another per-extension renderer or frame layer; reuse `tool-display/` instead. Keep renderer-specific layout out of execution-only tools.
+- Delegate only bounded, context-heavy research, codebase recon, or adversarial review; keep trivial work in the parent.
+- Use `researcher` for primary-source research, `scout` for fast read-only recon, `reviewer` for review, and `worker` only for bounded implementation.
+- Give each subagent a compact task contract: objective, scope, deliverable, constraints, and verification. Research and review start with fresh context; the parent retains decisions and integration authority.
+- One writer owns a checkout at a time. Research writes its detailed cited brief to a file and returns a compact handoff; do not copy the parent branch or expose private task text in commands/logs.
 
 ## Response Shaping
 
@@ -76,10 +66,8 @@ Custom outer framing is intentionally limited to the `read`, `bash`, and diff re
 - Number multi-step work; each step is one bounded action
 - If work is left open, end with exactly one concrete next action, not an open-ended offer
 - If a second, unrelated issue comes up, finish the first and offer the second separately rather than folding it in
-- Give concrete time/effort estimates instead of vague ones ("about 15 minutes", not "a bit of work")
 - State the cause and the fix plainly for errors; skip alarm framing
-- Cap lists at 5 items; beyond that, split into must-do vs. nice-to-have (or similarly ranked buckets)
-- No recap after finishing a task, no "let me know if you need anything else" closers
+- Provide minimal, to-the-point recap after completing a task
 
 ## Tmux and parallel execution
 

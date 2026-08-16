@@ -1,11 +1,11 @@
 PLUGIN_DIR="$CONFIG_DIR/plugins"
 
-# PERFORMANCE PROFILE — minimal bar, no AeroSpace integration.
+# PERFORMANCE PROFILE — workspace-only AeroSpace integration.
 # Active when /tmp/sketchybar_perf_mode exists (toggled by toggle_mode.sh / cmd-ctrl-alt-p).
-# Only the right block (date + battery); blur_radius=0 to minimize redraw cost. Shows on ALL
-# displays (no display= key → sketchybar default is `all`), unlike the full profile which is
-# single-bar. AeroSpace callbacks are flag-gated in aerospace.toml so they don't even fire the
-# sketchybar IPC while this profile is active.
+# Shows all blocks with blur_radius=0 on ALL displays (no display= key → SketchyBar default is
+# `all`). The app/workspace list refreshes only when switching workspaces; all its labels and
+# center stars stay inactive-colored, so focus changes incur no SketchyBar IPC and may remain
+# temporarily stale until the next workspace switch.
 
 chmod +x "$PLUGIN_DIR"/* 2>/dev/null
 
@@ -35,7 +35,57 @@ default=(
 )
 sketchybar --default "${default[@]}"
 
-# Right block only.
+sketchybar --add event aerospace_workspace_change
+
+# LEFT BLOCK - Occupied workspaces and apps. The ws_1 driver only refreshes on workspace
+# changes; frontapps.sh detects performance mode and keeps every label inactive-colored.
+CMD=(sketchybar)
+for i in $(seq 1 7); do
+    CMD+=(--add item ws_$i left)
+    if [ "$i" -eq 1 ]; then
+        CMD+=(--subscribe ws_$i aerospace_workspace_change)
+        CMD+=(--set ws_$i width=dynamic icon.drawing=off label.drawing=on script="$PLUGIN_DIR/frontapps.sh")
+    else
+        CMD+=(--set ws_$i width=dynamic icon.drawing=off label.drawing=on)
+    fi
+
+    for j in $(seq 1 6); do
+        CMD+=(--add item app_${i}_${j} left)
+        CMD+=(--set app_${i}_${j} width=dynamic drawing=off icon.drawing=off label.drawing=on)
+        if [ "$j" -lt 6 ]; then
+            CMD+=(--add item sep_${i}_${j} left)
+            CMD+=(--set sep_${i}_${j} width=dynamic drawing=off icon.drawing=off label.drawing=on)
+        fi
+    done
+done
+"${CMD[@]}"
+
+# CENTER BLOCK - Fixed workspace switcher. All stars are deliberately inactive-colored.
+CMD=(sketchybar)
+CMD+=(--add item space.1^ center)
+CMD+=(--set space.1^ icon="*" label.drawing=off icon.color=0x80EDEDED icon.y_offset=1 icon.padding_left=2 icon.padding_right=4 \
+      click_script="aerospace workspace 1^")
+
+CMD+=(--add item space.1* center)
+CMD+=(--set space.1* icon="*" label="-" label.drawing=on icon.color=0x80EDEDED label.color=0x80EDEDED \
+      icon.y_offset=1 label.y_offset=1 icon.padding_left=4 icon.padding_right=0 \
+      label.padding_left=2 label.padding_right=2 click_script="aerospace workspace 1*")
+
+CMD+=(--add item space.2* center)
+CMD+=(--set space.2* icon="*" label="-" label.drawing=on icon.color=0x80EDEDED label.color=0x80EDEDED \
+      icon.y_offset=1 label.y_offset=1 icon.padding_left=0 icon.padding_right=0 \
+      label.padding_left=2 label.padding_right=2 click_script="aerospace workspace 2*")
+
+CMD+=(--add item space.3* center)
+CMD+=(--set space.3* icon="*" label.drawing=off icon.color=0x80EDEDED icon.y_offset=1 icon.padding_left=0 icon.padding_right=4 \
+      click_script="aerospace workspace 3*")
+
+CMD+=(--add item space.2^ center)
+CMD+=(--set space.2^ icon="*" label.drawing=off icon.color=0x80EDEDED icon.y_offset=1 icon.padding_left=4 icon.padding_right=0 \
+      click_script="aerospace workspace 2^")
+"${CMD[@]}"
+
+# RIGHT BLOCK - Keep these as separate SketchyBar calls; batching causes overlap.
 sketchybar --add item battery right \
     --set battery update_freq=60 label.padding_right=0 padding_right=0 label.color=0xffEDEDED icon.drawing=off script="$PLUGIN_DIR/battery.sh"
 
@@ -44,6 +94,9 @@ sketchybar --add item sep_right right \
 
 sketchybar --add item date right \
     --set date update_freq=30 label.padding_right=2 label.color=0xffEDEDED script="$PLUGIN_DIR/date.sh" icon.drawing=off
+
+# Populate the workspace/app list once at startup, then only on workspace changes.
+sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE="$(aerospace list-workspaces --focused --format '%{workspace}' 2>/dev/null)"
 
 # Prime timer-only items immediately (see sketchybarrc.full for rationale).
 NAME=date "$PLUGIN_DIR/date.sh"

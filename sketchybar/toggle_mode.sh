@@ -3,12 +3,13 @@
 # Toggle SketchyBar between the full and performance profiles (file swap + flag only; does
 # NOT reload — reloading is cmd-ctrl-alt-o's job, so the two actions are decoupled).
 #   full        -> ~/.config/sketchybar/sketchybarrc.full        (all items + AeroSpace)
-#   performance -> ~/.config/sketchybarrc.performance            (right block only, blur=0, display=main)
+#   performance -> ~/.config/sketchybarrc.performance            (muted app/workspace blocks, blur=0)
 #
 # The active config (~/.config/sketchybar/sketchybarrc) is a PLAIN FILE: toggling copies the
 # chosen profile over it. (Copy, not symlink — sketchybar reloads a plain file unambiguously;
 # symlink resolution on reload was unverified for this build.) The /tmp/sketchybar_perf_mode
-# flag also gates the AeroSpace callbacks in aerospace.toml so they stay idle in perf mode.
+# flag suppresses focus-change callbacks in aerospace.toml; workspace-change callbacks remain
+# so the muted app/workspace blocks refresh only when switching workspaces.
 #
 # Echoes the new mode ("full" / "performance") on stdout for the Hammerspoon caller to alert.
 set -euo pipefail

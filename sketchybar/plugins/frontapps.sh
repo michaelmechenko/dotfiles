@@ -32,8 +32,13 @@ trap 'rm -rf "$_TMPDIR" "$LOCK"' EXIT
 while :; do
 rm -f "$DIRTY"
 
-# Run both aerospace queries in parallel — one IPC roundtrip instead of two.
-aerospace list-windows --focused --format '%{window-id}' >"$_TMPDIR/focused" 2>/dev/null &
+# Performance mode deliberately never highlights the active window. Avoid the extra focused-window
+# query there; full mode retains the two parallel AeroSpace queries and active highlighting.
+PERFORMANCE_MODE=0
+[ -f /tmp/sketchybar_perf_mode ] && PERFORMANCE_MODE=1
+if [ "$PERFORMANCE_MODE" -eq 0 ]; then
+  aerospace list-windows --focused --format '%{window-id}' >"$_TMPDIR/focused" 2>/dev/null &
+fi
 aerospace list-windows --all --format '%{workspace}%{tab}%{workspace-is-focused}%{tab}%{window-id}%{tab}%{app-name}%{tab}%{window-is-fullscreen}%{tab}%{window-layout}' >"$_TMPDIR/all" 2>/dev/null &
 wait
 FOCUSED_WIN_ID="$(cat "$_TMPDIR/focused" 2>/dev/null || true)"
@@ -105,7 +110,7 @@ if [ -n "$SLOTS_DATA" ]; then
         app4_id app4_name app5_id app5_name app6_id app6_name; do
         [ -z "$ws" ] && continue
 
-        if [ "$is_ws_focused" = "1" ]; then
+        if [ "$PERFORMANCE_MODE" -eq 0 ] && [ "$is_ws_focused" = "1" ]; then
             WS_COLOR="$ACTIVE_COLOR"
         else
             WS_COLOR="$INACTIVE_COLOR"
@@ -130,7 +135,7 @@ if [ -n "$SLOTS_DATA" ]; then
 
             if [ -n "$app_name" ]; then
                 APP_COLOR="$INACTIVE_COLOR"
-                if [ -n "$FOCUSED_WIN_ID" ] && [ "$app_id" = "$FOCUSED_WIN_ID" ]; then
+                if [ "$PERFORMANCE_MODE" -eq 0 ] && [ -n "$FOCUSED_WIN_ID" ] && [ "$app_id" = "$FOCUSED_WIN_ID" ]; then
                     APP_COLOR="$ACTIVE_COLOR"
                 fi
 

@@ -1,12 +1,17 @@
 PLUGIN_DIR="$CONFIG_DIR/plugins"
 
-# Self-heal exec bits: sketchybar EXECUTES plugins via script=, so a checkout that didn't
-# honor the exec bit (core.fileMode=false) would show no windows. Harmless no-op otherwise.
+# PERFORMANCE PROFILE — workspace-only AeroSpace integration.
+# Active when /tmp/sketchybar_perf_mode exists (toggled by toggle_mode.sh / cmd-ctrl-alt-p).
+# Shows all blocks with blur_radius=0 on ALL displays (no display= key → SketchyBar default is
+# `all`). The app/workspace list refreshes only when switching workspaces; all its labels and
+# center stars stay inactive-colored, so focus changes incur no SketchyBar IPC and may remain
+# temporarily stale until the next workspace switch.
+
 chmod +x "$PLUGIN_DIR"/* 2>/dev/null
 
 bar=(
   height=30
-  blur_radius=20
+  blur_radius=0
   position=top
   color=0x900f0f0f
   margin=0
@@ -30,29 +35,20 @@ default=(
 )
 sketchybar --default "${default[@]}"
 
-sketchybar --add event aerospace_workspace_change \
-           --add event aerospace_focus_change \
-           --add event aerospace_keyswap_change
+sketchybar --add event aerospace_workspace_change
 
-#
-# LEFT BLOCK - All workspaces with windows
-#
-
-# Batch all left-block item creation into ONE sketchybar call (~84 -> 1 IPC roundtrip).
-# SketchyBar redraws after every standalone invocation, so batching is the single biggest
-# startup-cost win here — critical on monitor-attach when the whole bar is recreated.
+# LEFT BLOCK - Occupied workspaces and apps. The ws_1 driver only refreshes on workspace
+# changes; frontapps.sh detects performance mode and keeps every label inactive-colored.
 CMD=(sketchybar)
-# ws_1 subscribes and drives updates for all left-block items.
 for i in $(seq 1 7); do
     CMD+=(--add item ws_$i left)
     if [ "$i" -eq 1 ]; then
-        CMD+=(--subscribe ws_$i aerospace_workspace_change aerospace_focus_change)
+        CMD+=(--subscribe ws_$i aerospace_workspace_change)
         CMD+=(--set ws_$i width=dynamic icon.drawing=off label.drawing=on script="$PLUGIN_DIR/frontapps.sh")
     else
         CMD+=(--set ws_$i width=dynamic icon.drawing=off label.drawing=on)
     fi
 
-    # Up to 6 windows per workspace slot, with 5 separators between them.
     for j in $(seq 1 6); do
         CMD+=(--add item app_${i}_${j} left)
         CMD+=(--set app_${i}_${j} width=dynamic drawing=off icon.drawing=off label.drawing=on)
@@ -62,57 +58,34 @@ for i in $(seq 1 7); do
         fi
     done
 done
-
-# Swap-mode indicator: hidden unless the cmd / cmd-shift role swap is active.
-CMD+=(--add item keyswap left)
-CMD+=(--subscribe keyswap aerospace_keyswap_change)
-CMD+=(--set keyswap width=dynamic drawing=off icon.drawing=off label.drawing=on label.padding_left=10 script="$PLUGIN_DIR/keyswap.sh")
 "${CMD[@]}"
 
-#
-### CENTER BLOCK CENTER BLOCK
-#
-
-# All five workspace indicators render as stars with connected center trio:
-# 1^  1* 2* 3*  2^  =>  * *-*-* *
-# space.1^ stays the single driver for ALL space.* indicator colors via space_colors.sh;
-# the others carry no script/subscription. Batched into one sketchybar call.
+# CENTER BLOCK - Fixed workspace switcher. All stars are deliberately inactive-colored.
 CMD=(sketchybar)
-
-# 1^ — left marker (was "^", now "*")
 CMD+=(--add item space.1^ center)
-CMD+=(--subscribe space.1^ aerospace_workspace_change)
-CMD+=(--set space.1^ icon="*" label.drawing=off icon.y_offset=1 icon.padding_left=2 icon.padding_right=4 \
-      click_script="aerospace workspace 1^" script="$PLUGIN_DIR/space_colors.sh")
+CMD+=(--set space.1^ icon="*" label.drawing=off icon.color=0x80EDEDED icon.y_offset=1 icon.padding_left=2 icon.padding_right=4 \
+      click_script="aerospace workspace 1^")
 
-# 1* 2* 3* — connected trio in the center: *-*-*
-# Connectors are labels so only star icons get active/inactive recoloring.
 CMD+=(--add item space.1* center)
-CMD+=(--set space.1* icon="*" label="-" label.drawing=on label.color=0x80EDEDED \
+CMD+=(--set space.1* icon="*" label="-" label.drawing=on icon.color=0x80EDEDED label.color=0x80EDEDED \
       icon.y_offset=1 label.y_offset=1 icon.padding_left=4 icon.padding_right=0 \
       label.padding_left=2 label.padding_right=2 click_script="aerospace workspace 1*")
 
 CMD+=(--add item space.2* center)
-CMD+=(--set space.2* icon="*" label="-" label.drawing=on label.color=0x80EDEDED \
+CMD+=(--set space.2* icon="*" label="-" label.drawing=on icon.color=0x80EDEDED label.color=0x80EDEDED \
       icon.y_offset=1 label.y_offset=1 icon.padding_left=0 icon.padding_right=0 \
       label.padding_left=2 label.padding_right=2 click_script="aerospace workspace 2*")
 
 CMD+=(--add item space.3* center)
-CMD+=(--set space.3* icon="*" label.drawing=off icon.y_offset=1 icon.padding_left=0 icon.padding_right=4 \
+CMD+=(--set space.3* icon="*" label.drawing=off icon.color=0x80EDEDED icon.y_offset=1 icon.padding_left=0 icon.padding_right=4 \
       click_script="aerospace workspace 3*")
 
-# 2^ — right marker (was "^", now "*"). Keep the visible center group balanced;
-# the independently-positioned right block does not need padding from this item.
 CMD+=(--add item space.2^ center)
-CMD+=(--set space.2^ icon="*" label.drawing=off icon.y_offset=1 icon.padding_left=4 icon.padding_right=0 \
+CMD+=(--set space.2^ icon="*" label.drawing=off icon.color=0x80EDEDED icon.y_offset=1 icon.padding_left=4 icon.padding_right=0 \
       click_script="aerospace workspace 2^")
-
 "${CMD[@]}"
 
-#
-# ACTUAL RIGHT BLOCK - Date/Time and Battery
-#
-
+# RIGHT BLOCK - Keep these as separate SketchyBar calls; batching causes overlap.
 sketchybar --add item battery right \
     --set battery update_freq=60 label.padding_right=0 padding_right=0 label.color=0xffEDEDED icon.drawing=off script="$PLUGIN_DIR/battery.sh"
 
@@ -122,15 +95,9 @@ sketchybar --add item sep_right right \
 sketchybar --add item date right \
     --set date update_freq=30 label.padding_right=2 label.color=0xffEDEDED script="$PLUGIN_DIR/date.sh" icon.drawing=off
 
-##### Initial render: targeted triggers, not a full --update (which forces every #####
-##### script at once and stalls redraw on monitor attach). Each event fires  #####
-##### the specific subscribers that need to run.                              #####
+# Populate the workspace/app list once at startup, then only on workspace changes.
 sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE="$(aerospace list-workspaces --focused --format '%{workspace}' 2>/dev/null)"
-sketchybar --trigger aerospace_focus_change
-sketchybar --trigger aerospace_keyswap_change
 
-# Populate timer-only items immediately (date/battery use update_freq, which won't fire
-# until their first interval — on monitor-attach the recreated bar would otherwise sit
-# blank for up to 60s). Direct invocation matches sketchybar's own script= env ($NAME).
+# Prime timer-only items immediately (see sketchybarrc.full for rationale).
 NAME=date "$PLUGIN_DIR/date.sh"
 NAME=battery "$PLUGIN_DIR/battery.sh"

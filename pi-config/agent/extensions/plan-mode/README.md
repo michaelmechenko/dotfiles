@@ -18,7 +18,7 @@ Mode changes wait for Pi to be idle. Pressing `Ctrl+P` while an idle plan is exe
 
 ## Workflow
 
-1. `/plan` enters structured planning. The agent investigates, asks focused questions when needed, then calls `plan_update` with a goal, top-level steps, verification criteria, and follow-up work.
+1. `/plan` enters structured planning. The agent investigates, asks focused questions when needed, then calls `plan_update` with a goal, top-level steps, verification criteria, follow-up work, and a required execution brief: summary, findings, decisions, relevant files with notes, and constraints. Legacy v2/v3 plans migrate with an empty brief and must be recalibrated before relying on inherited context.
 2. A ready plan can be reviewed with `/plan-review`. Execute opens one settings screen; cycle values in place, then choose explicit Execute or Cancel rows.
 3. Destinations are the current session, clipboard, a detached pane below the current pane in the current tmux window, or a detached window in the current tmux session. The tmux rows appear only when the source pane resolves to both a session and window. Clipboard copies canonical plan Markdown and leaves the plan ready in plan mode.
 4. Execution tracks each terminal step with `plan_step`; `plan_complete` records outcome, end state, verification, deviations, and next steps.
@@ -27,7 +27,7 @@ Mode changes wait for Pi to be idle. Pressing `Ctrl+P` while an idle plan is exe
 
 ## Recalibration and interruption
 
-After Pi settles from an interrupted execution, the existing resume, recalibrate, status-adjustment, and pause choices remain available. Recalibration restores plan restrictions and the planning model; a successful `plan_update` resumes with the previously selected execution model. Pi's normal retry lifecycle settles before this prompt is shown.
+After Pi settles from an interrupted execution, the existing resume, recalibrate, status-adjustment, and pause choices remain available. Kickoff, resume, and recalibration all use one canonical execution-context renderer, including the structured brief, step status, verification requirements, cwd, and source session identity. Recurring execution guidance is added to the per-turn system prompt rather than persisted as duplicate context messages. Recalibration restores plan restrictions and the planning model; a successful `plan_update` replaces the stale brief and resumes with the previously selected execution model.
 
 ## Execution models
 
@@ -37,7 +37,7 @@ The saved default is only `agent/plan-mode.json`'s `executionModel`; it never ch
 
 ## Tmux handoff
 
-Tmux is offered only inside a resolved tmux pane. The extension writes a mode-`0600`, one-time handoff file under `agent/plan-handoffs/`, then invokes detached `tmux new-window` or detached vertical `tmux split-window` below the source pane with argv and handoff/model environment variables only; plan text is never interpolated into shell source. Both preserve the source cwd and leave the source pane/window selected. A failed launch deletes the handoff and leaves the source plan ready. The child validates and deletes the handoff before restoring the plan as executing.
+Tmux is offered only inside a resolved tmux pane. The extension writes a mode-`0600`, one-time handoff file under `agent/plan-handoffs/`, then invokes detached `tmux new-window` or detached vertical `tmux split-window` below the source pane with argv and handoff/model environment variables only; plan text is never interpolated into shell source. Both preserve the source cwd and leave the source pane/window selected. The source becomes handed-off only after the child consumes the packet and writes a bounded acknowledgement; launch or acknowledgement failure deletes stale packet files and leaves the source plan ready. A choose-and-save default is persisted only after current-session model activation or tmux acknowledgement succeeds.
 
 ## Configuration
 

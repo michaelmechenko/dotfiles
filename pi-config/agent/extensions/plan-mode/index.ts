@@ -4,7 +4,8 @@ import { copyToClipboard, getAgentDir, getSettingsListTheme, SettingsManager, ty
 import { Container, Key, matchesKey, type SettingItem, SettingsList, truncateToWidth } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { isModelSnapshot, loadPlanModeConfig, savePlanModeConfig } from "./config.ts";
-import { buildTmuxDetachedPaneArgs, buildTmuxNewWindowArgs, consumeExecutionPacket, deleteExecutionPacket, renderPlanMarkdown, type TmuxTarget, writeExecutionPacket } from "./execution-handoff.ts";
+import { acknowledgeExecutionPacket, buildTmuxDetachedPaneArgs, buildTmuxNewWindowArgs, consumeExecutionPacket, deleteExecutionPacket, renderPlanMarkdown, waitForExecutionAcknowledgement, type TmuxTarget, writeExecutionPacket } from "./execution-handoff.ts";
+import { executionGuidance, renderExecutionContext } from "./execution-context.ts";
 import { candidateFor, createExecutionSettings, resolveExecutionSettings, type ExecutionDestination, type ExecutionSettings, type ModelCandidate } from "./execution-settings.ts";
 import { deletePlanFile, readPlanFile, writePlanFile } from "./plan-file.ts";
 import { applyPlanUpdate, canClosePlan, createPlanState, enterRestrictedMode, isStepDone, leaveRestrictedMode, migratePlanState, pendingSteps, type ModelSnapshot, type PlanCloseout, type PlanState, type ThinkingLevel } from "./plan-state.ts";
@@ -13,17 +14,16 @@ import { parsePlanEditText, type TodoItem } from "./utils.ts";
 
 const PLAN_STEP_TOOL = "plan_step";
 const PLAN_COMPLETE_TOOL = "plan_complete";
-const CONTEXT_TYPES = new Set(["plan-mode-context", "read-only-mode-context", "plan-execution-context"]);
+const CONTEXT_TYPES = new Set(["plan-mode-context", "read-only-mode-context"]);
 
 const PlanStepParams = Type.Object({
 	action: StringEnum(["complete", "uncomplete", "skip", "list"] as const),
 	step: Type.Optional(Type.Integer({ minimum: 1 })),
 });
 const PlanUpdateParams = Type.Object({
-	goal: Type.String({ minLength: 1 }),
-	steps: Type.Array(Type.String({ minLength: 1 }), { minItems: 1 }),
-	criteria: Type.Optional(Type.Array(Type.String({ minLength: 1 }))),
-	followUps: Type.Optional(Type.Array(Type.String({ minLength: 1 }))),
+	goal: Type.String({ minLength: 1 }), steps: Type.Array(Type.String({ minLength: 1 }), { minItems: 1 }),
+	criteria: Type.Optional(Type.Array(Type.String({ minLength: 1 }))), followUps: Type.Optional(Type.Array(Type.String({ minLength: 1 }))),
+	executionBrief: Type.Object({ summary: Type.String({ minLength: 1 }), findings: Type.Array(Type.String({ minLength: 1 })), decisions: Type.Array(Type.String({ minLength: 1 })), relevantFiles: Type.Array(Type.Object({ path: Type.String({ minLength: 1 }), note: Type.String({ minLength: 1 }) })), constraints: Type.Array(Type.String({ minLength: 1 })) }),
 });
 const PlanCompleteParams = Type.Object({
 	outcome: Type.String({ minLength: 1 }),
@@ -135,7 +135,7 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 
 	function executionCandidates(ctx: ExtensionContext, current: ModelSnapshot | undefined, saved: ModelSnapshot | undefined): ModelCandidate[] {
 		const raw = ctx.scopedModels.length
-			? ctx.scopedModels.map((item) => ({ provider: item.model.provider, model: item.model.id, thinkingLevel: item.thinkingLevel as ThinkingLevel }))
+			? ctx.scopedModels.flatMap((item) => (item.thinkingLevel ? [item.thinkingLevel] : getSupportedThinkingLevels(item.model).map(String)).map((thinkingLevel) => ({ provider: item.model.provider, model: item.model.id, thinkingLevel: thinkingLevel as ThinkingLevel })))
 			: ctx.modelRegistry.getAvailable().flatMap((model) => getSupportedThinkingLevels(model).map(String).map((thinkingLevel) => ({ provider: model.provider, model: model.id, thinkingLevel: thinkingLevel as ThinkingLevel })));
 		for (const snapshot of [current, saved]) {
 			const model = snapshot && ctx.modelRegistry.find(snapshot.provider, snapshot.model);
@@ -159,6 +159,7 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 		} catch { return undefined; }
 	}
 	async function executionSettings(ctx: ExtensionContext, tmux: TmuxTarget | undefined): Promise<ExecutionSettings | undefined> {
+		if (ctx.mode !== "tui") { ctx.ui.notify("Execution settings require TUI mode.", "warning"); return undefined; }
 		const current = snapshotModel(ctx);
 		const saved = loadPlanModeConfig(agentDir).executionModel;
 		const candidates = executionCandidates(ctx, current, saved);
@@ -170,7 +171,8 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 				...(tmux ? [{ value: "tmux-pane" as const, label: "Detached pane in current tmux window" }, { value: "tmux-window" as const, label: "Detached window in current tmux session" }] : []),
 			];
 			let list: SettingsList;
-			const refresh = () => { list = new SettingsList(items(), 10, getSettingsListTheme(), change, () => done(undefined)); tui.requestRender(); };
+			let selectedId = "destination";
+			const refresh = () => { const rows = items(); const next = new SettingsList(rows, 10, getSettingsListTheme(), change, () => done(undefined)); (next as unknown as { selectedIndex: number }).selectedIndex = Math.max(0, rows.findIndex((row) => row.id === selectedId)); list = next; tui.requestRender(); };
 			const item = (id: string, label: string, currentValue: string, values: string[], description?: string): SettingItem => ({ id, label, currentValue, values, description });
 			const items = (): SettingItem[] => {
 				const destination = destinations.find((value) => value.value === settings.destination) ?? destinations[0]!;
@@ -190,6 +192,7 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 				return rows;
 			};
 			const change = (id: string, value: string) => {
+				selectedId = id;
 				if (id === "execute") return done(settings);
 				if (id === "cancel") return done(undefined);
 				if (id === "destination") settings = { ...settings, destination: destinations.find((item) => item.label === value)?.value ?? settings.destination };
@@ -207,15 +210,16 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 			return { render: (width) => container.render(width), invalidate: () => container.invalidate(), handleInput: (data) => { if (matchesKey(data, Key.escape) || matchesKey(data, "ctrl+c")) return done(undefined); list.handleInput(data); tui.requestRender(); } };
 		});
 	}
-	async function beginExecution(ctx: ExtensionContext, model: ModelSnapshot): Promise<void> {
-		if (!state.steps.length || !isModelSnapshot(model)) return;
+	async function beginExecution(ctx: ExtensionContext, model: ModelSnapshot): Promise<boolean> {
+		if (!state.steps.length || !isModelSnapshot(model)) return false;
 		const resolved = ctx.modelRegistry.find(model.provider, model.model);
-		if (!resolved) return ctx.ui.notify(`Execution model ${model.provider}/${model.model} is unavailable.`, "warning");
+		if (!resolved) { ctx.ui.notify(`Execution model ${model.provider}/${model.model} is unavailable.`, "warning"); return false; }
 		const planningModel = state.planningModel ?? snapshotModel(ctx);
-		if (!(await setExecutionModelPreservingDefaults(pi, ctx, model, agentDir))) return ctx.ui.notify(`Execution model ${model.provider}/${model.model} is unavailable or unauthenticated.`, "warning");
-		state = { ...state, planningModel, phase: "executing", accessMode: "none", executionModel: model, awaitingReview: false, resumeAfterRevision: false, completionRequested: false };
+		if (!(await setExecutionModelPreservingDefaults(pi, ctx, model, agentDir))) { ctx.ui.notify(`Execution model ${model.provider}/${model.model} is unavailable or unauthenticated.`, "warning"); return false; }
+		state = { ...state, planningModel, phase: "executing", accessMode: "none", executionModel: model, executionSource: { sessionId, cwd: ctx.cwd }, awaitingReview: false, resumeAfterRevision: false, completionRequested: false };
 		executionTools(); persist(); showPlan(ctx);
-		pi.sendMessage({ customType: "plan-execution-context", content: `[PLAN EXECUTION]\n${planContext()}\n\nExecute pending steps in order. Call plan_step immediately after each completed or skipped step. If scope or blockers alter pending work, call plan_update. After every step is terminal, call plan_complete with outcome, end state, verification, deviations, and next steps.`, display: true }, { triggerTurn: true, deliverAs: "followUp" });
+		pi.sendMessage({ customType: "plan-execution-kickoff", content: renderExecutionContext(state, { sessionId, cwd: ctx.cwd }), display: true }, { triggerTurn: true, deliverAs: "followUp" });
+		return true;
 	}
 	async function executeWizard(ctx: ExtensionContext): Promise<void> {
 		const tmux = await resolveTmuxTarget();
@@ -225,10 +229,9 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 		if (!resolution.ok) return ctx.ui.notify(resolution.error, "warning");
 		if (resolution.value.destination === "clipboard") { await copyToClipboard(renderPlanMarkdown(state)); ctx.ui.notify("Plan copied to the clipboard.", "info"); return; }
 		const model = resolution.value.model!;
-		if (resolution.value.saveDefault) savePlanModeConfig(model, agentDir);
-		if (resolution.value.destination === "current") return beginExecution(ctx, model);
+		if (resolution.value.destination === "current") { if (await beginExecution(ctx, model) && resolution.value.saveDefault) savePlanModeConfig(model, agentDir); return; }
 		if (!tmux) return;
-		const packetPath = writeExecutionPacket(agentDir, { version: 1, plan: { ...state, phase: "executing", accessMode: "none" }, markdown: renderPlanMarkdown(state), source: { sessionId, cwd: ctx.cwd, tmuxSession: tmux.session }, model });
+		const packetPath = writeExecutionPacket(agentDir, { version: 2, plan: { ...state, phase: "executing", accessMode: "none" }, source: { sessionId, cwd: ctx.cwd, tmuxSession: tmux.session }, model });
 		const args = resolution.value.destination === "tmux-pane" ? buildTmuxDetachedPaneArgs(tmux, ctx.cwd, packetPath, model) : buildTmuxNewWindowArgs(tmux, ctx.cwd, packetPath, model);
 		try {
 			const launch = await pi.exec("tmux", args, { timeout: 5_000 });
@@ -237,6 +240,9 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 			deleteExecutionPacket(agentDir, packetPath);
 			return ctx.ui.notify(`Could not launch tmux handoff: ${error instanceof Error ? error.message : "tmux failed"}`, "warning");
 		}
+		if (!(await waitForExecutionAcknowledgement(agentDir, packetPath))) { deleteExecutionPacket(agentDir, packetPath); return ctx.ui.notify("Tmux handoff did not acknowledge startup; the plan remains ready.", "warning"); }
+		deleteExecutionPacket(agentDir, packetPath);
+		if (resolution.value.saveDefault) savePlanModeConfig(model, agentDir);
 		state = { ...state, phase: "handed-off", accessMode: "none", awaitingReview: false };
 		restoreTools(true); await restorePlanningModel(ctx); persist(); updateUi(ctx);
 	}
@@ -245,7 +251,7 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 		if (!changeRequest?.trim()) return;
 		state = { ...state, phase: "revising", accessMode: "plan", awaitingReview: false, resumeAfterRevision: true, completionRequested: false };
 		applyRestrictedTools(); await restorePlanningModel(ctx); persist(); updateUi(ctx);
-		pi.sendUserMessage(`Recalibrate the active plan from the current state.\n\n${planContext()}\n\nUser requested changes:\n${changeRequest.trim()}\n\nInspect only, then call plan_update. Preserve completed work and replace only pending work.`, { deliverAs: "followUp" });
+		pi.sendUserMessage(`${renderExecutionContext(state, state.executionSource ?? { sessionId, cwd: ctx.cwd }, "recalibration")}\n\nUser requested changes:\n${changeRequest.trim()}`, { deliverAs: "followUp" });
 	}
 	async function closePlan(ctx: ExtensionContext, closeout: PlanCloseout): Promise<void> {
 		const planningModel = state.planningModel;
@@ -264,7 +270,7 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 		else if (choice === "Edit steps manually") {
 			const text = await ctx.ui.editor("Edit top-level plan steps:", state.steps.map((step) => `${step.step}. ${step.text}`).join("\n"));
 			const steps = text ? parsePlanEditText(text) : [];
-			if (steps.length) { state = applyPlanUpdate(state, { goal: state.goal, steps, criteria: state.criteria, followUps: state.followUps }); persist(); showPlan(ctx); }
+			if (steps.length) { state = applyPlanUpdate(state, { goal: state.goal, steps, criteria: state.criteria, followUps: state.followUps, executionBrief: state.executionBrief }); persist(); showPlan(ctx); }
 		} else if (choice === "Pause plan") await pause(ctx);
 		else if (choice === "Discard plan") { restoreTools(); state = createPlanState(); if (sessionId) deletePlanFile(agentDir, sessionId); persist(); updateUi(ctx); }
 	}
@@ -282,7 +288,7 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 	pi.registerCommand("read-only", { description: "Enter standalone read-only inspection mode", handler: async (_args, ctx) => { if (!ctx.isIdle()) return ctx.ui.notify("Wait for the active turn before changing mode.", "warning"); enterReadOnly(ctx); } });
 	pi.registerCommand("mode", { description: "Cycle none, plan, and read-only access modes", handler: async (_args, ctx) => { if (!ctx.isIdle()) return ctx.ui.notify("Wait for the active turn before changing mode.", "warning"); if (state.accessMode === "none") enterPlan(ctx); else if (state.accessMode === "plan") enterReadOnly(ctx); else await leaveReadOnly(ctx); } });
 	pi.registerCommand("plan-review", { description: "Execute, recalibrate, pause, or discard the active plan", handler: async (_args, ctx) => reviewPlan(ctx) });
-	pi.registerCommand("plan-edit", { description: "Edit top-level steps in the active plan", handler: async (_args, ctx) => { if (!state.steps.length) return ctx.ui.notify("No active plan.", "info"); const text = await ctx.ui.editor("Edit top-level plan steps:", state.steps.map((step) => `${step.step}. ${step.text}`).join("\n")); const steps = text ? parsePlanEditText(text) : []; if (steps.length) { state = applyPlanUpdate(state, { goal: state.goal, steps, criteria: state.criteria, followUps: state.followUps }); persist(); showPlan(ctx); } } });
+	pi.registerCommand("plan-edit", { description: "Edit top-level steps in the active plan", handler: async (_args, ctx) => { if (!state.steps.length) return ctx.ui.notify("No active plan.", "info"); const text = await ctx.ui.editor("Edit top-level plan steps:", state.steps.map((step) => `${step.step}. ${step.text}`).join("\n")); const steps = text ? parsePlanEditText(text) : []; if (steps.length) { state = applyPlanUpdate(state, { goal: state.goal, steps, criteria: state.criteria, followUps: state.followUps, executionBrief: state.executionBrief }); persist(); showPlan(ctx); } } });
 	pi.registerCommand("plan-widget", { description: "Toggle collapsed plan progress", handler: async (_args, ctx) => { state = { ...state, widgetCollapsed: !state.widgetCollapsed }; persist(); updateUi(ctx); } });
 	pi.registerCommand("todos", { description: "View or correct plan progress", handler: async (_args, ctx) => showTodos(ctx) });
 	pi.registerCommand("pause", { description: "Pause plan execution", handler: async (_args, ctx) => pause(ctx) });
@@ -296,20 +302,20 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 
 	pi.on("tool_call", async (event) => { const reason = checkRestrictedToolCall(state.accessMode, event.toolName, event.input); return reason ? { block: true, reason } : undefined; });
 	pi.on("user_bash", async (event) => { const reason = checkRestrictedUserBash(state.accessMode, event.command); return reason ? { result: { output: reason, exitCode: 126, cancelled: false, truncated: false } } : undefined; });
-	pi.on("context", async (event) => ({ messages: event.messages.filter((message) => { const type = (message as { customType?: string }).customType; if (!type || !CONTEXT_TYPES.has(type)) return true; return (type === "plan-mode-context" && state.accessMode === "plan") || (type === "read-only-mode-context" && state.accessMode === "read-only") || (type === "plan-execution-context" && state.phase === "executing"); }) }));
-	pi.on("before_agent_start", async () => { const guidance = restrictionGuidance(state.accessMode); if (guidance) return { message: { customType: state.accessMode === "plan" ? "plan-mode-context" : "read-only-mode-context", content: guidance, display: false } }; if (state.phase === "executing") return { message: { customType: "plan-execution-context", content: `[PLAN EXECUTION]\n${planContext()}\n\nExecute pending steps in order and keep plan_step and plan_complete current.`, display: false } }; });
+	pi.on("context", async (event) => ({ messages: event.messages.filter((message) => { const type = (message as { customType?: string }).customType; if (!type || !CONTEXT_TYPES.has(type)) return true; return (type === "plan-mode-context" && state.accessMode === "plan") || (type === "read-only-mode-context" && state.accessMode === "read-only"); }) }));
+	pi.on("before_agent_start", async (event) => { const guidance = restrictionGuidance(state.accessMode); if (guidance) return { systemPrompt: `${event.systemPrompt}\n\n${guidance}` }; if (state.phase === "executing") return { systemPrompt: `${event.systemPrompt}\n\n${executionGuidance()}` }; });
 	pi.on("agent_settled", async (_event, ctx) => {
 		if (state.phase === "ready" && state.awaitingReview && state.accessMode === "plan") { state = { ...state, awaitingReview: false }; persist(); showPlan(ctx); const choice = await ctx.ui.select("Plan ready", ["Execute", "Recalibrate plan", "Stay in plan mode"]); if (choice === "Execute") await executeWizard(ctx); else if (choice === "Recalibrate plan") await requestRevision(ctx); return; }
 		if (state.phase !== "executing") return;
 		const last = [...ctx.sessionManager.getBranch()].reverse().find((entry) => entry.type === "message" && isAssistantMessage(entry.message as AgentMessage)) as { message: AssistantMessage } | undefined;
 		if (!last) return;
-		if (!canClosePlan(state) && last.message.timestamp !== handledStoppedAssistantTimestamp) { handledStoppedAssistantTimestamp = last.message.timestamp; const current = pendingSteps(state)[0]; const choice = await ctx.ui.select(`${last.message.stopReason === "aborted" ? "Execution interrupted" : "Execution stopped before all plan steps were terminal"}${current ? `\n\nCurrent step ${current.step}: ${current.text}` : ""}`, ["Resume current step", "Recalibrate plan", "Adjust statuses", "Pause plan"]); if (choice === "Resume current step") pi.sendMessage({ customType: "plan-resume", content: `Resume the current pending step.\n\n${planContext()}`, display: true }, { triggerTurn: true, deliverAs: "followUp" }); else if (choice === "Recalibrate plan") await requestRevision(ctx); else if (choice === "Adjust statuses") await showTodos(ctx); else if (choice === "Pause plan") await pause(ctx); return; }
+		if (!canClosePlan(state) && last.message.timestamp !== handledStoppedAssistantTimestamp) { handledStoppedAssistantTimestamp = last.message.timestamp; const current = pendingSteps(state)[0]; const choice = await ctx.ui.select(`${last.message.stopReason === "aborted" ? "Execution interrupted" : "Execution stopped before all plan steps were terminal"}${current ? `\n\nCurrent step ${current.step}: ${current.text}` : ""}`, ["Resume current step", "Recalibrate plan", "Adjust statuses", "Pause plan"]); if (choice === "Resume current step") pi.sendMessage({ customType: "plan-resume", content: renderExecutionContext(state, state.executionSource ?? { sessionId, cwd: ctx.cwd }, "resume"), display: true }, { triggerTurn: true, deliverAs: "followUp" }); else if (choice === "Recalibrate plan") await requestRevision(ctx); else if (choice === "Adjust statuses") await showTodos(ctx); else if (choice === "Pause plan") await pause(ctx); return; }
 		if (canClosePlan(state) && !state.completionRequested) { state = { ...state, completionRequested: true }; persist(); pi.sendMessage({ customType: "plan-closeout-request", content: "All plan steps are terminal. Call plan_complete now.", display: true }, { triggerTurn: true, deliverAs: "followUp" }); }
 	});
 	pi.on("session_start", async (_event, ctx) => {
 		sessionId = ctx.sessionManager.getSessionId();
 		const packet = process.env.PI_PLAN_HANDOFF ? consumeExecutionPacket(agentDir, process.env.PI_PLAN_HANDOFF) : undefined;
-		if (packet) { state = { ...packet.plan, version: 3, phase: "executing", accessMode: "none", planningModel: snapshotModel(ctx), toolsBeforePlan: pi.getActiveTools().filter((name) => !PLAN_EXECUTION_TOOLS.includes(name)) }; executionTools(); persist(); updateUi(ctx); pi.sendMessage({ customType: "plan-execution-context", content: `[PLAN EXECUTION]\n${planContext()}\n\nStart executing the handed-off plan now.`, display: true }, { triggerTurn: true, deliverAs: "followUp" }); return; }
+		if (packet) { state = { ...packet.plan, version: 4, phase: "executing", accessMode: "none", executionSource: packet.source, planningModel: snapshotModel(ctx), toolsBeforePlan: pi.getActiveTools().filter((name) => !PLAN_EXECUTION_TOOLS.includes(name)) }; executionTools(); persist(); updateUi(ctx); if (!acknowledgeExecutionPacket(agentDir, process.env.PI_PLAN_HANDOFF!)) return; pi.sendMessage({ customType: "plan-execution-kickoff", content: renderExecutionContext(state, packet.source), display: true }, { triggerTurn: true, deliverAs: "followUp" }); return; }
 		const entry = [...ctx.sessionManager.getBranch()].reverse().find((item) => item.type === "custom" && item.customType === "plan-mode") as { data?: unknown } | undefined;
 		const restored = migratePlanState(entry?.data);
 		if (restored) state = restored;

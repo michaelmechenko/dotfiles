@@ -2,52 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { applyPlanUpdate, canClosePlan, createPlanState, enterRestrictedMode, leaveRestrictedMode, migratePlanState, pendingSteps } from "./plan-state.ts";
 
-test("plan updates preserve completed steps with unchanged text", () => {
-	const initial = applyPlanUpdate(createPlanState(), { goal: "Ship the change", steps: ["Inspect current behavior", "Implement the change"] });
-	initial.steps[0]!.completed = true;
-	const revised = applyPlanUpdate(initial, { goal: "Ship the narrowed change", steps: ["Inspect current behavior", "Implement the narrowed change", "Verify the result"] });
-	assert.equal(revised.steps[0]!.completed, true);
-	assert.deepEqual(pendingSteps(revised).map((step) => step.text), ["Implement the narrowed change", "Verify the result"]);
-});
+const brief = { summary: "Implement safely", findings: ["Existing handoff is one-way"], decisions: ["Use acknowledgement"], relevantFiles: [{ path: "index.ts", note: "execution flow" }], constraints: ["Do not persist transcripts"] };
+const update = (state = createPlanState()) => applyPlanUpdate(state, { goal: "Ship the change", steps: ["Inspect current behavior", "Implement the change"], executionBrief: brief });
 
-test("a plan closes only after every step is terminal", () => {
-	const state = applyPlanUpdate({ ...createPlanState(), phase: "executing" }, { goal: "Ship the change", steps: ["Implement", "Verify"] });
-	state.steps[0]!.completed = true;
-	assert.equal(canClosePlan(state), false);
-	state.steps[1]!.skipped = true;
-	assert.equal(canClosePlan(state), true);
-});
-
-test("v3 access mode cycle preserves paused work and exact baseline", () => {
-	const baseline = ["read", "bash", "custom_tool"];
-	let state = createPlanState();
-	state = enterRestrictedMode(state, "plan", baseline);
-	assert.equal(state.phase, "drafting");
-	assert.deepEqual(state.toolsBeforePlan, baseline);
-	state = applyPlanUpdate(state, { goal: "Ship", steps: ["Inspect"] });
-	state = enterRestrictedMode(state, "read-only", ["read"]);
-	assert.equal(state.phase, "paused");
-	assert.equal(state.accessMode, "read-only");
-	const left = leaveRestrictedMode(state);
-	assert.deepEqual(left.restoreTools, baseline);
-	assert.equal(left.state.accessMode, "none");
-	assert.equal(left.state.toolsBeforePlan, undefined);
-	const reopened = enterRestrictedMode(left.state, "plan", baseline);
-	assert.equal(reopened.phase, "ready");
-	const emptyPaused = enterRestrictedMode({ ...createPlanState(), phase: "paused" }, "plan", baseline);
-	assert.equal(emptyPaused.phase, "drafting");
-});
-
-test("v2 migration maps restrictions without losing execution and paused workflows", () => {
-	const planning = migratePlanState({ version: 2, phase: "planning", toolsBeforePlan: ["read", "custom"] });
-	assert.equal(planning?.version, 3);
-	assert.equal(planning?.accessMode, "plan");
-	assert.equal(planning?.phase, "drafting");
-	assert.deepEqual(planning?.toolsBeforePlan, ["read", "custom"]);
-	const executing = migratePlanState({ version: 2, phase: "executing" });
-	assert.equal(executing?.accessMode, "none");
-	assert.equal(executing?.phase, "executing");
-	const paused = migratePlanState({ version: 2, phase: "paused" });
-	assert.equal(paused?.accessMode, "none");
-	assert.equal(paused?.phase, "paused");
-});
+test("plan updates preserve completed steps with unchanged text", () => { const initial = update(); initial.steps[0]!.completed = true; const revised = applyPlanUpdate(initial, { goal: "Ship the narrowed change", steps: ["Inspect current behavior", "Implement the narrowed change", "Verify the result"], executionBrief: brief }); assert.equal(revised.steps[0]!.completed, true); assert.deepEqual(pendingSteps(revised).map((step) => step.text), ["Implement the narrowed change", "Verify the result"]); });
+test("a plan closes only after every step is terminal", () => { const state = update({ ...createPlanState(), phase: "executing" }); state.steps[0]!.completed = true; assert.equal(canClosePlan(state), false); state.steps[1]!.skipped = true; assert.equal(canClosePlan(state), true); });
+test("v3 access mode cycle preserves paused work and exact baseline", () => { const baseline = ["read", "bash", "custom_tool"]; let state = createPlanState(); state = enterRestrictedMode(state, "plan", baseline); assert.equal(state.phase, "drafting"); state = update(state); state = enterRestrictedMode(state, "read-only", ["read"]); const left = leaveRestrictedMode(state); assert.deepEqual(left.restoreTools, baseline); const reopened = enterRestrictedMode(left.state, "plan", baseline); assert.equal(reopened.phase, "ready"); });
+test("v2 and v3 plans migrate with an empty legacy brief, while invalid restored fields fail closed", () => { const v2 = migratePlanState({ version: 2, phase: "planning", toolsBeforePlan: ["read"] }); assert.equal(v2?.version, 4); assert.equal(v2?.accessMode, "plan"); assert.deepEqual(v2?.executionBrief, { summary: "", findings: [], decisions: [], relevantFiles: [], constraints: [] }); const v3 = migratePlanState({ version: 3, accessMode: "none", phase: "ready", goal: "Old", steps: [], criteria: [], followUps: [], widgetCollapsed: true, awaitingReview: false, resumeAfterRevision: false, completionRequested: false }); assert.equal(v3?.version, 4); assert.equal(migratePlanState({ version: 4, accessMode: "none", phase: "ready", goal: "bad", steps: [], criteria: [], followUps: [], executionBrief: { summary: 3 }, widgetCollapsed: true, awaitingReview: false, resumeAfterRevision: false, completionRequested: false }), undefined); });

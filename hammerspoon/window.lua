@@ -200,15 +200,15 @@ function M.almostMaximizeAll()
   snapByIds(ids, ALMOST)
 end
 
--- Ghostty/Firefox pair: cmd-shift-s's app-pair companion behavior.
+-- Ghostty/Helium pair: cmd-shift-s's app-pair companion behavior.
 --   both floating              -> tile BOTH (real AeroSpace tiles, side-by-side)
 --   one tiled, other floating  -> plain single-window toggle (default), only the focused one
 --   both tiled                 -> plain single-window toggle (default), only the focused one
 -- Only the "both floating" case is special-cased; every other combination (including when only
--- one of the pair is open, or the focused app isn't Ghostty/Firefox) falls through unchanged.
-local PAIR_APPS = { Ghostty = true, Firefox = true }
+-- one of the pair is open, or the focused app isn't Ghostty/Helium) falls through unchanged.
+local PAIR_APPS = { Ghostty = true, Helium = true }
 
--- Returns (w's own layout, other window's id, other window's layout) for `w`'s Ghostty/Firefox
+-- Returns (w's own layout, other window's id, other window's layout) for `w`'s Ghostty/Helium
 -- counterpart on the same workspace, or nil if `w` isn't a pair app or has no counterpart open.
 local function findPairState(w)
   local app = w:application() and w:application():name()
@@ -237,8 +237,8 @@ end
 -- focusedWindow() before toggling. AeroSpace tracks focus via async accessibility notifications,
 -- which can lag briefly behind the true OS focus (e.g. right after switching apps) - without this,
 -- `layout floating tiling` can silently act on AeroSpace's stale focused window instead of the one
--- Hammerspoon (and the user) actually sees focused, e.g. toggling Ghostty could flip Firefox's
--- float state instead, or toggling Firefox could silently do nothing to it.
+-- Hammerspoon (and the user) actually sees focused, e.g. toggling Ghostty could flip Helium's
+-- float state instead, or toggling Helium could silently do nothing to it.
 function M.toggleFloatKeepPos()
   local w = hs.window.focusedWindow()
   if not w then return end

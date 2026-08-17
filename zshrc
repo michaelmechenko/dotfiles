@@ -272,6 +272,25 @@ alias tls="ls ~/.config/tmux_sessions/*.md 2>/dev/null | sed 's#.*/##;s#\.md\$##
 nvim()   { command nvim "$@"; printf '\e[4 q'; }
 claude() { command claude "$@"; printf '\e[4 q'; }
 
+# tmux identifies pi's Node executable as "node", even though pi sets its process
+# title. Keep the window labelled pi for its lifetime, then restore automatic naming.
+pi() {
+  if [[ -z $TMUX || -z $TMUX_PANE ]]; then
+    command pi "$@"
+    return $?
+  fi
+
+  local pi_status
+  tmux set-window-option -t "$TMUX_PANE" automatic-rename off 2>/dev/null
+  tmux rename-window -t "$TMUX_PANE" pi 2>/dev/null
+  command pi "$@"
+  pi_status=$?
+  tmux rename-window -t "$TMUX_PANE" "$(tmux display-message -p -t "$TMUX_PANE" '#{pane_current_command}')" 2>/dev/null
+  # Re-enable after this function's tmux calls leave the pane foreground.
+  tmux run-shell -b "sleep 0.1; tmux set-window-option -t '$TMUX_PANE' automatic-rename on" 2>/dev/null
+  return $pi_status
+}
+
 export CLAUDE_CONFIG_DIR=~/.config/claude
 export PI_CODING_AGENT_DIR=~/.config/pi-config/agent
 export PI_FFF_MODE=override

@@ -41,9 +41,7 @@ Tmux is offered only inside a resolved tmux pane. Detached handoffs write a mode
 
 ## Parallel workstreams
 
-`plan_update` optionally accepts 2–6 workstreams. Each declares a unique lowercase `id`, title, objective, assigned plan-step numbers, and owned relative paths. Workstreams must partition every top-level step exactly once and their paths must not overlap. Plan state v5 maps assigned display numbers to stable internal step IDs; a recalibration or manual edit clears mappings unless it supplies a complete rebuilt workstream declaration.
-
-Parallel tmux execution creates one private packet and one detached, ownership-tagged window per stream in declaration order. Workers acknowledge startup first, then wait behind a shared release barrier. A failed launch removes packets and closes only exact tagged unreleased panes; released workers are never automatically terminated. Each worker writes an atomic closeout report. The source plan records the durable run reference and reconciles report availability on restart; the coordinator remains responsible for final cross-workstream verification and `plan_complete`.
+Parallel worker spawning is temporarily disabled. `plan_update` does not expose workstreams, restored declarations are cleared, and every new execution uses one selected destination. The orchestration modules remain in place for later repair; already-launched runs can still reconcile their reports.
 
 ## Configuration
 

@@ -29,6 +29,23 @@ export interface ResolvedExecution {
 
 export type ResolveExecutionResult = { ok: true; value: ResolvedExecution } | { ok: false; error: string };
 
+/** The tmux replacement handoff keeps execution in the focused pane without copying the planning transcript. */
+export function defaultExecutionDestination(hasTmux: boolean): ExecutionDestination {
+	return hasTmux ? "tmux-current" : "current";
+}
+
+/** Cycle a settings value in either direction while preserving one-value action rows. */
+export function cycleExecutionSettingValue(values: readonly string[], current: string, direction: 1 | -1): string {
+	if (values.length < 2) return current;
+	const index = values.indexOf(current);
+	return values[(index < 0 ? 0 : index + direction + values.length) % values.length]!;
+}
+
+/** Keep an identified row selected when conditional rows are rebuilt. */
+export function retainSelectedExecutionRow(ids: readonly string[], selectedId: string): string {
+	return ids.includes(selectedId) ? selectedId : ids[0] ?? "";
+}
+
 export function modelKey(model: Pick<ModelSnapshot, "provider" | "model">): string {
 	return `${model.provider}\u0000${model.model}`;
 }

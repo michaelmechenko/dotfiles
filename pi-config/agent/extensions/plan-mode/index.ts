@@ -7,10 +7,11 @@ import { isModelSnapshot, loadPlanModeConfig, savePlanModeConfig } from "./confi
 import { acknowledgeExecutionPacket, buildTmuxDetachedPaneArgs, buildTmuxNewWindowArgs, consumeExecutionPacket, deleteExecutionPacket, renderPlanMarkdown, waitForExecutionAcknowledgement, waitForRelease, writeWorkerReport, type TmuxTarget, writeExecutionPacket } from "./execution-handoff.ts";
 import { applyWorkerReports, readParallelRun, reconcileParallelRun } from "./execution-orchestrator.ts";
 import { executionGuidance, renderExecutionContext } from "./execution-context.ts";
-import { candidateFor, createExecutionSettings, resolveExecutionSettings, type ExecutionDestination, type ExecutionSettings, type ModelCandidate } from "./execution-settings.ts";
+import { candidateFor, createExecutionSettings, cycleExecutionSettingValue, defaultExecutionDestination, resolveExecutionSettings, retainSelectedExecutionRow, type ExecutionDestination, type ExecutionSettings, type ModelCandidate } from "./execution-settings.ts";
 import { deletePlanFile, readPlanFile, writePlanFile } from "./plan-file.ts";
 import { applyPlanUpdate, canClosePlan, createPlanState, enterRestrictedMode, isStepDone, leaveRestrictedMode, migratePlanState, pendingSteps, type ModelSnapshot, type PlanCloseout, type PlanState, type ThinkingLevel } from "./plan-state.ts";
 import { checkRestrictedToolCall, checkRestrictedUserBash, PLAN_EXECUTION_TOOLS, PLAN_UPDATE_TOOL, restrictedTools, restrictionGuidance } from "./restricted-mode.ts";
+import { buildRecalibrationMessage, promptForRecalibration } from "./recalibration-editor.ts";
 import { parsePlanEditText, type TodoItem } from "./utils.ts";
 
 const PLAN_STEP_TOOL = "plan_step";
@@ -166,8 +167,8 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 		const current = snapshotModel(ctx);
 		const saved = loadPlanModeConfig(agentDir).executionModel;
 		const candidates = executionCandidates(ctx, current, saved);
-		let settings = createExecutionSettings(current, tmux ? "tmux-pane" : "current", "saved");
-		return ctx.ui.custom<ExecutionSettings | undefined>((tui, theme, _kb, done) => {
+		let settings = createExecutionSettings(current, defaultExecutionDestination(Boolean(tmux)), "saved");
+		return ctx.ui.custom<ExecutionSettings | undefined>((tui, theme, keybindings, done) => {
 			const destinations: { value: ExecutionDestination; label: string }[] = [
 				{ value: "current", label: "Current Pi session" },
 				{ value: "clipboard", label: "Copy plan to clipboard" },
@@ -175,7 +176,14 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 			];
 			let list: SettingsList;
 			let selectedId = "destination";
-			const refresh = () => { const rows = items(); const next = new SettingsList(rows, 10, getSettingsListTheme(), change, () => done(undefined)); (next as unknown as { selectedIndex: number }).selectedIndex = Math.max(0, rows.findIndex((row) => row.id === selectedId)); list = next; tui.requestRender(); };
+			const refresh = () => {
+				const rows = items();
+				selectedId = retainSelectedExecutionRow(rows.map((row) => row.id), selectedId);
+				const next = new SettingsList(rows, 10, getSettingsListTheme(), change, () => done(undefined));
+				(next as unknown as { selectedIndex: number }).selectedIndex = Math.max(0, rows.findIndex((row) => row.id === selectedId));
+				list = next;
+				tui.requestRender();
+			};
 			const item = (id: string, label: string, currentValue: string, values: string[], description?: string): SettingItem => ({ id, label, currentValue, values, description });
 			const items = (): SettingItem[] => {
 				const destination = destinations.find((value) => value.value === settings.destination) ?? destinations[0]!;
@@ -208,11 +216,35 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 				else if (id === "save") settings = { ...settings, saveDefault: value === "Yes" };
 				refresh();
 			};
+			const selectedRow = (): SettingItem | undefined => items().find((row) => row.id === selectedId);
+			const moveSelection = (direction: 1 | -1) => {
+				const rows = items();
+				const index = rows.findIndex((row) => row.id === selectedId);
+				selectedId = rows[(index < 0 ? 0 : index + direction + rows.length) % rows.length]?.id ?? selectedId;
+				refresh();
+			};
+			const cycleSelectedValue = (direction: 1 | -1) => {
+				const row = selectedRow();
+				if (!row?.values || row.values.length < 2) return;
+				change(row.id, cycleExecutionSettingValue(row.values, row.currentValue, direction));
+			};
 			const container = new Container();
-			container.addChild({ render: () => [theme.fg("accent", theme.bold("Execution settings")), theme.fg("dim", "↑↓ select • enter/space cycle • esc cancel"), ""], invalidate() {} });
+			container.addChild({ render: () => [theme.fg("accent", theme.bold("Execution settings")), theme.fg("dim", "↑↓ select • tab/right next • shift-tab/left previous • enter/space next • esc cancel"), ""], invalidate() {} });
 			refresh();
 			container.addChild({ render: (width: number) => list.render(width), invalidate: () => list.invalidate(), handleInput: (data: string) => list.handleInput(data) });
-			return { render: (width) => container.render(width), invalidate: () => container.invalidate(), handleInput: (data) => { if (matchesKey(data, Key.escape) || matchesKey(data, "ctrl+c")) return done(undefined); list.handleInput(data); tui.requestRender(); } };
+			return {
+				render: (width) => container.render(width),
+				invalidate: () => container.invalidate(),
+				handleInput: (data) => {
+					if (keybindings.matches(data, "tui.select.cancel")) return done(undefined);
+					if (keybindings.matches(data, "tui.select.up")) return moveSelection(-1);
+					if (keybindings.matches(data, "tui.select.down")) return moveSelection(1);
+					if (matchesKey(data, "shift+tab") || matchesKey(data, Key.left)) return cycleSelectedValue(-1);
+					if (matchesKey(data, Key.tab) || matchesKey(data, Key.right)) return cycleSelectedValue(1);
+					list.handleInput(data);
+					tui.requestRender();
+				},
+			};
 		});
 	}
 	async function beginExecution(ctx: ExtensionContext, model: ModelSnapshot, source?: { sessionId: string; cwd: string; tmuxSession?: string }): Promise<boolean> {
@@ -268,11 +300,11 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 		restoreTools(true); await restorePlanningModel(ctx); persist(); updateUi(ctx);
 	}
 	async function requestRevision(ctx: ExtensionContext, request?: string): Promise<void> {
-		const changeRequest = request ?? await ctx.ui.editor("Recalibrate this plan:", "");
-		if (!changeRequest?.trim()) return;
+		const draft = request ? { text: request, images: [] } : await promptForRecalibration(ctx, agentDir);
+		if (!draft?.text.trim()) return;
 		state = { ...state, phase: "revising", accessMode: "plan", awaitingReview: false, resumeAfterRevision: true, completionRequested: false };
 		applyRestrictedTools(); await restorePlanningModel(ctx); persist(); updateUi(ctx);
-		pi.sendUserMessage(`${renderExecutionContext(state, state.executionSource ?? { sessionId, cwd: ctx.cwd }, "recalibration")}\n\nUser requested changes:\n${changeRequest.trim()}`, { deliverAs: "followUp" });
+		pi.sendUserMessage(buildRecalibrationMessage(renderExecutionContext(state, state.executionSource ?? { sessionId, cwd: ctx.cwd }, "recalibration"), draft), { deliverAs: "followUp" });
 	}
 	async function closePlan(ctx: ExtensionContext, closeout: PlanCloseout): Promise<void> {
 		const planningModel = state.planningModel;

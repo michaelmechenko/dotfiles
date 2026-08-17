@@ -14,6 +14,9 @@ Reference for all active keybinds across AeroSpace (`aerospace/aerospace.toml`),
 | `ctrl+p` | Cycle plan-mode access: none → plan → read-only → none; an idle execution pauses and re-enters plan mode |
 | `ctrl+alt+p` / `ctrl+alt+t` | Toggle the plan execution progress widget |
 | `/plan` / `/plan-review` | Enter structured planning or review a ready plan; execution opens the destination/model wizard |
+| `tab` / `right` and `shift-tab` / `left` | In the plan-mode execution wizard, cycle the selected multi-value setting forward/backward with wraparound; `enter` / `space` also advance it |
+| `ctrl+v` | In the plan-mode TUI recalibration editor, attach a clipboard image or paste clipboard text when no image is available |
+| `ctrl+g` | In the plan-mode TUI recalibration editor, open the configured external editor |
 | `/read-only` / `/mode` | Enter standalone read-only mode / cycle the three plan-mode access states |
 | `/rename [name]` | Rename the current live pi session; omit `name` to open a prompt |
 

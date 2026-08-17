@@ -95,3 +95,5 @@ __pycache__/
 /pi-config/agent/mcp-onboarding.json
 /pi-config/agent/mcp-cache.json
 /pi-config/agent/plan-mode.json
+/pi-config/agent/plan-handoffs
+/pi-config/agent/plan-parallel

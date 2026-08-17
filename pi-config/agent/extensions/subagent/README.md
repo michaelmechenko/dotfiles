@@ -24,11 +24,11 @@ The reducer consumes `tool_execution_start/update/end`, `message_update`, `messa
 
 ## Tool modes
 
-| Mode | Parameters | Behavior |
-|---|---|---|
-| Single | `{ agent, task }` | One isolated agent |
-| Parallel | `{ tasks: [{ agent, task }] }` | Up to 8 tasks, 4 concurrent |
-| Chain | `{ chain: [{ agent, task }] }` | Sequential; `{previous}` receives the prior final output |
+| Mode     | Parameters                     | Behavior                                                 |
+| -------- | ------------------------------ | -------------------------------------------------------- |
+| Single   | `{ agent, task }`              | One isolated agent                                       |
+| Parallel | `{ tasks: [{ agent, task }] }` | Up to 8 tasks, 4 concurrent                              |
+| Chain    | `{ chain: [{ agent, task }] }` | Sequential; `{previous}` receives the prior final output |
 
 Parallel model-visible results are capped at 50 KiB per agent. Failures report the shortest useful spawn, timeout, abort, stderr, or final-message diagnostic.
 

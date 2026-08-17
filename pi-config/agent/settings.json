@@ -1,35 +1,44 @@
 {
-  "lastChangelogVersion": "0.83.0",
+  "lastChangelogVersion": "0.84.2",
   "theme": "vague",
-  "defaultProvider": "ollama-cloud",
-  "defaultModel": "glm-5.2",
+  "defaultProvider": "openai-codex",
+  "defaultModel": "gpt-5.6-sol",
   "enabledModels": [
     "openai-codex/*",
     "ollama-cloud/*"
   ],
-  "warnings": {
-    "anthropicExtraUsage": true
+  "compaction": {
+    "enabled": false
   },
   "enableInstallTelemetry": false,
   "defaultProjectTrust": "always",
   "packages": [
     "npm:@dreki-gg/pi-lsp",
-    "npm:pi-ast-grep"
+    "npm:pi-ast-grep",
+    "npm:pi-mcp-adapter"
   ],
   "extensions": [
     "-extensions/hidden-thinking-label/index.ts",
     "-extensions/minimal-mode/index.ts",
     "-extensions/permission-gate/index.ts",
+    "+extensions/titlebar-spinner/index.ts",
     "+extensions/plan-mode/index.ts",
-    "-extensions/titlebar-spinner/index.ts"
+    "-extensions/working-indicator-off/index.ts"
   ],
   "defaultThinkingLevel": "high",
   "skills": [
     "-skills/tdd/SKILL.md",
     "-skills/terminate-slop/SKILL.md",
     "-skills/to-spec/SKILL.md",
-    "-skills/to-tickets/SKILL.md"
+    "-skills/to-tickets/SKILL.md",
+    "-skills/code-review/SKILL.md",
+    "-skills/triage/SKILL.md"
   ],
   "hideThinkingBlock": true,
-  "quietStartup": false
+  "quietStartup": false,
+  "prompts": [
+    "-prompts/implement-and-review.md",
+    "-prompts/implement.md",
+    "-prompts/scout-and-plan.md"
+  ]
 }

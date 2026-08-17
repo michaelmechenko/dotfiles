@@ -224,8 +224,7 @@ alias tf="terraform"
 alias main="cd ~/_main"
 alias config="cd ~/.config"
 alias projects="cd ~/_main/projects"
-alias resources="cd ~/_main/resources"
-alias general="cd ~/_main/vault-general/"
+alias msg="cd ~/_main/vault-general/"
 alias gr="cd ~/_main/projects/grimoire/"
 
 # mkdir and cd into

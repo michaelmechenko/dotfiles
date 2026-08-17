@@ -213,19 +213,19 @@ t() {
   fi
 }
 
+alias ts="tmux kill-session"
 alias tx="tmux kill-server"
 alias td="tmux detach-client"
-alias bu="brew upgrade && brew update"
+alias bu="brew update && brew upgrade"
 alias c="clear"
-alias k="kubecli"
+alias k="kubectl"
 alias tf="terraform"
 
 # folders
 alias main="cd ~/_main"
 alias config="cd ~/.config"
-alias projects="cd ~/_main/projects"
-alias msg="cd ~/_main/vault-general/"
-alias gr="cd ~/_main/projects/grimoire/"
+alias smap="cd ~/.config/smap/"
+alias msg="cd ~/_main/msg"
 
 # mkdir and cd into
 mkcd () {
@@ -301,3 +301,8 @@ export PI_FFF_MODE=override
 if [[ "$(defaults read org.hammerspoon.Hammerspoon MJConfigFile 2>/dev/null)" != "$HOME/.config/hammerspoon/init.lua" ]]; then
   defaults write org.hammerspoon.Hammerspoon MJConfigFile "$HOME/.config/hammerspoon/init.lua"
 fi
+
+# Machine-local additions (gcloud SDK, work-repo aliases, anything an installer
+# appends). Untracked via .git/info/exclude so installers can't clobber the
+# tracked config or the ~/.zshrc shim.
+[ -f ~/.config/zshrc.local ] && . ~/.config/zshrc.local

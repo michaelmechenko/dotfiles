@@ -12,10 +12,10 @@
  *    configured upstream (`git rev-parse --abbrev-ref --symbolic-full-name @{u}`),
  *    falling back to the plain branch name if there's no upstream; the worktree
  *    segment only appears when cwd is actually inside a linked git worktree.
- * 3. The top line's right side shows the `lsp` and `plan-mode` extensions'
- *    status text (if any) instead of leaving that space empty -- and those
- *    statuses are excluded from the generic bottom extension-status lines
- *    so they aren't shown twice.
+ * 3. The top line's right side shows the `plan-mode` extension's status text
+ *    (if any) instead of leaving that space empty. LSP status is shown once
+ *    during startup instead, and both statuses are excluded from the generic
+ *    bottom extension-status lines.
  *
  * The whole footer renders in one uniform color (`dim`) -- the built-in footer
  * colors context% orange/red past 70%/90%; this one doesn't, by request.
@@ -126,7 +126,7 @@ export default function footer(pi: ExtensionAPI) {
 				dispose: unsub,
 				invalidate() {},
 				render(width: number): string[] {
-					// --- Top line: directory (origin/branch) (worktree/name) ... lsp/plan-mode status ---
+					// --- Top line: directory (origin/branch) (worktree/name) ... plan-mode status ---
 					let pwd = formatCwdForFooter(ctx.sessionManager.getCwd(), process.env.HOME || process.env.USERPROFILE);
 
 					const branch = footerData.getGitBranch();
@@ -143,9 +143,8 @@ export default function footer(pi: ExtensionAPI) {
 					}
 
 					const statuses = footerData.getExtensionStatuses();
-					const lspStatus = statuses.get("lsp");
 					const planStatus = statuses.get("plan-mode");
-					const topRight = [lspStatus, planStatus]
+					const topRight = [planStatus]
 						.filter((s): s is string => Boolean(s))
 						.map(sanitizeStatusText)
 						.join(" \u2022 ");

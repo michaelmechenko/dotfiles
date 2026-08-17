@@ -23,7 +23,7 @@
     "-extensions/permission-gate/index.ts",
     "+extensions/titlebar-spinner/index.ts",
     "+extensions/plan-mode/index.ts",
-    "-extensions/working-indicator-off/index.ts"
+    "+extensions/minimal-working-indicator/index.ts"
   ],
   "defaultThinkingLevel": "high",
   "skills": [

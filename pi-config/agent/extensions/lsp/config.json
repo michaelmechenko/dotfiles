@@ -6,8 +6,7 @@
     },
     "pyright": {
       "command": ["pyright-langserver", "--stdio"],
-      "extensions": [".py"],
-      "disabled": true
+      "extensions": [".py"]
     },
     "rust": {
       "command": ["rust-analyzer"],
@@ -16,8 +15,15 @@
     },
     "gopls": {
       "command": ["gopls"],
-      "extensions": [".go"],
-      "disabled": true
+      "extensions": [".go"]
+    },
+    "bash": {
+      "command": ["bash-language-server", "start"],
+      "extensions": [".sh", ".bash", ".bashrc"]
+    },
+    "lua": {
+      "command": ["lua-language-server"],
+      "extensions": [".lua"]
     }
   }
 }

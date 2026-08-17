@@ -426,8 +426,8 @@ func (r *Resolver) piRows(panes []tmuxio.PaneRow, records map[int]piRecord) []Ro
 			continue
 		}
 		rows = append(rows, Row{
-			// pi exposes no stable session id to join on, so the pid stands in
-			// -- same convention as tmux-agent-ls.
+			// Legacy fallback: no registry record for this process, so the pid
+			// stands in for a session id -- same convention as tmux-agent-ls.
 			SessionID:   "pi:" + strconv.Itoa(proc.pid),
 			PaneID:      p.PaneID,
 			Target:      p.Target,

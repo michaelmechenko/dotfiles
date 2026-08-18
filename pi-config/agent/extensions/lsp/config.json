@@ -15,7 +15,8 @@
     },
     "gopls": {
       "command": ["gopls"],
-      "extensions": [".go"]
+      "extensions": [".go"],
+      "disabled": true
     },
     "bash": {
       "command": ["bash-language-server", "start"],
@@ -23,7 +24,8 @@
     },
     "lua": {
       "command": ["lua-language-server"],
-      "extensions": [".lua"]
+      "extensions": [".lua"],
+      "disabled": true
     }
   }
 }

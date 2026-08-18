@@ -67,6 +67,7 @@ interface DescriptionRecord {
 }
 
 const _descriptions = new WeakMap<object, Map<string, DescriptionRecord>>();
+const DESCRIPTION_ENTRY_TYPE = "image-proxy-descriptions";
 
 function getStore(ctx: ExtensionContext): Map<string, DescriptionRecord> {
   const key = ctx.sessionManager as unknown as object;
@@ -76,6 +77,20 @@ function getStore(ctx: ExtensionContext): Map<string, DescriptionRecord> {
     _descriptions.set(key, store);
   }
   return store;
+}
+
+function restoreDescriptions(ctx: ExtensionContext): void {
+  const store = getStore(ctx);
+  for (const entry of ctx.sessionManager.getBranch()) {
+    if (entry.type !== "custom" || entry.customType !== DESCRIPTION_ENTRY_TYPE) continue;
+    const records = (entry.data as { records?: unknown } | undefined)?.records;
+    if (!Array.isArray(records)) continue;
+    for (const item of records) {
+      if (!item || typeof item !== "object") continue;
+      const { hash, record } = item as { hash?: unknown; record?: DescriptionRecord };
+      if (typeof hash === "string" && record && typeof record.description === "string") store.set(hash, record);
+    }
+  }
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -155,7 +170,7 @@ async function describeImage(
     if (text.length === 0) {
       return { description: null, error: "vision model returned no content" };
     }
-    return { description: text };
+    return { description: text, filename };
   } catch (err) {
     return {
       description: null,
@@ -168,7 +183,7 @@ async function describeImage(
 async function describeAttached(
   images: ImageContent[],
   ctx: ExtensionContext,
-): Promise<void> {
+): Promise<Array<{ hash: string; record: DescriptionRecord }>> {
   const store = getStore(ctx);
   const tasks = images.map(async (image, i): Promise<{ hash: string; record: DescriptionRecord }> => {
     const record = await describeImage(image, i + 1, `attached-${i + 1}`, ctx);
@@ -196,18 +211,22 @@ async function describeAttached(
       ok === count ? "info" : "warning",
     );
   }
+  return results;
 }
 
 // ── Extension ────────────────────────────────────────────────────────────────
 
 export default function (pi: ExtensionAPI) {
+  pi.on("session_start", async (_event, ctx) => restoreDescriptions(ctx));
+
   // Analyze pasted/attached images before the agent loop, but only when the
   // active model can't see images itself.
   pi.on("before_agent_start", async (event, ctx) => {
     if (modelSupportsImages(ctx.model)) return;
     const images = event.images;
     if (!images || images.length === 0) return;
-    await describeAttached(images, ctx);
+    const records = await describeAttached(images, ctx);
+    pi.appendEntry(DESCRIPTION_ENTRY_TYPE, { records });
   });
 
   // Replace image blocks in user messages with their stored description text,

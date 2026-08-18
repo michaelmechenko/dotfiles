@@ -85,6 +85,15 @@ class BuildTests(unittest.TestCase):
         self.assertEqual(theme._active_name(), active_before)
 
 
+class TmuxAdapterTests(unittest.TestCase):
+    def test_static_styles_are_materialized(self):
+        tmux = theme.render_bundle(theme.load_palette("vague"))["tmux/colors.conf"]
+        self.assertIn('set -g status-style "bg=#100E11"', tmux)
+        self.assertIn('setw -g pane-active-border-style "fg=#aeaed1, bg=#100E11"', tmux)
+        self.assertNotIn('status-style "bg=#{', tmux)
+        self.assertNotIn('pane-active-border-style "fg=#{', tmux)
+
+
 class AuditTests(unittest.TestCase):
     def test_generated_bundle_has_no_hue_names(self):
         b = theme.build("vague")

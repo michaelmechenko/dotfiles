@@ -17,15 +17,15 @@
  *    during startup instead, and both statuses are excluded from the generic
  *    bottom extension-status lines.
  *
- * The whole footer renders in one uniform color (`dim`) -- the built-in footer
- * colors context% orange/red past 70%/90%; this one doesn't, by request.
+ * Context usage retains Pi's semantic urgency: warning at 70% and error at 90%.
  */
 
 import { execFile } from "node:child_process";
 import path from "node:path";
 import { promisify } from "node:util";
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { getAgentDir, SettingsManager, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { compactionLabel, contextTone } from "./context-display.ts";
 
 const execFileAsync = promisify(execFile);
 
@@ -108,15 +108,22 @@ function sanitizeStatusText(text: string): string {
 }
 
 export default function footer(pi: ExtensionAPI) {
+	let compacting = false;
+	pi.on("session_before_compact", async () => { compacting = true; requestFooterRender(); });
+	pi.on("session_compact", async () => { compacting = false; requestFooterRender(); });
+	let requestFooterRender = () => {};
 	function install(ctx: ExtensionContext) {
 		if (ctx.mode !== "tui") return;
 
 		let gitExtra: GitExtra = { originBranch: null, worktreeName: null };
+		const autoCompaction = SettingsManager.create(ctx.cwd, getAgentDir()).getCompactionEnabled();
 		resolveGitExtra(ctx.cwd).then((resolved) => {
 			gitExtra = resolved;
+			requestFooterRender();
 		});
 
 		ctx.ui.setFooter((tui, theme, footerData) => {
+			requestFooterRender = () => tui.requestRender();
 			const unsub = footerData.onBranchChange(async () => {
 				gitExtra = await resolveGitExtra(ctx.cwd);
 				tui.requestRender();
@@ -159,7 +166,7 @@ export default function footer(pi: ExtensionAPI) {
 					const contextWindow = contextUsage?.contextWindow ?? ctx.model?.contextWindow ?? 0;
 					const contextPercentValue = contextUsage?.percent ?? 0;
 					const contextPercent = contextUsage?.percent !== null ? contextPercentValue.toFixed(1) : "?";
-					const autoIndicator = " (auto)";
+					const autoIndicator = compactionLabel(autoCompaction, compacting);
 					const statsLeft =
 						contextPercent === "?"
 							? `?/${formatTokens(contextWindow)}${autoIndicator}`
@@ -200,7 +207,7 @@ export default function footer(pi: ExtensionAPI) {
 						}
 					}
 
-					const lines = [topLine, theme.fg("dim", statsLine)];
+					const lines = [topLine, theme.fg(contextTone(contextPercentValue), statsLine)];
 
 					const statusLines = Array.from(statuses.entries())
 						.filter(([key]) => key !== "lsp" && key !== "plan-mode")

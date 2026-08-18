@@ -12,27 +12,37 @@
 import type { ExtensionAPI, ExtensionContext, ToolInfo } from "@earendil-works/pi-coding-agent";
 import { getSettingsListTheme } from "@earendil-works/pi-coding-agent";
 import { Container, type SettingItem, SettingsList } from "@earendil-works/pi-tui";
+import { resolveToolSelection } from "./tool-policy.ts";
 
 // State persisted to session
 interface ToolsState {
-	enabledTools: string[];
+	/** Only user-disabled tools are persisted so newly installed tools stay visible. */
+	disabledTools: string[];
 }
 
 export default function toolsExtension(pi: ExtensionAPI) {
-	// Track enabled tools
-	let enabledTools: Set<string> = new Set();
+	// Persist a disabled delta rather than a stale enabled-tool snapshot.
+	let disabledTools: Set<string> = new Set();
 	let allTools: ToolInfo[] = [];
 
 	// Persist current state
 	function persistState() {
-		pi.appendEntry<ToolsState>("tools-config", {
-			enabledTools: Array.from(enabledTools),
-		});
+		pi.appendEntry<ToolsState>("tools-config", { disabledTools: Array.from(disabledTools).sort() });
 	}
 
-	// Apply current tool selection
-	function applyTools() {
-		pi.setActiveTools(Array.from(enabledTools));
+	// Never expand a plan/read-only positive allowlist. At normal startup every
+	// tool is active, so this removes the persisted delta without hiding new tools.
+	function applyTools(planOwnsTools = false) {
+		pi.setActiveTools(resolveToolSelection(allTools.map((tool) => tool.name), pi.getActiveTools(), disabledTools, planOwnsTools));
+	}
+	function planOwnsToolsInBranch(ctx: ExtensionContext): boolean {
+		let owned = false;
+		for (const entry of ctx.sessionManager.getBranch()) {
+			if (entry.type !== "custom" || entry.customType !== "plan-mode") continue;
+			const plan = entry.data as { accessMode?: unknown; phase?: unknown } | undefined;
+			owned = plan?.accessMode === "plan" || plan?.accessMode === "read-only" || plan?.phase === "executing";
+		}
+		return owned;
 	}
 
 	// Find the last tools-config entry in the current branch
@@ -41,26 +51,17 @@ export default function toolsExtension(pi: ExtensionAPI) {
 
 		// Get entries in current branch only
 		const branchEntries = ctx.sessionManager.getBranch();
-		let savedTools: string[] | undefined;
-
+		let savedDisabled: string[] | undefined;
 		for (const entry of branchEntries) {
-			if (entry.type === "custom" && entry.customType === "tools-config") {
-				const data = entry.data as ToolsState | undefined;
-				if (data?.enabledTools) {
-					savedTools = data.enabledTools;
-				}
-			}
+			if (entry.type !== "custom" || entry.customType !== "tools-config") continue;
+			const data = entry.data as (ToolsState & { enabledTools?: string[] }) | undefined;
+			if (data?.disabledTools) savedDisabled = data.disabledTools;
+			// Migrate old full snapshots to a delta against the current catalog.
+			else if (data?.enabledTools) savedDisabled = allTools.map((tool) => tool.name).filter((name) => !data.enabledTools!.includes(name));
 		}
-
-		if (savedTools) {
-			// Restore saved tool selection (filter to only tools that still exist)
-			const allToolNames = allTools.map((t) => t.name);
-			enabledTools = new Set(savedTools.filter((t: string) => allToolNames.includes(t)));
-			applyTools();
-		} else {
-			// No saved state - sync with currently active tools
-			enabledTools = new Set(pi.getActiveTools());
-		}
+		const allToolNames = new Set(allTools.map((tool) => tool.name));
+		disabledTools = new Set((savedDisabled ?? []).filter((name) => allToolNames.has(name)));
+		applyTools(planOwnsToolsInBranch(ctx));
 	}
 
 	// Register /tool-toggle command
@@ -80,7 +81,7 @@ export default function toolsExtension(pi: ExtensionAPI) {
 				const items: SettingItem[] = allTools.map((tool) => ({
 					id: tool.name,
 					label: tool.name,
-					currentValue: enabledTools.has(tool.name) ? "enabled" : "disabled",
+					currentValue: disabledTools.has(tool.name) ? "disabled" : "enabled",
 					values: ["enabled", "disabled"],
 				}));
 
@@ -101,11 +102,11 @@ export default function toolsExtension(pi: ExtensionAPI) {
 					(id, newValue) => {
 						// Update enabled state and apply immediately
 						if (newValue === "enabled") {
-							enabledTools.add(id);
+							disabledTools.delete(id);
 						} else {
-							enabledTools.delete(id);
+							disabledTools.add(id);
 						}
-						applyTools();
+						applyTools(planOwnsToolsInBranch(ctx));
 						persistState();
 					},
 					() => {

@@ -66,6 +66,10 @@ export function createWebSearchTool(composition?: WebSearchToolComposition) {
 			if (parsed._tag === "err") {
 				throw toWebSearchToolError(parsed.error);
 			}
+			if (!composition && !actualComposition.settings.search.apiKey) {
+				const variable = actualComposition.settings.search.provider === "exa" ? "EXA_API_KEY" : "PARALLEL_API_KEY";
+				throw new Error(`websearch requires ${variable}; set it in your shell or select a configured provider with WEB_TOOLS_SEARCH_PROVIDER.`);
+			}
 
 			const composed = createOperationSignal(parsed.value.timeoutSeconds * 1000, signal);
 			onUpdate?.({

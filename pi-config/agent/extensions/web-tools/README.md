@@ -39,7 +39,7 @@ All provider responses are capped at 1 MB. An empty `results` array is a valid s
 ### Parallel (explicit selection only)
 
 - Endpoint: `https://api.parallel.ai/v1/search`
-- Credential: optional `PARALLEL_API_KEY`, sent as `Authorization: Bearer …`
+- Credential: required `PARALLEL_API_KEY`, sent as `Authorization: Bearer …`
 - Request: structured JSON with `search_queries`, `objective`, `mode`, and `advanced_settings.max_results`
 - Depth: `fast` maps to Parallel `fast`; `auto` and `deep` map to its higher-quality `advanced` mode because Parallel has no depth field
 

@@ -113,3 +113,6 @@ require("lazy").setup("plugins", {
     },
   },
 })
+
+require("theme-overlay").setup()
+require("theme-selector").apply()

@@ -48,6 +48,15 @@ export default async function piPrettyExtension(pi: ExtensionAPI, deps?: PiPrett
 	};
 	const cwd = process.cwd();
 
+	// Tool executors return AgentToolResult, which has no isError field. Mark
+	// wrapped bash failures through Pi's supported completed-result event.
+	pi.on("tool_result", async (event) => {
+		if (event.toolName !== "bash") return undefined;
+		const details = event.details as { _type?: unknown; exitCode?: unknown } | undefined;
+		if (details?._type !== "bashResult" || typeof details.exitCode !== "number") return undefined;
+		return { isError: details.exitCode !== 0 };
+	});
+
 	// Text component for custom rendering (DI-friendly)
 	const TextComp = deps?.TextComponent;
 

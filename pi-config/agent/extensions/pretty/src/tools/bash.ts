@@ -44,7 +44,6 @@ export function registerBashTool(
 				const msg = error instanceof Error ? error.message : String(error);
 				return {
 					content: [{ type: "text" as const, text: msg }],
-					isError: true,
 					details: {
 						_type: "bashResult",
 						text: msg,

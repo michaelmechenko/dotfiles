@@ -39,6 +39,17 @@ interface SubagentDetails {
 	results: SingleResult[];
 }
 
+function aggregateUsage(results: SingleResult[]) {
+	const total = results.reduce((sum, result) => ({
+		input: sum.input + result.usage.input,
+		output: sum.output + result.usage.output,
+		cacheRead: sum.cacheRead + result.usage.cacheRead,
+		cacheWrite: sum.cacheWrite + result.usage.cacheWrite,
+		cost: sum.cost + result.usage.cost,
+	}), { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0 });
+	return { ...total, totalTokens: total.input + total.output + total.cacheRead + total.cacheWrite, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: total.cost } };
+}
+
 type OnUpdateCallback = (partial: AgentToolResult<SubagentDetails>) => void;
 interface DispatchDefaults { model?: string; thinkingLevel?: ThinkingLevel }
 
@@ -85,16 +96,21 @@ async function mapWithConcurrencyLimit<TIn, TOut>(items: TIn[], concurrency: num
 
 async function writePrivateTaskFiles(agentName: string, task: string, systemPrompt: string): Promise<{ dir: string; taskPath: string; promptPath?: string }> {
 	const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "pi-subagent-"));
-	await fs.promises.chmod(dir, 0o700);
-	const safe = agentName.replace(/[^\w.-]+/g, "_");
-	const taskPath = path.join(dir, `task-${safe}.md`);
-	await fs.promises.writeFile(taskPath, task, { encoding: "utf8", mode: 0o600 });
-	let promptPath: string | undefined;
-	if (systemPrompt.trim()) {
-		promptPath = path.join(dir, `system-${safe}.md`);
-		await fs.promises.writeFile(promptPath, systemPrompt, { encoding: "utf8", mode: 0o600 });
+	try {
+		await fs.promises.chmod(dir, 0o700);
+		const safe = agentName.replace(/[^\w.-]+/g, "_");
+		const taskPath = path.join(dir, `task-${safe}.md`);
+		await fs.promises.writeFile(taskPath, task, { encoding: "utf8", mode: 0o600 });
+		let promptPath: string | undefined;
+		if (systemPrompt.trim()) {
+			promptPath = path.join(dir, `system-${safe}.md`);
+			await fs.promises.writeFile(promptPath, systemPrompt, { encoding: "utf8", mode: 0o600 });
+		}
+		return { dir, taskPath, promptPath };
+	} catch (error) {
+		await fs.promises.rm(dir, { recursive: true, force: true });
+		throw error;
 	}
-	return { dir, taskPath, promptPath };
 }
 
 function getPiInvocation(args: string[]) {
@@ -158,6 +174,13 @@ const AgentScopeSchema = StringEnum(["user", "project", "both"] as const, { desc
 const SubagentParams = Type.Object({ agent: Type.Optional(Type.String({ description: "Name of the agent to invoke (for single mode)" })), task: Type.Optional(Type.String({ description: "Task to delegate (for single mode)" })), tasks: Type.Optional(Type.Array(TaskItem, { description: "Array of {agent, task} for parallel execution" })), chain: Type.Optional(Type.Array(ChainItem, { description: "Array of {agent, task} for sequential execution" })), agentScope: Type.Optional(AgentScopeSchema), confirmProjectAgents: Type.Optional(Type.Boolean({ description: "Prompt before running project-local agents. Default: true.", default: true })), cwd: Type.Optional(Type.String({ description: "Working directory for the agent process (single mode)" })) });
 
 export default function(pi: ExtensionAPI) {
+	// AgentToolResult has no isError field. Patch the completed tool result through
+	// Pi's supported event seam while retaining structured details and usage.
+	pi.on("tool_result", async (event) => {
+		if (event.toolName !== "subagent") return undefined;
+		const details = event.details as SubagentDetails | undefined;
+		return { isError: Boolean(details?.results.some(isFailedResult)) };
+	});
 	pi.registerTool({
 		name: "subagent", label: "Subagent", renderShell: "default", executionMode: "parallel",
 		description: "Delegate a bounded foreground task to a specialized, isolated subagent. Use researcher for deep primary-source research, scout for fast codebase recon, reviewer for adversarial review, and worker only for bounded implementation work.",
@@ -170,7 +193,7 @@ export default function(pi: ExtensionAPI) {
 			const defaults: DispatchDefaults = { model: ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : undefined, thinkingLevel: ctx.thinkingLevel };
 			const makeDetails = (mode: SubagentDetails["mode"]) => (results: SingleResult[]): SubagentDetails => ({ mode, agentScope, projectAgentsDir: discovery.projectAgentsDir, results });
 			const mode = params.chain?.length ? "chain" : params.tasks?.length ? "parallel" : params.agent && params.task ? "single" : undefined;
-			if (!mode) return { content: [{ type: "text", text: "Invalid parameters. Provide exactly one of single, tasks, or chain." }], details: makeDetails("single")([]), isError: true };
+			if (!mode) throw new Error("Invalid parameters. Provide exactly one of single, tasks, or chain.");
 			if ((params.confirmProjectAgents ?? true) && (agentScope === "project" || agentScope === "both") && ctx.hasUI) {
 				const names = (params.chain ?? params.tasks ?? (params.agent ? [{ agent: params.agent }] : [])).map((item) => item.agent);
 				const project = names.map((name) => discovery.agents.find((item) => item.name === name)).filter((item): item is AgentConfig => item?.source === "project");
@@ -178,23 +201,23 @@ export default function(pi: ExtensionAPI) {
 			}
 			if (mode === "single") {
 				const result = await runSingleAgent(ctx.cwd, defaults, discovery.agents, params.agent!, params.task!, params.cwd, undefined, signal, onUpdate, makeDetails("single"));
-				return { content: [{ type: "text", text: isFailedResult(result) ? `Agent failed: ${getResultOutput(result)}` : getFinalOutput(result.messages) || "(no output)" }], details: makeDetails("single")([result]), isError: isFailedResult(result) };
+				return { content: [{ type: "text", text: isFailedResult(result) ? `Agent failed: ${getResultOutput(result)}` : getFinalOutput(result.messages) || "(no output)" }], details: makeDetails("single")([result]), usage: aggregateUsage([result]) };
 			}
 			if (mode === "chain") {
 				const results: SingleResult[] = []; let previous = "";
 				for (let index = 0; index < params.chain!.length; index++) {
 					const item = params.chain![index];
 					const result = await runSingleAgent(ctx.cwd, defaults, discovery.agents, item.agent, item.task.replace(/\{previous\}/g, previous), item.cwd, index + 1, signal, (partial) => { const current = partial.details?.results[0]; if (current) onUpdate?.({ content: [{ type: "text", text: formatProgress(current, `Step ${index + 1}/${params.chain!.length} · `) }], details: makeDetails("chain")([...results, current]) }); }, makeDetails("chain"));
-					results.push(result); if (isFailedResult(result)) return { content: [{ type: "text", text: `Chain stopped at step ${index + 1} (${item.agent}): ${getResultOutput(result)}` }], details: makeDetails("chain")(results), isError: true }; previous = getFinalOutput(result.messages);
+					results.push(result); if (isFailedResult(result)) return { content: [{ type: "text", text: `Chain stopped at step ${index + 1} (${item.agent}): ${getResultOutput(result)}` }], details: makeDetails("chain")(results), usage: aggregateUsage(results) }; previous = getFinalOutput(result.messages);
 				}
-				return { content: [{ type: "text", text: getFinalOutput(results.at(-1)!.messages) || "(no output)" }], details: makeDetails("chain")(results) };
+				return { content: [{ type: "text", text: getFinalOutput(results.at(-1)!.messages) || "(no output)" }], details: makeDetails("chain")(results), usage: aggregateUsage(results) };
 			}
-			if (params.tasks!.length > MAX_PARALLEL_TASKS) return { content: [{ type: "text", text: `Too many parallel tasks (${params.tasks!.length}). Max is ${MAX_PARALLEL_TASKS}.` }], details: makeDetails("parallel")([]), isError: true };
+			if (params.tasks!.length > MAX_PARALLEL_TASKS) throw new Error(`Too many parallel tasks (${params.tasks!.length}). Max is ${MAX_PARALLEL_TASKS}.`);
 			const all: SingleResult[] = params.tasks!.map((item) => stateResult(undefined, item.agent, item.task, undefined, createRunnerState(), -1));
 			const emitParallel = () => onUpdate?.({ content: [{ type: "text", text: all.map((result, index) => formatProgress(result, `Lane ${index + 1}/${all.length} · `)).join("\n") }], details: makeDetails("parallel")([...all]) });
 			const results = await mapWithConcurrencyLimit(params.tasks!, MAX_CONCURRENCY, async (item, index) => { const result = await runSingleAgent(ctx.cwd, defaults, discovery.agents, item.agent, item.task, item.cwd, undefined, signal, (partial) => { if (partial.details?.results[0]) { all[index] = partial.details.results[0]; emitParallel(); } }, makeDetails("parallel")); all[index] = result; emitParallel(); return result; });
 			const summaries = results.map((result) => `### [${result.agent}] ${isFailedResult(result) ? "failed" : "completed"}\n\n${truncateOutput(getResultOutput(result))}`);
-			return { content: [{ type: "text", text: `Parallel: ${results.filter((result) => !isFailedResult(result)).length}/${results.length} succeeded\n\n${summaries.join("\n\n---\n\n")}` }], details: makeDetails("parallel")(results), isError: results.some(isFailedResult) };
+			return { content: [{ type: "text", text: `Parallel: ${results.filter((result) => !isFailedResult(result)).length}/${results.length} succeeded\n\n${summaries.join("\n\n---\n\n")}` }], details: makeDetails("parallel")(results), usage: aggregateUsage(results) };
 		},
 	});
 }

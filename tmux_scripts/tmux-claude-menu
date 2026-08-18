@@ -110,7 +110,7 @@ case "${1:-}" in
 
   *)
     origin=$(tmux display -p '#{client_name}')
-    border=$(tmux show -gqv @color-inactive); [ -n "$border" ] || border="#a9b1d6"
+    border=$(tmux show -gqv @color-text-muted); [ -n "$border" ] || border="#a9b1d6"
     tmux display-popup -E -w 80% -h 70% -b rounded -S "fg=$border" \
       "ORIGIN_CLIENT='$origin' '$SELF' --inner"
     ;;

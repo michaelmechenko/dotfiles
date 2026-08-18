@@ -6,7 +6,7 @@ CURRENT_PANE="$(tmux display-message -p -F "#{session_name}")"
 
 width=${2:-100%}
 height=${2:-30%}
-BORDER_COLOR=$(tmux show-options -gqv @color-inactive)
+BORDER_COLOR=$(tmux show-options -gqv @color-text-muted)
 BORDER_COLOR=${BORDER_COLOR:-"#a9b1d6"}
 
 if echo "$CURRENT_PANE" | grep -q '^ephemeral.*'; then

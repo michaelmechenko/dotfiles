@@ -2,10 +2,11 @@ return {
   "nvim-tree/nvim-web-devicons",
   config = function(_, opts)
     require("nvim-web-devicons").setup(opts)
+    local palette = require("palette")
 
     -- Override all DevIcon* highlights to single color globally
     local function override_devicon_colors()
-      local color = "#656a80"
+      local color = palette["text-muted"] or "#656a80"
       local highlights = vim.api.nvim_get_hl(0, {})
 
       for name, _ in pairs(highlights) do

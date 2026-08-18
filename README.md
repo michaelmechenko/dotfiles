@@ -24,7 +24,7 @@ top bar: sketchybar
 
 borders: jankyborders
 
-colorscheme: custom oldworld
+colorscheme: theme system (`theme switch vague|oldworld`, see theme/SUPPORT.md)
 
 font: lilex
 

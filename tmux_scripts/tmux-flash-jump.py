@@ -450,9 +450,9 @@ def interactive_main(pane_id: str) -> None:
         row_cell_widths=[display_width(line) for line in lines],
     )
 
-    dim_fg = hex_to_ansi_fg(tmux_color("@color-inactive", "#656a80"))
-    match_fg = hex_to_ansi_fg(tmux_color("@color-lavender2", "#aeaed1"))
-    label_fg = "\033[1m" + hex_to_ansi_fg(tmux_color("@color-rose", "#d8647e"))
+    dim_fg = hex_to_ansi_fg(tmux_color("@color-text-muted", "#656a80"))
+    match_fg = hex_to_ansi_fg(tmux_color("@color-accent-secondary", "#aeaed1"))
+    label_fg = "\033[1m" + hex_to_ansi_fg(tmux_color("@color-accent-primary", "#d8647e"))
 
     fd = sys.stdin.fileno()
     old_settings = termios.tcgetattr(fd)

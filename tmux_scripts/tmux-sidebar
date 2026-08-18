@@ -70,11 +70,11 @@ NAV_MIN_HEIGHT=3         # navigator never shrinks below this before blocks degr
 
 # ---- palette (read once) -----------------------------------------------
 read_palette() {
-  : "${COLOR_INACTIVE:=$(tmux show -gqv @color-inactive)}";   COLOR_INACTIVE=${COLOR_INACTIVE:-#656a80}
-  : "${COLOR_LAVENDER:=$(tmux show -gqv @color-lavender2)}";  COLOR_LAVENDER=${COLOR_LAVENDER:-#aeaed1}
-  : "${COLOR_ROSE:=$(tmux show -gqv @color-rose)}";           COLOR_ROSE=${COLOR_ROSE:-#d8647e}
-  : "${COLOR_PINK:=$(tmux show -gqv @color-dusty_pink)}";     COLOR_PINK=${COLOR_PINK:-#bb9dbd}
-  : "${COLOR_ACTIVE:=$(tmux show -gqv @color-active)}";       COLOR_ACTIVE=${COLOR_ACTIVE:-#bebedb}
+  : "${COLOR_INACTIVE:=$(tmux show -gqv @color-text-muted)}";   COLOR_INACTIVE=${COLOR_INACTIVE:-#656a80}
+  : "${COLOR_LAVENDER:=$(tmux show -gqv @color-accent-secondary)}";  COLOR_LAVENDER=${COLOR_LAVENDER:-#aeaed1}
+  : "${COLOR_ROSE:=$(tmux show -gqv @color-accent-primary)}";           COLOR_ROSE=${COLOR_ROSE:-#d8647e}
+  : "${COLOR_PINK:=$(tmux show -gqv @color-accent-tertiary)}";     COLOR_PINK=${COLOR_PINK:-#bb9dbd}
+  : "${COLOR_ACTIVE:=$(tmux show -gqv @color-accent-highlight)}";       COLOR_ACTIVE=${COLOR_ACTIVE:-#bebedb}
 }
 # hex "#aeaed1" -> "174;174;209"
 hex2rgb() {

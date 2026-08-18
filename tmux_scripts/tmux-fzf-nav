@@ -589,7 +589,7 @@ open_popup() {
   fi
 
   origin=$(tmux display-message -p '#{client_name}')
-  border=$(tmux show -gqv @color-inactive)
+  border=$(tmux show -gqv @color-text-muted)
   [ -n "$border" ] || border='#a9b1d6'
 
   tmux display-popup -E -w 84% -h 74% -b rounded -S "fg=$border" \

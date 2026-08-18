@@ -6,7 +6,7 @@ CURRENT_PANE="$(tmux display-message -p -F "#{session_name}")"
 
 width=${2:-80%}
 height=${2:-75%}
-BORDER_COLOR=$(tmux show-options -gqv @color-inactive)
+BORDER_COLOR=$(tmux show-options -gqv @color-text-muted)
 BORDER_COLOR=${BORDER_COLOR:-"#a9b1d6"}
 
 # The popup runs `tmux attach` inside `tmux popup` (modal); the wrapper sets @in_float_popup=1

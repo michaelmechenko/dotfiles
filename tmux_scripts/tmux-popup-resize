@@ -21,7 +21,7 @@ case "$SESSION" in
     *) exit 0 ;;
 esac
 
-BORDER_COLOR=$(tmux show-options -gqv @color-inactive)
+BORDER_COLOR=$(tmux show-options -gqv @color-text-muted)
 BORDER_COLOR=${BORDER_COLOR:-"#a9b1d6"}
 
 LAYOUTS=(fullscreen top bottom left right)

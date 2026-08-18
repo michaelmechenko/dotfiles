@@ -97,3 +97,8 @@ __pycache__/
 /pi-config/agent/plan-mode.json
 /pi-config/agent/plan-handoffs
 /pi-config/agent/plan-parallel
+/theme/active
+/claude/themes/active.json
+/pi-config/agent/themes/active.json
+/k9s/skins/active.yaml
+/theme/generated/

@@ -25,7 +25,7 @@ CWD="$(tmux display-message -p '#{pane_current_path}')"
 # account for the status-line offset. pane_width/height give the size.
 PANE_W="$(tmux display-message -p '#{pane_width}')"
 PANE_H="$(tmux display-message -p '#{pane_height}')"
-BORDER_COLOR=$(tmux show-options -gqv @color-inactive)
+BORDER_COLOR=$(tmux show-options -gqv @color-text-muted)
 BORDER_COLOR=${BORDER_COLOR:-"#a9b1d6"}
 
 # in-nnn plugin keys (pressed as ;<key>): ;l horizontal split, ;j vertical split,

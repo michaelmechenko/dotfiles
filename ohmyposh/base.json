@@ -1,8 +1,15 @@
 {
   "$schema": "https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/schema.json",
+  "palette": {
+    "accent-primary": "#d8647e",
+    "accent-secondary": "#aeaed1",
+    "accent-tertiary": "#bb9dbd",
+    "accent-info": "#8ba9c1",
+    "accent-warn": "#f5cb96"
+  },
   "transient_prompt": {
     "template": "* ",
-    "foreground": "#BB9DBD",
+    "foreground": "p:accent-tertiary",
     "background": "transparent"
   },
   "blocks": [
@@ -15,7 +22,7 @@
             "cache_duration": "none"
           },
           "template": "\udb85\udd45 {{ if eq .UserName \"mishka\" }}{{ .UserName }}{{ else }}mm{{ end }} ",
-          "foreground": "#AEAED1",
+          "foreground": "p:accent-secondary",
           "type": "session",
           "style": "plain"
         },
@@ -26,7 +33,7 @@
             "style": "agnoster_short"
           },
           "template": "\udb84\udf76 '{{ .Path }}' ",
-          "foreground": "#D8647E",
+          "foreground": "p:accent-primary",
           "type": "path",
           "style": "plain"
         },
@@ -35,8 +42,8 @@
             "branch_icon": "",
             "cache_duration": "none"
           },
-          "template": "<#f5cb96>\udb84\udf75 '</>{{ .HEAD }}<#f5cb96>' </>",
-          "foreground": "#BB9DBD",
+          "template": "<p:accent-warn>\udb84\udf75 '</>{{ .HEAD }}<p:accent-warn>' </>",
+          "foreground": "p:accent-tertiary",
           "type": "git",
           "style": "plain"
         },
@@ -48,7 +55,7 @@
             "threshold": 30000
           },
           "template": "{{ .FormattedMs }}",
-          "foreground": "#8BA9C1",
+          "foreground": "p:accent-info",
           "type": "executiontime",
           "style": "powerline"
         }

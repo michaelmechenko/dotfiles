@@ -1,4 +1,5 @@
 gui:
+  # THEME-BEGIN
   authorColors:
     "*": "#f3be7c"
   theme:
@@ -23,6 +24,7 @@ gui:
       - "#d8647e"
     defaultFgColor:
       - "#cdcdcd"
+  # THEME-END
   sidePanelWidth: 0.3333
   showCommandLog: false
   showRandomTip: false

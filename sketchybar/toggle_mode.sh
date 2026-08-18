@@ -11,7 +11,9 @@
 # flag suppresses focus-change callbacks in aerospace.toml; workspace-change callbacks remain
 # so the muted app/workspace blocks refresh only when switching workspaces.
 #
-# Echoes the new mode ("full" / "performance") on stdout for the Hammerspoon caller to alert.
+# Echoes the selected mode ("full" / "performance") on stdout for the Hammerspoon caller to alert.
+# `--refresh` rewrites the bare active copy without flipping the current profile; theme
+# changes use it after editing the tracked .full/.performance sources.
 set -euo pipefail
 
 DIR="$HOME/.config/sketchybar"
@@ -24,16 +26,33 @@ PERF="$DIR/sketchybarrc.performance"
 [ -f "$FULL" ] || cp "$ACTIVE" "$FULL" 2>/dev/null || true
 chmod +x "$FULL" "$PERF" 2>/dev/null || true
 
-if [ -f "$FLAG" ]; then
-  rm -f "$FLAG"
+copy_profile() {
+  local source=$1 mode=$2
   rm -f "$ACTIVE"
-  cp "$FULL" "$ACTIVE"
-  echo "full"
-else
-  : > "$FLAG"
-  rm -f "$ACTIVE"
-  cp "$PERF" "$ACTIVE"
-  echo "performance"
-fi
+  cp "$source" "$ACTIVE"
+  chmod +x "$ACTIVE" 2>/dev/null || true
+  echo "$mode"
+}
 
-chmod +x "$ACTIVE" 2>/dev/null || true
+case "${1:-toggle}" in
+  --refresh)
+    if [ -f "$FLAG" ]; then
+      copy_profile "$PERF" performance
+    else
+      copy_profile "$FULL" full
+    fi
+    ;;
+  toggle)
+    if [ -f "$FLAG" ]; then
+      rm -f "$FLAG"
+      copy_profile "$FULL" full
+    else
+      : > "$FLAG"
+      copy_profile "$PERF" performance
+    fi
+    ;;
+  *)
+    echo "usage: $0 [--refresh]" >&2
+    exit 2
+    ;;
+esac

@@ -1,3 +1,9 @@
+local palette = require("palette")
+local chrome = palette["surface-chrome"] or "#1C1C24"      -- surface-chrome (whole bar bg)
+local chrome_fg = palette["text"] or "#BEBEBE"             -- text
+local block_fg = palette["canvas"] or "#100E11"            -- canvas (dark text on accent block)
+local inactive_fg = palette["text-muted"] or "inactive_fg"     -- text-muted
+
 local filetype_spacing = {
   sections = {
     lualine_a = {
@@ -9,7 +15,7 @@ local filetype_spacing = {
           return " "
         end,
         padding = 0,
-        color = { bg = "#1c1c24", }
+        color = { bg = "chrome", }
       },
       {
         "buffers",
@@ -36,13 +42,13 @@ local filetype_spacing = {
         buffers_color = {
           active = {
             -- bg = "None", --[[ fg = "#9CABCA", ]]
-            bg = "#1c1c24",
+            bg = "chrome",
             gui = "bold"
           },
           inactive = {
             -- bg = "None", --[[ fg = "#9CABCA", ]]
-            bg = "#1c1c24",
-            fg = "#656a80",
+            bg = "chrome",
+            fg = "inactive_fg",
           },
         },
       },
@@ -67,12 +73,8 @@ local filetype_spacing = {
 -- Inline lualine theme. Upstream vague.nvim removed its shipped lualine theme
 -- (commit f911602), so theme='auto' fell back to lualine's default. Define it
 -- here to own the statusline colors. Section mapping is fixed: a+z -> .a,
--- b+y -> .b, c+x -> .c. Whole bar is surface-chrome #1C1C24; only a/z (status
--- and location) carry the per-mode accent.
-local chrome = "#1C1C24"      -- surface-chrome (whole bar bg)
-local chrome_fg = "#BEBEBE"   -- text
-local block_fg = "#100E11"    -- canvas (dark text on accent block)
-local inactive_fg = "#656a80" -- text-muted
+-- b+y -> .b, c+x -> .c. Whole bar is surface-chrome; only a/z (status and
+-- location) carry the per-mode accent. Colors come from the active palette.
 
 local function mode(accent)
   return {
@@ -83,11 +85,11 @@ local function mode(accent)
 end
 
 local vague_lualine = {
-  normal   = mode("#aeaed1"), -- accent-secondary
-  insert   = mode("#f3be7c"), -- accent-amber
-  visual   = mode("#bb9dbd"), -- accent-tertiary
-  replace  = mode("#d8647e"), -- accent-primary
-  command  = mode("#aeaed1"), -- accent-secondary
+  normal   = mode(palette["accent-secondary"] or "#aeaed1"), -- accent-secondary
+  insert   = mode(palette["accent-amber"] or "#f3be7c"), -- accent-amber
+  visual   = mode(palette["accent-tertiary"] or "#bb9dbd"), -- accent-tertiary
+  replace  = mode(palette["accent-primary"] or "#d8647e"), -- accent-primary
+  command  = mode(palette["accent-secondary"] or "#aeaed1"), -- accent-secondary
   inactive = {
     a = { fg = inactive_fg, bg = chrome },
     b = { fg = inactive_fg, bg = chrome },
@@ -126,7 +128,7 @@ return {
             end,
             padding = 0,
             -- color = { bg = "None", }
-            color = { bg = "#1c1c24" }
+            color = { bg = "chrome" }
           },
           {
             "buffers",
@@ -154,12 +156,12 @@ return {
               active = {
                 -- bg = "None", --[[ fg = "#9CABCA", ]]
                 -- gui = "bold"
-                bg = "#1c1c24"
+                bg = "chrome"
               },
               inactive = {
                 -- bg = "None", --[[ fg = "#9CABCA", ]]
-                bg = "#1c1c24",
-                fg = "#656a80",
+                bg = "chrome",
+                fg = "inactive_fg",
               },
             },
           },

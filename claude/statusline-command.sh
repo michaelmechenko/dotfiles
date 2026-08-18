@@ -6,11 +6,18 @@ input=$(cat)
 rgb() { printf '\033[38;2;%d;%d;%dm' "$1" "$2" "$3"; }
 reset='\033[0m'
 
-# Theme colors (see COLORS.md — reuse roles, no new hex)
-color_muted=$(rgb 101 106 128)    # #656a80 - dir, model, context %, worktree, added-dirs
-color_branch=$(rgb 187 157 189)   # #BB9DBD - git branch, added, PR approved
-color_dirty=$(rgb 243 190 124)    # #F3BE7C - modified (yellow), PR pending
-color_delete=$(rgb 216 100 126)   # #D8647E - deleted, PR changes-requested
+# Theme colors come from the active generated shell palette. Fall back to the
+# Vague baseline before the first `theme build`, so the statusline stays usable.
+THEME_SHELL="$HOME/.config/theme/active/shell/palette.sh"
+[[ -r "$THEME_SHELL" ]] && source "$THEME_SHELL"
+: "${THEME_RGB_TEXT_MUTED:=101 106 128}"
+: "${THEME_RGB_ACCENT_TERTIARY:=187 157 189}"
+: "${THEME_RGB_ACCENT_AMBER:=243 190 124}"
+: "${THEME_RGB_ACCENT_PRIMARY:=216 100 126}"
+color_muted=$(rgb $THEME_RGB_TEXT_MUTED)          # dir, model, context %, worktree, added-dirs
+color_branch=$(rgb $THEME_RGB_ACCENT_TERTIARY)    # git branch, added, PR approved
+color_dirty=$(rgb $THEME_RGB_ACCENT_AMBER)        # modified, PR pending
+color_delete=$(rgb $THEME_RGB_ACCENT_PRIMARY)     # deleted, PR changes-requested
 
 # Extract JSON fields (all native — no extra git/gh calls needed for worktree/repo/PR)
 model_name=$(echo "$input" | jq -r '.model.display_name')

@@ -9,6 +9,10 @@
 package theme
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+
 	"github.com/charmbracelet/lipgloss"
 
 	"mm-sidebar/internal/tmuxio"
@@ -16,17 +20,17 @@ import (
 
 // Theme holds one lipgloss style per semantic role used by the sidebar.
 type Theme struct {
-	// Muted: text-muted role (@color-inactive) -- inactive tabs, idle agents,
+	// Muted: text-muted role (@color-text-muted) -- inactive tabs, idle agents,
 	// help text, secondary labels.
 	Muted lipgloss.Style
-	// Accent: accent-secondary lavender (@color-lavender2) -- active tab,
+	// Accent: accent-secondary lavender (@color-accent-secondary) -- active tab,
 	// block labels, cursor glyph, directory rows.
 	Accent lipgloss.Style
-	// Text: active foreground (@color-active) -- ordinary row text.
+	// Text: active foreground (@color-accent-highlight) -- ordinary row text.
 	Text lipgloss.Style
-	// Urgent: accent-primary rose (@color-rose) -- awaiting-permission/waiting.
+	// Urgent: accent-primary rose (@color-accent-primary) -- awaiting-permission/waiting.
 	Urgent lipgloss.Style
-	// Busy: accent-tertiary dusty pink (@color-dusty_pink) -- thinking.
+	// Busy: accent-tertiary dusty pink (@color-accent-tertiary) -- thinking.
 	Busy lipgloss.Style
 	// Divider: divider-subtle (@color-divider) -- the horizontal rules between
 	// the navigator and each docked block, and the unfilled gauge track.
@@ -42,17 +46,39 @@ type Theme struct {
 	ActiveTab lipgloss.Style
 }
 
-// roles maps each option to its fallback, and is also the batch's name list.
-// Keep it as the single enumeration of the palette so a new role can't be added
-// to one place and forgotten in the other.
+// roles maps each semantic @color-* option to its last-resort fallback, and is
+// also the batch's name list. Keep it as the single enumeration of the palette so
+// a new role can't be added to one place and forgotten in the other. The values
+// here are only reached when the generated active-palette fallback
+// (theme/active/sidebar/fallback.json) is also missing — i.e. before the first
+// `theme build`.
 var roles = map[string]string{
-	"@color-canvas":     "#100E11",
-	"@color-inactive":   "#656a80",
-	"@color-lavender2":  "#aeaed1",
-	"@color-active":     "#bebedb",
-	"@color-rose":       "#d8647e",
-	"@color-dusty_pink": "#bb9dbd",
-	"@color-divider":    "#383848",
+	"@color-canvas":           "#100E11",
+	"@color-text-muted":       "#656a80",
+	"@color-accent-secondary": "#aeaed1",
+	"@color-accent-highlight": "#bebedb",
+	"@color-accent-primary":   "#d8647e",
+	"@color-accent-tertiary":  "#bb9dbd",
+	"@color-divider":          "#383848",
+}
+
+// loadFallback reads the generated active-palette fallback so the binary still
+// renders the active theme when run outside a tmux server (e.g. `mm-sidebar agents`
+// from a plain shell). Returns nil when the bundle has not been built yet.
+func loadFallback() map[string]string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil
+	}
+	data, err := os.ReadFile(filepath.Join(home, ".config", "theme", "active", "sidebar", "fallback.json"))
+	if err != nil {
+		return nil
+	}
+	var m map[string]string
+	if err := json.Unmarshal(data, &m); err != nil {
+		return nil
+	}
+	return m
 }
 
 // Load reads the @color-* options once. Called at startup; the palette is not
@@ -68,19 +94,25 @@ func Load() Theme {
 		names = append(names, n)
 	}
 	got := tmuxio.GlobalOpts(names...)
+	fallback := loadFallback()
 	opt := func(name string) string {
 		if v := got[name]; v != "" {
 			return v
+		}
+		if fallback != nil {
+			if v := fallback[name]; v != "" {
+				return v
+			}
 		}
 		return roles[name]
 	}
 
 	canvas := opt("@color-canvas")
-	muted := opt("@color-inactive")
-	accent := opt("@color-lavender2")
-	text := opt("@color-active")
-	rose := opt("@color-rose")
-	pink := opt("@color-dusty_pink")
+	muted := opt("@color-text-muted")
+	accent := opt("@color-accent-secondary")
+	text := opt("@color-accent-highlight")
+	rose := opt("@color-accent-primary")
+	pink := opt("@color-accent-tertiary")
 	divider := opt("@color-divider")
 
 	return Theme{

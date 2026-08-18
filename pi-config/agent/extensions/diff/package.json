@@ -6,7 +6,6 @@
 	"type": "module",
 	"dependencies": {
 		"@shikijs/cli": "^4.0.2",
-		"diff": "^7.0.0",
-		"xxhash-wasm": "^1.1.0"
+		"diff": "^7.0.0"
 	}
 }

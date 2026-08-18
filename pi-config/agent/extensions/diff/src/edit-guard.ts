@@ -5,10 +5,12 @@
 
 import { readFileSync } from "node:fs";
 import type { EditToolCallEvent, ExtensionHandler, ToolCallEventResult } from "@earendil-works/pi-coding-agent";
+import { normalizeEditOperations } from "./edit-operations.js";
 
 const guardEditToolCall: ExtensionHandler<EditToolCallEvent, ToolCallEventResult> = async (event, _ctx) => {
-	const { path, edits } = event.input;
-	if (!edits || !Array.isArray(edits)) return;
+	const { path } = event.input;
+	const edits = normalizeEditOperations(event.input);
+	if (!edits.length) return;
 	let fileContent: string;
 	try {
 		fileContent = readFileSync(path, "utf8");

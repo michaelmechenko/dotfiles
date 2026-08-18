@@ -21,8 +21,8 @@
  *   • Async rendering with invalidate() for non-blocking preview
  */
 
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { extname, relative } from "node:path";
+import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { extname, relative, resolve } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
 import { codeToANSI } from "@shikijs/cli";
@@ -42,6 +42,7 @@ import {
 } from "./core/diff.js";
 import { replace } from "./core/replace.js";
 import { registerEditGuard } from "./edit-guard.js";
+import { normalizeEditOperations } from "./edit-operations.js";
 
 import { frameResult, frameRow, frameText } from "../../tool-display/frame.js";
 
@@ -1375,18 +1376,26 @@ export const __testing = {
 };
 
 export default async function diffRendererExtension(pi: ExtensionAPI): Promise<void> {
+	// AgentToolResult has no isError field; patch the completed result while
+	// retaining the rich transactional details used by the renderer.
+	pi.on("tool_result", async (event) => {
+		if (event.toolName !== "apply_patch") return undefined;
+		const details = event.details as { _type?: unknown; error?: unknown } | undefined;
+		return details?._type === "applyPatchInfo" ? { isError: details.error === true } : undefined;
+	});
 	// Apply diff theme palette from settings/presets before rendering
 	applySharedDiffPalette();
 	// Resolve hunk separator style from env var
 	resolveSepStyle();
 
-	let createWriteTool: any, createEditTool: any, getMarkdownTheme: any, TextComponent: any, MarkdownComponent: any;
+	let createWriteTool: any, createEditTool: any, getMarkdownTheme: any, withFileMutationQueue: any, TextComponent: any, MarkdownComponent: any;
 	try {
 		const sdk = await import("@earendil-works/pi-coding-agent");
 		const tui = await import("@earendil-works/pi-tui");
 		createWriteTool = sdk.createWriteTool;
 		createEditTool = sdk.createEditTool;
 		getMarkdownTheme = sdk.getMarkdownTheme;
+		withFileMutationQueue = sdk.withFileMutationQueue;
 		TextComponent = tui.Text;
 		MarkdownComponent = tui.Markdown;
 	} catch (error) {
@@ -1395,7 +1404,18 @@ export default async function diffRendererExtension(pi: ExtensionAPI): Promise<v
 		);
 		return;
 	}
-	if (!createWriteTool || !createEditTool || !TextComponent) return;
+	if (!createWriteTool || !createEditTool || !withFileMutationQueue || !TextComponent) return;
+	const queueMutations = async <T>(paths: string[], fn: () => Promise<T>): Promise<T> => {
+		const queueKey = (input: string): string => {
+			const absolute = resolve(input);
+			try { return realpathSync.native(absolute); } catch { return absolute; }
+		};
+		// Canonicalize before sorting so alias/real-path patches acquire the same
+		// locks in one global order rather than deadlocking on opposite spellings.
+		const unique = [...new Set(paths.filter(Boolean).map((path) => queueKey(String(path))))].sort();
+		const run = async (index: number): Promise<T> => index === unique.length ? fn() : withFileMutationQueue(unique[index], () => run(index + 1));
+		return run(0);
+	};
 
 	const editHeaderStatsByCallId = new Map<
 		string,
@@ -1882,6 +1902,7 @@ export default async function diffRendererExtension(pi: ExtensionAPI): Promise<v
 				old = null;
 			}
 
+			// Pi's built-in write tool already owns the canonical mutation queue.
 			const result = await origWrite.execute(tid, params, sig, upd, ctx);
 			const content = params.content ?? "";
 
@@ -2012,25 +2033,6 @@ export default async function diffRendererExtension(pi: ExtensionAPI): Promise<v
 
 	const origEdit = createEditTool(cwd);
 
-	function getEditOperations(input: any): Array<{ oldText: string; newText: string }> {
-		if (Array.isArray(input?.edits)) {
-			return input.edits
-				.map((edit: any) => ({
-					oldText:
-						typeof edit?.oldText === "string" ? edit.oldText : typeof edit?.old_text === "string" ? edit.old_text : "",
-					newText:
-						typeof edit?.newText === "string" ? edit.newText : typeof edit?.new_text === "string" ? edit.new_text : "",
-				}))
-				.filter((edit: { oldText: string; newText: string }) => edit.oldText && edit.oldText !== edit.newText);
-		}
-
-		const oldText =
-			typeof input?.oldText === "string" ? input.oldText : typeof input?.old_text === "string" ? input.old_text : "";
-		const newText =
-			typeof input?.newText === "string" ? input.newText : typeof input?.new_text === "string" ? input.new_text : "";
-		return oldText && oldText !== newText ? [{ oldText, newText }] : [];
-	}
-
 	function summarizeEditOperations(operations: Array<{ oldText: string; newText: string }>) {
 		const diffs = operations.map((edit) => parseDiff(edit.oldText, edit.newText));
 		const totalAdded = diffs.reduce((sum, diff) => sum + diff.added, 0);
@@ -2066,28 +2068,30 @@ export default async function diffRendererExtension(pi: ExtensionAPI): Promise<v
 		async execute(tid: string, params: any, sig: any, upd: any, ctx: any) {
 			const fp = params.path ?? params.file_path ?? "";
 
-			const operations = getEditOperations(params);
+			const operations = normalizeEditOperations(params);
 
 			// Try cascading replace() first — smarter matching than SDK's exact-only edit
 			if (fp && operations.length > 0 && existsSync(fp)) {
 				try {
-					let content = readFileSync(fp, "utf-8");
+					let content = "";
 					let firstStrategy = "";
 					let replaceOk = true;
-
-					for (const op of operations) {
-						const r = replace(content, op.oldText, op.newText);
-						if (r.changed) {
-							content = r.content;
-							if (!firstStrategy) firstStrategy = r.strategy;
-						} else {
-							replaceOk = false;
-							break;
+					await queueMutations([fp], async () => {
+						content = readFileSync(fp, "utf-8");
+						for (const op of operations) {
+							const r = replace(content, op.oldText, op.newText);
+							if (r.changed) {
+								content = r.content;
+								if (!firstStrategy) firstStrategy = r.strategy;
+							} else {
+								replaceOk = false;
+								break;
+							}
 						}
-					}
+						if (replaceOk) writeFileSync(fp, content, "utf-8");
+					});
 
 					if (replaceOk) {
-						writeFileSync(fp, content, "utf-8");
 
 						const { diffs, summary } = summarizeEditOperations(operations);
 						const lg = detectDiffLanguage(fp);
@@ -2378,13 +2382,11 @@ export default async function diffRendererExtension(pi: ExtensionAPI): Promise<v
 				movePath: c.movePath,
 			}));
 
-			const result = await executeApplyPatch(changes);
+			const result = await queueMutations(changes.flatMap((change) => [change.path, change.movePath ?? ""]), () => executeApplyPatch(changes));
 			const output = formatApplyPatchResult(result);
-
 			return {
 				content: [{ type: "text", text: output }],
-				isError: !result.ok,
-				details: { _type: "applyPatchInfo", result },
+				details: { _type: "applyPatchInfo", result, error: !result.ok },
 			};
 		},
 		renderCall(args: any, theme: any, ctx: any) {

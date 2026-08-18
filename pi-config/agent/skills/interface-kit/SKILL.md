@@ -1,582 +1,125 @@
 ---
 name: interface-kit
 description: |
-  Authoritative guide for implementing stunning, accessible, performant UI. Synthesizes
-  design engineering philosophy, accessibility standards, animation principles, spatial design,
-  typography, color systems, and component craft into a single actionable reference.
-  Complements the design-system skill (which covers DESIGN.md spec writing) by covering
-  the HOW of implementation.
-  Trigger phrases: "build UI", "create component", "landing page", "make it look good",
-  "frontend", "design", "polish UI", "implement design", "make it beautiful",
-  "UI implementation", "component styling", "animation", "accessibility"
+  Implement polished, accessible, performant UI while respecting the project's existing design
+  system. Use for frontend components, landing pages, visual polish, animation, accessibility,
+  responsive layout, and design implementation.
 ---
 
-# Interface Kit: Implementation Guide for Exceptional Interfaces
+# Interface Kit
 
-> If a DESIGN.md exists at the project root, its tokens and specifications override all defaults in this skill. This skill provides sensible defaults for when no design system exists, and implementation guidance that applies regardless.
+Build distinctive interfaces without sacrificing accessibility, performance, or project conventions.
+If the project has `DESIGN.md`, tokens, component primitives, or established patterns, those are authoritative.
 
-> For deep dives on any section, see the reference files in this skill's `references/` directory.
+## Workflow
 
----
+1. Inspect the existing UI, design tokens, component library, and responsive conventions.
+2. State the intended result for each affected interaction, viewport, theme, loading, empty, and error state.
+3. Choose one clear visual direction that fits the product; do not mix unrelated styles.
+4. Implement the smallest complete vertical slice using existing primitives.
+5. Verify keyboard, screen-reader, contrast, motion, layout, and performance behavior.
+6. Render representative states at narrow and wide widths before calling the work complete.
 
-## 1. Core Philosophy
+## Priority order
 
-Taste is trained, not innate. Study why great interfaces feel right. Deconstruct apps you admire — the spacing, the timing, the weight of a shadow. The gap between "fine" and "exceptional" is built from hundreds of micro-decisions that users feel but never consciously notice.
+1. **Accessibility:** semantic HTML, labels, keyboard operation, visible focus, contrast, reduced motion.
+2. **Performance:** stable layout, appropriately sized assets, bounded client work, compositor-safe motion.
+3. **Typography:** readable hierarchy, deliberate measure, tabular numerals for data, balanced wrapping.
+4. **Layout:** consistent spacing rhythm, optical alignment, responsive behavior, complete state coverage.
+5. **Color:** semantic tokens, separately tested light/dark surfaces, no component-local palette drift.
+6. **Motion:** interaction feedback first; decoration only when it clarifies hierarchy or change.
+7. **Polish:** shadows, texture, transitions, and micro-details after the earlier layers are sound.
 
-**Unseen details compound.** A single rounded corner, a single eased transition, a single well-chosen shadow — none of these matter alone. Together they become "a thousand barely audible voices singing in tune." The cumulative effect is what separates craft from output.
+## Visual direction
 
-**Beauty is leverage.** Polish is not vanity. Good defaults, considered typography, and intentional motion are real differentiators. Users trust interfaces that feel cared for. Investors notice. Competitors can't easily replicate taste.
+Choose a direction appropriate to the product: restrained editorial, refined minimal, playful, technical,
+organic, retro-futuristic, or another deliberate system. Explain why it fits. Avoid generic generated-UI
+defaults such as interchangeable centered heroes, gratuitous gradients, arbitrary glass panels, excessive
+rounded cards, and decoration without hierarchy.
 
-**Intentionality over intensity.** Both bold maximalism and refined minimalism work — what fails is the absence of a clear point of view. Every visual decision should trace back to a deliberate conceptual direction. If you can't articulate WHY a choice was made, reconsider it.
+Intentionality matters more than intensity. Minimal interfaces need precise spacing and typography;
+expressive interfaces need coherent rules and stronger implementation discipline.
 
-**Choose a direction and execute with precision.** Don't hedge between styles. A brutalist page committed fully will always outperform a page that's "a little bit of everything." Commit, then refine.
+## Layout and spacing
 
-**NEVER produce generic "AI slop" aesthetics.** No gratuitous gradients on white backgrounds. No cookie-cutter hero sections with stock illustrations. No safe, forgettable layouts that could belong to any product. Every interface should have a point of view that makes it recognizable.
+- Reuse the project's spacing scale; otherwise establish a compact 4/8-based rhythm.
+- Align related edges and use proximity to communicate grouping before adding borders.
+- Prefer grids for two-dimensional structure and flex layouts for one-dimensional distribution.
+- Design mobile/narrow behavior explicitly rather than shrinking the desktop composition.
+- Prevent layout shift: reserve media space, stabilize async regions, and avoid late font jumps.
+- Use optical corrections when mathematically centered elements look misaligned.
 
----
+## Typography
 
-## 2. The Priority Stack
+- Use the project's fonts. Do not introduce a new display face for a local component.
+- Keep body copy near 45–75 characters per line; use `text-wrap: balance` or `pretty` where supported.
+- Use a small, intentional type scale and distinguish hierarchy through size, weight, spacing, and color.
+- Use tabular numerals for changing measurements, counters, prices, and timestamps.
+- Preserve readable line height and avoid all-caps for long labels.
 
-When implementing UI, work through these priorities in order. Higher priorities are non-negotiable; lower priorities are polish that compounds quality.
+## Color and themes
 
-| Priority | Level | What It Means |
-|----------|-------|---------------|
-| **Accessibility** | CRITICAL | Contrast 4.5:1, keyboard nav, ARIA semantics, visible focus rings. Ship nothing that excludes users. |
-| **Performance** | HIGH | WebP/AVIF images, lazy loading below fold, CLS < 0.1, transform-only animations on the compositor thread. |
-| **Typography** | HIGH | Font smoothing, text-wrap balance/pretty, tabular-nums for data, 65ch max line length. |
-| **Layout & Spatial** | HIGH | 4/8px grid, concentric border radius, optical alignment over geometric. |
-| **Color & Theme** | MEDIUM | HSL custom properties, semantic tokens, dark mode pairs tested separately. |
-| **Motion & Interaction** | MEDIUM | Frequency-based animation decisions, 150-300ms durations, ease-out default. |
-| **Polish & Details** | LOW | Layered shadows over borders, press feedback on buttons, staggered enter animations. |
+- Reference semantic tokens such as canvas, surface, text, muted, divider, accent, warning, and error.
+- Do not hardcode hex values inside components when a role exists.
+- Test every changed state in each supported theme; dark mode is not an automatic inversion.
+- Never rely on color alone for state or meaning.
+- Target WCAG AA contrast: 4.5:1 for normal text, 3:1 for large text and essential UI boundaries.
 
-Never skip a CRITICAL/HIGH item to chase a LOW item. A beautifully animated button that fails keyboard navigation is a net negative.
+## Interaction and motion
 
----
+- Every interactive element needs hover, focus-visible, active, disabled, pending, success, and error behavior where relevant.
+- Keep common feedback around 150–300 ms and animate `transform`/`opacity` when possible.
+- Respect `prefers-reduced-motion`; remove nonessential motion rather than only shortening it.
+- Avoid layout-property animation, surprise autoplay, and repeated motion on high-frequency actions.
+- Keep touch targets at least 44×44 CSS pixels unless the project has a stricter standard.
 
-## 3. Aesthetic Direction
+For springs, gestures, sequencing, and interruption behavior, read
+[`references/animation-playbook.md`](references/animation-playbook.md) only when the task needs advanced motion.
 
-Before writing a single line of CSS, commit to a bold aesthetic direction. The most common failure mode in AI-generated UI is convergence on the same safe, forgettable look.
+## Components
 
-### Pick a Tone
+- Prefer native elements and project primitives over custom interaction semantics.
+- Keep domain state separate from presentational variants.
+- Use explicit variants instead of boolean-prop combinations that create invalid states.
+- Make loading, empty, partial, overflow, long-label, error, and disabled states first-class.
+- Preserve focus across async updates and return it deliberately after dialogs or transient surfaces close.
 
-Choose one and commit fully:
+For production patterns covering dialogs, menus, forms, tables, toasts, skeletons, and command palettes, read
+[`references/component-patterns.md`](references/component-patterns.md) only for the relevant component family.
 
-- **Brutally minimal** — generous whitespace, monospace type, stark contrast, near-zero decoration
-- **Maximalist chaos** — layered textures, clashing type scales, dense information, intentional visual noise
-- **Retro-futuristic** — CRT glow effects, monospace terminals, scan lines, neon on dark
-- **Organic / natural** — earth tones, rounded shapes, paper textures, hand-drawn accents
-- **Luxury / refined** — serif headlines, muted palettes, ample negative space, subtle gold or cream accents
-- **Editorial / magazine** — dramatic type hierarchy, full-bleed imagery, grid-breaking layouts
-- **Playful / bold** — bright primaries, chunky borders, exaggerated shadows, bouncy motion
+## Accessibility verification
 
-### Match Complexity to Vision
+At minimum verify:
 
-Maximalist design demands elaborate code — layered backgrounds, complex grid structures, multiple font stacks. Minimalist design demands surgical precision — every pixel of spacing matters more when there's nothing to hide behind.
+- The page uses correct landmarks, headings, labels, and native controls.
+- Every action is reachable and operable by keyboard with a visible focus indicator.
+- Dialog focus is trapped/restored; menus and composites use the expected arrow-key behavior.
+- Validation and async status are announced without moving focus unexpectedly.
+- Zoom, text resizing, reduced motion, and high-contrast preferences remain usable.
+- Images have meaningful alternatives or are correctly marked decorative.
 
-### The Ban List (When No DESIGN.md Exists)
+For a full audit, read [`references/accessibility-checklist.md`](references/accessibility-checklist.md).
 
-When building without an existing design system, avoid these overused defaults that signal "AI-generated":
+## Performance verification
 
-- **Fonts**: Inter, Roboto, Arial, system-ui as display fonts, Space Grotesk
-- **Colors**: Purple-to-blue gradients on white backgrounds
-- **Patterns**: Generic hero with centered text + CTA + stock illustration
+- Check responsive image sizing and modern formats.
+- Avoid unnecessary client components, effects, observers, and global listeners.
+- Virtualize only genuinely large collections; do not add complexity to small lists.
+- Confirm no new horizontal overflow, cumulative layout shift, or long main-thread work.
+- Keep animation on the compositor path and stop off-screen/repeating work.
 
-Vary between light and dark themes, different font pairings, different aesthetic directions. Never converge on the same choices across projects.
+## Completion matrix
 
-### Visual Texture
+Render and inspect representative combinations, not only the happy path:
 
-Add depth through: gradient meshes, noise/grain overlays (`filter: url(#noise)`), layered transparencies, subtle background patterns, duotone image treatments.
+- narrow / medium / wide
+- light / dark when supported
+- keyboard focus / pointer hover / active / disabled
+- loading / empty / populated / overflow / error
+- reduced motion
+- short / long / localized labels
 
-**DESIGN.md overrides this entire section.** If DESIGN.md specifies Inter, use Inter. If it specifies purple gradients, use them. The ban list only applies when no design system exists and you're making aesthetic choices from scratch.
+Use real screenshots or the live application where available. Parsing CSS and passing typechecks are supplementary checks.
 
----
-
-## 4. Typography Essentials
-
-Typography is the single highest-leverage design element. Get it right and mediocre layouts still feel good. Get it wrong and nothing else saves it.
-
-### Root Setup
-
-```css
-html {
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
-}
-```
-
-Apply font smoothing to the root layout. On macOS, the default sub-pixel rendering makes text appear heavier than the designer intended.
-
-### Text Wrapping
-
-```css
-h1, h2, h3, h4, h5, h6 {
-  text-wrap: balance;
-}
-
-p, li, dd, blockquote {
-  text-wrap: pretty;
-}
-```
-
-`balance` distributes heading lines evenly. `pretty` avoids orphaned words in body text.
-
-### Numeric Display
-
-```css
-.data-value, .price, .counter, [data-numeric] {
-  font-variant-numeric: tabular-nums;
-}
-```
-
-Use `tabular-nums` for any number that updates dynamically — prices, counters, table columns. Without it, layout shifts as digit widths change.
-
-### Scale and Rhythm
-
-- **Base size**: 16px minimum for body text. Never go below 14px for any readable content.
-- **Line height**: 1.5-1.75 for body text, 1.1-1.3 for large headings.
-- **Max line length**: `max-width: 65ch` for body text. Long lines destroy readability.
-- **Type scale**: Pick a consistent scale and stick to it: 12 / 14 / 16 / 18 / 24 / 32 / 48 / 64.
-
-### Font Pairing
-
-Pair a distinctive display font with a refined body font. The display font carries personality; the body font carries readability. Use `font-weight` for hierarchy within a family:
-
-- **Headings**: 600-700 (semibold to bold)
-- **Body**: 400 (regular)
-- **Labels / UI**: 500 (medium)
-
-Always include font stack fallbacks:
-
-```css
---font-display: "Instrument Serif", "Georgia", serif;
---font-body: "Söhne", "Helvetica Neue", sans-serif;
---font-mono: "JetBrains Mono", "Fira Code", monospace;
-```
-
----
-
-## 5. Color & Theme
-
-### HSL Custom Properties (shadcn Pattern)
-
-```css
-:root {
-  --background: 0 0% 100%;
-  --foreground: 222.2 84% 4.9%;
-  --primary: 222.2 47.4% 11.2%;
-  --primary-foreground: 210 40% 98%;
-  --secondary: 210 40% 96.1%;
-  --secondary-foreground: 222.2 47.4% 11.2%;
-  --muted: 210 40% 96.1%;
-  --muted-foreground: 215.4 16.3% 46.9%;
-  --accent: 210 40% 96.1%;
-  --accent-foreground: 222.2 47.4% 11.2%;
-  --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 214.3 31.8% 91.4%;
-  --ring: 222.2 84% 4.9%;
-  --radius: 0.5rem;
-}
-```
-
-Define semantic tokens: primary, secondary, destructive, muted, accent, background, foreground. Reference colors by semantic name — never hardcode hex values in components.
-
-### Dark Mode
-
-```css
-.dark {
-  --background: 222.2 84% 4.9%;
-  --foreground: 210 40% 98%;
-  /* ... desaturated, lighter tonal variants — NOT simply inverted */
-}
-```
-
-Dark mode is not "invert colors." Use desaturated, lighter tonal variants. Backgrounds go dark but not pure black (`#000`). Text goes light but not pure white (`#fff`). Test contrast separately for dark mode — what passes in light may fail in dark.
-
-### Contrast Requirements
-
-- **WCAG AA minimum**: 4.5:1 for normal text, 3:1 for large text (18px+ bold or 24px+ regular)
-- Never convey information by color alone — always pair with an icon, label, or pattern
-- Test with browser devtools contrast checker or axe-core
-
-### Color Confidence
-
-Dominant colors with sharp accents outperform timid, evenly-distributed palettes. Pick one or two hero colors and let the rest of the palette recede. A confident palette has clear hierarchy; an uncertain palette spreads color evenly and feels flat.
-
----
-
-## 6. Spatial Design
-
-### Concentric Border Radius
-
-This is the single most common thing that makes nested UI elements feel "off":
-
-```
-outer_radius = inner_radius + padding
-```
-
-```css
-/* Correct: concentric */
-.card        { border-radius: 16px; padding: 8px; }
-.card-inner  { border-radius: 8px; }  /* 16 - 8 = 8 */
-
-/* Wrong: same radius on parent and child */
-.card        { border-radius: 12px; }
-.card-inner  { border-radius: 12px; }  /* Looks bloated */
-```
-
-When geometric centering looks off, align optically. Play/pause icons, dropdown carets, and asymmetric glyphs often need 1-2px manual nudges to look centered.
-
-### Shadows Over Borders
-
-Layer multiple transparent `box-shadow` values for natural depth instead of using borders:
-
-```css
-.elevated {
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.04),
-    0 2px 4px rgba(0, 0, 0, 0.04),
-    0 4px 8px rgba(0, 0, 0, 0.04);
-}
-```
-
-Multiple shadows at different spreads mimic how light works. A single hard shadow looks artificial.
-
-### Image Outlines
-
-Add a subtle inset outline to images and media for consistent depth against varied backgrounds:
-
-```css
-img, video {
-  outline: 1px solid rgba(0, 0, 0, 0.06);
-  outline-offset: -1px;
-}
-```
-
-### Spacing Scale
-
-Use a 4px / 8px base incremental system. Every spacing value should be a multiple of 4:
-
-`4 / 8 / 12 / 16 / 24 / 32 / 48 / 64 / 96 / 128`
-
-### Hit Areas
-
-Minimum 44x44px for all interactive elements. If the visual element is smaller, extend the hit area with a pseudo-element:
-
-```css
-.small-button::before {
-  content: "";
-  position: absolute;
-  inset: -8px;
-}
-```
-
-### Z-Index Scale
-
-Define a layered scale and never use arbitrary values:
-
-```css
---z-base: 0;
---z-dropdown: 10;
---z-sticky: 20;
---z-overlay: 40;
---z-modal: 100;
---z-toast: 1000;
-```
-
----
-
-## 7. Motion & Interaction
-
-### The Frequency-Based Decision Framework
-
-This is the most important mental model for animation decisions:
-
-| Frequency | Examples | Animation |
-|-----------|----------|-----------|
-| **100+ times/day** | Keyboard shortcuts, command palette actions, tab switches | **None.** Zero animation. Instant. |
-| **Tens of times/day** | Hover effects, list item navigation, toggles | **Remove or drastically reduce.** 50-100ms max. |
-| **Occasional** | Modals, drawers, toasts, page transitions | **Standard animation.** 150-300ms. |
-| **Rare / first-time** | Onboarding, celebrations, empty states | **Can add delight.** 300-500ms, more elaborate. |
-
-High-frequency animations feel sluggish. Low-frequency animations without motion feel jarring. Match the animation budget to usage frequency.
-
-### Custom Easing Curves
-
-Built-in CSS easings (`ease`, `ease-in-out`) are too weak. Define custom curves:
-
-```css
-:root {
-  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
-  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
-  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-```
-
-### Duration Guide
-
-| Element | Duration |
-|---------|----------|
-| Buttons, toggles | 100-160ms |
-| Tooltips | 125-200ms |
-| Dropdowns, popovers | 150-250ms |
-| Modals, drawers | 200-500ms |
-| Page transitions | 250-400ms |
-
-UI animations should stay under 300ms. Never use `ease-in` for UI animations — it front-loads the pause and feels sluggish.
-
-### Enter/Exit Asymmetry
-
-Exits should be softer and faster than enters. An enter animation at 250ms should have its exit at 150-200ms.
-
-### Split and Stagger Enter Animations
-
-When multiple elements enter the viewport, stagger them by semantic chunks with ~50-100ms delay:
-
-```css
-.stagger-item {
-  animation: fadeSlideIn 300ms var(--ease-out) both;
-}
-.stagger-item:nth-child(1) { animation-delay: 0ms; }
-.stagger-item:nth-child(2) { animation-delay: 60ms; }
-.stagger-item:nth-child(3) { animation-delay: 120ms; }
-```
-
-### Scale Animations
-
-Never animate from `scale(0)`. Start from `scale(0.9)` or higher, combined with opacity:
-
-```css
-@keyframes scaleIn {
-  from { opacity: 0; transform: scale(0.95); }
-  to   { opacity: 1; transform: scale(1); }
-}
-```
-
-### Press Feedback
-
-Every pressable element should scale down slightly on `:active`:
-
-```css
-button:active {
-  transform: scale(0.97);
-}
-```
-
-### Interruptibility
-
-Use CSS transitions (not keyframe animations) for interactive state changes. Transitions can be interrupted mid-way; keyframes cannot. This matters for hover states, toggles, and any element the user might interact with rapidly.
-
-### Popover Origin
-
-Make popovers transform-origin aware — they should grow from their trigger element, not from center. Exception: modals always originate from center.
-
-### Tooltip Hover Delay
-
-Skip the tooltip delay on subsequent hovers. If the user has already waited for one tooltip, show the next one immediately.
-
-### Reduced Motion
-
-```css
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
-  }
-}
-```
-
-Respect `prefers-reduced-motion`. Reduce animations — don't eliminate opacity and color transitions entirely, as those provide important feedback.
-
-### Hover Gate
-
-Gate hover animations behind a media query so touch devices don't trigger stuck hover states:
-
-```css
-@media (hover: hover) and (pointer: fine) {
-  .card:hover { transform: translateY(-2px); }
-}
-```
-
-> Reference `references/animation-playbook.md` for deep dives on spring physics, gesture-driven animation, and complex choreography.
-
----
-
-## 8. Component Craft
-
-### Primitives
-
-Use Radix UI primitives for accessible, unstyled foundations. Use CVA (class-variance-authority) for type-safe component variants:
-
-```tsx
-import { cva } from "class-variance-authority";
-
-const buttonVariants = cva(
-  "inline-flex items-center justify-center rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2",
-  {
-    variants: {
-      variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
-        destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
-        outline: "border border-input hover:bg-accent hover:text-accent-foreground",
-        ghost: "hover:bg-accent hover:text-accent-foreground",
-      },
-      size: {
-        sm: "h-9 px-3 text-sm",
-        default: "h-10 px-4 py-2",
-        lg: "h-11 px-8 text-lg",
-      },
-    },
-    defaultVariants: { variant: "default", size: "default" },
-  }
-);
-```
-
-### Button
-
-- Scale on press (`transform: scale(0.97)` on `:active`)
-- Visible focus ring (never `outline: none` without replacement)
-- Loading state with spinner replacing label, maintaining button dimensions
-- Disabled state at `opacity: 0.5` with `pointer-events: none`
-
-### Card
-
-- Concentric border radius between card and inner elements
-- Layered shadows (not borders) for depth
-- Hover state: subtle elevation change (`translateY(-1px)` + shadow increase)
-
-### Dialog / Modal
-
-- Focus trap (keyboard cannot escape to elements behind)
-- ESC to close, click outside overlay to close
-- `transform-origin: center`, fade + scale enter animation
-- `aria-modal="true"`, `role="dialog"`, `aria-labelledby`
-
-### Form
-
-- Visible labels always — never placeholder-only inputs
-- Error messages near the field with `aria-live="polite"` for screen readers
-- Progressive disclosure: show advanced fields only when needed
-- Use React Hook Form + Zod for validation
-
-### Theming
-
-Use shadcn CSS variable pattern (HSL format) for all component colors. Wrap client-interactive components in server components for Next.js App Router compatibility.
-
-> Reference `references/component-patterns.md` for the full component catalog with copy-paste implementations.
-
----
-
-## 9. Accessibility Essentials
-
-### Semantic HTML First
-
-Use `<button>`, `<nav>`, `<main>`, `<header>`, `<footer>`, `<article>`, `<section>` before reaching for ARIA. A `<button>` gives you keyboard handling, focus management, and screen reader semantics for free. A `<div onClick>` gives you none of that.
-
-### Keyboard Navigation
-
-- **Tab / Shift+Tab**: move between focusable elements
-- **Enter / Space**: activate buttons and links
-- **Arrow keys**: navigate within lists, menus, tabs, radio groups
-- **Escape**: close modals, popovers, dropdowns
-- **Home / End**: jump to first/last item in lists
-
-### Focus Management
-
-- Visible focus rings on all interactive elements — NEVER use `outline: none` without a replacement
-- Trap focus inside modals (Tab wraps within the modal, not behind it)
-- Restore focus to the trigger element when a modal/popover closes
-- Use `focus-visible` to show rings only for keyboard users, not mouse clicks:
-
-```css
-:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-}
-```
-
-### ARIA Attributes
-
-- `aria-label` for icon-only buttons: `<button aria-label="Close menu">X</button>`
-- `aria-labelledby` to associate headings with sections
-- `aria-describedby` to link help text or error messages to inputs
-- `aria-live="polite"` for dynamic content updates (toast messages, form errors)
-- `aria-hidden="true"` for decorative elements (icons next to text labels)
-- `aria-expanded` for toggleable elements (dropdowns, accordions)
-
-### Color and Contrast
-
-- WCAG AA: 4.5:1 for normal text, 3:1 for large text
-- Never use color as the sole indicator — pair with icons, text, or patterns
-- Test in both light and dark modes
-
-### Images and Media
-
-- Descriptive `alt` text for meaningful images: `alt="Dashboard showing 23% revenue growth"`
-- Empty `alt=""` for purely decorative images
-- Captions for video, transcripts for audio
-
-### Navigation Aids
-
-- **Skip link**: first focusable element, hidden until focused:
-
-```html
-<a href="#main-content" class="sr-only focus:not-sr-only">
-  Skip to main content
-</a>
-```
-
-- **Heading hierarchy**: sequential h1 through h6, no level skips. One `<h1>` per page.
-
-### Touch Targets
-
-- Minimum 44x44px interactive area
-- 8px minimum spacing between adjacent touch targets
-- Extend small visual elements with invisible padding or pseudo-elements
-
-### Testing
-
-- **Automated**: axe-core in CI, Lighthouse accessibility score 90+
-- **Manual**: full keyboard-only navigation test
-- **Screen reader**: test with VoiceOver (macOS) or NVDA (Windows)
-- **Visual**: zoom to 200%, check nothing breaks or overlaps
-
-> Reference `references/accessibility-checklist.md` for the full audit guide with pass/fail criteria.
-
----
-
-## 10. Pre-Delivery Review
-
-Run through this checklist before considering any UI implementation complete:
-
-### Typography
-- [ ] Font smoothing applied (`-webkit-font-smoothing: antialiased`)
-- [ ] Headings use `text-wrap: balance`
-- [ ] Dynamic numbers use `font-variant-numeric: tabular-nums`
-
-### Color
-- [ ] All colors referenced via semantic tokens, no hardcoded hex in components
-- [ ] Color contrast meets WCAG AA (4.5:1 normal text, 3:1 large text)
-- [ ] Dark mode tested separately for contrast
-
-### Spatial
-- [ ] Nested rounded elements use concentric border radius
-- [ ] Spacing follows 4px / 8px scale consistently
-- [ ] Interactive elements have 44x44px minimum hit area
-- [ ] Shadows used instead of borders where appropriate
-
-### Motion
-- [ ] Animation frequency matches usage frequency (no animation on high-frequency actions)
-- [ ] No `transition: all` anywhere — specific properties only
-- [ ] Enter animations split and staggered where multiple elements appear
-- [ ] `prefers-reduced-motion` respected
-
-### Accessibility
-- [ ] All interactive elements keyboard accessible
-- [ ] Focus rings visible on keyboard navigation (never `outline: none` without replacement)
-- [ ] Semantic HTML used before ARIA
-- [ ] `aria-live` on dynamic content updates
-
-> Reference `references/review-checklist.md` for the extended 30-item checklist with severity ratings and automated testing commands.
+For the extended final review and severity rubric, read
+[`references/review-checklist.md`](references/review-checklist.md).

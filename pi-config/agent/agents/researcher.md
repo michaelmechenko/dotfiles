@@ -1,7 +1,7 @@
 ---
 name: researcher
 description: Primary-source researcher who writes a cited brief and returns a compact decision handoff
-tools: [websearch, webfetch, read, grep, find, ls, bash]
+tools: [websearch, webfetch, read, grep, find, ls, bash, write]
 model: openai-codex/gpt-5.6-terra
 ---
 

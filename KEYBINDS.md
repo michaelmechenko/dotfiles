@@ -8,9 +8,19 @@ Reference for all active keybinds across AeroSpace (`aerospace/aerospace.toml`),
 | --- | --- |
 | `shift-tab` | Cycle thinking level forward (Pi built-in) |
 | `ctrl-tab` | Cycle thinking level backward (`thinking-controls/`; Ghostty maps it to F13) |
-| `cmd-left` | Move pi editor to the start of the current line (Ghostty → `super+left`) |
-| `cmd-right` | Move pi editor to the end of the current line (Ghostty → `super+right`) |
 | `ctrl+r` | Rename the current live pi session (`session-rename/`) |
+| `ctrl+.` | Open the unanswered-question form (`answer/`) |
+| `alt+enter` / `shift+enter` / `ctrl+j` | Insert a newline in the Pi editor |
+| `ctrl+enter` | Send the current message as a follow-up |
+| `ctrl+e` | Open the extension-toggle picker |
+| `ctrl+shift+e` | Open the skill-toggle picker |
+| `ctrl+s` | Stash or restore the Pi prompt |
+| `ctrl+shift+o` | Toggle extension-owned multiline tool-call detail |
+| `ctrl+l` / `ctrl+shift+p` | Open the model selector |
+| `ctrl+shift+s` | Save inside the scoped-models picker |
+| `ctrl+shift+r` | Toggle sorting inside the session picker |
+| `home` / `cmd-left` | Move to the start of the current editor line |
+| `end` / `cmd-right` | Move to the end of the current editor line |
 | `ctrl+p` | Cycle plan-mode access: none → plan → read-only → none; an idle execution pauses and re-enters plan mode |
 | `ctrl+alt+p` / `ctrl+alt+t` | Toggle the plan execution progress widget |
 | `/plan` / `/plan-review` | Enter structured planning or review a ready plan; execution opens the destination/model wizard |

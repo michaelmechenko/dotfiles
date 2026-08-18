@@ -8,24 +8,21 @@
     "ollama-cloud/*"
   ],
   "compaction": {
-    "enabled": false
+    "enabled": true
   },
   "enableInstallTelemetry": false,
-  "defaultProjectTrust": "always",
+  "defaultProjectTrust": "ask",
   "packages": [
     "npm:@dreki-gg/pi-lsp",
     "npm:pi-ast-grep",
     "npm:pi-mcp-adapter"
   ],
   "extensions": [
-    "-extensions/hidden-thinking-label/index.ts",
-    "-extensions/minimal-mode/index.ts",
-    "-extensions/permission-gate/index.ts",
     "+extensions/titlebar-spinner/index.ts",
     "+extensions/plan-mode/index.ts",
     "+extensions/minimal-working-indicator/index.ts"
   ],
-  "defaultThinkingLevel": "high",
+  "defaultThinkingLevel": "medium",
   "skills": [
     "-skills/tdd/SKILL.md",
     "-skills/terminate-slop/SKILL.md",

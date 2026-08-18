@@ -73,8 +73,7 @@
 
 - Use the local `tmux` tool only for active-session work; select an exact managed job before `peek` or `mute`.
 - Do not poll tmux panes. Completion is durable and silence is an explicit one-shot notification; mute silence when it is expected.
-- Never terminate tmux sessions, windows, panes, or released plan workers automatically. Startup rollback may close only an exact ownership-tagged, unreleased worker pane.
-- Parallel plan workstreams must own disjoint paths and execute only their assigned steps. The source coordinator performs cross-workstream verification and closeout.
+- Never terminate tmux sessions, windows, or panes automatically.
 
 ## Safety
 

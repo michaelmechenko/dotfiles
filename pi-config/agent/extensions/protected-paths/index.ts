@@ -1,30 +1,14 @@
-/**
- * Protected Paths Extension
- *
- * Blocks write and edit operations to protected paths.
- * Useful for preventing accidental modifications to sensitive files.
- */
-
+/** Blocks mutations to credentials, VCS metadata, and dependency directories. */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { isProtectedPath, mutationPaths } from "./path-policy.ts";
 
 export default function (pi: ExtensionAPI) {
-	const protectedPaths = [".env", ".git/", "node_modules/", "auth.json", ".ssh/", "id_rsa", ".pem"];
-
 	pi.on("tool_call", async (event, ctx) => {
-		if (event.toolName !== "write" && event.toolName !== "edit") {
-			return undefined;
-		}
-
-		const path = event.input.path as string;
-		const isProtected = protectedPaths.some((p) => path.includes(p));
-
-		if (isProtected) {
-			if (ctx.hasUI) {
-				ctx.ui.notify(`Blocked write to protected path: ${path}`, "warning");
-			}
-			return { block: true, reason: `Path "${path}" is protected` };
-		}
-
-		return undefined;
+		const paths = mutationPaths(event.toolName, event.input);
+		const protectedPath = paths.find((path) => isProtectedPath(path, ctx.cwd));
+		if (protectedPath === undefined) return undefined;
+		const display = String(protectedPath);
+		if (ctx.hasUI) ctx.ui.notify(`Blocked mutation to protected path: ${display}`, "warning");
+		return { block: true, reason: `Path "${display}" is protected` };
 	});
 }

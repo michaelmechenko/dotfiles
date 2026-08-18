@@ -12,41 +12,37 @@
  */
 
 import { tmpdir } from "node:os";
+import { basename } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { canonicalPath } from "../protected-paths/path-policy.ts";
 
-const dangerousPatterns = [/\brm\s+(-rf?|--recursive)/i, /\bsudo\b/i, /\b(chmod|chown)\b.*777/i];
+const dangerousPatterns = [/\brm\b[^\n;|&]*/i, /\bsudo\b/i, /\b(chmod|chown)\b[^\n;|&]*/i];
+const shellSyntax = /[\n\r;|&<>`$(){}]/;
 
-function tmpPrefixes(): string[] {
-	const prefixes = ["/tmp/", "/private/tmp/"];
-	const osTmp = tmpdir();
-	if (osTmp) prefixes.push(osTmp.endsWith("/") ? osTmp : `${osTmp}/`);
-	return prefixes;
+function tmpPrefixes(cwd: string): string[] { return ["/tmp", "/private/tmp", tmpdir()].map((path) => canonicalPath(path, cwd)).filter((path): path is string => Boolean(path)); }
+function commandWords(command: string): string[] | undefined {
+	if (shellSyntax.test(command)) return undefined;
+	return command.trim().split(/\s+/).map((token) => token.replace(/^['"]|['"]$/g, "")).filter(Boolean);
 }
-
-function hasPathTraversal(token: string): boolean {
-	return token.split("/").some((segment) => segment === "..");
+export function isDangerous(command: string): boolean {
+	const words = commandWords(command);
+	if (!words?.length) return dangerousPatterns.some((pattern) => pattern.test(command));
+	return ["sudo", "rm", "chmod", "chown"].includes(basename(words[0]!)) || dangerousPatterns.some((pattern) => pattern.test(command));
 }
-
-function isTmpPath(token: string): boolean {
-	if (hasPathTraversal(token)) return false;
-	if (token === "/tmp" || token === "/private/tmp") return true;
-	if (/^\$\{?TMPDIR\}?/.test(token)) return true;
-	return tmpPrefixes().some((prefix) => token.startsWith(prefix));
-}
-
-/** Extract path-like tokens (contains "/" or references $TMPDIR) from a bash command, ignoring flags. */
-function extractPathArgs(command: string): string[] {
-	return command
-		.split(/\s+/)
-		.map((token) => token.replace(/^['"]|['"]$/g, ""))
-		.filter((token) => token.length > 0 && !token.startsWith("-") && (token.includes("/") || /^\$\{?TMPDIR\}?/.test(token)));
-}
-
-/** Whether every path-like argument in a dangerous rm/chmod/chown command is confined to a temp directory. */
-function isConfinedToTmp(command: string): boolean {
-	if (/\bsudo\b/i.test(command)) return false;
-	const pathArgs = extractPathArgs(command);
-	return pathArgs.length > 0 && pathArgs.every(isTmpPath);
+/** Only absolute, literal non-flag operands can receive the temp-directory exception. */
+export function isConfinedToTmp(command: string, cwd = process.cwd()): boolean {
+	const words = commandWords(command);
+	const commandName = words?.[0] ? basename(words[0]) : "";
+	if (!words?.length || commandName === "sudo" || !["rm", "chmod", "chown"].includes(commandName)) return false;
+	const operands = words.slice(1).filter((word) => !word.startsWith("-"));
+	if (!operands.length) return false;
+	const paths = commandName === "rm" ? operands : operands.slice(1);
+	const prefixes = tmpPrefixes(cwd);
+	return paths.length > 0 && paths.every((path) => {
+		if (!path.startsWith("/") || /[*?\[\]]/.test(path)) return false;
+		const canonical = canonicalPath(path, cwd);
+		return canonical !== undefined && prefixes.some((prefix) => canonical === prefix || canonical.startsWith(`${prefix}/`));
+	});
 }
 
 export default function (pi: ExtensionAPI) {
@@ -54,10 +50,9 @@ export default function (pi: ExtensionAPI) {
 		if (event.toolName !== "bash") return undefined;
 
 		const command = event.input.command as string;
-		const isDangerous = dangerousPatterns.some((p) => p.test(command));
-		if (!isDangerous) return undefined;
+		if (!isDangerous(command)) return undefined;
 
-		if (isConfinedToTmp(command)) return undefined;
+		if (isConfinedToTmp(command, ctx.cwd)) return undefined;
 
 		if (!ctx.hasUI) {
 			// In non-interactive mode, block by default

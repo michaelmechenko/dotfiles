@@ -1,0 +1,17 @@
+{
+  "name": "Oldworld Aligned",
+  "base": "dark-ansi",
+  "overrides": {
+    "claude": "#ea83a5",
+    "text": "#c9c7cd",
+    "inactive": "#6c6874",
+    "success": "#e29eca",
+    "error": "#ea83a5",
+    "warning": "#e6b99d",
+    "planMode": "#85b5ba",
+    "autoAccept": "#92a2d5",
+    "diffAdded": "#e29eca",
+    "diffRemoved": "#ea83a5",
+    "promptBorder": "#27272a"
+  }
+}

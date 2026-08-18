@@ -1,0 +1,57 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://config.local/theme/schema.json",
+  "title": "Canonical theme palette",
+  "description": "One canonical semantic palette per colorscheme. Roles are hue-independent; a role value is either a 6-digit hex or a reference to another role (@role-name). ANSI 0-15 are explicit hex. The native section carries the irreducible per-theme choices (Neovim/Zed colorscheme names). The module (theme/theme.py) is the enforcing validator; this schema documents the contract for review.",
+  "type": "object",
+  "required": ["name", "roles", "ansi", "ghostty", "native"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "Palette identifier; also the bundle directory name."
+    },
+    "roles": {
+      "type": "object",
+      "description": "Semantic, hue-independent roles. Value is a hex or an @role reference.",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^(#[0-9a-fA-F]{6}|@[a-z][a-z0-9-]*)$"
+      }
+    },
+    "ansi": {
+      "type": "array",
+      "minItems": 16,
+      "maxItems": 16,
+      "description": "Terminal ANSI slots 0-15, in order. Explicit hex only.",
+      "items": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" }
+    },
+    "ghostty": {
+      "type": "object",
+      "description": "Ghostty UI colors beyond the ANSI palette. Values are hex or @role references.",
+      "properties": {
+        "background": { "type": "string" },
+        "foreground": { "type": "string" },
+        "selection-background": { "type": "string" },
+        "selection-foreground": { "type": "string" },
+        "split-divider-color": { "type": "string" },
+        "cursor-color": { "type": "string" },
+        "cursor-text": { "type": "string" }
+      }
+    },
+    "native": {
+      "type": "object",
+      "description": "Irreducible per-theme native selections for rich editors that own a larger token graph than the shared role table.",
+      "required": ["nvim", "zed"],
+      "properties": {
+        "nvim": { "type": "string", "description": "Neovim colorscheme name (e.g. vague, oldworld)." },
+        "zed": { "type": "string", "description": "Zed theme name (e.g. Vague, Oldworld)." }
+      }
+    },
+    "opacity": {
+      "type": "object",
+      "description": "Optional per-role opacity metadata (0.0-1.0) for surfaces that render translucent, e.g. the active window border.",
+      "additionalProperties": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+    }
+  }
+}

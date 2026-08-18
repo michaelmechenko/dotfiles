@@ -273,9 +273,11 @@ nvim()   { command nvim "$@"; printf '\e[4 q'; }
 claude() { command claude "$@"; printf '\e[4 q'; }
 
 # tmux identifies pi's Node executable as "node", even though pi sets its process
-# title. Keep the window labelled pi for its lifetime, then restore automatic naming.
+# title. Keep automatically named windows labelled pi for its lifetime. A manually
+# renamed window has automatic naming off and must retain its persistent name.
 pi() {
-  if [[ -z $TMUX || -z $TMUX_PANE ]]; then
+  if [[ -z $TMUX || -z $TMUX_PANE ]] \
+    || [[ $(tmux show-window-options -v -t "$TMUX_PANE" automatic-rename 2>/dev/null) != on ]]; then
     command pi "$@"
     return $?
   fi

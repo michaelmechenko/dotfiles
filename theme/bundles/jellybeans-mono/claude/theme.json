@@ -1,0 +1,17 @@
+{
+  "name": "Jellybeans-Mono Aligned",
+  "base": "dark-ansi",
+  "overrides": {
+    "claude": "#ffaf00",
+    "text": "#ffffff",
+    "inactive": "#1f1f1f",
+    "success": "#afd787",
+    "error": "#ffaf00",
+    "warning": "#556779",
+    "planMode": "#40000a",
+    "autoAccept": "#c95c5c",
+    "diffAdded": "#afd787",
+    "diffRemoved": "#ffaf00",
+    "promptBorder": "#151515"
+  }
+}

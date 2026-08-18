@@ -1,0 +1,17 @@
+{
+  "name": "Nightfox-Nordfox Aligned",
+  "base": "dark-ansi",
+  "overrides": {
+    "claude": "#d9b263",
+    "text": "#e7ecf4",
+    "inactive": "#3b4252",
+    "success": "#d06f79",
+    "error": "#d9b263",
+    "warning": "#f0d399",
+    "planMode": "#d89079",
+    "autoAccept": "#b46950",
+    "diffAdded": "#d06f79",
+    "diffRemoved": "#d9b263",
+    "promptBorder": "#353a45"
+  }
+}

@@ -16,8 +16,10 @@ import theme  # noqa: E402
 
 
 class PaletteValidationTests(unittest.TestCase):
-    def test_both_palettes_load(self):
-        for name in ("vague", "oldworld"):
+    def test_all_palettes_load(self):
+        names = sorted(path.stem for path in theme.PALETTES_DIR.glob("*.json"))
+        self.assertGreaterEqual(len(names), 37)
+        for name in names:
             p = theme.load_palette(name)
             self.assertEqual(p["name"], name)
             self.assertEqual(len(p["ansi"]), 16)

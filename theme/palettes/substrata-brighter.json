@@ -1,0 +1,78 @@
+{
+  "$schema": "../schema.json",
+  "name": "substrata-brighter",
+  "source": {
+    "repository": "kvrohit/substrata.nvim",
+    "path": "lua/substrata/colors.lua",
+    "variant": "substrata-brighter"
+  },
+  "roles": {
+    "canvas": "#191c25",
+    "surface-active": "#20222d",
+    "surface-chrome": "#272935",
+    "surface-highlight": "#2e313d",
+    "surface-extend": "#fe9f7c",
+    "surface-fold": "#ab924c",
+    "surface-heading-h1": "#fe9f7c",
+    "surface-heading-h2": "#d2b45f",
+    "surface-heading-h3": "#fead90",
+    "surface-tint-rose": "#fe9f7c",
+    "copy-mode-indicator": "#32353e",
+    "divider-subtle": "#272935",
+    "text": "#f0ecfe",
+    "text-ui": "#f0ecfe",
+    "text-muted": "#32353e",
+    "text-default": "#f0ecfe",
+    "accent-primary": "#fe9f7c",
+    "accent-secondary": "#d2b45f",
+    "accent-tertiary": "#fead90",
+    "accent-highlight": "#cf8164",
+    "accent-info": "#d59076",
+    "accent-periwinkle": "#ab924c",
+    "accent-warn": "#dbc380",
+    "accent-amber": "#b8a161",
+    "selection-bg": "#2e313d",
+    "selection-fg": "#f0ecfe",
+    "split-divider": "#32353e",
+    "bar-text": "#f0ecfe",
+    "bar-canvas": "#191c25"
+  },
+  "ansi": [
+    "#191c25",
+    "#fe9f7c",
+    "#d2b45f",
+    "#dbc380",
+    "#ab924c",
+    "#fead90",
+    "#d59076",
+    "#f0ecfe",
+    "#32353e",
+    "#fe9f7c",
+    "#d2b45f",
+    "#dbc380",
+    "#ab924c",
+    "#fead90",
+    "#d59076",
+    "#f0ecfe"
+  ],
+  "ghostty": {
+    "background": "@canvas",
+    "foreground": "@text",
+    "selection-background": "@selection-bg",
+    "selection-foreground": "@selection-fg",
+    "cursor-color": "@text",
+    "cursor-text": "@canvas"
+  },
+  "native": {
+    "nvim": {
+      "name": "substrata",
+      "globals": {
+        "substrata_variant": "brighter"
+      }
+    },
+    "zed": null
+  },
+  "opacity": {
+    "border-active": 0.7
+  }
+}

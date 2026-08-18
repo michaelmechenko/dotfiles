@@ -1,0 +1,17 @@
+{
+  "name": "Nightfox-Carbonfox Aligned",
+  "base": "dark-ansi",
+  "overrides": {
+    "claude": "#33b1ff",
+    "text": "#f2f4f8",
+    "inactive": "#525253",
+    "success": "#3ddbd9",
+    "error": "#33b1ff",
+    "warning": "#42be65",
+    "planMode": "#25be6a",
+    "autoAccept": "#08bdba",
+    "diffAdded": "#3ddbd9",
+    "diffRemoved": "#33b1ff",
+    "promptBorder": "#525253"
+  }
+}

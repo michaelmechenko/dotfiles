@@ -3,7 +3,7 @@
   "name": "vague",
   "roles": {
     "canvas": "#100E11",
-    "surface-active": "#1A161C",
+    "surface-active": "#1B1A21",
     "surface-chrome": "#1C1C24",
     "surface-highlight": "#2A2A35",
     "surface-extend": "@accent-primary",

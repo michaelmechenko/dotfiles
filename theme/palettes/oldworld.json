@@ -3,9 +3,9 @@
   "name": "oldworld",
   "roles": {
     "canvas": "#131313",
-    "surface-active": "#1a1a1a",
+    "surface-active": "#1D1D20",
     "surface-chrome": "#27272a",
-    "surface-highlight": "#6c6874",
+    "surface-highlight": "#2D2D31",
     "surface-extend": "@accent-primary",
     "surface-fold": "@accent-info",
     "surface-heading-h1": "#3C2F38",

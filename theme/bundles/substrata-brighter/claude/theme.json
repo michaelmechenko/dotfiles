@@ -1,0 +1,17 @@
+{
+  "name": "Substrata-Brighter Aligned",
+  "base": "dark-ansi",
+  "overrides": {
+    "claude": "#fe9f7c",
+    "text": "#f0ecfe",
+    "inactive": "#32353e",
+    "success": "#fead90",
+    "error": "#fe9f7c",
+    "warning": "#b8a161",
+    "planMode": "#d59076",
+    "autoAccept": "#d2b45f",
+    "diffAdded": "#fead90",
+    "diffRemoved": "#fe9f7c",
+    "promptBorder": "#272935"
+  }
+}

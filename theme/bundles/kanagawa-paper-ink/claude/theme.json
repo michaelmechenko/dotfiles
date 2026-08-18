@@ -1,0 +1,17 @@
+{
+  "name": "Kanagawa-Paper-Ink Aligned",
+  "base": "dark-ansi",
+  "overrides": {
+    "claude": "#e98a00",
+    "text": "#ecece8",
+    "inactive": "#1f1f28",
+    "success": "#cc6d00",
+    "error": "#e98a00",
+    "warning": "#d7474b",
+    "planMode": "#e82424",
+    "autoAccept": "#de9800",
+    "diffAdded": "#cc6d00",
+    "diffRemoved": "#e98a00",
+    "promptBorder": "#181616"
+  }
+}

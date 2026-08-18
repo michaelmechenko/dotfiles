@@ -1,0 +1,17 @@
+{
+  "name": "Monokai-Pro-Spectrum Aligned",
+  "base": "dark-ansi",
+  "overrides": {
+    "claude": "#fd9353",
+    "text": "#f7f1ff",
+    "inactive": "#363537",
+    "success": "#fce566",
+    "error": "#fd9353",
+    "warning": "#191919",
+    "planMode": "#7bd88f",
+    "autoAccept": "#fc618d",
+    "diffAdded": "#fce566",
+    "diffRemoved": "#fd9353",
+    "promptBorder": "#222222"
+  }
+}

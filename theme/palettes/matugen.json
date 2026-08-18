@@ -1,0 +1,73 @@
+{
+  "$schema": "../schema.json",
+  "name": "matugen",
+  "source": {
+    "repository": "daedlock/matugen.nvim",
+    "path": "lua/matugen/palette.lua",
+    "variant": "matugen"
+  },
+  "roles": {
+    "canvas": "#1d1b20",
+    "surface-active": "#211f26",
+    "surface-chrome": "#2b292f",
+    "surface-highlight": "#36343b",
+    "surface-extend": "#d0bcff",
+    "surface-fold": "#141218",
+    "surface-heading-h1": "#d0bcff",
+    "surface-heading-h2": "#f2b8b5",
+    "surface-heading-h3": "#efb8c8",
+    "surface-tint-rose": "#d0bcff",
+    "copy-mode-indicator": "#36343b",
+    "divider-subtle": "#2b292f",
+    "text": "#e6e0e9",
+    "text-ui": "#e6e0e9",
+    "text-muted": "#36343b",
+    "text-default": "#e6e0e9",
+    "accent-primary": "#d0bcff",
+    "accent-secondary": "#f2b8b5",
+    "accent-tertiary": "#efb8c8",
+    "accent-highlight": "#ccc2dc",
+    "accent-info": "#0f0d13",
+    "accent-periwinkle": "#141218",
+    "accent-warn": "#1d1b20",
+    "accent-amber": "#211f26",
+    "selection-bg": "#36343b",
+    "selection-fg": "#e6e0e9",
+    "split-divider": "#36343b",
+    "bar-text": "#e6e0e9",
+    "bar-canvas": "#1d1b20"
+  },
+  "ansi": [
+    "#1d1b20",
+    "#d0bcff",
+    "#f2b8b5",
+    "#1d1b20",
+    "#141218",
+    "#efb8c8",
+    "#0f0d13",
+    "#e6e0e9",
+    "#36343b",
+    "#d0bcff",
+    "#f2b8b5",
+    "#1d1b20",
+    "#141218",
+    "#efb8c8",
+    "#0f0d13",
+    "#e6e0e9"
+  ],
+  "ghostty": {
+    "background": "@canvas",
+    "foreground": "@text",
+    "selection-background": "@selection-bg",
+    "selection-foreground": "@selection-fg",
+    "cursor-color": "@text",
+    "cursor-text": "@canvas"
+  },
+  "native": {
+    "nvim": "matugen",
+    "zed": null
+  },
+  "opacity": {
+    "border-active": 0.7
+  }
+}

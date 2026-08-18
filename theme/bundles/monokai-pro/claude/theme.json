@@ -1,0 +1,17 @@
+{
+  "name": "Monokai-Pro Aligned",
+  "base": "dark-ansi",
+  "overrides": {
+    "claude": "#ff6188",
+    "text": "#fcfcfa",
+    "inactive": "#403e41",
+    "success": "#fc9867",
+    "error": "#ff6188",
+    "warning": "#221f22",
+    "planMode": "#a9dc76",
+    "autoAccept": "#ffd866",
+    "diffAdded": "#fc9867",
+    "diffRemoved": "#ff6188",
+    "promptBorder": "#2d2a2e"
+  }
+}

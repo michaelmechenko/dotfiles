@@ -1,0 +1,73 @@
+{
+  "$schema": "../schema.json",
+  "name": "jellybeans-muted",
+  "source": {
+    "repository": "WTFox/jellybeans.nvim",
+    "path": "lua/jellybeans/palettes/jellybeans_muted.lua",
+    "variant": "jellybeans-muted"
+  },
+  "roles": {
+    "canvas": "#0d0c0b",
+    "surface-active": "#101010",
+    "surface-chrome": "#38100a",
+    "surface-highlight": "#2c2824",
+    "surface-extend": "#d9a45a",
+    "surface-fold": "#1e1e7a",
+    "surface-heading-h1": "#d9a45a",
+    "surface-heading-h2": "#cc4d4d",
+    "surface-heading-h3": "#d8a16c",
+    "surface-tint-rose": "#d9a45a",
+    "copy-mode-indicator": "#2c2824",
+    "divider-subtle": "#38100a",
+    "text": "#f9f5ec",
+    "text-ui": "#f9f5ec",
+    "text-muted": "#2c2824",
+    "text-default": "#f9f5ec",
+    "accent-primary": "#d9a45a",
+    "accent-secondary": "#cc4d4d",
+    "accent-tertiary": "#d8a16c",
+    "accent-highlight": "#e8c88c",
+    "accent-info": "#6aa84c",
+    "accent-periwinkle": "#1e1e7a",
+    "accent-warn": "#7e2e23",
+    "accent-amber": "#c88a77",
+    "selection-bg": "#2c2824",
+    "selection-fg": "#f9f5ec",
+    "split-divider": "#2c2824",
+    "bar-text": "#f9f5ec",
+    "bar-canvas": "#0d0c0b"
+  },
+  "ansi": [
+    "#0d0c0b",
+    "#d9a45a",
+    "#cc4d4d",
+    "#7e2e23",
+    "#1e1e7a",
+    "#d8a16c",
+    "#6aa84c",
+    "#f9f5ec",
+    "#2c2824",
+    "#d9a45a",
+    "#cc4d4d",
+    "#7e2e23",
+    "#1e1e7a",
+    "#d8a16c",
+    "#6aa84c",
+    "#f9f5ec"
+  ],
+  "ghostty": {
+    "background": "@canvas",
+    "foreground": "@text",
+    "selection-background": "@selection-bg",
+    "selection-foreground": "@selection-fg",
+    "cursor-color": "@text",
+    "cursor-text": "@canvas"
+  },
+  "native": {
+    "nvim": "jellybeans-muted",
+    "zed": null
+  },
+  "opacity": {
+    "border-active": 0.7
+  }
+}

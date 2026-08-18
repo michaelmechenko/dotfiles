@@ -1,0 +1,17 @@
+{
+  "name": "Nightfox-Duskfox Aligned",
+  "base": "dark-ansi",
+  "overrides": {
+    "claude": "#e6a852",
+    "text": "#eae8ff",
+    "inactive": "#393552",
+    "success": "#f6c177",
+    "error": "#e6a852",
+    "warning": "#d871a6",
+    "planMode": "#f9cb8c",
+    "autoAccept": "#d84f76",
+    "diffAdded": "#f6c177",
+    "diffRemoved": "#e6a852",
+    "promptBorder": "#2d2a45"
+  }
+}

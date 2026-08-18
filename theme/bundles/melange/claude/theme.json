@@ -1,0 +1,17 @@
+{
+  "name": "Melange Aligned",
+  "base": "dark-ansi",
+  "overrides": {
+    "claude": "#e49b5d",
+    "text": "#ece1d7",
+    "inactive": "#403a36",
+    "success": "#d47766",
+    "error": "#e49b5d",
+    "warning": "#c1a78e",
+    "planMode": "#8b7449",
+    "autoAccept": "#ebc06d",
+    "diffAdded": "#d47766",
+    "diffRemoved": "#e49b5d",
+    "promptBorder": "#253333"
+  }
+}

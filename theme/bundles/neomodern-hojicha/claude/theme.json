@@ -1,0 +1,17 @@
+{
+  "name": "Neomodern-Hojicha Aligned",
+  "base": "dark-ansi",
+  "overrides": {
+    "claude": "#9e6057",
+    "text": "#ffeaea",
+    "inactive": "#8a7f76",
+    "success": "#b0a582",
+    "error": "#9e6057",
+    "warning": "#b0a582",
+    "planMode": "#171614",
+    "autoAccept": "#ab836c",
+    "diffAdded": "#b0a582",
+    "diffRemoved": "#9e6057",
+    "promptBorder": "#9e6057"
+  }
+}

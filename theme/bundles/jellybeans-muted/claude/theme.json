@@ -1,0 +1,17 @@
+{
+  "name": "Jellybeans-Muted Aligned",
+  "base": "dark-ansi",
+  "overrides": {
+    "claude": "#d9a45a",
+    "text": "#f9f5ec",
+    "inactive": "#2c2824",
+    "success": "#d8a16c",
+    "error": "#d9a45a",
+    "warning": "#c88a77",
+    "planMode": "#6aa84c",
+    "autoAccept": "#cc4d4d",
+    "diffAdded": "#d8a16c",
+    "diffRemoved": "#d9a45a",
+    "promptBorder": "#38100a"
+  }
+}

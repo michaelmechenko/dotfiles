@@ -1,0 +1,17 @@
+{
+  "name": "Koda Aligned",
+  "base": "dark-ansi",
+  "overrides": {
+    "claude": "#ff5733",
+    "text": "#ffffff",
+    "inactive": "#474747",
+    "success": "#458ee6",
+    "error": "#ff5733",
+    "warning": "#701516",
+    "planMode": "#d9ba73",
+    "autoAccept": "#14ba19",
+    "diffAdded": "#458ee6",
+    "diffRemoved": "#ff5733",
+    "promptBorder": "#701516"
+  }
+}

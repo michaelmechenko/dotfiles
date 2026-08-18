@@ -1,0 +1,17 @@
+{
+  "name": "Mellow Aligned",
+  "base": "dark-ansi",
+  "overrides": {
+    "claude": "#f27306",
+    "text": "#fafafa",
+    "inactive": "#353539",
+    "success": "#e08200",
+    "error": "#f27306",
+    "warning": "#e05439",
+    "planMode": "#f73e7c",
+    "autoAccept": "#f2a50a",
+    "diffAdded": "#e08200",
+    "diffRemoved": "#f27306",
+    "promptBorder": "#27272a"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "Everforest Aligned",
+  "base": "dark-ansi",
+  "overrides": {
+    "claude": "#dfa000",
+    "text": "#fffbef",
+    "inactive": "#333c43",
+    "success": "#f85552",
+    "error": "#dfa000",
+    "warning": "#35a77c",
+    "planMode": "#3a94c5",
+    "autoAccept": "#f57d26",
+    "diffAdded": "#f85552",
+    "diffRemoved": "#dfa000",
+    "promptBorder": "#272e33"
+  }
+}

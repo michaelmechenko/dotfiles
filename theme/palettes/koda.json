@@ -1,0 +1,73 @@
+{
+  "$schema": "../schema.json",
+  "name": "koda",
+  "source": {
+    "repository": "oskarnurm/koda.nvim",
+    "path": "lua/koda/palette/dark.lua",
+    "variant": "koda"
+  },
+  "roles": {
+    "canvas": "#101010",
+    "surface-active": "#272727",
+    "surface-chrome": "#701516",
+    "surface-highlight": "#474747",
+    "surface-extend": "#ff5733",
+    "surface-fold": "#5abfb5",
+    "surface-heading-h1": "#ff5733",
+    "surface-heading-h2": "#14ba19",
+    "surface-heading-h3": "#458ee6",
+    "surface-tint-rose": "#ff5733",
+    "copy-mode-indicator": "#474747",
+    "divider-subtle": "#701516",
+    "text": "#ffffff",
+    "text-ui": "#ffffff",
+    "text-muted": "#474747",
+    "text-default": "#ffffff",
+    "accent-primary": "#ff5733",
+    "accent-secondary": "#14ba19",
+    "accent-tertiary": "#458ee6",
+    "accent-highlight": "#ff7676",
+    "accent-info": "#d9ba73",
+    "accent-periwinkle": "#5abfb5",
+    "accent-warn": "#8ebeec",
+    "accent-amber": "#701516",
+    "selection-bg": "#474747",
+    "selection-fg": "#ffffff",
+    "split-divider": "#474747",
+    "bar-text": "#ffffff",
+    "bar-canvas": "#101010"
+  },
+  "ansi": [
+    "#101010",
+    "#ff5733",
+    "#14ba19",
+    "#8ebeec",
+    "#5abfb5",
+    "#458ee6",
+    "#d9ba73",
+    "#ffffff",
+    "#474747",
+    "#ff5733",
+    "#14ba19",
+    "#8ebeec",
+    "#5abfb5",
+    "#458ee6",
+    "#d9ba73",
+    "#ffffff"
+  ],
+  "ghostty": {
+    "background": "@canvas",
+    "foreground": "@text",
+    "selection-background": "@selection-bg",
+    "selection-foreground": "@selection-fg",
+    "cursor-color": "@text",
+    "cursor-text": "@canvas"
+  },
+  "native": {
+    "nvim": "koda-dark",
+    "zed": null
+  },
+  "opacity": {
+    "border-active": 0.7
+  }
+}

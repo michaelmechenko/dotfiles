@@ -1,0 +1,17 @@
+{
+  "name": "Rose-Pine Aligned",
+  "base": "dark-ansi",
+  "overrides": {
+    "claude": "#ea9d34",
+    "text": "#fffaf3",
+    "inactive": "#2a273f",
+    "success": "#eb6f92",
+    "error": "#ea9d34",
+    "warning": "#ea9a97",
+    "planMode": "#31748f",
+    "autoAccept": "#f6c177",
+    "diffAdded": "#eb6f92",
+    "diffRemoved": "#ea9d34",
+    "promptBorder": "#232136"
+  }
+}

@@ -41,11 +41,23 @@
     },
     "native": {
       "type": "object",
-      "description": "Irreducible per-theme native selections for rich editors that own a larger token graph than the shared role table.",
+      "description": "Irreducible per-theme native selections for rich editors that own a larger token graph than the shared role table. A null Zed value explicitly records that upstream provides no verified Zed theme.",
       "required": ["nvim", "zed"],
       "properties": {
-        "nvim": { "type": "string", "description": "Neovim colorscheme name (e.g. vague, oldworld)." },
-        "zed": { "type": "string", "description": "Zed theme name (e.g. Vague, Oldworld)." }
+        "nvim": {
+          "oneOf": [
+            { "type": "string", "description": "Neovim colorscheme name (e.g. vague, oldworld)." },
+            {
+              "type": "object",
+              "required": ["name"],
+              "properties": {
+                "name": { "type": "string" },
+                "globals": { "type": "object", "additionalProperties": { "type": ["string", "number", "boolean"] } }
+              }
+            }
+          ]
+        },
+        "zed": { "type": ["string", "null"], "description": "Verified Zed theme name, or null when unavailable upstream." }
       }
     },
     "opacity": {

@@ -1,0 +1,17 @@
+{
+  "name": "Koda-Moss Aligned",
+  "base": "dark-ansi",
+  "overrides": {
+    "claude": "#ec8013",
+    "text": "#cecece",
+    "inactive": "#30464a",
+    "success": "#c33c33",
+    "error": "#ec8013",
+    "warning": "#8ebeec",
+    "planMode": "#6abf40",
+    "autoAccept": "#d2322d",
+    "diffAdded": "#c33c33",
+    "diffRemoved": "#ec8013",
+    "promptBorder": "#30464a"
+  }
+}

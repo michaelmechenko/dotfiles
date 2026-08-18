@@ -1,0 +1,9 @@
+{
+  "@color-canvas": "#1d1b20",
+  "@color-text-muted": "#36343b",
+  "@color-accent-secondary": "#f2b8b5",
+  "@color-accent-highlight": "#ccc2dc",
+  "@color-accent-primary": "#d0bcff",
+  "@color-accent-tertiary": "#efb8c8",
+  "@color-divider": "#2b292f"
+}

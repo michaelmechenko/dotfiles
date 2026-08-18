@@ -1,0 +1,17 @@
+{
+  "name": "Neomodern-Roseprime Aligned",
+  "base": "dark-ansi",
+  "overrides": {
+    "claude": "#96aff2",
+    "text": "#ffecff",
+    "inactive": "#9bbdb8",
+    "success": "#a6a4eb",
+    "error": "#96aff2",
+    "warning": "#141517",
+    "planMode": "#c4959c",
+    "autoAccept": "#5f86b0",
+    "diffAdded": "#a6a4eb",
+    "diffRemoved": "#96aff2",
+    "promptBorder": "#c4959c"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "canvas": "#191919",
+  "text": "#f0f0f0",
+  "text-muted": "#2f4243",
+  "accent-primary": "#ac8aac",
+  "accent-secondary": "#8aabac",
+  "accent-tertiary": "#aca98a",
+  "accent-info": "#8f8aac",
+  "accent-warn": "#8aac8b"
+}

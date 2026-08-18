@@ -1,0 +1,24 @@
+authorColors:
+  "*": "#d7474b"
+theme:
+  activeBorderColor:
+    - "#de9800"
+    - "bold"
+  inactiveBorderColor:
+    - "#1f1f28"
+  optionsTextColor:
+    - "#1f1f28"
+  selectedLineBgColor:
+    - "#1a1a22"
+  cherryPickedCommitFgColor:
+    - "#e98a00"
+  cherryPickedCommitBgColor:
+    - "bg"
+  markedBaseCommitFgColor:
+    - "#d7474b"
+  markedBaseCommitBgColor:
+    - "bg"
+  unstagedChangesColor:
+    - "#e98a00"
+  defaultFgColor:
+    - "#ecece8"

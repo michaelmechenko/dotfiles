@@ -1,0 +1,73 @@
+{
+  "$schema": "../schema.json",
+  "name": "neomodern-moon",
+  "source": {
+    "repository": "casedami/neomodern.nvim",
+    "path": "lua/neomodern/palette/moon.lua",
+    "variant": "neomodern-moon"
+  },
+  "roles": {
+    "canvas": "#151515",
+    "surface-active": "#4c4c57",
+    "surface-chrome": "#777d77",
+    "surface-highlight": "#b39066",
+    "surface-extend": "#b39066",
+    "surface-fold": "#b39066",
+    "surface-heading-h1": "#b39066",
+    "surface-heading-h2": "#7a8aa6",
+    "surface-heading-h3": "#6d748c",
+    "surface-tint-rose": "#b39066",
+    "copy-mode-indicator": "#817882",
+    "divider-subtle": "#777d77",
+    "text": "#eeeeff",
+    "text-ui": "#eeeeff",
+    "text-muted": "#817882",
+    "text-default": "#eeeeff",
+    "accent-primary": "#b39066",
+    "accent-secondary": "#7a8aa6",
+    "accent-tertiary": "#6d748c",
+    "accent-highlight": "#eeeeff",
+    "accent-info": "#151515",
+    "accent-periwinkle": "#b39066",
+    "accent-warn": "#777d77",
+    "accent-amber": "#b5b3a5",
+    "selection-bg": "#b39066",
+    "selection-fg": "#eeeeff",
+    "split-divider": "#817882",
+    "bar-text": "#eeeeff",
+    "bar-canvas": "#151515"
+  },
+  "ansi": [
+    "#151515",
+    "#b39066",
+    "#7a8aa6",
+    "#777d77",
+    "#b39066",
+    "#6d748c",
+    "#151515",
+    "#eeeeff",
+    "#817882",
+    "#b39066",
+    "#7a8aa6",
+    "#777d77",
+    "#b39066",
+    "#6d748c",
+    "#151515",
+    "#eeeeff"
+  ],
+  "ghostty": {
+    "background": "@canvas",
+    "foreground": "@text",
+    "selection-background": "@selection-bg",
+    "selection-foreground": "@selection-fg",
+    "cursor-color": "@text",
+    "cursor-text": "@canvas"
+  },
+  "native": {
+    "nvim": "moon",
+    "zed": null
+  },
+  "opacity": {
+    "border-active": 0.7
+  }
+}

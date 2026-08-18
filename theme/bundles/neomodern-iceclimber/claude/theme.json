@@ -1,0 +1,17 @@
+{
+  "name": "Neomodern-Iceclimber Aligned",
+  "base": "dark-ansi",
+  "overrides": {
+    "claude": "#87a1e6",
+    "text": "#e9e9ff",
+    "inactive": "#cfa18c",
+    "success": "#cfa18c",
+    "error": "#87a1e6",
+    "warning": "#171719",
+    "planMode": "#6a969c",
+    "autoAccept": "#8a88d1",
+    "diffAdded": "#cfa18c",
+    "diffRemoved": "#87a1e6",
+    "promptBorder": "#90aba0"
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "$schema": "../schema.json",
+  "name": "everforest-hard",
+  "source": {
+    "repository": "sainnhe/everforest",
+    "path": "palette.md",
+    "variant": "everforest-hard"
+  },
+  "roles": {
+    "canvas": "#272e33",
+    "surface-active": "#2d353b",
+    "surface-chrome": "#333c43",
+    "surface-highlight": "#493b40",
+    "surface-extend": "#dfa000",
+    "surface-fold": "#e66868",
+    "surface-heading-h1": "#dfa000",
+    "surface-heading-h2": "#f57d26",
+    "surface-heading-h3": "#f85552",
+    "surface-tint-rose": "#dfa000",
+    "copy-mode-indicator": "#543a48",
+    "divider-subtle": "#333c43",
+    "text": "#fffbef",
+    "text-ui": "#fffbef",
+    "text-muted": "#543a48",
+    "text-default": "#fffbef",
+    "accent-primary": "#dfa000",
+    "accent-secondary": "#f57d26",
+    "accent-tertiary": "#f85552",
+    "accent-highlight": "#8da101",
+    "accent-info": "#3a94c5",
+    "accent-periwinkle": "#e66868",
+    "accent-warn": "#df69ba",
+    "accent-amber": "#35a77c",
+    "selection-bg": "#493b40",
+    "selection-fg": "#fffbef",
+    "split-divider": "#543a48",
+    "bar-text": "#fffbef",
+    "bar-canvas": "#272e33"
+  },
+  "ansi": [
+    "#272e33",
+    "#dfa000",
+    "#f57d26",
+    "#df69ba",
+    "#e66868",
+    "#f85552",
+    "#3a94c5",
+    "#fffbef",
+    "#543a48",
+    "#dfa000",
+    "#f57d26",
+    "#df69ba",
+    "#e66868",
+    "#f85552",
+    "#3a94c5",
+    "#fffbef"
+  ],
+  "ghostty": {
+    "background": "@canvas",
+    "foreground": "@text",
+    "selection-background": "@selection-bg",
+    "selection-foreground": "@selection-fg",
+    "cursor-color": "@text",
+    "cursor-text": "@canvas"
+  },
+  "native": {
+    "nvim": {
+      "name": "everforest",
+      "globals": {
+        "everforest_background": "hard"
+      }
+    },
+    "zed": null
+  },
+  "opacity": {
+    "border-active": 0.7
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "$schema": "../schema.json",
+  "name": "neomodern-iceclimber",
+  "source": {
+    "repository": "casedami/neomodern.nvim",
+    "path": "lua/neomodern/palette/iceclimber.lua",
+    "variant": "neomodern-iceclimber"
+  },
+  "roles": {
+    "canvas": "#171719",
+    "surface-active": "#6a969c",
+    "surface-chrome": "#90aba0",
+    "surface-highlight": "#cfa18c",
+    "surface-extend": "#87a1e6",
+    "surface-fold": "#90aba0",
+    "surface-heading-h1": "#87a1e6",
+    "surface-heading-h2": "#8a88d1",
+    "surface-heading-h3": "#cfa18c",
+    "surface-tint-rose": "#87a1e6",
+    "copy-mode-indicator": "#cfa18c",
+    "divider-subtle": "#90aba0",
+    "text": "#e9e9ff",
+    "text-ui": "#e9e9ff",
+    "text-muted": "#cfa18c",
+    "text-default": "#e9e9ff",
+    "accent-primary": "#87a1e6",
+    "accent-secondary": "#8a88d1",
+    "accent-tertiary": "#cfa18c",
+    "accent-highlight": "#cf9dbd",
+    "accent-info": "#6a969c",
+    "accent-periwinkle": "#90aba0",
+    "accent-warn": "#e9e9ff",
+    "accent-amber": "#171719",
+    "selection-bg": "#cfa18c",
+    "selection-fg": "#e9e9ff",
+    "split-divider": "#cfa18c",
+    "bar-text": "#e9e9ff",
+    "bar-canvas": "#171719"
+  },
+  "ansi": [
+    "#171719",
+    "#87a1e6",
+    "#8a88d1",
+    "#e9e9ff",
+    "#90aba0",
+    "#cfa18c",
+    "#6a969c",
+    "#e9e9ff",
+    "#cfa18c",
+    "#87a1e6",
+    "#8a88d1",
+    "#e9e9ff",
+    "#90aba0",
+    "#cfa18c",
+    "#6a969c",
+    "#e9e9ff"
+  ],
+  "ghostty": {
+    "background": "@canvas",
+    "foreground": "@text",
+    "selection-background": "@selection-bg",
+    "selection-foreground": "@selection-fg",
+    "cursor-color": "@text",
+    "cursor-text": "@canvas"
+  },
+  "native": {
+    "nvim": "iceclimber",
+    "zed": null
+  },
+  "opacity": {
+    "border-active": 0.7
+  }
+}

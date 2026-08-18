@@ -1,0 +1,73 @@
+{
+  "$schema": "../schema.json",
+  "name": "koda-moss",
+  "source": {
+    "repository": "oskarnurm/koda.nvim",
+    "path": "lua/koda/palette/moss.lua",
+    "variant": "koda-moss"
+  },
+  "roles": {
+    "canvas": "#0e1415",
+    "surface-active": "#182325",
+    "surface-chrome": "#30464a",
+    "surface-highlight": "#d2322d",
+    "surface-extend": "#ec8013",
+    "surface-fold": "#47bea9",
+    "surface-heading-h1": "#ec8013",
+    "surface-heading-h2": "#d2322d",
+    "surface-heading-h3": "#c33c33",
+    "surface-tint-rose": "#ec8013",
+    "copy-mode-indicator": "#30464a",
+    "divider-subtle": "#30464a",
+    "text": "#cecece",
+    "text-ui": "#cecece",
+    "text-muted": "#30464a",
+    "text-default": "#cecece",
+    "accent-primary": "#ec8013",
+    "accent-secondary": "#d2322d",
+    "accent-tertiary": "#c33c33",
+    "accent-highlight": "#cd974b",
+    "accent-info": "#6abf40",
+    "accent-periwinkle": "#47bea9",
+    "accent-warn": "#71ade7",
+    "accent-amber": "#8ebeec",
+    "selection-bg": "#d2322d",
+    "selection-fg": "#cecece",
+    "split-divider": "#30464a",
+    "bar-text": "#cecece",
+    "bar-canvas": "#0e1415"
+  },
+  "ansi": [
+    "#0e1415",
+    "#ec8013",
+    "#d2322d",
+    "#71ade7",
+    "#47bea9",
+    "#c33c33",
+    "#6abf40",
+    "#cecece",
+    "#30464a",
+    "#ec8013",
+    "#d2322d",
+    "#71ade7",
+    "#47bea9",
+    "#c33c33",
+    "#6abf40",
+    "#cecece"
+  ],
+  "ghostty": {
+    "background": "@canvas",
+    "foreground": "@text",
+    "selection-background": "@selection-bg",
+    "selection-foreground": "@selection-fg",
+    "cursor-color": "@text",
+    "cursor-text": "@canvas"
+  },
+  "native": {
+    "nvim": "koda-moss",
+    "zed": null
+  },
+  "opacity": {
+    "border-active": 0.7
+  }
+}

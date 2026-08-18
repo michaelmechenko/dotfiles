@@ -1,0 +1,73 @@
+{
+  "$schema": "../schema.json",
+  "name": "kanagawa-paper-ink",
+  "source": {
+    "repository": "thesimonho/kanagawa-paper.nvim",
+    "path": "lua/kanagawa-paper/themes/ink.lua",
+    "variant": "kanagawa-paper-ink"
+  },
+  "roles": {
+    "canvas": "#0d0c0c",
+    "surface-active": "#0f0f15",
+    "surface-chrome": "#181616",
+    "surface-highlight": "#1a1a22",
+    "surface-extend": "#e98a00",
+    "surface-fold": "#ff5d62",
+    "surface-heading-h1": "#e98a00",
+    "surface-heading-h2": "#de9800",
+    "surface-heading-h3": "#cc6d00",
+    "surface-tint-rose": "#e98a00",
+    "copy-mode-indicator": "#1f1f28",
+    "divider-subtle": "#181616",
+    "text": "#ecece8",
+    "text-ui": "#ecece8",
+    "text-muted": "#1f1f28",
+    "text-default": "#ecece8",
+    "accent-primary": "#e98a00",
+    "accent-secondary": "#de9800",
+    "accent-tertiary": "#cc6d00",
+    "accent-highlight": "#ff9e3b",
+    "accent-info": "#e82424",
+    "accent-periwinkle": "#ff5d62",
+    "accent-warn": "#ffa066",
+    "accent-amber": "#d7474b",
+    "selection-bg": "#1a1a22",
+    "selection-fg": "#ecece8",
+    "split-divider": "#1f1f28",
+    "bar-text": "#ecece8",
+    "bar-canvas": "#0d0c0c"
+  },
+  "ansi": [
+    "#0d0c0c",
+    "#e98a00",
+    "#de9800",
+    "#ffa066",
+    "#ff5d62",
+    "#cc6d00",
+    "#e82424",
+    "#ecece8",
+    "#1f1f28",
+    "#e98a00",
+    "#de9800",
+    "#ffa066",
+    "#ff5d62",
+    "#cc6d00",
+    "#e82424",
+    "#ecece8"
+  ],
+  "ghostty": {
+    "background": "@canvas",
+    "foreground": "@text",
+    "selection-background": "@selection-bg",
+    "selection-foreground": "@selection-fg",
+    "cursor-color": "@text",
+    "cursor-text": "@canvas"
+  },
+  "native": {
+    "nvim": "kanagawa-paper-ink",
+    "zed": null
+  },
+  "opacity": {
+    "border-active": 0.7
+  }
+}

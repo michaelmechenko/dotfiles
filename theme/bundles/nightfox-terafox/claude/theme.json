@@ -1,0 +1,17 @@
+{
+  "name": "Nightfox-Terafox Aligned",
+  "base": "dark-ansi",
+  "overrides": {
+    "claude": "#ff8349",
+    "text": "#eeeeee",
+    "inactive": "#293e40",
+    "success": "#d96f3e",
+    "error": "#ff8349",
+    "warning": "#fdb292",
+    "planMode": "#eb746b",
+    "autoAccept": "#ff9664",
+    "diffAdded": "#d96f3e",
+    "diffRemoved": "#ff8349",
+    "promptBorder": "#282a30"
+  }
+}

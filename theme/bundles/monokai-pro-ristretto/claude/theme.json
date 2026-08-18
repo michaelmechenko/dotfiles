@@ -1,0 +1,17 @@
+{
+  "name": "Monokai-Pro-Ristretto Aligned",
+  "base": "dark-ansi",
+  "overrides": {
+    "claude": "#fd6883",
+    "text": "#fff1f3",
+    "inactive": "#403838",
+    "success": "#f38d70",
+    "error": "#fd6883",
+    "warning": "#211c1c",
+    "planMode": "#85dacc",
+    "autoAccept": "#f9cc6c",
+    "diffAdded": "#f38d70",
+    "diffRemoved": "#fd6883",
+    "promptBorder": "#2c2525"
+  }
+}

@@ -3,9 +3,9 @@
 	"name": "oldworld",
 	"vars": {
 		"canvas": "#131313",
-		"surfaceActive": "#1a1a1a",
+		"surfaceActive": "#1D1D20",
 		"surfaceChrome": "#27272a",
-		"surfaceHighlight": "#6c6874",
+		"surfaceHighlight": "#2D2D31",
 		"surfaceTintRose": "#3E2930",
 		"surfaceTintDustyPink": "#3C2F38",
 		"text": "#c9c7cd",

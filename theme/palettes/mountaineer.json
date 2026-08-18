@@ -1,0 +1,73 @@
+{
+  "$schema": "../schema.json",
+  "name": "mountaineer",
+  "source": {
+    "repository": "TheNiteCoder/mountaineer.vim",
+    "path": "colors/mountaineer.vim",
+    "variant": "mountaineer"
+  },
+  "roles": {
+    "canvas": "#050505",
+    "surface-active": "#0f0f0f",
+    "surface-chrome": "#222222",
+    "surface-highlight": "#363636",
+    "surface-extend": "#ac8aac",
+    "surface-fold": "#ac8a8c",
+    "surface-heading-h1": "#ac8aac",
+    "surface-heading-h2": "#8aabac",
+    "surface-heading-h3": "#aca98a",
+    "surface-tint-rose": "#ac8aac",
+    "copy-mode-indicator": "#363636",
+    "divider-subtle": "#222222",
+    "text": "#f0f0f0",
+    "text-ui": "#f0f0f0",
+    "text-muted": "#363636",
+    "text-default": "#f0f0f0",
+    "accent-primary": "#ac8aac",
+    "accent-secondary": "#8aabac",
+    "accent-tertiary": "#aca98a",
+    "accent-highlight": "#ac9d8a",
+    "accent-info": "#8f8aac",
+    "accent-periwinkle": "#ac8a8c",
+    "accent-warn": "#8aac8b",
+    "accent-amber": "#050505",
+    "selection-bg": "#363636",
+    "selection-fg": "#f0f0f0",
+    "split-divider": "#363636",
+    "bar-text": "#f0f0f0",
+    "bar-canvas": "#050505"
+  },
+  "ansi": [
+    "#050505",
+    "#ac8aac",
+    "#8aabac",
+    "#8aac8b",
+    "#ac8a8c",
+    "#aca98a",
+    "#8f8aac",
+    "#f0f0f0",
+    "#363636",
+    "#ac8aac",
+    "#8aabac",
+    "#8aac8b",
+    "#ac8a8c",
+    "#aca98a",
+    "#8f8aac",
+    "#f0f0f0"
+  ],
+  "ghostty": {
+    "background": "@canvas",
+    "foreground": "@text",
+    "selection-background": "@selection-bg",
+    "selection-foreground": "@selection-fg",
+    "cursor-color": "@text",
+    "cursor-text": "@canvas"
+  },
+  "native": {
+    "nvim": "mountaineer",
+    "zed": null
+  },
+  "opacity": {
+    "border-active": 0.7
+  }
+}

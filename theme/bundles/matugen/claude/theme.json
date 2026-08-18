@@ -1,0 +1,17 @@
+{
+  "name": "Matugen Aligned",
+  "base": "dark-ansi",
+  "overrides": {
+    "claude": "#d0bcff",
+    "text": "#e6e0e9",
+    "inactive": "#36343b",
+    "success": "#efb8c8",
+    "error": "#d0bcff",
+    "warning": "#211f26",
+    "planMode": "#0f0d13",
+    "autoAccept": "#f2b8b5",
+    "diffAdded": "#efb8c8",
+    "diffRemoved": "#d0bcff",
+    "promptBorder": "#2b292f"
+  }
+}

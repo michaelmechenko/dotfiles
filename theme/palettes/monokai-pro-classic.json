@@ -1,0 +1,73 @@
+{
+  "$schema": "../schema.json",
+  "name": "monokai-pro-classic",
+  "source": {
+    "repository": "loctvl842/monokai-pro.nvim",
+    "path": "lua/monokai-pro/palette/classic.lua",
+    "variant": "monokai-pro-classic"
+  },
+  "roles": {
+    "canvas": "#161613",
+    "surface-active": "#1d1e19",
+    "surface-chrome": "#272822",
+    "surface-highlight": "#3b3c35",
+    "surface-extend": "#fd971f",
+    "surface-fold": "#e6db74",
+    "surface-heading-h1": "#fd971f",
+    "surface-heading-h2": "#f92672",
+    "surface-heading-h3": "#a6e22e",
+    "surface-tint-rose": "#fd971f",
+    "copy-mode-indicator": "#3b3c35",
+    "divider-subtle": "#272822",
+    "text": "#fdfff1",
+    "text-ui": "#fdfff1",
+    "text-muted": "#3b3c35",
+    "text-default": "#fdfff1",
+    "accent-primary": "#fd971f",
+    "accent-secondary": "#f92672",
+    "accent-tertiary": "#a6e22e",
+    "accent-highlight": "#66d9ef",
+    "accent-info": "#ae81ff",
+    "accent-periwinkle": "#e6db74",
+    "accent-warn": "#161613",
+    "accent-amber": "#1d1e19",
+    "selection-bg": "#3b3c35",
+    "selection-fg": "#fdfff1",
+    "split-divider": "#3b3c35",
+    "bar-text": "#fdfff1",
+    "bar-canvas": "#161613"
+  },
+  "ansi": [
+    "#161613",
+    "#fd971f",
+    "#f92672",
+    "#161613",
+    "#e6db74",
+    "#a6e22e",
+    "#ae81ff",
+    "#fdfff1",
+    "#3b3c35",
+    "#fd971f",
+    "#f92672",
+    "#161613",
+    "#e6db74",
+    "#a6e22e",
+    "#ae81ff",
+    "#fdfff1"
+  ],
+  "ghostty": {
+    "background": "@canvas",
+    "foreground": "@text",
+    "selection-background": "@selection-bg",
+    "selection-foreground": "@selection-fg",
+    "cursor-color": "@text",
+    "cursor-text": "@canvas"
+  },
+  "native": {
+    "nvim": "monokai-pro-classic",
+    "zed": null
+  },
+  "opacity": {
+    "border-active": 0.7
+  }
+}

@@ -7,6 +7,11 @@ import { isModelSnapshot, loadPlanModeConfig, savePlanModeConfig } from "./confi
 
 const model = { provider: "test", model: "model", thinkingLevel: "high" as const };
 
+test("a missing config leaves the execution default unset", () => {
+	const dir = mkdtempSync(join(tmpdir(), "plan-mode-empty-"));
+	try { assert.equal(loadPlanModeConfig(dir).executionModel, undefined); } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
 test("config validates models and atomically changes only executionModel", () => {
 	const dir = mkdtempSync(join(tmpdir(), "plan-mode-config-"));
 	try {

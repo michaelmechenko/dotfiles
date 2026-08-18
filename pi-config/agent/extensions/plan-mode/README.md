@@ -31,17 +31,13 @@ After Pi settles from an interrupted execution, the existing resume, recalibrate
 
 ## Execution models
 
-The execution settings screen defaults to a new parent-linked Pi session in the current tmux pane and the saved plan execution default. Detached panes default below the source and expose a per-launch Below/Right placement row; the row is hidden for every other destination. Outside tmux, the destination falls back to the current Pi session. The tmux-only current-pane destination replaces the session in the existing Pi process with an empty, parent-linked session and transfers only the canonical execution packet; it does not copy the planning transcript. It also offers current provider/model/thinking or a one-run provider/model/thinking choice. A separate `Save as plan default` toggle applies only to the chosen model. Clipboard hides irrelevant model controls and does not resolve or mutate model state.
+The execution settings screen defaults to a new parent-linked Pi session in the current tmux pane. Model policy uses the current authenticated session model until a validated saved plan default exists, then offers that saved default initially. Detached panes default below the source and expose a per-launch Below/Right placement row; the row is hidden for every other destination. Outside tmux, the destination falls back to the current Pi session. The tmux-only current-pane destination replaces the session in the existing Pi process with an empty, parent-linked session and transfers only the canonical execution packet; it does not copy the planning transcript. It also offers current provider/model/thinking or a one-run provider/model/thinking choice. A separate `Save as plan default` toggle applies only to the chosen model. Clipboard hides irrelevant model controls and does not resolve or mutate model state.
 
 The saved default is only `agent/plan-mode.json`'s `executionModel`; it never changes Pi's global `defaultProvider` or `defaultModel`. Temporary current-session switches use Pi's public model APIs so session history stays correct, then restore the global defaults through `SettingsManager`. A forced process kill between those operations is the narrow remaining window where Pi's global defaults can be left temporarily changed.
 
 ## Tmux handoff
 
 Tmux is offered only inside a resolved tmux pane. Detached handoffs write a mode-`0600`, one-time file under `agent/plan-handoffs/`, then invoke detached `tmux new-window` or `tmux split-window` below/right of the source with argv and handoff/model environment variables only; plan text is never interpolated into shell source. Every spawned Pi command falls through to the pane's login shell after Pi exits, so its pane/window remains usable. Both preserve source cwd and focus. The source becomes handed-off only after a detached child consumes the packet and writes a bounded acknowledgement; launch or acknowledgement failure deletes stale packet files and leaves the source plan ready. The current-pane replacement follows the same private packet path through `/plan-review` in the fresh extension instance, which owns model/tool activation and kickoff safely after `newSession`.
-
-## Parallel workstreams
-
-Parallel worker spawning is temporarily disabled. `plan_update` does not expose workstreams, restored declarations are cleared, and every new execution uses one selected destination. The orchestration modules remain in place for later repair; already-launched runs can still reconcile their reports.
 
 ## Configuration
 

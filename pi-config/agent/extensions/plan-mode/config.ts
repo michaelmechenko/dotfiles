@@ -4,13 +4,11 @@ import { homedir } from "node:os";
 import type { ModelSnapshot, ThinkingLevel } from "./plan-state.ts";
 
 export interface PlanModeConfig {
-	executionModel: ModelSnapshot;
+	/** Absent until a user explicitly saves a validated execution default. */
+	executionModel?: ModelSnapshot;
 }
 
 const THINKING_LEVELS = new Set<ThinkingLevel>(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
-const DEFAULT_CONFIG: PlanModeConfig = {
-	executionModel: { provider: "opencode", model: "gpt-5.6-luna", thinkingLevel: "medium" },
-};
 
 export function isModelSnapshot(value: unknown): value is ModelSnapshot {
 	if (!value || typeof value !== "object") return false;
@@ -30,14 +28,12 @@ export function planModeConfigPath(agentDir = defaultAgentDir()): string {
 
 export function loadPlanModeConfig(agentDir = defaultAgentDir()): PlanModeConfig {
 	const path = planModeConfigPath(agentDir);
-	if (!existsSync(path)) return { ...DEFAULT_CONFIG, executionModel: { ...DEFAULT_CONFIG.executionModel } };
+	if (!existsSync(path)) return {};
 	try {
 		const parsed = JSON.parse(readFileSync(path, "utf8")) as { executionModel?: unknown };
-		return isModelSnapshot(parsed.executionModel)
-			? { executionModel: { ...parsed.executionModel } }
-			: { ...DEFAULT_CONFIG, executionModel: { ...DEFAULT_CONFIG.executionModel } };
+		return isModelSnapshot(parsed.executionModel) ? { executionModel: { ...parsed.executionModel } } : {};
 	} catch {
-		return { ...DEFAULT_CONFIG, executionModel: { ...DEFAULT_CONFIG.executionModel } };
+		return {};
 	}
 }
 

@@ -13,7 +13,6 @@ export function renderExecutionContext(plan: PlanState, source: ExecutionContext
 	const lines = ["[PLAN EXECUTION]", "", heading(kind), "", `Source session: ${source.sessionId}`, `Working directory: ${source.cwd}`];
 	if (source.tmuxSession) lines.push(`Source tmux session: ${source.tmuxSession}`);
 	lines.push("", "## Goal", plan.goal || "(not set)", "", "## Execution brief", `Summary: ${plan.executionBrief.summary || "(legacy plan — recalibrate before relying on prior context)"}`, section("Findings", plan.executionBrief.findings), section("Decisions", plan.executionBrief.decisions), files(plan.executionBrief.relevantFiles), section("Constraints", plan.executionBrief.constraints), "", "## Plan status", ...plan.steps.map((step) => `${step.step}. [${step.completed ? "x" : step.skipped ? "-" : " "}] ${step.text}`));
-	if (plan.workstreams?.length) lines.push("", "## Parallel workstreams", ...plan.workstreams.map((stream) => `- ${stream.id}: ${stream.title} — ${stream.objective} (steps ${stream.stepIds.map((id) => plan.steps.find((step) => step.id === id)?.step ?? "?").join(", ")}; paths: ${stream.ownedPaths.join(", ")})`));
 	if (plan.criteria.length) lines.push("", "## Verification requirements", ...plan.criteria.map((item) => `- ${item}`));
 	if (plan.followUps.length) lines.push("", "## Known follow-up work", ...plan.followUps.map((item) => `- ${item}`));
 	lines.push("", instruction(kind));

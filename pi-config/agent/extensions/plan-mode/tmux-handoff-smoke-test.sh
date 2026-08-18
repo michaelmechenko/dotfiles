@@ -19,7 +19,7 @@ cat > "$tmp/bin/pi" <<'EOF'
 #!/bin/sh
 set -eu
 printf '%s\n' "$PWD|$PI_PLAN_PROVIDER|$PI_PLAN_MODEL|$PI_PLAN_THINKING" >> "$PLAN_MODE_RESULT"
-if node --experimental-strip-types --input-type=module -e "import { acknowledgeExecutionPacket, consumeExecutionPacket } from '$PLAN_MODE_ROOT/execution-handoff.ts'; const packet = consumeExecutionPacket(process.env.PLAN_MODE_AGENT_DIR, process.env.PI_PLAN_HANDOFF); if (!packet || packet.source.tmuxSession !== 'source' || !acknowledgeExecutionPacket(process.env.PLAN_MODE_AGENT_DIR, process.env.PI_PLAN_HANDOFF)) process.exit(1);" >> "$PLAN_MODE_RESULT.consume" 2>&1; then
+if node --experimental-strip-types --no-warnings --input-type=module -e "import { acknowledgeExecutionPacket, consumeExecutionPacket } from '$PLAN_MODE_ROOT/execution-handoff.ts'; const packet = consumeExecutionPacket(process.env.PLAN_MODE_AGENT_DIR, process.env.PI_PLAN_HANDOFF); if (!packet || packet.source.tmuxSession !== 'source' || !acknowledgeExecutionPacket(process.env.PLAN_MODE_AGENT_DIR, process.env.PI_PLAN_HANDOFF)) process.exit(1);" >> "$PLAN_MODE_RESULT.consume" 2>&1; then
 	printf '0\n' >> "$PLAN_MODE_RESULT.status"
 else
 	printf '1\n' >> "$PLAN_MODE_RESULT.status"
@@ -29,7 +29,7 @@ chmod +x "$tmp/bin/pi"
 export PATH="$tmp/bin:$PATH"
 
 packet() {
-	node --experimental-strip-types --input-type=module -e "import { writeExecutionPacket } from '$root/execution-handoff.ts'; import { applyPlanUpdate, createPlanState } from '$root/plan-state.ts'; const plan = applyPlanUpdate(createPlanState(), { goal: 'Smoke', steps: ['Verify handoff'], executionBrief: { summary: 'Smoke', findings: [], decisions: [], relevantFiles: [], constraints: [] } }); process.stdout.write(writeExecutionPacket(process.env.PLAN_MODE_AGENT_DIR, { version: 2, plan, source: { sessionId: 'source-id', cwd: process.cwd(), tmuxSession: 'source' }, model: { provider: 'stub', model: 'stub-model', thinkingLevel: 'low' } }));"
+	node --experimental-strip-types --no-warnings --input-type=module -e "import { writeExecutionPacket } from '$root/execution-handoff.ts'; import { applyPlanUpdate, createPlanState } from '$root/plan-state.ts'; const plan = applyPlanUpdate(createPlanState(), { goal: 'Smoke', steps: ['Verify handoff'], executionBrief: { summary: 'Smoke', findings: [], decisions: [], relevantFiles: [], constraints: [] } }); process.stdout.write(writeExecutionPacket(process.env.PLAN_MODE_AGENT_DIR, { version: 2, plan, source: { sessionId: 'source-id', cwd: process.cwd(), tmuxSession: 'source' }, model: { provider: 'stub', model: 'stub-model', thinkingLevel: 'low' } }));"
 }
 
 tmux -L "$socket" -f /dev/null new-session -d -s source -c "$workdir"
@@ -58,7 +58,7 @@ right=$(tmux -L "$socket" split-window -d -h -P -F '#{pane_id}' -t "$pane" -c "$
 [ "$(tmux -L "$socket" display-message -p '#{window_id}')" = "$window" ]
 
 for _ in $(seq 1 40); do
-	[ "$(wc -l < "$result" 2>/dev/null || printf 0)" -eq 3 ] && [ "$(wc -l < "$result.status" 2>/dev/null || printf 0)" -eq 3 ] && break
+	[ -f "$result" ] && [ -f "$result.status" ] && [ "$(wc -l < "$result")" -eq 3 ] && [ "$(wc -l < "$result.status")" -eq 3 ] && break
 	sleep 0.05
 done
 [ "$(sort "$result" | uniq)" = "$workdir|stub|stub-model|low" ]

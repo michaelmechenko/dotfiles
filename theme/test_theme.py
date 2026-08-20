@@ -95,6 +95,12 @@ class TmuxAdapterTests(unittest.TestCase):
         self.assertNotIn('status-style "bg=#{', tmux)
         self.assertNotIn('pane-active-border-style "fg=#{', tmux)
 
+    def test_tmux_sources_active_palette_portably(self):
+        config = (theme.CONFIG_DIR / "tmux.conf").read_text()
+        source = "source-file ~/.config/theme/active/tmux/colors.conf"
+        self.assertEqual(config.count(source), 2)
+        self.assertNotIn("source-file /Users/", config)
+
 
 class AuditTests(unittest.TestCase):
     def test_generated_bundle_has_no_hue_names(self):

@@ -64,6 +64,17 @@
       "type": "object",
       "description": "Optional per-role opacity metadata (0.0-1.0) for surfaces that render translucent, e.g. the active window border.",
       "additionalProperties": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+    },
+    "source": {
+      "type": "object",
+      "description": "Provenance for an imported palette. Omitted for the two hand-authored palettes (vague, oldworld). See theme/PALETTES.md for the construction rules that govern how roles are derived from these upstream values.",
+      "required": ["repository", "path", "variant"],
+      "properties": {
+        "repository": { "type": "string", "description": "owner/repo on GitHub." },
+        "path": { "type": "string", "description": "Path within the repository to the primary semantic-palette source file." },
+        "variant": { "type": "string", "description": "Which named variant/table within that file this palette encodes." },
+        "revision": { "type": "string", "description": "Pinned upstream commit SHA the values were taken from, when verified against a live fetch. Absent means the palette predates per-palette revision pinning; re-verify against upstream before trusting exact hex fidelity." }
+      }
     }
   }
 }

@@ -56,8 +56,12 @@ REQUIRED_ROLES = [
     "accent-info", "accent-periwinkle", "accent-warn", "accent-amber",
     # ghostty selection/chrome
     "selection-bg", "selection-fg", "split-divider",
-    # sketchybar
+    # sketchybar text/canvas (independent literals, never referenced by terminal adapters)
     "bar-text", "bar-canvas",
+    # sketchybar/borders window-border colors, frozen to their pre-quality-fix values so
+    # a terminal-role contrast repair can never move the live desktop bar/border output.
+    # Do not reference these from any non-sketchybar adapter.
+    "bar-border-active", "bar-border-inactive",
 ]
 
 # Semantic tmux @color-* option names, keyed by role. Hue names (rose/lavender/
@@ -207,6 +211,147 @@ def _rgb_tuple(hexstr: str) -> str:
     """Convert a hex color to 'R G B' decimal (Claude statusline rgb() form)."""
     r, g, b = _rgb(hexstr)
     return f"{r} {g} {b}"
+
+
+def _linearize(c: int) -> float:
+    c = c / 255
+    return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+
+def relative_luminance(hexstr: str) -> float:
+    """WCAG 2.1 relative luminance of a hex color."""
+    r, g, b = _rgb(hexstr)
+    return 0.2126 * _linearize(r) + 0.7152 * _linearize(g) + 0.0722 * _linearize(b)
+
+
+def contrast_ratio(hex1: str, hex2: str) -> float:
+    """WCAG 2.1 contrast ratio between two hex colors (1.0-21.0)."""
+    l1, l2 = relative_luminance(hex1), relative_luminance(hex2)
+    if l1 < l2:
+        l1, l2 = l2, l1
+    return (l1 + 0.05) / (l2 + 0.05)
+
+
+def _hex_distance(hex1: str, hex2: str) -> float:
+    """Rough perceptual distance (Euclidean over sRGB) for distinctness checks."""
+    r1, g1, b1 = _rgb(hex1)
+    r2, g2, b2 = _rgb(hex2)
+    return ((r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2) ** 0.5
+
+
+# ---------------------------------------------------------------------------
+# Quality checks (consumer-aware contrast/distinctness, not just structure)
+# ---------------------------------------------------------------------------
+
+# WCAG floors used across the checks below. 4.5:1 is the WCAG AA floor for
+# normal text; 3:1 is the floor this project uses for muted/dim informational
+# text (still meaningful, just visually secondary) and large/bold text.
+CONTRAST_NORMAL = 4.5
+CONTRAST_MUTED = 3.0
+# Minimum sRGB Euclidean distance for "visually distinct" accent/surface pairs.
+# Calibrated against vague.json (the hand-authored reference palette): its own
+# accent-tertiary/accent-secondary pair sits at ~29, an intentional close-family
+# purple pairing that must keep passing. The floor only needs to catch true
+# duplicates/near-duplicates (the tmux center-vs-outer star bug class), not force
+# maximal separation within a cohesive accent family.
+DISTINCT_ACCENT = 15.0
+DISTINCT_SURFACE = 6.0
+
+
+def check_quality(p: dict) -> list[str]:
+    """Consumer-aware quality checks: real text/background contrast pairs as
+    they are actually rendered by tmux, Pi, Ghostty/ANSI, and the pane-footer
+    accents, not just palette shape. Returns a list of human-readable failure
+    strings; an empty list means the palette passes every check."""
+    r = p["roles"]
+    ansi = p["ansi"]
+    name = p["name"]
+    findings: list[str] = []
+
+    def need(label: str, fg: str, bg: str, floor: float) -> None:
+        c = contrast_ratio(r[fg] if fg in r else fg, r[bg] if bg in r else bg)
+        if c < floor:
+            findings.append(f"{name}: {label} contrast {c:.2f}:1 < {floor}:1 ({fg}={r.get(fg, fg)} on {bg}={r.get(bg, bg)})")
+
+    # Normal text must clear 4.5:1 on every surface it actually renders on.
+    for role in ("text", "text-ui", "text-default"):
+        for surface in ("canvas", "surface-active", "surface-chrome"):
+            need(f"{role} on {surface}", role, surface, CONTRAST_NORMAL)
+
+    # Muted/dim informational text must clear 3:1 on every surface it renders on
+    # (Pi 'dim'/'muted', tmux muted text, k9s comment, lazygit inactive border).
+    for role in ("text-muted", "copy-mode-indicator"):
+        for surface in ("canvas", "surface-active", "surface-chrome"):
+            need(f"{role} on {surface}", role, surface, CONTRAST_MUTED)
+
+    # ANSI 7 (normal white) / 15 (bright white) carry primary terminal text;
+    # ANSI 8 (bright black) carries dim/comment text in ANSI-inheriting tools.
+    canvas = r["canvas"]
+    for idx, floor, label in ((7, CONTRAST_NORMAL, "ansi[7]"), (15, CONTRAST_NORMAL, "ansi[15]"),
+                               (8, CONTRAST_MUTED, "ansi[8]")):
+        c = contrast_ratio(ansi[idx], canvas)
+        if c < floor:
+            findings.append(f"{name}: {label} on canvas contrast {c:.2f}:1 < {floor}:1 ({ansi[idx]} on {canvas})")
+
+    # Selection foreground/background must remain readable.
+    need("selection-fg on selection-bg", "selection-fg", "selection-bg", CONTRAST_NORMAL)
+
+    # Pi tool-card states: surface-heading-h1/h2/h3 and surface-tint-rose are
+    # rendered as backgrounds under 'text' (title) and 'text-muted' (output).
+    for card in ("surface-heading-h1", "surface-heading-h2", "surface-heading-h3", "surface-tint-rose"):
+        need(f"text on {card}", "text", card, CONTRAST_NORMAL)
+        need(f"text-muted on {card}", "text-muted", card, CONTRAST_MUTED)
+
+    # tmux window-active-style switches window bg between canvas and
+    # surface-active; they must be perceptibly different or the "active pane"
+    # signal disappears.
+    d = _hex_distance(r["canvas"], r["surface-active"])
+    if d < DISTINCT_SURFACE:
+        findings.append(f"{name}: canvas vs surface-active too similar ({d:.1f} < {DISTINCT_SURFACE}, {r['canvas']} vs {r['surface-active']})")
+
+    # Pane-footer marker accents (outer stars, center stars, dashes/frame) must
+    # be genuinely distinct from one another, not just from the background.
+    pairs = (("accent-tertiary", "accent-primary"), ("accent-tertiary", "accent-secondary"),
+             ("accent-primary", "accent-secondary"))
+    for a, b in pairs:
+        d = _hex_distance(r[a], r[b])
+        if d < DISTINCT_ACCENT:
+            findings.append(f"{name}: {a} vs {b} not visually distinct ({d:.1f} < {DISTINCT_ACCENT}, {r[a]} vs {r[b]})")
+
+    return findings
+
+
+# Narrow, documented exceptions to check_quality for the two hand-authored
+# palettes. vague/oldworld predate theme.py: their text-muted/copy-mode-indicator
+# (and, for oldworld, selection-bg) values are independently hardcoded across
+# ~9 files outside the generator (COLORS.md, claude/themes/vague-aligned.json,
+# ghostty/themes/vague and oldworld, lazygit/config.yml, mm-sidebar's Go source,
+# nnn/plugins/preview-tui, .wezterm.lua, nvim dropbar/devicons) - see PALETTES.md.
+# Re-deriving those roles here would fork the generated bundle from the
+# established, widely-referenced values instead of matching them. The residual
+# shortfalls are soft (2.2-3.2:1, never the near-zero contrast the imported-set
+# bug produced); every other palette, including every imported one, holds the
+# full floor with no waiver.
+QUALITY_WAIVERS = {
+    "vague": (
+        "copy-mode-indicator on surface-active", "copy-mode-indicator on surface-chrome",
+        "text-muted on surface-heading-h1", "text-muted on surface-heading-h2",
+        "text-muted on surface-heading-h3", "text-muted on surface-tint-rose",
+    ),
+    "oldworld": (
+        "text-muted on surface-chrome", "copy-mode-indicator on surface-chrome",
+        "selection-fg on selection-bg",
+        "text-muted on surface-heading-h1", "text-muted on surface-heading-h2",
+        "text-muted on surface-heading-h3", "text-muted on surface-tint-rose",
+    ),
+}
+
+
+def effective_quality_findings(p: dict) -> list[str]:
+    """check_quality() findings with QUALITY_WAIVERS filtered out. This is what
+    CI/tests should gate on; check_quality() itself stays unfiltered ground truth."""
+    waived = QUALITY_WAIVERS.get(p["name"], ())
+    return [f for f in check_quality(p) if not any(w in f for w in waived)]
 
 
 # ---------------------------------------------------------------------------
@@ -518,14 +663,18 @@ theme:
 
 
 def _sketchybar(p: dict) -> str:
+    """Desktop adapter. Reads only bar-* roles (independent literals, frozen at
+    import time) so terminal-role quality repairs can never move live bar/border
+    output. Do not read text-ui/surface-chrome or any other shared terminal role
+    here; add a new frozen bar-* role instead."""
     r = p["roles"]
     opacity = p["opacity"].get("border-active", 0.70)
     return f"""# Generated by `theme build`. Sourced by sketchybarrc.full/.performance.
 export THEME_BAR_BG="{_argb(r['bar-canvas'], 0x90 / 255)}"
 export THEME_BAR_TEXT="{_argb(r['bar-text'], 1.0)}"
 export THEME_BAR_TEXT_INACTIVE="{_argb(r['bar-text'], 0x80 / 255)}"
-export THEME_BORDER_ACTIVE="{_argb(r['text-ui'], opacity)}"
-export THEME_BORDER_INACTIVE="{_argb(r['surface-chrome'], 1.0)}"
+export THEME_BORDER_ACTIVE="{_argb(r['bar-border-active'], opacity)}"
+export THEME_BORDER_INACTIVE="{_argb(r['bar-border-inactive'], 1.0)}"
 """
 
 
@@ -783,22 +932,38 @@ def _apply_lazygit() -> None:
     out.write_text(merged)
 
 
-def switch(name: str) -> None:
-    """Build, publish, record active, and apply to the live stack."""
+SCOPES = ("all", "terminal")
+
+
+def switch(name: str, scope: str = "all") -> None:
+    """Build, publish, record active, and apply to the live stack.
+
+    scope="terminal" applies every terminal/CLI consumer (tmux, Oh My Posh,
+    LazyGit, pi/Claude/K9s discovery links) but never touches SketchyBar or
+    JankyBorders - no process is signaled, killed, or relaunched. scope="all"
+    (default) is the full switch, unchanged from before.
+    """
+    if scope not in SCOPES:
+        raise ThemeError(f"unknown scope {scope!r}; expected one of {SCOPES}")
     build(name)
     _set_active(name)
     _ensure_links()
     _apply_ohmyposh()
     _apply_lazygit()
     _apply_tmux()
-    _apply_sketchybar()
-    _apply_borders()
-    _report_deferred(name)
+    if scope == "all":
+        _apply_sketchybar()
+        _apply_borders()
+    _report_deferred(name, scope)
 
 
-def _report_deferred(name: str) -> None:
-    print(f"switched to {name}")
-    print("applied: tmux, generated Oh My Posh/LazyGit configs, SketchyBar, JankyBorders")
+def _report_deferred(name: str, scope: str = "all") -> None:
+    print(f"switched to {name} (scope={scope})")
+    if scope == "all":
+        print("applied: tmux, generated Oh My Posh/LazyGit configs, SketchyBar, JankyBorders")
+    else:
+        print("applied: tmux, generated Oh My Posh/LazyGit configs")
+        print("skipped (terminal scope): SketchyBar, JankyBorders")
     print("updated: pi active theme file (hot reload depends on its file watcher)")
     print("deferred:")
     print("  - current shell: source ~/.config/theme/active/shell/palette.sh")
@@ -919,6 +1084,31 @@ def _cmd_check(name: str) -> None:
     print(f"check {name}: {len(p['roles'])} roles, {len(bundle)} artifacts OK")
     for rel in sorted(bundle):
         print(f"  {rel}")
+    findings = effective_quality_findings(p)
+    waived = len(check_quality(p)) - len(findings)
+    if findings:
+        print(f"quality: {len(findings)} finding(s):")
+        for f in findings:
+            print(f"  {f}")
+    else:
+        print("quality: clean (all consumer contrast/distinctness checks pass)")
+    if waived:
+        print(f"quality: {waived} finding(s) waived (see QUALITY_WAIVERS in theme.py)")
+
+
+def _cmd_quality(name: str | None) -> int:
+    names = [name] if name else sorted(p.stem for p in PALETTES_DIR.glob("*.json"))
+    total = 0
+    for n in names:
+        findings = effective_quality_findings(load_palette(n))
+        total += len(findings)
+        for f in findings:
+            print(f)
+    if total:
+        print(f"quality: {total} finding(s) across {len(names)} palette(s)")
+        return 1
+    print(f"quality: clean across {len(names)} palette(s)")
+    return 0
 
 
 def _cmd_build(name: str) -> None:
@@ -926,8 +1116,8 @@ def _cmd_build(name: str) -> None:
     print(f"built {name}: {len(bundle)} artifacts -> {_bundle_dir(name)}")
 
 
-def _cmd_switch(name: str) -> None:
-    switch(name)
+def _cmd_switch(name: str, scope: str) -> None:
+    switch(name, scope=scope)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -937,9 +1127,17 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("list", help="list palettes and the active one")
     sub.add_parser("audit", help="scan for unmanaged active hex literals")
 
-    for c in ("check", "build", "switch"):
+    for c in ("check", "build"):
         sp = sub.add_parser(c, help=f"{c} a palette")
         sp.add_argument("name", help="palette name")
+
+    sp = sub.add_parser("switch", help="switch a palette")
+    sp.add_argument("name", help="palette name")
+    sp.add_argument("--scope", choices=SCOPES, default="all",
+                     help="'terminal' skips SketchyBar/JankyBorders (default: all)")
+
+    sp = sub.add_parser("quality", help="run consumer contrast/distinctness checks")
+    sp.add_argument("name", nargs="?", default=None, help="palette name (default: every palette)")
 
     args = parser.parse_args(argv)
     try:
@@ -947,12 +1145,14 @@ def main(argv: list[str] | None = None) -> int:
             _cmd_list()
         elif args.cmd == "audit":
             _cmd_audit()
+        elif args.cmd == "quality":
+            return _cmd_quality(args.name)
         elif args.cmd == "check":
             _cmd_check(args.name)
         elif args.cmd == "build":
             _cmd_build(args.name)
         elif args.cmd == "switch":
-            _cmd_switch(args.name)
+            _cmd_switch(args.name, args.scope)
         return 0
     except ThemeError as e:
         print(f"theme: {e}", file=sys.stderr)

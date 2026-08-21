@@ -30,7 +30,9 @@
     "selection-fg": "#c8c7cd",
     "split-divider": "#6c6874",
     "bar-text": "#c9c7cd",
-    "bar-canvas": "#131313"
+    "bar-canvas": "#131313",
+    "bar-border-active": "#b4b1ba",
+    "bar-border-inactive": "#27272a"
   },
   "ansi": [
     "#27272a",
@@ -63,6 +65,6 @@
     "zed": "Oldworld"
   },
   "opacity": {
-    "border-active": 0.70
+    "border-active": 0.7
   }
 }

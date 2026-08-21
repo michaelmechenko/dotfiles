@@ -19,6 +19,25 @@
         "pattern": "^(#[0-9a-fA-F]{6}|@[a-z][a-z0-9-]*)$"
       }
     },
+    "overrides": {
+      "type": "object",
+      "description": "Optional personal layer applied to the canonical base roles before reference resolution. Only existing semantic role keys may be overridden (base roles are validated independently first, so an override can never supply a missing canonical role); a value is a hex or an @role reference to another effective role, so references observe overridden values and cycles through overrides are caught on the effective graph. `reason` is optional provenance. Exposed to every adapter and quality check through the effective role set.",
+      "required": ["roles"],
+      "properties": {
+        "roles": {
+          "type": "object",
+          "description": "Role keys that exist in the base palette, each overridden to a hex or @role value.",
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^(#[0-9a-fA-F]{6}|@[a-z][a-z0-9-]*)$"
+          }
+        },
+        "reason": {
+          "type": "string",
+          "description": "Optional note describing why the override exists."
+        }
+      }
+    },
     "ansi": {
       "type": "array",
       "minItems": 16,

@@ -11,7 +11,11 @@ Commands:
 Design (see COLORS.md and the plan):
   * A palette is a JSON object of semantic, hue-independent roles (hex or @role
     references), an explicit ANSI 0-15 array, Ghostty UI colors, a narrow native
-    section (Neovim/Zed colorscheme names), and optional opacity metadata.
+    section (Neovim/Zed colorscheme names), and optional opacity metadata. A
+    palette may carry an optional `overrides` layer (`{roles, reason?}`) applied
+    to the canonical base roles before reference resolution, so personal tweaks
+    live with the palette and feed every adapter and quality check through the
+    effective role set.
   * Adapters render deterministic per-tool artifacts into a staged bundle, which is
     validated and published atomically. The active theme is recorded only after a
     successful build, so a failed render leaves the previous theme intact.
@@ -115,6 +119,9 @@ def _validate(palette: dict) -> None:
     if not isinstance(roles, dict):
         raise ThemeError(f"palette '{name}' missing 'roles' object")
 
+    # Base roles must independently satisfy the canonical set. Overrides are a
+    # personal layer on top; they may tweak existing roles but can never supply a
+    # missing canonical role, so the base set is checked before overrides merge.
     missing = [r for r in REQUIRED_ROLES if r not in roles]
     if missing:
         raise ThemeError(f"palette '{name}' missing roles: {', '.join(missing)}")
@@ -122,6 +129,19 @@ def _validate(palette: dict) -> None:
     for role, value in roles.items():
         if not isinstance(value, str) or not (HEX_RE.match(value) or REF_RE.match(value)):
             raise ThemeError(f"palette '{name}' role '{role}' has invalid value {value!r}")
+
+    overrides = palette.get("overrides")
+    if overrides is not None:
+        if (not isinstance(overrides, dict)
+                or not isinstance(overrides.get("roles"), dict)):
+            raise ThemeError(f"palette '{name}' 'overrides' must be an object with a 'roles' object")
+        if "reason" in overrides and not isinstance(overrides["reason"], str):
+            raise ThemeError(f"palette '{name}' 'overrides.reason' must be a string")
+        for role, value in overrides["roles"].items():
+            if role not in roles:
+                raise ThemeError(f"palette '{name}' override role '{role}' is not a canonical role")
+            if not isinstance(value, str) or not (HEX_RE.match(value) or REF_RE.match(value)):
+                raise ThemeError(f"palette '{name}' override role '{role}' has invalid value {value!r}")
 
     ansi = palette.get("ansi")
     if not isinstance(ansi, list) or len(ansi) != 16:
@@ -147,8 +167,15 @@ def _validate(palette: dict) -> None:
 
 
 def _resolve_roles(palette: dict) -> dict:
-    """Resolve @role references to concrete hex, with cycle detection."""
-    roles = palette["roles"]
+    """Resolve @role references to concrete hex, with cycle detection.
+
+    Overrides are merged into the base roles *before* resolution, so references
+    observe overridden values and cycles through overridden references are caught
+    on the effective graph."""
+    roles = dict(palette["roles"])
+    overrides = palette.get("overrides")
+    if overrides:
+        roles.update(overrides["roles"])
     resolved: dict[str, str] = {}
     resolving: list[str] = []
 
@@ -176,19 +203,25 @@ def _resolve_roles(palette: dict) -> dict:
     return resolved
 
 
+def resolve_palette(raw: dict) -> dict:
+    """Validate a raw palette dict and resolve it to an effective palette, applying
+    any `overrides` before reference resolution. Returns a dict with resolved roles
+    ready for adapters and quality checks."""
+    _validate(raw)
+    roles = _resolve_roles(raw)
+    return {
+        "name": raw["name"],
+        "roles": roles,
+        "ansi": raw["ansi"],
+        "ghostty": raw.get("ghostty", {}),
+        "native": raw["native"],
+        "opacity": raw.get("opacity", {}),
+    }
+
+
 def load_palette(name: str) -> dict:
     """Load, validate, and resolve a palette. Returns a dict with resolved roles."""
-    palette = _load_raw(name)
-    _validate(palette)
-    roles = _resolve_roles(palette)
-    return {
-        "name": palette["name"],
-        "roles": roles,
-        "ansi": palette["ansi"],
-        "ghostty": palette.get("ghostty", {}),
-        "native": palette["native"],
-        "opacity": palette.get("opacity", {}),
-    }
+    return resolve_palette(_load_raw(name))
 
 
 # ---------------------------------------------------------------------------

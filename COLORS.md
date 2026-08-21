@@ -115,7 +115,7 @@ The statusline script at `~/.config/claude/statusline-command.sh` uses six color
 
 ## pi coding agent integration
 
-pi (the coding agent TUI) uses a custom theme at `~/.config/pi-config/agent/themes/vague.json`, activated via `"theme": "vague"` in `~/.config/pi-config/agent/settings.json`. Unlike the Claude Code theme (which overrides 11 tokens on top of a `dark-ansi` base), pi themes are self-contained — all 51 tokens are defined directly against palette roles (via a `vars` block):
+pi (the coding agent TUI) uses a **generated** theme at `~/.config/theme/active/pi/theme.json` (self-contained 51-token theme), discovered via the stable `~/.config/pi-config/agent/themes/active.json` symlink and activated via `"theme": "active"` in `~/.config/pi-config/agent/settings.json`. Unlike the Claude Code theme (which overrides 11 tokens on top of a `dark-ansi` base), pi themes are self-contained — all 51 tokens are defined directly against palette roles (via a `vars` block). The file is produced by `theme switch` from the canonical palette (`theme/palettes/vague.json`); personal tweaks go in that palette's optional `overrides.roles`, not a standalone pi theme file:
 
 | Token | Hex | Palette role |
 |---|---|---|

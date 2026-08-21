@@ -4,6 +4,7 @@ import { delimiter } from "node:path";
 import { readFile } from "node:fs/promises";
 import { join, isAbsolute } from "node:path";
 import { CONFIG_DIR_NAME, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { samePath } from "./path-equivalence.ts";
 
 type ServerConfig = { disabled?: boolean; command?: string[] };
 type LspConfig = false | { lsp?: false | Record<string, ServerConfig> };
@@ -40,7 +41,12 @@ export default function lspStartup(pi: ExtensionAPI) {
 		const home = process.env.HOME ?? "";
 		const agentDir = process.env.PI_CODING_AGENT_DIR ?? join(home, ".pi", "agent");
 		const legacyRoot = await packageUsesLegacyConfigRoot(agentDir);
-		const globalPath = legacyRoot ? join(home, ".pi", "agent", "extensions", "lsp", "config.json") : join(agentDir, "extensions", "lsp", "config.json");
+		const legacyAgentDir = join(home, ".pi", "agent");
+		// pi-lsp still spells its config path as ~/.pi/agent. That is harmless
+		// when ~/.pi is a symlink to PI_CODING_AGENT_DIR, as on this setup; warn
+		// only when the two paths resolve to different directories.
+		const usesDifferentRoot = legacyRoot && !(await samePath(agentDir, legacyAgentDir));
+		const globalPath = legacyRoot ? join(legacyAgentDir, "extensions", "lsp", "config.json") : join(agentDir, "extensions", "lsp", "config.json");
 		const [globalConfig, projectConfig] = await Promise.all([
 			readConfig(globalPath),
 			readConfig(join(ctx.cwd, CONFIG_DIR_NAME, "lsp.json")),
@@ -59,7 +65,7 @@ export default function lspStartup(pi: ExtensionAPI) {
 		const parts = [`LSP configured: ${effective.length ? effective.map(([name]) => name).join(", ") : "none"}`, `directly available: ${available.length ? available.join(", ") : "none"}`];
 		if (viaNpx.length) parts.push(`direct executable missing; npx fallback unverified: ${viaNpx.join(", ")}`);
 		if (unavailable.length) parts.push(`missing executable: ${unavailable.join(", ")}`);
-		if (legacyRoot && agentDir !== join(home, ".pi", "agent")) parts.push("pi-lsp uses legacy ~/.pi config; PI_CODING_AGENT_DIR config is not active");
-		ctx.ui.notify(parts.join("; "), unavailable.length || viaNpx.length || legacyRoot ? "warning" : "info");
+		if (usesDifferentRoot) parts.push("pi-lsp uses legacy ~/.pi config; PI_CODING_AGENT_DIR config is not active");
+		ctx.ui.notify(parts.join("; "), unavailable.length || viaNpx.length || usesDifferentRoot ? "warning" : "info");
 	});
 }

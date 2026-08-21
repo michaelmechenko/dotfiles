@@ -34,6 +34,19 @@ a hex or an `@role` reference. The full set is enforced by `theme/theme.py`'s
 `REQUIRED_ROLES`; the ANSI 0–15 array and the `native` section (Neovim/Zed names) are
 explicit per palette.
 
+## Override layer (`overrides`)
+
+A palette may carry an optional `overrides` object (`{roles: {...}, reason?: "..."}`)
+layered onto the canonical base roles **before** reference resolution. The base role set
+is validated independently first, so an override can only tweak an existing semantic
+role — it can never supply a missing canonical role, and unknown roles are rejected.
+A role value is a hex or an `@role` reference, so overrides propagate into reference
+graphs and cycles through overridden references are caught on the effective graph. The
+merged, resolved roles are what every adapter and quality check sees, so a personal
+override (e.g. a brighter Vague `canvas`) flows through tmux, Ghostty, Pi, and the
+contrast/distinctness checks without touching the canonical base or any generated file
+by hand. Regenerate with `theme build`/`theme switch` to publish an effective bundle.
+
 ## Wiring model
 
 Tracked configs reference the stable `~/.config/theme/active/<artifact>` path. The

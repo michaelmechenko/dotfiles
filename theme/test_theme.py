@@ -221,5 +221,132 @@ class TmuxFooterTests(unittest.TestCase):
         self.assertIn(marker, config)
 
 
+class PiDiscoveryTests(unittest.TestCase):
+    """Pi resolves themes by internal `name`. Every canonical palette renders a
+    generated pi theme named after the palette; the only other files pi
+    auto-discovers in agent/themes are standalone themes. No two of them may
+    share an internal name (pi would report a conflict / pick a duplicate)."""
+
+    PI_THEMES_DIR = theme.CONFIG_DIR / "pi-config" / "agent" / "themes"
+
+    def test_all_canonical_pi_names_unique_against_standalone_themes(self):
+        names = []
+        for path in sorted(theme.PALETTES_DIR.glob("*.json")):
+            p = theme.load_palette(path.stem)
+            names.append(json.loads(theme._pi(p))["name"])
+        for f in sorted(self.PI_THEMES_DIR.glob("*.json")):
+            if f.name == "active.json":
+                continue
+            names.append(json.loads(f.read_text())["name"])
+        dups = sorted({n for n in names if names.count(n) > 1})
+        self.assertEqual(dups, [], f"duplicate pi internal theme names: {dups}")
+
+    def test_managed_pi_themes_dir_holds_only_active_discovery_link(self):
+        entries = {e.name for e in self.PI_THEMES_DIR.iterdir()}
+        self.assertEqual(entries, {"active.json"},
+                         "the managed pi themes dir must contain only the active.json discovery link")
+
+
+class OverrideTests(unittest.TestCase):
+    """Optional `overrides: {roles, reason?}` layered onto canonical base roles
+    before reference resolution. Overrides are role-only, cannot supply missing
+    canonical roles, and feed every adapter and quality check through the
+    effective palette."""
+
+    def _vague_raw(self):
+        return theme._load_raw("vague")
+
+    def test_override_applies_before_reference_resolution(self):
+        raw = self._vague_raw()
+        # surface-extend is @accent-primary; overriding accent-primary must
+        # propagate into the effective surface-extend (post-merge resolution).
+        raw["overrides"] = {"roles": {"accent-primary": "#123456"}}
+        p = theme.resolve_palette(raw)
+        self.assertEqual(p["roles"]["accent-primary"], "#123456")
+        self.assertEqual(p["roles"]["surface-extend"], "#123456")
+
+    def test_override_reaches_adapters(self):
+        raw = self._vague_raw()
+        raw["overrides"] = {"roles": {"canvas": "#191a1e"}}
+        p = theme.resolve_palette(raw)
+        bundle = theme.render_bundle(p)
+        self.assertEqual(p["roles"]["canvas"], "#191a1e")
+        self.assertIn("#191a1e", bundle["tmux/colors.conf"])
+        self.assertIn("#191a1e", bundle["ghostty/theme"])
+        pi_json = json.loads(bundle["pi/theme.json"])
+        self.assertEqual(pi_json["vars"]["canvas"], "#191a1e")
+
+    def test_override_unknown_role_rejected(self):
+        raw = self._vague_raw()
+        raw["overrides"] = {"roles": {"not-a-role": "#ffffff"}}
+        with self.assertRaises(theme.ThemeError) as cm:
+            theme.resolve_palette(raw)
+        self.assertIn("not-a-role", str(cm.exception))
+
+    def test_override_malformed_value_rejected(self):
+        raw = self._vague_raw()
+        raw["overrides"] = {"roles": {"canvas": "#12345"}}
+        with self.assertRaises(theme.ThemeError):
+            theme.resolve_palette(raw)
+
+    def test_override_malformed_shape_rejected(self):
+        raw = self._vague_raw()
+        for bad in ({"roles": "nope"}, {"roles": 42}, "overrides-not-an-object"):
+            raw["overrides"] = bad
+            with self.assertRaises(theme.ThemeError):
+                theme.resolve_palette(raw)
+
+    def test_override_reason_must_be_string(self):
+        raw = self._vague_raw()
+        raw["overrides"] = {"roles": {"canvas": "#191a1e"}, "reason": 7}
+        with self.assertRaises(theme.ThemeError):
+            theme.resolve_palette(raw)
+
+    def test_override_cannot_supply_missing_base_role(self):
+        raw = self._vague_raw()
+        del raw["roles"]["canvas"]
+        raw["overrides"] = {"roles": {"canvas": "#191a1e"}}
+        with self.assertRaises(theme.ThemeError) as cm:
+            theme.resolve_palette(raw)
+        self.assertIn("canvas", str(cm.exception))
+
+    def test_post_merge_reference_cycle_detected(self):
+        raw = self._vague_raw()
+        # Overridden values can close a cycle that the base graph does not have.
+        raw["overrides"] = {"roles": {"accent-primary": "@canvas", "canvas": "@accent-primary"}}
+        with self.assertRaises(theme.ThemeError) as cm:
+            theme.resolve_palette(raw)
+        self.assertIn("cycle", str(cm.exception))
+
+    def test_overrides_feed_quality_checks(self):
+        raw = self._vague_raw()
+        raw["overrides"] = {"roles": {"canvas": "#000000"}}
+        p = theme.resolve_palette(raw)
+        findings = theme.check_quality(p)
+        joined = "\n".join(findings)
+        self.assertNotIn(" on canvas ", joined)
+        self.assertNotIn("canvas vs surface-active too similar", joined)
+
+    def test_terminal_override_does_not_move_sketchybar_bundle(self):
+        base = theme.resolve_palette(self._vague_raw())
+        raw2 = json.loads(json.dumps(self._vague_raw()))
+        raw2["overrides"] = {"roles": {"canvas": "#111111", "text": "#eeeeee"}}
+        over = theme.resolve_palette(raw2)
+        self.assertEqual(
+            theme._sketchybar(base), theme._sketchybar(over),
+            "sketchybar bundle must be byte-identical regardless of terminal-role overrides",
+        )
+
+    def test_override_deterministic_rendering(self):
+        raw = self._vague_raw()
+        raw["overrides"] = {"roles": {"canvas": "#191a1e"}}
+        p = theme.resolve_palette(raw)
+        self.assertEqual(theme.render_bundle(p), theme.render_bundle(p))
+
+    def test_resolve_palette_matches_load_palette_without_overrides(self):
+        self.assertEqual(
+            theme.load_palette("vague"), theme.resolve_palette(theme._load_raw("vague")))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

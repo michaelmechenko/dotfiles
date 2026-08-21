@@ -6,11 +6,11 @@
 		"surfaceActive": "#2d353b",
 		"surfaceChrome": "#333c43",
 		"surfaceHighlight": "#493b40",
-		"surfaceTintRose": "#dfa000",
-		"surfaceTintDustyPink": "#dfa000",
+		"surfaceTintRose": "#3d3c2d",
+		"surfaceTintDustyPink": "#44402b",
 		"text": "#fffbef",
-		"textMuted": "#543a48",
-		"dimGray": "#543a48",
+		"textMuted": "#ae8a9d",
+		"dimGray": "#a2788e",
 		"dividerSubtle": "#333c43",
 		"rose": "#dfa000",
 		"lavender": "#f57d26",
@@ -76,6 +76,6 @@
 	"export": {
 		"pageBg": "#272e33",
 		"cardBg": "#333c43",
-		"infoBg": "#f85552"
+		"infoBg": "#29413f"
 	}
 }

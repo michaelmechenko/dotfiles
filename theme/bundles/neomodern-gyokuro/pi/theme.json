@@ -3,21 +3,21 @@
 	"name": "neomodern-gyokuro",
 	"vars": {
 		"canvas": "#1b1c1d",
-		"surfaceActive": "#799475",
-		"surfaceChrome": "#748fa6",
+		"surfaceActive": "#1e251d",
+		"surfaceChrome": "#26313b",
 		"surfaceHighlight": "#868db5",
-		"surfaceTintRose": "#a69e6f",
-		"surfaceTintDustyPink": "#a69e6f",
+		"surfaceTintRose": "#2c2c27",
+		"surfaceTintDustyPink": "#31312a",
 		"text": "#fffff0",
-		"textMuted": "#868db5",
-		"dimGray": "#868db5",
+		"textMuted": "#a6acc9",
+		"dimGray": "#a6acc9",
 		"dividerSubtle": "#748fa6",
 		"rose": "#a69e6f",
 		"lavender": "#b08c7d",
 		"dustyPink": "#748fa6",
 		"slate": "#d6a9b3",
 		"periwinkle": "#799475",
-		"amber": "#1b1c1d"
+		"amber": "#fffff0"
 	},
 	"colors": {
 		"accent": "rose",
@@ -75,7 +75,7 @@
 	},
 	"export": {
 		"pageBg": "#1b1c1d",
-		"cardBg": "#748fa6",
-		"infoBg": "#748fa6"
+		"cardBg": "#26313b",
+		"infoBg": "#3f403f"
 	}
 }

@@ -3,21 +3,21 @@
 	"name": "neomodern-roseprime",
 	"vars": {
 		"canvas": "#141517",
-		"surfaceActive": "#5f86b0",
-		"surfaceChrome": "#c4959c",
-		"surfaceHighlight": "#c9aa95",
-		"surfaceTintRose": "#96aff2",
-		"surfaceTintDustyPink": "#96aff2",
+		"surfaceActive": "#16212c",
+		"surfaceChrome": "#2b2f36",
+		"surfaceHighlight": "#343842",
+		"surfaceTintRose": "#242731",
+		"surfaceTintDustyPink": "#292e3a",
 		"text": "#ffecff",
-		"textMuted": "#9bbdb8",
-		"dimGray": "#9bbdb8",
+		"textMuted": "#a9c6c2",
+		"dimGray": "#a9c6c2",
 		"dividerSubtle": "#c4959c",
 		"rose": "#96aff2",
 		"lavender": "#5f86b0",
 		"dustyPink": "#a6a4eb",
 		"slate": "#c4959c",
 		"periwinkle": "#9bbdb8",
-		"amber": "#141517"
+		"amber": "#ffecff"
 	},
 	"colors": {
 		"accent": "rose",
@@ -75,7 +75,7 @@
 	},
 	"export": {
 		"pageBg": "#141517",
-		"cardBg": "#c4959c",
-		"infoBg": "#a6a4eb"
+		"cardBg": "#2b2f36",
+		"infoBg": "#3a373c"
 	}
 }

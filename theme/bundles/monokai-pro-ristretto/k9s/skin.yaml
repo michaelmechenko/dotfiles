@@ -3,14 +3,14 @@ foreground: &foreground "default"
 background: &background "default"
 current_line: &current_line "#403838"
 selection: &selection "#403838"
-comment: &comment "#403838"
+comment: &comment "#7b6c6c"
 blue: &blue "#85dacc"
 green: &green "#191515"
 lilac: &lilac "#f9cc6c"
 pink: &pink "#fd6883"
 purple: &purple "#f38d70"
 red: &red "#fd6883"
-yellow: &yellow "#211c1c"
+yellow: &yellow "#191515"
 
 # Skin...
 k9s:

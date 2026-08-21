@@ -9,6 +9,8 @@ return {
   ["accent-secondary"] = "#aeaed1",
   ["accent-tertiary"] = "#bb9dbd",
   ["accent-warn"] = "#f5cb96",
+  ["bar-border-active"] = "#9094A0",
+  ["bar-border-inactive"] = "#1C1C24",
   ["bar-canvas"] = "#0f0f0f",
   ["bar-text"] = "#EDEDED",
   ["canvas"] = "#100E11",

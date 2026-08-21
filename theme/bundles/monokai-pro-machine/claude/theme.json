@@ -4,10 +4,10 @@
   "overrides": {
     "claude": "#ff6d7e",
     "text": "#f2fffc",
-    "inactive": "#3a4449",
+    "inactive": "#778a94",
     "success": "#ffed72",
     "error": "#ff6d7e",
-    "warning": "#1d2528",
+    "warning": "#161b1e",
     "planMode": "#a2e57b",
     "autoAccept": "#ffb270",
     "diffAdded": "#ffed72",

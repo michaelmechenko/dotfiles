@@ -2,16 +2,16 @@
   "name": "Substrata-Brighter Aligned",
   "base": "dark-ansi",
   "overrides": {
-    "claude": "#fe9f7c",
+    "claude": "#fead90",
     "text": "#f0ecfe",
-    "inactive": "#32353e",
-    "success": "#fead90",
-    "error": "#fe9f7c",
-    "warning": "#b8a161",
-    "planMode": "#d59076",
-    "autoAccept": "#d2b45f",
-    "diffAdded": "#fead90",
-    "diffRemoved": "#fe9f7c",
+    "inactive": "#7b7d8f",
+    "success": "#94cdd1",
+    "error": "#fead90",
+    "warning": "#d59076",
+    "planMode": "#afc5de",
+    "autoAccept": "#dbc380",
+    "diffAdded": "#94cdd1",
+    "diffRemoved": "#fead90",
     "promptBorder": "#272935"
   }
 }

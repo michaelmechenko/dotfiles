@@ -5,11 +5,11 @@ theme:
     - "#08bdba"
     - "bold"
   inactiveBorderColor:
-    - "#525253"
+    - "#a1a1a2"
   optionsTextColor:
-    - "#525253"
+    - "#a1a1a2"
   selectedLineBgColor:
-    - "#25be6a"
+    - "#1b5133"
   cherryPickedCommitFgColor:
     - "#33b1ff"
   cherryPickedCommitBgColor:

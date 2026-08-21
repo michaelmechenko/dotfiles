@@ -6,18 +6,18 @@
 		"surfaceActive": "#1e1f2b",
 		"surfaceChrome": "#282a3a",
 		"surfaceHighlight": "#3a3d4b",
-		"surfaceTintRose": "#ff9b5e",
-		"surfaceTintDustyPink": "#ff9b5e",
+		"surfaceTintRose": "#322828",
+		"surfaceTintDustyPink": "#3b2d2b",
 		"text": "#eaf2f1",
-		"textMuted": "#3a3d4b",
-		"dimGray": "#3a3d4b",
+		"textMuted": "#7e839b",
+		"dimGray": "#6d738d",
 		"dividerSubtle": "#282a3a",
 		"rose": "#ff9b5e",
 		"lavender": "#ff657a",
 		"dustyPink": "#ffd76d",
 		"slate": "#9cd1bb",
 		"periwinkle": "#c39ac9",
-		"amber": "#1e1f2b"
+		"amber": "#161821"
 	},
 	"colors": {
 		"accent": "rose",
@@ -76,6 +76,6 @@
 	"export": {
 		"pageBg": "#161821",
 		"cardBg": "#282a3a",
-		"infoBg": "#ffd76d"
+		"infoBg": "#161821"
 	}
 }

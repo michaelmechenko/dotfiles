@@ -5,9 +5,9 @@ theme:
     - "#f2a50a"
     - "bold"
   inactiveBorderColor:
-    - "#353539"
+    - "#707078"
   optionsTextColor:
-    - "#353539"
+    - "#707078"
   selectedLineBgColor:
     - "#353539"
   cherryPickedCommitFgColor:

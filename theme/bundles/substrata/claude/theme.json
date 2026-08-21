@@ -4,13 +4,13 @@
   "overrides": {
     "claude": "#fe9f7c",
     "text": "#f0ecfe",
-    "inactive": "#32353e",
-    "success": "#fead90",
+    "inactive": "#7d8295",
+    "success": "#7dc2c7",
     "error": "#fe9f7c",
-    "warning": "#b8a161",
-    "planMode": "#d59076",
+    "warning": "#cf8164",
+    "planMode": "#a0b9d8",
     "autoAccept": "#d2b45f",
-    "diffAdded": "#fead90",
+    "diffAdded": "#7dc2c7",
     "diffRemoved": "#fe9f7c",
     "promptBorder": "#272935"
   }

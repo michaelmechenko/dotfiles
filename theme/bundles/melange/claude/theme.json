@@ -4,7 +4,7 @@
   "overrides": {
     "claude": "#e49b5d",
     "text": "#ece1d7",
-    "inactive": "#403a36",
+    "inactive": "#92867d",
     "success": "#d47766",
     "error": "#e49b5d",
     "warning": "#c1a78e",

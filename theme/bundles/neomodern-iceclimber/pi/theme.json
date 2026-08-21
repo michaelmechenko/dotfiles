@@ -3,21 +3,21 @@
 	"name": "neomodern-iceclimber",
 	"vars": {
 		"canvas": "#171719",
-		"surfaceActive": "#6a969c",
-		"surfaceChrome": "#90aba0",
-		"surfaceHighlight": "#cfa18c",
-		"surfaceTintRose": "#87a1e6",
-		"surfaceTintDustyPink": "#87a1e6",
+		"surfaceActive": "#1a2628",
+		"surfaceChrome": "#2a3732",
+		"surfaceHighlight": "#353540",
+		"surfaceTintRose": "#242832",
+		"surfaceTintDustyPink": "#292d3a",
 		"text": "#e9e9ff",
-		"textMuted": "#cfa18c",
-		"dimGray": "#cfa18c",
+		"textMuted": "#d5ad9a",
+		"dimGray": "#d5ad9a",
 		"dividerSubtle": "#90aba0",
 		"rose": "#87a1e6",
 		"lavender": "#8a88d1",
 		"dustyPink": "#cfa18c",
 		"slate": "#6a969c",
 		"periwinkle": "#90aba0",
-		"amber": "#171719"
+		"amber": "#e9e9ff"
 	},
 	"colors": {
 		"accent": "rose",
@@ -75,7 +75,7 @@
 	},
 	"export": {
 		"pageBg": "#171719",
-		"cardBg": "#90aba0",
-		"infoBg": "#cfa18c"
+		"cardBg": "#2a3732",
+		"infoBg": "#39393e"
 	}
 }

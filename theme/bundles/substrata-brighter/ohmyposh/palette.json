@@ -1,10 +1,10 @@
 {
   "canvas": "#191c25",
   "text": "#f0ecfe",
-  "text-muted": "#32353e",
-  "accent-primary": "#fe9f7c",
-  "accent-secondary": "#d2b45f",
-  "accent-tertiary": "#fead90",
-  "accent-info": "#d59076",
-  "accent-warn": "#dbc380"
+  "text-muted": "#7b7d8f",
+  "accent-primary": "#fead90",
+  "accent-secondary": "#dbc380",
+  "accent-tertiary": "#94cdd1",
+  "accent-info": "#afc5de",
+  "accent-warn": "#b8a161"
 }

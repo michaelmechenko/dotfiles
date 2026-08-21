@@ -23,7 +23,7 @@ cursor-style-blink = false
 # window-vsync = false
 
 window-padding-x = 12
-window-padding-y = 10, 2
+window-padding-y = 10, 0
 
 # Match tmux window-style bg so padding wraps the inactive pane field seamlessly.
 # background/foreground and the ANSI 12/14 remaps now live in the generated active
@@ -55,28 +55,27 @@ resize-overlay = never
 font-size = 14
 # adjust-font-baseline = 0
 # adjust-cell-width = 4%
-# adjust-cell-height = 4%
+adjust-cell-height = 4%
 # font-feature = -calt
 # font-thicken = true
 # font-thicken-strength = 0
-# font-family = "Rec Mono"
-# font-family = "JetBrainsMono"
+font-family = "Paper Mono"
 # font-family = "ComicShanns Nerd Font"
 # font-family = "0xProto"
 
 
 # lilex-specific config
-font-family = "Lilex"
+# font-family = "Lilex"
 # alpha-blending = linear-corrected
-font-variation = wght=415
-adjust-cell-height = 6%
+# font-variation = wght=415
+# adjust-cell-height = 6%
 # font-thicken = true
 # font-thicken-strength = 0
 # font-feature = -calt
-font-feature = +cv01
-font-feature = +cv02
-font-feature = +cv09
-font-feature = +zero
+# font-feature = +cv01
+# font-feature = +cv02
+# font-feature = +cv09
+# font-feature = +zero
 
 # commitmono-specific config
 # font-family = "CommitMono"

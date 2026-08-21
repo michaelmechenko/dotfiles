@@ -103,3 +103,5 @@ __pycache__/
 /pi-config/agent/themes/active.json
 /k9s/skins/active.yaml
 /theme/generated/
+/pi-config/agent/tmux-jobs
+/pi-config/agent/pi-debug.log

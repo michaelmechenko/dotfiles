@@ -52,7 +52,7 @@ directory already lives under pi's `extensions/`, so the prefix is redundant), n
 file extension isn't part of the extension's identity), plain `kebab-case` names throughout.
 
 <!-- inventory:extensions -->
-`answer`, `ask-user`, `diff`, `extension-toggle`, `finder`, `footer`, `header`, `image-proxy`, `lsp-startup`, `minimal-working-indicator`, `permission-gate`, `plan-mode`, `pretty`, `prompt-stash`, `protected-paths`, `save-md`, `session-recall`, `session-rename`, `session-state`, `skill-toggle`, `subagent`, `thinking-controls`, `thinking-label`, `titlebar-spinner`, `tmux`, `tool-display`, `tool-toggle`, `web-tools`, `whimsical`
+`answer`, `ask-user`, `claude-bridge`, `diff`, `extension-toggle`, `finder`, `footer`, `header`, `image-proxy`, `lsp-startup`, `minimal-working-indicator`, `permission-gate`, `plan-mode`, `pretty`, `prompt-stash`, `protected-paths`, `save-md`, `session-recall`, `session-rename`, `session-state`, `skill-toggle`, `subagent`, `thinking-controls`, `thinking-label`, `titlebar-spinner`, `tmux`, `tool-display`, `tool-toggle`, `web-tools`, `whimsical`
 <!-- /inventory:extensions -->
 
 `agent/extensions/lsp/config.json` is package configuration, not an auto-discovered local extension.
@@ -135,6 +135,77 @@ enabled/disabled extension summary (above) reuses the same `DefaultPackageManage
 resolution this extension uses internally. To pick up upstream changes, diff against
 `npm view @petechu/pi-extension-toggle` and re-copy `index.ts`/`utils.ts` by hand.
 
+### Forked locally from `elidickinson/pi-claude-bridge` (no longer npm-managed)
+
+`claude-bridge/` — a local fork of `npm:pi-claude-bridge@0.7.0` (upstream latest), vendored into
+`extensions/` with two local patches. It bridges Claude Code (Agent SDK) into pi as a provider:
+`/model` selects `claude-bridge/*` models with all tool calls flowing through pi's TUI, plus an
+opt-in `AskClaude` delegation tool. pi resolves it as `claude-bridge` via the top-level `index.ts`
+shim (no `pi.extensions` manifest — same label fix as `skill-toggle`/`pretty`/`diff`). Own
+`node_modules` (gitignored, see the repo-root `.gitignore` entry); deps installed with
+`npm install --ignore-scripts`.
+
+**Why forked — two problems, both hit this machine:**
+
+1. **Subscription-auth routing.** The bridge spawns Claude Code with `env: { ...process.env, ... }`.
+   If `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` is set in pi's environment (it is, here),
+   Claude Code authenticates with the API key and bills the Anthropic Console prepaid-credit
+   account — never the claude.ai subscription. With no Console credit, every turn fails with
+   "Your credit balance is too low to access the Anthropic API" even on a healthy Pro plan.
+   Patch: new `provider.subscriptionAuth` option (default `true`) — when set,
+   `ANTHROPIC_API_KEY`/`ANTHROPIC_AUTH_TOKEN` are stripped from the Claude Code subprocess env
+   (`src/env.ts` `buildChildEnv`, applied at all three query sites) so it falls back to its OAuth
+   subscription login. Set `false` to keep API-key (pay-as-you-go) routing.
+2. **Pro context routing.** Upstream `models.ts` unconditionally requests `claude-opus-5[1m]` and
+   `claude-opus-4-8[1m]`. On Pro without usage credits the `[1m]` request is rejected by the
+   subscription gateway ("Usage credits are required for long context requests" / credit-balance
+   error). Fix: Opus 5/4.8 request `[1m]` only when `provider.plan == "max"` or
+   `provider.longContextExtraUsage == true`; otherwise they use the bare id, which the subscription
+   serves at 200K. Registered `contextWindow` metadata follows the same policy so pi's footer
+   percentage and auto-compaction threshold match reality.
+
+Effective config (`agent/claude-bridge.json`):
+
+```json
+{
+  "provider": {
+    "plan": "pro",
+    "longContextExtraUsage": false,
+    "subscriptionAuth": true
+  }
+}
+```
+
+Context matrix (Pro, `longContextExtraUsage: false`; measured via the Agent SDK June 2026 + current
+Anthropic plan docs — entitlements are server-controlled and have drifted before):
+
+| Model | Requested id | Context window |
+|---|---|---|
+| `claude-sonnet-5` | `claude-sonnet-5[1m]` | 1M — included in Pro |
+| `claude-fable-5` | `claude-fable-5[1m]` | 1M — measured on Pro; Fable billing caveats apply |
+| `claude-opus-5` | `claude-opus-5` (bare) | 200K — 1M only on Max or with extra usage |
+| `claude-opus-4-8` | `claude-opus-4-8` (bare) | 200K — same gate |
+| `claude-opus-4-7` | `claude-opus-4-7` | 1M — measured everywhere via the SDK; may now require usage credits after Anthropic's July 2026 entitlement change |
+| `claude-opus-4-6` | `claude-opus-4-6` (bare) | 200K — `[1m]` only on Max or with extra usage |
+| `claude-sonnet-4-6` | `claude-sonnet-4-6` (bare) | 200K — `[1m]` only with extra usage |
+| `claude-haiku-4-5` | `claude-haiku-4-5` | 200K |
+
+With `plan: "max"` or `longContextExtraUsage: true`, Opus 5/4.8/4.6 and Sonnet 4.6 request their
+`[1m]` ids at 1M. `agent/models.json` cannot override extension-registered providers — routing is
+code, which is why this is a fork.
+
+**Operational notes:**
+
+- Subscription routing requires Claude Code to be logged in with the subscription account
+  (`claude login`). This machine currently has `ANTHROPIC_API_KEY` set in its environment and no
+  OAuth login — to route to the Pro plan: `unset ANTHROPIC_API_KEY` in the shell that launches pi,
+  install Claude Code, and `claude login` (or run the SDK-bundled CLI:
+  `agent/extensions/claude-bridge/node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64/claude login`).
+- Update procedure: diff against `npm view pi-claude-bridge` (upstream latest, currently 0.7.0) and
+  re-copy `src/` by hand, then re-apply the two patches above; `npm install --ignore-scripts` in
+  the extension dir after dependency changes. Re-fetching from npm clobbers the patches.
+- Candidate for upstreaming to `elidickinson/pi-claude-bridge`; not yet submitted.
+
 ### Locally written
 
 | Extension | What it does |
@@ -201,6 +272,9 @@ Installed via `pi install npm:<name>` (writes here automatically; `pi update --e
 | `@dreki-gg/pi-lsp` | Generic LSP integration with 11 operations. The tracked config enables TypeScript, Pyright, and Bash and disables Rust, Go, and Lua. Installed v0.5.2 still reads legacy `~/.pi/agent/extensions/lsp/config.json` instead of `PI_CODING_AGENT_DIR`; that live legacy file currently disables every server. `lsp-startup/` reports the effective configured state, direct availability, unverified npx fallbacks, true missing commands, and the root mismatch. |
 | `pi-ast-grep` | Generic AST search — one `ast_grep` tool wrapping the `ast-grep` CLI (`run`/`scan`). **Read-only in v0**, no rewrite mode. For structural rewrites, invoke the `ast-grep` CLI directly via `bash` (`ast-grep run -p '<pattern>' -r '<rewrite>' -U`) |
 | `pi-mcp-adapter` | Installed but intentionally unconfigured pending a separate keep/configure/remove decision. |
+
+`pi-claude-bridge` is no longer npm-managed — it moved to a tracked local fork at
+`extensions/claude-bridge/` (see the fork section above); `pi update --extensions` will not touch it.
 
 
 Installed package sources live under `agent/npm/node_modules/` (gitignored — see `agent/npm/.gitignore`

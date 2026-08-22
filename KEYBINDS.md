@@ -185,7 +185,7 @@ All `cmd-ctrl-alt-*` (bound in `init.lua`).
 
 ## tmux
 
-Prefix is `C-Space`. Root-level binds (`bind-key -n`, no prefix) are marked **root**; prefix binds need `C-Space` first. `M-` = `Alt`. `~/.config/tmux_scripts/*` are launchers/helpers executed via `run-shell` (not tmux plugins).
+Prefix is `C-Space`. Root-level binds (`bind-key -n`, no prefix) are marked **root**; prefix binds need `C-Space` first. `M-` = `Alt`. Every listed uppercase-letter root action also has an internal `M-S-<letter>` compatibility alias for terminals that report physical Alt+Shift explicitly; it is the same gesture/action, not a separate user binding. Lowercase Meta bindings have no alias; sidebar focus remains the special `M-BTab`. `~/.config/tmux_scripts/*` are launchers/helpers executed via `run-shell` (not tmux plugins).
 
 ### Core
 | Key | Scope | Action |

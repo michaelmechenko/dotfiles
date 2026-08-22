@@ -201,7 +201,7 @@ t() {
   # Check tmux version supports -O flag (3.7+)
   local ver=$(tmux -V | sed 's/[^0-9.]//g' | cut -d. -f1,2)
   if (( $(echo "$ver < 3.7" | bc -l) )); then
-    echo "your version of tmux doesn't support the \"-O\" flag; session switch keybinds have to be updated. update tmux by running 'brew install tmux' (stable 3.7+ — avoid --HEAD, master has an active M-Shift key-decode regression and a popup-redraw crash as of Jul 2026)"
+    echo "tmux 3.7+ is required for the -O session-switch flags; install the stable formula with brew install tmux. This config also supports a tested next-3.8 HEAD keg only on an isolated socket until popup validation passes; keep 3.7b as the live default."
     return 1
   fi
   # Attach to existing server, or create new with float + m*

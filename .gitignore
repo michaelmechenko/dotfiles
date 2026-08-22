@@ -105,3 +105,4 @@ __pycache__/
 /theme/generated/
 /pi-config/agent/tmux-jobs
 /pi-config/agent/pi-debug.log
+/zshrc.local

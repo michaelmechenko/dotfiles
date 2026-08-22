@@ -67,7 +67,7 @@ matching `#{pane_height}` each time.
 | --- | --- |
 | `tmux_scripts/mm-sidebar/` | The Go module. `go.mod`/`go.sum` tracked; binary gitignored. |
 | `tmux_scripts/tmux-sidebar-toggle` | `M-Tab` / `M-BTab` / `prefix Tab` / `prefix BTab` entry point. Open/close, focus switch, pane lifecycle. |
-| `tmux_scripts/tmux-sidebar-build` | Builds the binary on demand; prints its path, or exits 1 so callers can fall back. |
+| `tmux_scripts/tmux-sidebar-build` | Builds or repairs the binary on demand; prints its path, or exits 1 so callers can fall back. |
 | `tmux_scripts/tmux-sidebar-repin` | Restores every sidebar pane to its configured width after a resize. |
 | `tmux_scripts/tmux-agent-ls` | Thin wrapper over `mm-sidebar agents` (the only copy of the join). |
 | `tmux_scripts/tmux-sidebar` | **Legacy bash dispatcher**, retained only as the no-Go-toolchain fallback. |
@@ -921,7 +921,12 @@ of `ansi.Style` signature errors. Pin `x/ansi v0.10.1`, and leave
 **v1.3.10** — the v1 `KeyMsg` API, not v2.
 
 `tmux-sidebar-build` swallows compiler output so a broken tree can't break
-`M-Tab`. Run `go build ./...` in the module directly to see errors.
+`M-Tab`. Run `go build ./...` in the module directly to see errors. Its freshness
+gate also runs `mm-sidebar --help`: executable mode and mtimes alone do not prove
+a Mach-O is runnable. A stale binary with an invalid `LC_CODE_SIGNATURE` passes
+both checks, then macOS kills the sidebar with `SIGKILL` before its first frame.
+The helper rebuilds that artifact and health-checks the temporary output before
+publishing it via atomic rename.
 
 ## Tests
 
@@ -942,6 +947,10 @@ tmux, so they run anywhere:
 
 Construct blocks with a **buffered** `Deps.Agents` channel — `AgentsGlance.Fetch`
 does a non-blocking send and needs somewhere for it to go.
+
+`tmux_scripts/tmux-sidebar-build-test.sh` builds in an isolated home, replaces
+the published binary with a deterministic failing executable while leaving it
+newer than its sources, and asserts that the next helper invocation repairs it.
 
 ## Follow-ups
 

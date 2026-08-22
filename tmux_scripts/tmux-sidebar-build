@@ -6,9 +6,10 @@
 # has to be produced on demand -- this script is the single place that happens,
 # shared by tmux-sidebar-toggle and tmux-agent-ls.
 #
-# Rebuilds when the binary is missing or older than any source file, so editing a
-# .go file and pressing M-Tab picks the change up with no extra step. A no-op
-# `go build` is ~0.2s (Go's build cache); a cold one is ~5s.
+# Rebuilds when the binary is missing, older than any source file, or no longer
+# runnable. The health check self-heals stale Mach-O artifacts whose invalid code
+# signature makes macOS kill the sidebar before it can render. Editing a .go file
+# and pressing M-Tab still picks the change up with no extra step.
 #
 # Output: the binary path on stdout, exit 0. On any failure (no Go toolchain,
 # compile error) prints nothing and exits 1, so callers can fall back rather than
@@ -25,6 +26,9 @@ needs_build() {
         [ -e "$f" ] || continue
         [ "$f" -nt "$BIN" ] && return 0
     done
+    # Executable + fresh is insufficient on macOS: an invalid Mach-O signature
+    # passes both checks, then the kernel kills it with SIGKILL on launch.
+    "$BIN" --help >/dev/null 2>&1 || return 0
     return 1
 }
 
@@ -36,7 +40,8 @@ if needs_build; then
     tmp="$BIN.tmp.$$"
     # -C instead of `cd $SRC &&` so no subshell/directory change is needed; -o is
     # resolved after the chdir, hence the absolute path.
-    if go build -C "$SRC" -o "$tmp" . >/dev/null 2>&1; then
+    if go build -C "$SRC" -o "$tmp" . >/dev/null 2>&1 &&
+        "$tmp" --help >/dev/null 2>&1; then
         mv -f "$tmp" "$BIN" 2>/dev/null || { rm -f "$tmp" 2>/dev/null; exit 1; }
     else
         rm -f "$tmp" 2>/dev/null

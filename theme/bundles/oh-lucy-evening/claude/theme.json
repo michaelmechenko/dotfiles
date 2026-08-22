@@ -1,0 +1,17 @@
+{
+  "name": "Oh-Lucy-Evening Aligned",
+  "base": "dark-ansi",
+  "overrides": {
+    "claude": "#FF7DA3",
+    "text": "#DED7D0",
+    "inactive": "#7F737D",
+    "success": "#BDA9D4",
+    "error": "#FF7DA3",
+    "warning": "#EFD472",
+    "planMode": "#8BB8D0",
+    "autoAccept": "#B898DD",
+    "diffAdded": "#BDA9D4",
+    "diffRemoved": "#FF7DA3",
+    "promptBorder": "#2E2930"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "Oh-Lucy Aligned",
+  "base": "dark-ansi",
+  "overrides": {
+    "claude": "#FB7DA7",
+    "text": "#D7D7D7",
+    "inactive": "#7C7E8C",
+    "success": "#BDA9D4",
+    "error": "#FB7DA7",
+    "warning": "#E3CF65",
+    "planMode": "#8DBBD3",
+    "autoAccept": "#AF98E6",
+    "diffAdded": "#BDA9D4",
+    "diffRemoved": "#FB7DA7",
+    "promptBorder": "#21252D"
+  }
+}

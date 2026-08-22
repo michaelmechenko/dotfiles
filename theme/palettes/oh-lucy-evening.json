@@ -1,0 +1,76 @@
+{
+  "$schema": "../schema.json",
+  "name": "oh-lucy-evening",
+  "source": {
+    "repository": "Yazeed1s/oh-lucy.nvim",
+    "path": "lua/oh-lucy-evening/colors.lua",
+    "variant": "oh-lucy-evening",
+    "revision": "2d94e9b03efe4c50f4653b6f2b7b200d970fe1aa"
+  },
+  "roles": {
+    "canvas": "#1E1D23",
+    "surface-active": "#29292E",
+    "surface-chrome": "#1A191E",
+    "surface-highlight": "#29292E",
+    "surface-extend": "@accent-primary",
+    "surface-fold": "@accent-info",
+    "surface-heading-h1": "#30252d",
+    "surface-heading-h2": "#2a2732",
+    "surface-heading-h3": "#2d2a29",
+    "surface-tint-rose": "#2c232b",
+    "copy-mode-indicator": "#7F737D",
+    "divider-subtle": "#2E2930",
+    "text": "#DED7D0",
+    "text-ui": "#DED7D0",
+    "text-muted": "#7F737D",
+    "text-default": "#DED7D0",
+    "accent-primary": "#FF7DA3",
+    "accent-secondary": "#B898DD",
+    "accent-tertiary": "#BDA9D4",
+    "accent-highlight": "#BBBBBB",
+    "accent-info": "#8BB8D0",
+    "accent-periwinkle": "#568BB4",
+    "accent-warn": "#E39A65",
+    "accent-amber": "#EFD472",
+    "selection-bg": "#CFD0D7",
+    "selection-fg": "#1A1B1F",
+    "split-divider": "#2E2930",
+    "bar-text": "#DED7D0",
+    "bar-canvas": "#1E1D23",
+    "bar-border-active": "#DED7D0",
+    "bar-border-inactive": "#2E2930"
+  },
+  "ansi": [
+    "#938884",
+    "#FF7DA3",
+    "#7EC49D",
+    "#EFD472",
+    "#8BB8D0",
+    "#BDA9D4",
+    "#BDA9D4",
+    "#DED7D0",
+    "#938884",
+    "#FF7DA3",
+    "#7EC49D",
+    "#EFD472",
+    "#8BB8D0",
+    "#BDA9D4",
+    "#BDA9D4",
+    "#DED7D0"
+  ],
+  "ghostty": {
+    "background": "@canvas",
+    "foreground": "@text",
+    "selection-background": "@selection-bg",
+    "selection-foreground": "@selection-fg",
+    "cursor-color": "#DFE0EA",
+    "cursor-text": "@canvas"
+  },
+  "native": {
+    "nvim": "oh-lucy-evening",
+    "zed": null
+  },
+  "opacity": {
+    "border-active": 0.7
+  }
+}

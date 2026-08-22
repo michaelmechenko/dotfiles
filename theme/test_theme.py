@@ -92,6 +92,7 @@ class TmuxAdapterTests(unittest.TestCase):
         tmux = theme.render_bundle(theme.load_palette("vague"))["tmux/colors.conf"]
         self.assertIn('set -g status-style "bg=#100E11"', tmux)
         self.assertIn('setw -g pane-active-border-style "fg=#aeaed1, bg=#100E11"', tmux)
+        self.assertIn("if -F '#{==:#{version},next-3.8}' 'setw -g window-style \"bg=#100E11,dim=20%\"' 'setw -g window-style \"bg=#100E11\"'", tmux)
         self.assertNotIn('status-style "bg=#{', tmux)
         self.assertNotIn('pane-active-border-style "fg=#{', tmux)
 

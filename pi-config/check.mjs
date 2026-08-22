@@ -50,6 +50,7 @@ check(!protectedPaths.includes("path.includes(p)"), "protected paths must not us
 const diff = read("agent/extensions/diff/src/index.ts");
 check(diff.includes("withFileMutationQueue"), "diff mutations must use Pi's file mutation queue");
 check(!diff.includes("isError: !result.ok"), "diff errors must use Pi-supported error semantics");
+check(!diff.includes("getEditOperations(args)"), "edit renderer must use normalizeEditOperations");
 check(!existsSync(join(agent, "extensions", "diff", "src", "hashline.ts")), "retired diff hashline implementation still exists");
 check(!read("agent/extensions/diff/package.json").includes("xxhash-wasm"), "retired diff hash dependency still exists");
 check(!existsSync(join(agent, "extensions", "plan-mode", "execution-orchestrator.ts")), "retired parallel-plan orchestrator still exists");

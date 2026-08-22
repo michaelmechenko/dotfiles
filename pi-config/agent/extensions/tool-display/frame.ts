@@ -1,4 +1,4 @@
-import { truncateToWidth } from "@earendil-works/pi-tui";
+import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import type { Component } from "@earendil-works/pi-tui";
 
 export type ToolFrameTheme = {
@@ -98,6 +98,26 @@ export function frameText<T extends WidthAwareText>(text: T, build: (width: numb
 	return text;
 }
 
+function withBackground(content: string, background: string | undefined): string {
+	if (!background) return content;
+	// Embedded syntax/Markdown/diff styles commonly emit a full SGR reset.
+	// Reapply the row background after those resets so every cell stays on the
+	// semantic surface, then terminate it at the row end.
+	return `${background}${content.replace(/\x1b\[0m/g, `\x1b[0m${background}`)}\x1b[0m`;
+}
+
+/** Fit a default-Box child row to its exact interior width. The host decorator
+ * owns the outer left/right padding, edge, status marker, and divider. */
+export function frameInnerRow(content: string, background: string | undefined, width: number): string {
+	const actual = Math.max(1, width);
+	const fitted = truncateToWidth(content, actual, "", true);
+	return withBackground(fitted + " ".repeat(Math.max(0, actual - visibleWidth(fitted))), background);
+}
+
+export function frameInnerRows(lines: string[], background: string | undefined, width: number): string {
+	return lines.flatMap((line) => line.split("\n")).map((line) => frameInnerRow(line, background, width)).join("\n");
+}
+
 export function frameRow(content: string, background: string | undefined, width: number, edgeColor?: string): string {
 	const actual = Math.max(2, width);
 	const interior = truncateToWidth(content, actual - 2, "", true);
@@ -105,14 +125,7 @@ export function frameRow(content: string, background: string | undefined, width:
 	// instead of a plain space. Interior width is unchanged (actual - 2): the
 	// edge occupies the existing left pad, the right pad stays a space.
 	const left = edgeColor ?? PAD;
-	const padded = `${left}${interior}${PAD}`;
-	if (!background) return padded;
-
-	// Embedded syntax/Markdown/diff styles commonly emit a full SGR reset.
-	// Reapply the row background after those resets so every cell in the outer
-	// frame stays on the same semantic surface, then terminate it at the row end.
-	const withBackground = padded.replace(/\x1b\[0m/g, `\x1b[0m${background}`);
-	return `${background}${withBackground}\x1b[0m`;
+	return withBackground(`${left}${interior}${PAD}`, background);
 }
 
 export function framePadding(background: string | undefined, width: number, edgeColor?: string): string {

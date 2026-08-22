@@ -29,7 +29,7 @@
 
 import { ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
 import { visibleWidth } from "@earendil-works/pi-tui";
-import { BORDERED_MUTATION_TOOLS, cardEdgeColor, isBorderedCard, type ToolFrameTheme } from "./frame.js";
+import { cardEdgeColor, isBorderedCard, type ToolFrameTheme } from "./frame.js";
 
 const THEME_KEY = Symbol.for("@earendil-works/pi-coding-agent:theme");
 const PATCH_FLAG = Symbol.for("pi.tool-display.hostDecorator.v1");
@@ -75,7 +75,7 @@ function applyBg(line: string, width: number, bgFn: BgFn): string {
  * first call line and a divider inserted before the result. Bordered cards
  * (mutations, interactive tools, errors) carry a status-colored left accent
  * edge in place of the left pad space on every row. */
-function decoratedBox(box: any, instance: any, width: number, theme: any): string[] {
+export function composeDefaultShellRows(box: any, instance: any, width: number, theme: any): string[] {
 	const contentWidth = Math.max(1, width - 2);
 	const callWidth = Math.max(1, contentWidth - 2);
 	const bgFn: BgFn = box.bgFn;
@@ -106,15 +106,9 @@ function decoratedBox(box: any, instance: any, width: number, theme: any): strin
 		}
 	}
 
-	// Divider + result content (only when a result row exists). Mutation tools
-	// (write/edit/apply_patch) are rendered by the diff extension, which frames
-	// its own result body with a top divider — inserting ours too would stack two
-	// dashed lines, so we skip the host divider for those tools.
+	// The host owns the sole call/result divider for every default-shell card.
 	if (resultChild) {
-		const toolName = String(instance.toolName ?? "");
-		if (!BORDERED_MUTATION_TOOLS.has(toolName)) {
-			out.push(applyBg(`${edge}${theme.fg("dim", "─".repeat(contentWidth))}`, width, bgFn));
-		}
+		out.push(applyBg(`${edge}${theme.fg("dim", "─".repeat(contentWidth))}`, width, bgFn));
 		for (const line of resultChild.render(contentWidth)) out.push(applyBg(`${edge}${line}`, width, bgFn));
 	}
 
@@ -128,7 +122,7 @@ function reconstructDefault(instance: any, width: number, origRender: (w: number
 	const lines: string[] = [];
 	for (const child of instance.children ?? []) {
 		if (child === box) {
-			lines.push(...decoratedBox(box, instance, width, getTheme()));
+			lines.push(...composeDefaultShellRows(box, instance, width, getTheme()));
 		} else {
 			lines.push(...child.render(width));
 		}

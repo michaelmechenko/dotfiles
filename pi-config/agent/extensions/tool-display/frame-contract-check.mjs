@@ -24,7 +24,8 @@ assert.match(frame, /export function frameComponentResult/);
 assert.doesNotMatch(frame, /toolFrameContainer/);
 assert.match(frame, /child\.render\(Math\.max\(1, actual - 2\)\)/);
 assert.match(frame, /frameRow\(line, this\.background, actual\)/);
-assert.match(frame, /\$\{background\}\$\{withBackground\}\\x1b\[0m/);
+assert.match(frame, /function withBackground\(content: string, background: string \| undefined\)/, "frame rows must preserve semantic backgrounds across ANSI resets");
+assert.match(frame, /export function frameInnerRow/, "default-shell children must use an unframed interior row");
 assert.match(frame, /export const toolCallFrame = frameCall/);
 assert.match(frame, /return frameRows\(\["", call\], background, width\)/);
 assert.match(frame, /export function toolResultFrame/);
@@ -58,6 +59,15 @@ assert.match(diff, /const contentKey = diffContentKey\(diff\);/, "diff cache key
 assert.match(diff, /:\$\{contentKey\}:\$\{maxLines\}:/, "diff cache keys must include selected preview limit");
 assert.doesNotMatch(diff, /───── Edit \$\{i \+ 1\} ─────/, "multi-edit data must carry semantic labels only");
 assert.match(diff, /content: `Edit \$\{i \+ 1\}`/, "both multi-edit branches must emit semantic labels");
+const editRegistration = diff.slice(
+	diff.indexOf('registerToolIfEnabled("edit"'),
+	diff.indexOf('registerToolIfEnabled("apply_patch"'),
+);
+assert.match(editRegistration, /renderShell: "default"/, "custom edit rendering must use the decorated default shell so mutation symbols align");
+assert.match(editRegistration, /topPad: 0/, "edit call headers must not add a second top pad inside the default shell");
+assert.doesNotMatch(editRegistration, /getEditOperations\(args\)/, "edit call rendering must use the canonical operation normalizer");
+const applyPatchRegistration = diff.slice(diff.indexOf('registerToolIfEnabled("apply_patch"'));
+assert.doesNotMatch(applyPatchRegistration, /ctx\.argsComplete && count > 0[\s\S]{0,120}text\.setText\(""\)/, "apply_patch must keep its call header in the host call slot after completion");
 assert.doesNotMatch(hunkPreview, /Math\.min\(renderWidth, 72\)/, "multi-edit dividers must not cap at 72 columns");
 assert.match(hunkPreview, /const totalWidth = renderWidth;/, "unified dividers must span the full result width");
 assert.match(hunkPreview, /row\.left\?\.type === "sep" \|\| row\.right\?\.type === "sep"/, "split rendering must own one full-width separator");
@@ -69,8 +79,9 @@ assert.match(host, /if \(this\.getRenderShell\?\.\(\) === "self"\)/, "host decor
 assert.match(host, /statusIcon/, "host decorator must prefix a status marker");
 assert.match(host, /return cardEdgeColor\(cardState\(instance\), theme as ToolFrameTheme\);/, "host decorator must use the complete styled edge token");
 assert.doesNotMatch(host, /cardEdgeColor\(cardState\(instance\), theme as ToolFrameTheme\)\}▌/, "host decorator must not append a second edge glyph");
-assert.match(host, /BORDERED_MUTATION_TOOLS/, "host decorator must know the mutation tool set so it can defer their body divider to the diff renderer");
-assert.match(host, /if \(!BORDERED_MUTATION_TOOLS\.has\(toolName\)\)/, "host decorator must skip its own divider for diff-rendered mutation tools to avoid stacked dashed lines");
+assert.match(host, /export function composeDefaultShellRows/, "host decorator must expose its geometry seam for regression coverage");
+assert.doesNotMatch(host, /BORDERED_MUTATION_TOOLS/, "host decorator must own the divider for all default-shell mutation cards");
+assert.match(host, /out\.push\(applyBg\(`\$\{edge\}\$\{theme\.fg\("dim", "─"\.repeat\(contentWidth\)\)\}`/, "host decorator must render the sole default-shell divider");
 assert.match(host, /frameRow|applyBg/, "host decorator must frame rows with the semantic background");
 assert.match(host, /return origRender\.call\(this, width\);/, "host decorator must fall back to the original render on any failure");
 const index = await readFile(resolve(root, "tool-display/index.ts"), "utf8");
@@ -99,5 +110,20 @@ const multilineRows = "first\nsecond".split("\n").map((line) => fitRow(line, 12)
 assert.deepEqual(multilineRows.map(stripAnsi), [" first      ", " second     "]);
 assert.equal(stripAnsi(fitRow("\x1b[31mwide content\x1b[0m", 5)), " wid ");
 assert.match(frame, /child\.invalidate\(\)/, "rich children must receive invalidation");
+
+// Default-shell geometry fixture: the host is the sole outer-frame owner.
+const composeMutation = (width, call, result) => {
+	const edge = "▌";
+	const fit = (value) => `${edge}${value.padEnd(width - 2)} `;
+	return [fit(""), fit(`✓ ${call}`), fit("─".repeat(width - 2)), fit(result), fit("")];
+};
+for (const width of [24, 80]) {
+	const rows = composeMutation(width, "← edit /tmp/a", "✓ result");
+	assert.equal(rows.length, 5, "mutation card has exactly one top pad, divider, and bottom pad");
+	for (const row of rows) assert.equal(row.length, width, "mutation card rows must have equal width");
+	assert.equal(rows[1].indexOf("✓"), rows[3].indexOf("✓"), "status and semantic result symbols must align");
+	assert.equal(rows[2].indexOf("─"), rows[3].indexOf("✓"), "divider must start at the result content column");
+	assert.equal(rows[1].indexOf("←"), 3, "call arrows begin after the shared status prefix");
+}
 
 console.log("tool frame contract: ok");

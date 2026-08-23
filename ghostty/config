@@ -55,14 +55,19 @@ resize-overlay = never
 font-size = 14
 # adjust-font-baseline = 0
 # adjust-cell-width = 4%
-adjust-cell-height = 4%
+# adjust-cell-height = 4%
 # font-feature = -calt
 # font-thicken = true
 # font-thicken-strength = 0
-font-family = "Paper Mono"
 # font-family = "ComicShanns Nerd Font"
 # font-family = "0xProto"
 
+# papermono config
+font-family = "Paper Mono"
+font-variation = wght=380
+adjust-cell-height = 4%
+adjust-underline-position = -1
+alpha-blending = linear-corrected
 
 # lilex-specific config
 # font-family = "Lilex"

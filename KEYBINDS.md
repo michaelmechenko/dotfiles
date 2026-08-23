@@ -391,7 +391,7 @@ nnn in a tmux popup; in-nnn plugins (pressed as `;<key>`) spawn splits back in t
 
 | Key | Action |
 | --- | --- |
-| `M-d` | Centred float popup (65% × 75%), start in origin pane cwd |
+| `M-d` | Centred float popup (65% × 75%), start in origin pane cwd; panes stack top/bottom below 160 columns and sit side-by-side at 160+ (preview remains 70%) |
 | `M-B` | Overlay the launching pane (fills it instead of floating) |
 
 In-nnn plugin keys (`;` prefix — nnn requires it for plugins):

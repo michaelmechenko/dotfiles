@@ -148,7 +148,7 @@ shim (no `pi.extensions` manifest — same label fix as `skill-toggle`/`pretty`/
 `node_modules` (gitignored, see the repo-root `.gitignore` entry); deps installed with
 `npm install --ignore-scripts`.
 
-**Why forked — two problems, both hit this machine:**
+**Why forked — three problems, all hit this machine:**
 
 1. **Subscription-auth routing.** The bridge spawns Claude Code with `env: { ...process.env, ... }`.
    If `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` is set in pi's environment (it is, here),
@@ -166,6 +166,15 @@ shim (no `pi.extensions` manifest — same label fix as `skill-toggle`/`pretty`/
    `provider.longContextExtraUsage == true`; otherwise they use the bare id, which the subscription
    serves at 200K. Registered `contextWindow` metadata follows the same policy so pi's footer
    percentage and auto-compaction threshold match reality.
+3. **Rebuild-safe thinking and OAuth transition retry.** pi stores rendered thinking summaries, not
+   the opaque original `thinking`/`redacted_thinking` blocks that Anthropic requires callers to
+   replay byte-for-byte. Rebuilding a Claude session with those signatures caused the permanent
+   `thinking blocks ... cannot be modified` 400. Fix: imports drop every pi thinking block while
+   preserving text, tool calls, and paired results; a live Claude session still resumes its own
+   original reasoning. Separately, the known OAuth billing handoff (`Third-party apps now draw from
+   your extra usage ...`) is retried once only when it consumed zero tokens and emitted neither
+   content nor a tool call. The failed attempt's Claude session is deleted, the original prompt is
+   retried from clean rebuilt history, and all other errors remain terminal.
 
 Effective config (`agent/claude-bridge.json`):
 

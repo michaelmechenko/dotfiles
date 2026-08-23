@@ -11,6 +11,7 @@ import { appendFileSync, mkdirSync, realpathSync, statSync } from "fs";
 import { homedir } from "os";
 import { dirname, join } from "path";
 import { PROVIDER_ID, messageContentToText, convertPiMessages } from "./convert.js";
+import { isExtraUsageTransitionBanner, shouldRetryExtraUsageTransition } from "./provider-retry.js";
 import { applyLongContext, buildModels, claudeCodeModelId, type LongContextSettings, resolveModel as _resolveModel } from "./models.js";
 import { buildChildEnv } from "./env.js";
 import { MCP_SERVER_NAME, MCP_TOOL_PREFIX, renderSkillsBlock } from "./skills.js";
@@ -249,10 +250,14 @@ function readCarriedAttachments(sessionId: string, cwd: string): CarriedAttachme
 }
 
 let sharedSession: SessionState | null = null;
+// Tracks the one allowed retry for a pi context without widening the provider's
+// public interface. A WeakSet lets completed contexts be collected normally.
+const transitionRetriedContexts = new WeakSet<object>();
 
 // Convert pi messages to Anthropic API format for session import.
-// Lossy: only text, thinking and toolCall blocks survive, and thinking only when
-// Claude Code itself minted the signature. An assistant message whose blocks all
+// Lossy: only text and toolCall blocks survive. Pi's thinking blocks are display
+// summaries, not verbatim opaque API records, so replaying their signatures would
+// corrupt a rebuilt Claude Code session. An assistant message whose blocks all
 // filter out keeps its slot with a placeholder, since dropping it can create a
 // tool_result with no preceding tool_use. A turn aborted before anything streamed
 // is dropped instead — it never had content, and inventing one diverges from the
@@ -1223,6 +1228,12 @@ function processAssistantMessage(message: SDKMessage, model: Model<any>, customT
 	}
 }
 
+function completedAssistantText(message: SDKMessage): string | null {
+	const content = (message as any).message?.content;
+	if (!Array.isArray(content) || content.length === 0 || content.some((block: any) => block.type !== "text")) return null;
+	return content.map((block: any) => block.text ?? "").join("");
+}
+
 /** Background consumer: iterates the SDK generator, pushing events to currentPiStream.
  *  Runs until the query ends. Per turn, the SDK yields stream_events (deltas), then
  *  an assistant message (completed blocks). On tool_use, the stream is ended by
@@ -1234,8 +1245,13 @@ async function consumeQuery(
 	model: Model<any>,
 	wasAborted: () => boolean,
 	queryCtx: QueryContext,
-): Promise<{ capturedSessionId?: string }> {
+	attempt: number,
+): Promise<{ capturedSessionId?: string; retryExtraUsage?: boolean }> {
 	let capturedSessionId: string | undefined;
+	let retryExtraUsage = false;
+	let sawAssistantContent = false;
+	let sawToolCall = false;
+	let bufferedTransitionAssistant: SDKMessage | undefined;
 
 	for await (const message of sdkQuery) {
 		if (RECORD_STREAM_PATH) appendFileSync(RECORD_STREAM_PATH, `${JSON.stringify(message)}\n`);
@@ -1258,10 +1274,22 @@ async function consumeQuery(
 			logServedContextWindow("result", message, model);
 			resultError = resultErrorText(message);
 			if (resultError !== undefined) {
-				debug(`consumeQuery: error result, subtype=${message.subtype}, error=${resultError}`);
+				const usage = queryCtx.turnOutput?.usage;
+				retryExtraUsage = shouldRetryExtraUsageTransition({
+					attempt,
+					error: resultError,
+					usage,
+					sawAssistantContent,
+					sawToolCall,
+				});
+				debug(`consumeQuery: error result, subtype=${message.subtype}, retryExtraUsage=${retryExtraUsage}, error=${resultError}`);
 				if (queryCtx.turnOutput) {
 					queryCtx.turnOutput.stopReason = "error";
 					queryCtx.turnOutput.errorMessage = resultError;
+				}
+				if (!retryExtraUsage && bufferedTransitionAssistant) {
+					processAssistantMessage(bufferedTransitionAssistant, model, customToolNameToPi, queryCtx);
+					bufferedTransitionAssistant = undefined;
 				}
 			}
 		}
@@ -1279,12 +1307,29 @@ async function consumeQuery(
 		if (!queryCtx.currentPiStream || !queryCtx.turnOutput) continue;
 
 		switch (message.type) {
-			case "stream_event":
+			case "stream_event": {
+				const event = (message as SDKMessage & { event?: { type?: string; content_block?: { type?: string } } }).event;
+				if (event?.type === "content_block_start") {
+					sawAssistantContent = true;
+					if (event.content_block?.type === "tool_use") sawToolCall = true;
+				}
 				processStreamEvent(message, customToolNameToPi, model, queryCtx);
 				break;
-			case "assistant":
+			}
+			case "assistant": {
+				const text = completedAssistantText(message);
+				if (!queryCtx.turnSawStreamEvent && !sawAssistantContent && !sawToolCall && text && isExtraUsageTransitionBanner(text)) {
+					// Claude Code reports this pre-execution server handoff as an
+					// assistant message before its error result. Hold it until the result
+					// decides whether to retry; unlike model output, it is protocol copy.
+					bufferedTransitionAssistant = message;
+					break;
+				}
+				sawAssistantContent ||= Boolean((message as any).message?.content?.length);
+				sawToolCall ||= Boolean((message as any).message?.content?.some((block: any) => block.type === "tool_use"));
 				processAssistantMessage(message, model, customToolNameToPi, queryCtx);
 				break;
+			}
 			case "result": {
 					// The failure itself was recorded above the guard, along with the served
 					// context window. What is left here is the success path: push the result
@@ -1319,10 +1364,14 @@ async function consumeQuery(
 		}
 	}
 
-	// DEBUG: trace when consumeQuery exits
-	debug(`consumeQuery: for-await loop exited, wasAborted=${wasAborted()}, capturedSessionId=${capturedSessionId?.slice(0, 8) ?? "none"}`);
+	if (bufferedTransitionAssistant && !retryExtraUsage && queryCtx.currentPiStream && queryCtx.turnOutput) {
+		processAssistantMessage(bufferedTransitionAssistant, model, customToolNameToPi, queryCtx);
+	}
 
-	return { capturedSessionId };
+	// DEBUG: trace when consumeQuery exits
+	debug(`consumeQuery: for-await loop exited, wasAborted=${wasAborted()}, retryExtraUsage=${retryExtraUsage}, capturedSessionId=${capturedSessionId?.slice(0, 8) ?? "none"}`);
+
+	return { capturedSessionId, retryExtraUsage };
 }
 
 /** The trailing user turn as content blocks, or null if there isn't one.
@@ -1420,6 +1469,7 @@ function drainForAbort(c: QueryContext, promptStream: PromptStream): void {
 function streamClaudeAgentSdk(model: Model<any>, context: Context, options?: SimpleStreamOptions): AssistantMessageEventStream {
 	showStartupNoticeOnce();
 	const stream = newAssistantMessageEventStream();
+	const attempt = transitionRetriedContexts.has(context) ? 1 : 0;
 
 	// DEBUG: trace followUp message triggering
 	const lastMsgRole = context.messages[context.messages.length - 1]?.role;
@@ -1633,8 +1683,8 @@ function streamClaudeAgentSdk(model: Model<any>, context: Context, options?: Sim
 	}
 
 	// Background consumer — runs until query ends
-	consumeQuery(sdkQuery, customToolNameToPi, model, () => wasAborted, queryCtx)
-		.then(async ({ capturedSessionId }) => {
+	consumeQuery(sdkQuery, customToolNameToPi, model, () => wasAborted, queryCtx, attempt)
+		.then(async ({ capturedSessionId, retryExtraUsage }) => {
 			debug(`provider: consumeQuery completed, stopReason=${queryCtx.turnOutput?.stopReason}, error=${queryCtx.turnOutput?.errorMessage}, aborted=${wasAborted}`);
 
 			// --- Abort detection in normal completion path ---
@@ -1650,6 +1700,26 @@ function streamClaudeAgentSdk(model: Model<any>, context: Context, options?: Sim
 				markStreamComplete(stream);
 				stream?.end();
 				queryCtx.currentPiStream = null;
+				return;
+			}
+
+			// The server rejected this before producing content or using tools. Do
+			// not expose an error turn to pi: discard its fresh CC transcript and
+			// run the original context once through the ordinary provider path.
+			if (retryExtraUsage) {
+				if (capturedSessionId) {
+					deleteSession(capturedSessionId, cwd, process.env.CLAUDE_CONFIG_DIR);
+					debug(`provider: discarded pre-execution transition session ${capturedSessionId.slice(0, 8)}`);
+				}
+				sharedSession = null;
+				transitionRetriedContexts.add(context);
+				queryCtx.activeQuery = null;
+				queryCtx.currentPiStream = null;
+				const retryStream = streamClaudeAgentSdk(model, context, options);
+				void (async () => {
+					for await (const event of retryStream) stream.push(event);
+					stream.end();
+				})();
 				return;
 			}
 
@@ -1715,6 +1785,7 @@ function streamClaudeAgentSdk(model: Model<any>, context: Context, options?: Sim
 				queryCtx.releasePendingToolCalls("Query ended");
 				queryCtx.activeQuery = null;
 				activeQueryContexts.delete(queryCtx);
+				transitionRetriedContexts.delete(context);
 			}
 			sdkQuery.close();
 		});

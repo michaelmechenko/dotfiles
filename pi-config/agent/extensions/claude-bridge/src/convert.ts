@@ -138,16 +138,13 @@ export function convertPiMessages(
 				if (block.type === "text" && block.text) {
 					blocks.push({ type: "text", text: block.text });
 				} else if (block.type === "thinking") {
-					// Only replay thinking Claude Code itself produced. A signature minted
-					// by any other provider — including pi's own Anthropic provider — is
-					// not ours to hand back, and Anthropic rejects ones it can't verify.
-					const sig = block.thinkingSignature;
-					if (msg.provider === PROVIDER_ID && sig) {
-						blocks.push({ type: "thinking", thinking: block.thinking ?? "", signature: sig });
-					} else {
-						dropped.thinking++;
-						dropped.providers.add(msg.provider ?? "unknown");
-					}
+					// Pi keeps a display-form summary plus a signature, not the opaque
+					// original API block. Reconstructing it changes signed bytes (and loses
+					// redacted_thinking entirely), which Anthropic rejects on a rebuild.
+					// A live Claude Code session can resume its own original blocks; every
+					// imported history is deliberately reasoning-lossy instead.
+					dropped.thinking++;
+					dropped.providers.add(msg.provider ?? "unknown");
 				} else if (block.type === "toolCall") {
 					const toolName = mapPiToolNameToSdk(block.name, customToolNameToSdk);
 					blocks.push({ type: "tool_use", id: sanitizeToolId(block.id, sanitizedIds), name: toolName, input: block.arguments ?? {} });

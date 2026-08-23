@@ -167,7 +167,9 @@ keybind = ctrl+enter=csi:13;5u
 keybind = alt+tab=csi:9;3u
 keybind = alt+shift+tab=csi:9;4u
 
-# ctrl+tab -> F13 (^[[25~): an unmodified key so tmux forwards it verbatim
-# (a modified key like ctrl+shift+e gets downgraded by tmux without extended-keys).
-# zsh binds ^[[25~ to accept the whole autosuggestion.
+# Ctrl-Tab / Ctrl-Shift-Tab -> F13 / F14 (^[[25~ / ^[[26~): unmodified
+# function-key transports so tmux forwards them verbatim. F13 remains zsh's
+# Ctrl-Tab autosuggestion key and pi's existing binding outside mm-sidebar;
+# mm-sidebar alone treats F13/F14 as forward/backward focus-region rotation.
 keybind = ctrl+tab=csi:25~
+keybind = ctrl+shift+tab=csi:26~

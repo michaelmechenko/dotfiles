@@ -3,9 +3,9 @@
 # schema-compatible so the mm-sidebar agents glance and the M-b menu can consume
 # both from one stream.
 #
-# 9 fields:
+# 11 fields:
 #   sessionId <TAB> pane_id <TAB> target <TAB> session_name <TAB> state <TAB>
-#   name <TAB> transcript <TAB> window_name <TAB> agent
+#   name <TAB> transcript <TAB> window_name <TAB> agent <TAB> cwd <TAB> pane_label
 #   agent ∈ claude | pi
 #   state ∈ awaiting-permission | waiting | thinking | idle
 #
@@ -34,7 +34,8 @@ fi
 # Degraded fallback: no Go toolchain, or the build failed. Emit Claude rows only,
 # by re-tagging tmux-claude-ls's own output -- it already computes the identical
 # first 8 fields and ends in statusUpdatedAt, which is dropped and replaced by the
-# literal "claude" agent tag so rows keep the 9-field shape consumers parse.
+# literal "claude" agent tag plus placeholder cwd and pane_label fields, keeping
+# the 11-field shape consumers parse.
 #
 # pi rows are lost in this mode. That is deliberate: the alternative is keeping a
 # second copy of the pi detection recipe in shell, which is exactly the drift this
@@ -43,6 +44,6 @@ fi
 if [ -x "$CLAUDE_LS" ]; then
   "$CLAUDE_LS" 2>/dev/null | awk -F'\t' 'NF>=9 {
     out=$1; for (i=2;i<=8;i++) out=out"\t"$i
-    print out "\tclaude"
+    print out "\tclaude\t-\t-"
   }'
 fi

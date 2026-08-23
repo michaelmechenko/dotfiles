@@ -4,6 +4,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
+	"github.com/muesli/termenv"
+
+	"mm-sidebar/internal/agents"
 	"mm-sidebar/internal/theme"
 )
 
@@ -113,5 +118,120 @@ func TestGaugeHandlesOutOfRangeValues(t *testing.T) {
 			}()
 			b.gauge("cpu", clampPct(v), false)
 		}()
+	}
+}
+
+func TestAgentsGlanceNavigationMatchesVisibleRows(t *testing.T) {
+	b := NewAgentsGlance(theme.Theme{}, make(chan struct{}, 1))
+	rows := make([]agents.Row, AgentsGlanceMax+2)
+	for i := range rows {
+		rows[i] = agents.Row{PaneID: "%1", Target: "sess:1", SessionName: "s"}
+	}
+	b.Update(AgentRowsMsg{Rows: rows})
+
+	if got := b.NavigationCount(); got != AgentsGlanceMax {
+		t.Fatalf("default navigation count = %d, want %d", got, AgentsGlanceMax)
+	}
+	if got := b.NavigationIndex(0); got != -1 {
+		t.Fatalf("label mapped to row %d, want -1", got)
+	}
+	if got := b.NavigationIndex(1); got != 0 {
+		t.Fatalf("first visible row mapped to %d, want 0", got)
+	}
+	if got := b.NavigationIndex(b.Height() - 1); got != -1 {
+		t.Fatalf("more counter mapped to row %d, want -1", got)
+	}
+
+	b.SetExtra(2)
+	if got := b.NavigationCount(); got != AgentsGlanceMax+2 {
+		t.Fatalf("expanded navigation count = %d, want %d", got, AgentsGlanceMax+2)
+	}
+}
+
+func TestAgentsGlanceHoverUnderlinesLocationOnly(t *testing.T) {
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	t.Cleanup(func() { lipgloss.SetColorProfile(termenv.Ascii) })
+	b := NewAgentsGlance(theme.Theme{}, make(chan struct{}, 1))
+	b.Update(AgentRowsMsg{Rows: []agents.Row{{
+		PaneID: "%1", Target: "sess:1", State: agents.StateWaiting,
+		PaneLabel: "build", WindowName: "work", SessionName: "m",
+	}}})
+	b.SetNavigationIndex(0)
+	if !b.SetHoverLine(1) {
+		t.Fatal("agent row did not accept hover")
+	}
+	view := b.View(80)
+	if !strings.Contains(view, "\x1b[4") {
+		t.Fatalf("location is not underlined: %q", view)
+	}
+	if strings.Contains(view, "\x1b[4m!W") || strings.Contains(view, "\x1b[4;4m!W") {
+		t.Fatalf("urgency tag was underlined: %q", view)
+	}
+	if !strings.Contains(view, "▶") {
+		t.Fatalf("keyboard cursor disappeared while hovering: %q", view)
+	}
+	if b.SetHoverLine(0) {
+		t.Fatal("label accepted hover")
+	}
+	if view := b.View(80); strings.Contains(view, "\x1b[4") {
+		t.Fatalf("inert line did not clear hover: %q", view)
+	}
+}
+
+func TestAgentLocationIncludesOnlyPresentSegments(t *testing.T) {
+	if got := agentLocation(agents.Row{PaneLabel: "p", WindowName: "w", SessionName: "s"}); got != "p · w · s" {
+		t.Fatalf("labeled location = %q", got)
+	}
+	if got := agentLocation(agents.Row{WindowName: "w", SessionName: "s"}); got != "w · s" {
+		t.Fatalf("unlabeled location = %q", got)
+	}
+	if got := agentLocation(agents.Row{PaneLabel: "p", WindowName: "-", SessionName: "s"}); got != "p · s" {
+		t.Fatalf("missing window location = %q", got)
+	}
+}
+
+func TestAgentLocationsLabelFallbackAndTruncation(t *testing.T) {
+	labeled := NewAgentsGlance(theme.Theme{}, make(chan struct{}, 1))
+	labeled.Update(AgentRowsMsg{Rows: []agents.Row{{
+		PaneID: "%1", PaneLabel: "label", WindowName: "window", SessionName: "session",
+	}}})
+	if view := labeled.View(20); !fitsWidth(view, 20) || !strings.Contains(view, "label") {
+		t.Fatalf("labeled location did not preserve its left edge under clipping: %q", view)
+	}
+
+	unlabeled := NewAgentsGlance(theme.Theme{}, make(chan struct{}, 1))
+	unlabeled.Update(AgentRowsMsg{Rows: []agents.Row{{
+		PaneID: "%1", WindowName: "window", SessionName: "session",
+	}}})
+	if view := unlabeled.View(80); !strings.Contains(view, "window · session") {
+		t.Fatalf("unlabeled location regressed: %q", view)
+	}
+}
+
+func fitsWidth(view string, width int) bool {
+	for _, line := range strings.Split(view, "\n") {
+		if ansi.StringWidth(line) > width {
+			return false
+		}
+	}
+	return true
+}
+
+func TestAgentsGlanceSelectionAndActivation(t *testing.T) {
+	b := NewAgentsGlance(theme.Theme{}, make(chan struct{}, 1))
+	b.Update(AgentRowsMsg{Rows: []agents.Row{{PaneID: "%1", Target: "sess:1", SessionName: "s"}}})
+	b.SetNavigationIndex(0)
+	if b.focus != 0 {
+		t.Fatalf("focus = %d, want 0", b.focus)
+	}
+	b.SetNavigationIndex(2)
+	if b.focus != -1 {
+		t.Fatalf("out-of-range focus = %d, want -1", b.focus)
+	}
+	if cmd := b.ActivateNavigation(0); cmd == nil {
+		t.Fatal("valid agent activation returned no command")
+	}
+	if cmd := b.ActivateNavigation(1); cmd != nil {
+		t.Fatal("hidden agent activation returned a command")
 	}
 }

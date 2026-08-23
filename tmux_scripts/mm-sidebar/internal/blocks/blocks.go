@@ -98,6 +98,40 @@ type Clickable interface {
 	OnClick(line int) tea.Cmd
 }
 
+// Hoverable is the optional mouse-motion half of a block. SetHoverLine receives
+// a block-local rendered line, or -1 to clear. It returns true only when that
+// line is actionable and the block accepted it as the current hover target.
+// This keeps hit-testing, clipping, and hover rendering block-owned.
+type Hoverable interface {
+	SetHoverLine(line int) bool
+}
+
+// Navigable is the optional keyboard half of a block with actionable rows.
+// The block owns visibility, truncation, ordering, and selected-row rendering;
+// the model only moves an index through the currently rendered actionable rows.
+// Informational blocks do not implement this interface and are skipped.
+//
+// SetNavigationIndex receives -1 when the block is not the active keyboard
+// region. The block should render no selection in that state. NavigationIndex
+// maps a block-local rendered line to an actionable-row index, or -1 for labels,
+// placeholders, and counters. Activate receives a zero-based actionable-row
+// index and returns the same kind of asynchronous command as Clickable.OnClick.
+type Navigable interface {
+	NavigationCount() int
+	SetNavigationIndex(index int)
+	NavigationIndex(line int) int
+	ActivateNavigation(index int) tea.Cmd
+}
+
+// SelectionIdentifiable is the optional stable-identity half of Navigable.
+// Blocks whose rows can reorder between refreshes implement it so the model can
+// retain a selected row by identity instead of activating whatever moved into
+// the prior numeric index.
+type SelectionIdentifiable interface {
+	NavigationID(index int) string
+	NavigationIndexByID(id string) int
+}
+
 // label renders a block's title row in the same "▸ name" idiom the header's
 // active-tab subtitle uses, so each block is visually delimited without
 // spending a row on a blank divider.

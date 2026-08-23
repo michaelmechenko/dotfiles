@@ -450,10 +450,12 @@ unbound — for scripts).
 | --- | --- |
 | `1` / `2` / `3` / `4` | Switch to sessions / windows / filetree / scratch tab (`1`..`N` over the `nav.Sources` registry) |
 | `Tab` / `S-Tab` | Cycle tabs forward / back |
-| `j` / `↓` | Move cursor down (navigator only, wraps) |
-| `k` / `↑` | Move cursor up (navigator only, wraps) |
-| `g` / `G` | Jump to first / last row |
-| `Enter` | Act on the selected navigator row (tab-specific — see below) |
+| `j` / `↓` | Move down within the active focus region; wraps inside that region |
+| `k` / `↑` | Move up within the active focus region; wraps inside that region |
+| `J` / `ctrl-tab` (`F13`) | Rotate forward through visible non-empty focus regions without acting |
+| `K` / `ctrl-shift-tab` (`F14`) | Rotate backward through visible non-empty focus regions without acting |
+| `g` / `G` | Jump to the first / last actionable row across the sidebar |
+| `Enter` | Act on the focused navigator row or actionable block row (tab/block-specific) |
 | `Backspace` | Up one level in a hierarchical tab (filetree); inert on the others |
 | `r` | Force refetch + re-render |
 | `?` | Toggle inline help overlay |
@@ -462,7 +464,9 @@ unbound — for scripts).
 | click (agents row) | **Switch to that agent's pane**, across sessions included. The `▸ agents` label, the `+N more` counter and `(none)` are inert |
 | wheel | Scroll the navigator viewport, **clamped** (no wrap) and only while the pointer is **over the navigator** — a wheel event over the docked blocks or the header does nothing |
 
-Agent-glance state tags: `!P` awaiting permission, `!W` waiting, `~~` thinking, blank = idle (color also encodes state).
+Focus regions are the navigator and every visible non-empty `Navigable` block. Region rotation preserves each region's selected row and skips informational or degraded-away blocks. `system_stats`, labels, `(none)`, and `+N more` remain non-focusable. `M-b` remains the full agent picker.
+
+Ghostty transports Ctrl-Tab/Ctrl-Shift-Tab as F13/F14; only mm-sidebar interprets those names, so Ctrl-Tab retains its Pi/zsh behavior elsewhere. Agent-glance state tags: `!P` awaiting permission, `!W` waiting, `~~` thinking, blank = idle (color also encodes state). Hovering an actionable agent row underlines its location only; hover neither changes keyboard focus nor activates it.
 
 **Per-tab `Enter` actions + extra keys:**
 
@@ -473,4 +477,4 @@ Agent-glance state tags: `!P` awaiting permission, `!W` waiting, `~~` thinking, 
 | filetree | `find`-based 2-level tree over the content pane's cwd | dir → `split-window -h -c <dir>` in the content pane; file → `tmux-open-target` (nvim split) | `Backspace` — navigate root up one level |
 | scratch | `~/.config/tmux_scratch/{global,<slug>}.md` | `exec nvim <file>`; `:wq` returns to the dispatcher loop | — |
 
-`agents` is not a navigator tab — it's the `agents_glance` docked block instead (always visible below the navigator, regardless of tab). It's read-only (no cursor, no `Enter`); rows are colorized by state (rose `#d8647e` for awaiting-permission/waiting, dusty_pink `#bb9dbd` for thinking, inactive `#656a80` for idle — same roles as the `M-b` menu) and capped/urgency-sorted with a `+N more` row when clipped. Interactive agent focus/preview stays on the `M-b` menu below. The `system_stats` docked block shows a cpu/mem/disk glance, refreshed on its own ~5s timer (battery was dropped in revision 5 — it is already on the macOS menu bar and in SketchyBar).
+`agents` is not a navigator tab — it's the `agents_glance` docked block instead (always visible below the navigator, regardless of tab). Its visible rows are keyboard- and mouse-actionable, colorized by state (rose `#d8647e` for awaiting-permission/waiting, dusty_pink `#bb9dbd` for thinking, inactive `#656a80` for idle — same roles as the `M-b` menu), capped/urgency-sorted with a `+N more` row when clipped, and hover-underlined at their location only. Preview and bulk actions stay on the `M-b` menu. The `system_stats` docked block shows a cpu/mem/disk glance, refreshed on its own ~5s timer (battery was dropped in revision 5 — it is already on the macOS menu bar and in SketchyBar).

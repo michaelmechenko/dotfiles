@@ -3,6 +3,7 @@ package agents
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"mm-sidebar/internal/tmuxio"
@@ -42,6 +43,44 @@ func TestPiRowsPreferExactRegistryForSelfAndChild(t *testing.T) {
 	}
 	if rows[1].SessionID != "exact-child" || rows[1].Transcript != childFile {
 		t.Fatalf("child row = %#v", rows[1])
+	}
+}
+
+func TestAgentRowsCarryPaneLabelsAndAppendTSV(t *testing.T) {
+	cwd := "/Users/mishka/.config"
+	piFile := filepath.Join(t.TempDir(), "pi.jsonl")
+	if err := os.WriteFile(piFile, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	r := &Resolver{
+		ppidByPID:   map[int]int{10: 100},
+		piByPanePID: map[int]piProc{200: {pid: 201, comm: AgentPi}},
+		cwdByPID:    map[int]string{201: cwd},
+		transcript:  map[string]string{},
+	}
+	claude := r.claudeRows([]claudeSession{{PID: 10, SessionID: "claude", Name: "c"}}, map[int]tmuxio.PaneRow{
+		100: {PaneID: "%100", Target: "m:1.0", SessionName: "m", PaneLabel: "review"},
+	})
+	if len(claude) != 1 || claude[0].PaneLabel != "review" {
+		t.Fatalf("Claude label = %#v, want review", claude)
+	}
+	pi := r.piRows([]tmuxio.PaneRow{{
+		PanePID: 200, PaneID: "%200", Target: "m:1.1", SessionName: "m", Command: AgentPi, PaneLabel: "build",
+	}}, map[int]piRecord{201: {PID: 201, SessionID: "pi", SessionFile: piFile, Cwd: cwd}})
+	if len(pi) != 1 || pi[0].PaneLabel != "build" {
+		t.Fatalf("pi label = %#v, want build", pi)
+	}
+
+	row := Row{SessionID: "1", PaneID: "%1", Target: "m:1.0", SessionName: "m", State: StateIdle, Name: "n", Transcript: "t", WindowName: "w", Agent: AgentPi, Cwd: "/cwd", PaneLabel: "p"}
+	fields := strings.Split(row.TSV(), "\t")
+	if len(fields) != 11 {
+		t.Fatalf("TSV fields = %d, want 11: %q", len(fields), row.TSV())
+	}
+	if got, want := strings.Join(fields[:10], "\t"), "1\t%1\tm:1.0\tm\tidle\tn\tt\tw\tpi\t/cwd"; got != want {
+		t.Fatalf("first 10 TSV fields changed: got %q, want %q", got, want)
+	}
+	if fields[10] != "p" {
+		t.Fatalf("pane label field = %q, want p", fields[10])
 	}
 }
 

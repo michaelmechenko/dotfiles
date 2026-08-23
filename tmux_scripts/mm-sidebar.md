@@ -36,7 +36,7 @@ window-list with appended widgets rather than switchable sources.
 │   misc           1w                │
 │     ~/_main/tulip                  │
 │ ────────────────────────────────── │  divider (divider-subtle)
-│ ▸ agents                           │  docked block — read-only glance
+│ ▸ agents                           │  docked actionable/hoverable glance
 │   !P r-notes · m*                  │
 │   !W n8n-salesforce · m*           │
 │   ~~ conf · float                  │
@@ -65,7 +65,7 @@ matching `#{pane_height}` each time.
 
 | Path | Role |
 | --- | --- |
-| `tmux_scripts/mm-sidebar/` | The Go module. `go.mod`/`go.sum` tracked; binary gitignored. |
+| `tmux_scripts/mm-sidebar/` | The Go module. `go.mod`/`go.sum` tracked; the architecture-specific binary is generated on demand and ignored. |
 | `tmux_scripts/tmux-sidebar-toggle` | `M-Tab` / `M-BTab` / `prefix Tab` / `prefix BTab` entry point. Open/close, focus switch, pane lifecycle. |
 | `tmux_scripts/tmux-sidebar-build` | Builds or repairs the binary on demand; prints its path, or exits 1 so callers can fall back. |
 | `tmux_scripts/tmux-sidebar-repin` | Restores every sidebar pane to its configured width after a resize. |
@@ -402,9 +402,29 @@ itself and keeps its ordering and truncation private. Return `nil` for lines tha
 aren't actionable. Put any tmux calls inside the returned `Cmd` — they fork and
 block, and the input path must stay clear.
 
-Blocks deliberately have **no keyboard cursor**; a click is an unambiguous point at
-one row, which is why it needs neither a cursor in the block nor a traversal path
-into it.
+### Make a block keyboard-actionable
+
+Implement `Navigable` when the block has visible rows that should participate in
+sidebar keyboard focus. The block owns its visible-row count, maps block-local
+rendered lines to actionable rows, renders the selected-row cursor, and performs
+activation. `SetNavigationIndex(-1)` clears its selection; informational blocks
+should not implement the interface. The model treats the navigator and each
+visible non-empty `Navigable` block as a focus region, so adding one does not
+require a concrete block branch in `model.go`. Lowercase `j/k` stay within the
+active region; `J/K` rotate regions while retaining every region's cursor. Use
+the same action path for `Clickable` and `ActivateNavigation` so mouse and
+keyboard cannot drift. If rows can reorder on refresh, also implement
+`SelectionIdentifiable`; the model retains the selected stable ID rather than
+silently activating whatever moved into its old index.
+
+### Make a block hoverable
+
+Implement `Hoverable` when rendered actionable rows need pointer feedback.
+`SetHoverLine(blockLocalLine)` must return true only for an actionable line; it
+receives `-1` when the pointer leaves. The model routes all-motion mouse events
+through the line map recorded by `View`, but the block keeps hit-testing,
+truncation, and styling private. Hover is independent from keyboard focus and
+click activation.
 
 ## Blocks architecture
 
@@ -488,13 +508,18 @@ implements `Clickable`, and `agents.Row` already carries `PaneID` (`%161`) and
 plumbing was needed. The label row, the `+N more` counter and the `(none)`
 placeholder are inert.
 
-Still **no keyboard cursor and no `Enter`** — keyboard agent-switching stays on the
-existing `M-b` menu (`tmux-claude-menu`), which already covers it, and that is also
-why `agents` is not a navigator tab: the picker-vs-glance split removes a genuinely
-redundant interactive surface. A click doesn't reintroduce one, because it names a
-row directly instead of needing a cursor to travel there.
+`agents_glance` implements `Navigable` and `Hoverable`. Its visible rows are a
+focus region; `j/k` and arrows wrap within it, while `J/K` rotate between it and
+the navigator without acting. `Enter` switches to the selected agent. `g/G`
+address the first/last actionable row across the whole sidebar. Hovering an
+actionable row underlines its location only; it neither moves the keyboard cursor
+nor activates the row. Hidden rows behind `+N more`, labels, counters, and
+empty-state text remain inert. `M-b` remains the full cross-session picker for
+preview and bulk actions.
 
-Row format: `<2-char state tag> <window · session>`.
+Row format: `<2-char state tag> <pane label · window · session>`. A missing pane
+label preserves `<window · session>`; a missing window is omitted. ANSI-aware
+normal clipping keeps that left-to-right identity order at 36 columns.
 
 | Tag | State | Color role |
 | --- | --- | --- |
@@ -743,12 +768,12 @@ window auto-names itself `node`. Every such pane therefore reported a permanent
 `thinking`. The comparison is now against the resolved pi process's own argv[0]
 basename, which is what the recipe intended.
 
-### The 10-field TSV schema
+### The 11-field TSV schema
 
 `mm-sidebar agents` emits, tab-separated:
 
 ```
-sessionId  pane_id  target  session_name  state  name  transcript  window_name  agent  cwd
+sessionId  pane_id  target  session_name  state  name  transcript  window_name  agent  cwd  pane_label
 ```
 
 `agent` ∈ `claude` | `pi`; `state` ∈ `awaiting-permission` | `waiting` |
@@ -757,10 +782,11 @@ that is deliberately the pane's cwd and not the pi *process's* cwd (which
 `piTranscript` uses to find the session dir), so both agent kinds' `cwd` means
 the same thing and can be joined against a repo root.
 
-**`cwd` was APPENDED as field 10 in revision 5, never inserted.** Fields 1-9 are
-a contract with shell consumers; verified byte-identical after the change by
-diffing `cut -f1-9` against the pre-change binary. Appending is still not free,
-though — see the next paragraph.
+**`cwd` (field 10) and `pane_label` (field 11) were APPENDED, never inserted.**
+Fields 1-9 are a contract with shell consumers; fields 1-10 remain byte-identical
+when the label was added. `pane_label` comes from `@pane-label` in the existing
+batched `list-panes -a` format, so it adds no recurring fork. Appending is still
+not free, though — see the next paragraph.
 
 **No field is ever emitted empty** — `-` is the placeholder. bash's `read` with
 `IFS=$'\t'` collapses *consecutive* delimiters regardless of what IFS is set to
@@ -832,9 +858,11 @@ track — both are background-weight surfaces, not text, so neither could reuse
 | --- | --- |
 | `1`–`4` | Switch to sessions / windows / filetree / scratch (`1`..`N` over `nav.Sources`) |
 | `Tab` / `S-Tab` | Cycle tabs forward / back |
-| `j` `k` / `↓` `↑` | Move cursor (navigator only, wraps) |
-| `g` / `G` | First / last row |
-| `Enter` | Act on the selected row (tab-specific) |
+| `j` `k` / `↓` `↑` | Move within the active focus region; wraps inside that region |
+| `J` / `K` | Rotate focus regions forward / back without acting |
+| `Ctrl-Tab` (`F13`) / `Ctrl-Shift-Tab` (`F14`) | Same forward / back region rotation; Ghostty transports the keys as F13/F14 |
+| `g` / `G` | First / last actionable row across the sidebar |
+| `Enter` | Act on the focused navigator row or actionable block row |
 | `Backspace` | Up one level in a hierarchical tab (filetree); inert elsewhere |
 | `r` | Force refetch |
 | `?` | Toggle help overlay |
@@ -843,8 +871,12 @@ track — both are background-weight surfaces, not text, so neither could reuse
 | click (agents row) | Switch to that agent's pane |
 | wheel | Scroll the navigator viewport — clamped, and only over the navigator |
 
-Docked blocks have **no keys** — they're glances, not pickers — but a block may
-accept a click by implementing `Clickable` (see Extending).
+Docked blocks are glances by default. Informational blocks have no keyboard
+focus; actionable blocks may implement `Navigable`, `Clickable`, and `Hoverable`
+(see Extending). Focus regions include only the navigator and visible non-empty
+Navigable blocks, preserving each region's selection and skipping informational
+or degraded-away blocks. The current `agents_glance` rows are keyboard- and
+mouse-actionable; `system_stats` remains non-focusable.
 
 **The wheel is a clamped, position-scoped viewport scroll, not a cursor move.**
 Through revision 4 it called the same wrapping `move()` that `j`/`k` use, from
@@ -857,12 +889,14 @@ wheel that wraps just reads as a glitch. The visible row span comes from
 `m.lineRow`, for the same reason clicks do: rows are variable-height, so it can't
 be derived from a line count.
 
-Mouse works because tmux already has `mouse on` and Bubble Tea enables SGR
-tracking (`WithMouseCellMotion`). A click resolves through two tables `View`
-records as it renders: `lineRow` for the navigator, then `blockLines` for the
-region below it. Both are recorded rather than recomputed, so they cannot disagree
-with the frame — and `Height()` read after the fact would reflect the previous
-frame's `Expandable` grant anyway. Verified by injecting raw SGR sequences.
+Mouse works because tmux already has `mouse on` and Bubble Tea enables all SGR
+motion tracking (`WithMouseAllMotion`). Clicks and hover resolve through two
+tables `View` records as it renders: `lineRow` for the navigator, then
+`blockLines` for the region below it. Both are recorded rather than recomputed,
+so they cannot disagree with the frame — and `Height()` read after the fact would
+reflect the previous frame's `Expandable` grant anyway. Only an actionable
+Hoverable block line accepts hover; header, navigator, divider, padding, labels,
+counters, and empty states clear it. Verified by injecting raw SGR sequences.
 
 ## Relationship to `M-d` and `M-b`
 
@@ -872,7 +906,8 @@ frame's `Expandable` grant anyway. Verified by injecting raw SGR sequences.
   `tmux-open-target` for file opens, so the only real difference is the browsing
   UI.
 - The **`agents_glance`** block is the quick-glance variant of agent status —
-  read-only, always visible. `M-b` (`tmux-claude-menu`) remains the full
+  always visible, with direct row focus/switching but no preview or bulk actions.
+  `M-b` (`tmux-claude-menu`) remains the full
   interactive picker (focus, preview, accept-all). Don't fold `agents_glance`
   into a picker.
 
@@ -921,7 +956,9 @@ of `ansi.Style` signature errors. Pin `x/ansi v0.10.1`, and leave
 **v1.3.10** — the v1 `KeyMsg` API, not v2.
 
 `tmux-sidebar-build` swallows compiler output so a broken tree can't break
-`M-Tab`. Run `go build ./...` in the module directly to see errors. Its freshness
+`M-Tab`. The architecture-specific `mm-sidebar` binary is not tracked and is
+ignored by `.gitignore`; the helper rebuilds it on demand. Run `go build ./...`
+in the module directly to see errors. Its freshness
 gate also runs `mm-sidebar --help`: executable mode and mtimes alone do not prove
 a Mach-O is runnable. A stale binary with an invalid `LC_CODE_SIGNATURE` passes
 both checks, then macOS kills the sidebar with `SIGKILL` before its first frame.
@@ -930,7 +967,7 @@ publishing it via atomic rename.
 
 ## Tests
 
-`go test ./...` in the module. 10 tests, all pure logic — nothing shells out to
+`go test ./...` in the module. The tests are pure logic — nothing shells out to
 tmux, so they run anywhere:
 
 - `model_test.go` — the **Leak A regression guard**: a stub block with a message

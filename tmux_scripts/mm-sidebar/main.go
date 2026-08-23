@@ -42,11 +42,11 @@ func usage() {
 	fmt.Fprint(os.Stderr, `usage: mm-sidebar [command]
 
   (no command)  run the sidebar TUI in the current pane
-  agents        print one TSV row per live agent pane (9 fields) and exit
+  agents        print one TSV row per live agent pane (11 fields) and exit
 `)
 }
 
-// runAgents prints the 9-field TSV schema. --tsv is accepted and ignored: it is
+// runAgents prints the 11-field TSV schema. --tsv is accepted and ignored: it is
 // the only output format, and spelling it out keeps the tmux-agent-ls wrapper
 // self-documenting.
 func runAgents() int {
@@ -67,7 +67,9 @@ func runSidebar() int {
 	// No alt screen: the sidebar owns a whole tmux pane for its lifetime, so
 	// there is no prior screen content to preserve or restore, and staying on
 	// the primary buffer keeps tmux's own copy-mode scrollback coherent.
-	p := tea.NewProgram(newModel(), tea.WithMouseCellMotion())
+	// All-motion reports hover without a pressed button; cell-motion would only
+	// report drag events and cannot drive row hover styling.
+	p := tea.NewProgram(newModel(), tea.WithMouseAllMotion())
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "mm-sidebar: %v\n", err)
 		return 1

@@ -3,6 +3,7 @@ package blocks
 import (
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -28,9 +29,9 @@ type AgentRowsMsg struct {
 
 func (AgentRowsMsg) IsBlockMsg() {}
 
-// AgentsGlance is a read-only condensed agent status block: always visible
-// regardless of the active navigator tab, capped, and sorted by urgency so the
-// rows that most need attention are the ones that survive truncation.
+// AgentsGlance is a condensed agent status block: always visible regardless of
+// the active navigator tab, capped, and sorted by urgency so the rows that most
+// need attention are the ones that survive truncation.
 type AgentsGlance struct {
 	theme theme.Theme
 	// rows holds every agent from the last sweep, urgency-sorted. Truncation is a
@@ -38,6 +39,8 @@ type AgentsGlance struct {
 	// layout can grant more room without waiting for another sweep.
 	rows  []agents.Row
 	extra int // additional rows granted by the layout beyond AgentsGlanceMax
+	focus int // selected visible row; -1 when keyboard focus is elsewhere
+	hover int // hovered visible row; -1 when the pointer is elsewhere
 
 	// request is how the block asks the model's resolver goroutine for a sweep.
 	// Buffered and non-blocking: a coalescing trigger, not a queue.
@@ -47,7 +50,7 @@ type AgentsGlance struct {
 // NewAgentsGlance builds the block. request is the resolver goroutine's trigger
 // channel.
 func NewAgentsGlance(th theme.Theme, request chan<- struct{}) *AgentsGlance {
-	return &AgentsGlance{theme: th, request: request}
+	return &AgentsGlance{theme: th, request: request, focus: -1, hover: -1}
 }
 
 func (b *AgentsGlance) ID() string { return "agents_glance" }
@@ -85,6 +88,10 @@ func (b *AgentsGlance) Update(msg tea.Msg) {
 		return agents.StateRank(rows[i].State) < agents.StateRank(rows[j].State)
 	})
 	b.rows = rows
+	// The pointer may still be over the same screen line after a refresh, but
+	// that line can now belong to another urgency-sorted agent. The model clears
+	// hover before every block update; keep this local guard for direct callers.
+	b.hover = -1
 }
 
 // shown is how many rows render at the current allowance, and how many are left
@@ -145,8 +152,12 @@ func (b *AgentsGlance) View(width int) string {
 		return join(lines, width)
 	}
 	n, more := b.shown()
-	for _, r := range b.rows[:n] {
-		lines = append(lines, "  "+b.renderRow(r))
+	for i, r := range b.rows[:n] {
+		prefix := "  "
+		if i == b.focus {
+			prefix = b.theme.Accent.Render("▶") + " "
+		}
+		lines = append(lines, prefix+b.renderRow(i, r))
 	}
 	if more > 0 {
 		lines = append(lines, b.theme.Muted.Render("  +"+strconv.Itoa(more)+" more"))
@@ -168,12 +179,75 @@ func (b *AgentsGlance) View(width int) string {
 // agent in a DIFFERENT session switches the client correctly with no extra
 // plumbing.
 func (b *AgentsGlance) OnClick(line int) tea.Cmd {
+	if i := b.NavigationIndex(line); i >= 0 {
+		return b.ActivateNavigation(i)
+	}
+	return nil
+}
+
+// NavigationCount exposes only currently visible agent rows. Hidden rows behind
+// "+N more" are intentionally not keyboard reachable until the layout expands
+// the block, keeping keyboard focus consistent with what is rendered.
+func (b *AgentsGlance) NavigationCount() int {
 	n, _ := b.shown()
-	i := line - 1
-	if i < 0 || i >= n {
+	return n
+}
+
+// SetHoverLine implements Hoverable. Only rendered agent rows accept hover;
+// labels, placeholders, and the hidden-row counter clear it.
+func (b *AgentsGlance) SetHoverLine(line int) bool {
+	index := b.NavigationIndex(line)
+	if index < 0 {
+		b.hover = -1
+		return false
+	}
+	b.hover = index
+	return true
+}
+
+func (b *AgentsGlance) SetNavigationIndex(index int) {
+	if index < 0 || index >= b.NavigationCount() {
+		b.focus = -1
+		return
+	}
+	b.focus = index
+}
+
+// NavigationID and NavigationIndexByID implement SelectionIdentifiable. PaneID
+// is stable across agent status refreshes, unlike urgency order, so a selected
+// agent cannot silently become another agent after a resort.
+func (b *AgentsGlance) NavigationID(index int) string {
+	if index < 0 || index >= b.NavigationCount() {
+		return ""
+	}
+	return b.rows[index].PaneID
+}
+
+func (b *AgentsGlance) NavigationIndexByID(id string) int {
+	if id == "" {
+		return -1
+	}
+	for i := 0; i < b.NavigationCount(); i++ {
+		if b.rows[i].PaneID == id {
+			return i
+		}
+	}
+	return -1
+}
+
+func (b *AgentsGlance) NavigationIndex(line int) int {
+	i := line - 1 // line 0 is the block label
+	if i < 0 || i >= b.NavigationCount() {
+		return -1
+	}
+	return i
+}
+
+func (b *AgentsGlance) ActivateNavigation(index int) tea.Cmd {
+	if index < 0 || index >= b.NavigationCount() {
 		return nil
 	}
-	row := b.rows[i]
+	row := b.rows[index]
 	return func() tea.Msg {
 		tmuxio.FocusPane(row.PaneID, row.Target)
 		return nil
@@ -184,8 +258,8 @@ func (b *AgentsGlance) OnClick(line int) tea.Cmd {
 // block scans vertically. All four tags are padded to this width.
 const stateTagWidth = 2
 
-// renderRow: "<2-char state tag> <window · session>", colored by state using the
-// same palette roles as tmux-claude-menu --colorize (rose = blocked on you,
+// renderRow: "<2-char state tag> <pane label · window · session>", colored by
+// state using the same palette roles as tmux-claude-menu --colorize (rose = blocked on you,
 // dusty pink = working, muted = idle).
 //
 // Two deliberate choices, both forced by the narrow column budget (28 at the
@@ -199,7 +273,7 @@ const stateTagWidth = 2
 //     rows, where the *location* (the thing you act on) got truncated instead. A
 //     pi pane's window is already auto-named `node`, which reads as pi in
 //     practice. State is still double-encoded as color, not just the tag.
-func (b *AgentsGlance) renderRow(r agents.Row) string {
+func (b *AgentsGlance) renderRow(index int, r agents.Row) string {
 	var tag string
 	style := b.theme.Muted
 	switch r.State {
@@ -215,13 +289,30 @@ func (b *AgentsGlance) renderRow(r agents.Row) string {
 	for len(tag) < stateTagWidth {
 		tag += " "
 	}
-	loc := r.SessionName
-	// "-" is the resolver's placeholder for an absent field (empty fields break
-	// tab-delimited shell consumers); don't render it as a location.
-	if r.WindowName != "" && r.WindowName != "-" {
-		loc = r.WindowName + " · " + r.SessionName
+	loc := agentLocation(r)
+	locationStyle := b.theme.Text
+	if index == b.hover {
+		locationStyle = locationStyle.Underline(true)
 	}
-	return style.Render(tag) + " " + b.theme.Text.Render(loc)
+	return style.Render(tag) + " " + locationStyle.Render(loc)
+}
+
+// agentLocation keeps the display identity ordered from pane-specific to broad:
+// label · window · session. "-" is the TSV placeholder for an absent field and
+// must not leak into the visible location. The normal ANSI-aware line clipping
+// happens after composition, preserving this left-to-right priority at 36 cols.
+func agentLocation(r agents.Row) string {
+	parts := make([]string, 0, 3)
+	if r.PaneLabel != "" && r.PaneLabel != "-" {
+		parts = append(parts, r.PaneLabel)
+	}
+	if r.WindowName != "" && r.WindowName != "-" {
+		parts = append(parts, r.WindowName)
+	}
+	if r.SessionName != "" && r.SessionName != "-" {
+		parts = append(parts, r.SessionName)
+	}
+	return strings.Join(parts, " · ")
 }
 
 func join(lines []string, width int) string {

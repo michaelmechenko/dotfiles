@@ -43,10 +43,15 @@ type model struct {
 
 	// Navigator. srcIdx indexes nav.Sources -- the registry is the only place
 	// tabs are enumerated, so there is no tab enum to keep in sync.
-	srcIdx  int
-	rows    []nav.Row
-	sel     int
-	vpStart int // first visible row index
+	srcIdx int
+	// sourceGeneration invalidates refreshes started before a local tab choice.
+	// The persisted tmux option is authoritative only for generation zero (the
+	// initial load); after that, an in-process choice must win over an older
+	// snapshot that races with it.
+	sourceGeneration uint64
+	rows             []nav.Row
+	sel              int
+	vpStart          int // first visible row index
 	// lineRow maps each rendered navigator line back to its row index (-1 for
 	// padding), rebuilt on every View. Rows are variable-height, so the mouse
 	// handler cannot derive the row from the click's Y offset arithmetically.
@@ -58,6 +63,18 @@ type model struct {
 	// would read Height() values that layout resets and re-grants every frame.
 	blockLines []blockHit
 	showHelp   bool
+	// Hover follows the rendered block-local line, independently of keyboard
+	// focus. Hoverable blocks decide whether that line is actionable.
+	hoverBlock blocks.Hoverable
+	hoverLine  int
+
+	// Keyboard focus spans the navigator and any visible block implementing
+	// blocks.Navigable. Informational blocks remain outside this sequence.
+	focusRegion       focusRegion
+	focusBlock        int            // index in docked when focusRegion == focusBlock
+	focusRow          int            // selected row in the active block
+	blockSelections   map[int]int    // retained selection for each Navigable block
+	blockSelectionIDs map[int]string // stable IDs for blocks whose rows reorder
 
 	// fetchKey identifies the inputs `rows` was last fetched for: source id,
 	// content pane, filetree root and the tmux fingerprint. refreshState skips
@@ -84,6 +101,13 @@ type blockHit struct {
 	local int
 }
 
+type focusRegion uint8
+
+const (
+	focusNavigator focusRegion = iota
+	focusBlock
+)
+
 func newModel() *model {
 	th := theme.Load()
 	feed := newAgentFeed()
@@ -100,11 +124,12 @@ func newModel() *model {
 // gathered in a single Cmd so a poll costs one round of forks, not one per
 // consumer.
 type stateMsg struct {
-	snap        tmuxio.Snapshot
-	contentPane string
-	ftRoot      string
-	srcIdx      int
-	rows        []nav.Row
+	snap             tmuxio.Snapshot
+	contentPane      string
+	ftRoot           string
+	srcIdx           int
+	sourceGeneration uint64
+	rows             []nav.Row
 	// fetchKey identifies the inputs `rows` was fetched for. Empty means the
 	// source was NOT re-fetched this poll and the model must keep its cached
 	// rows -- see refreshState.
@@ -156,6 +181,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleMouse(msg)
 
 	case stateMsg:
+		// A refresh that began before a local tab choice may still finish after
+		// it. Its snapshot and rows belong to the old source, so discard the
+		// whole state message rather than letting it revert the selection.
+		if msg.sourceGeneration != m.sourceGeneration {
+			return m, nil
+		}
 		m.applyState(msg)
 		return m, nil
 
@@ -201,9 +232,15 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // their own message type and ignore the rest, which is what lets a new block
 // arrive without model.go learning its name.
 func (m *model) broadcast(msg tea.Msg) {
+	// A data refresh can replace the row below a stationary pointer. Clear it
+	// before block-owned updates so hover never transfers to a different row.
+	m.clearHover()
 	for _, b := range m.docked {
 		b.Update(msg)
 	}
+	// Re-resolve identity-backed selections immediately, before a following
+	// Enter can act on a stale row index. View repeats this after layout.
+	m.syncFocus(m.currentArrangement())
 }
 
 // ---- state refresh --------------------------------------------------------
@@ -224,6 +261,7 @@ func (m *model) broadcast(msg tea.Msg) {
 // from the scratch editor (the file changed; no tmux state did).
 func (m *model) refreshState(force bool) tea.Cmd {
 	srcIdx := m.srcIdx
+	sourceGeneration := m.sourceGeneration
 	ftRoot := m.ftRoot
 	ftLastPane := m.ftLastPane
 	lastKey := m.fetchKey
@@ -239,10 +277,12 @@ func (m *model) refreshState(force bool) tea.Cmd {
 		}
 		trace.Phase("tmux-query", t)
 
-		// The persisted tab is authoritative: tmux-sidebar-toggle may have set
-		// @sidebar_source before this process started, and it survives a
-		// scratch-editor round trip.
-		if snap.Source != "" {
+		// The persisted tab seeds the initial load: tmux-sidebar-toggle may have
+		// set @sidebar_source before this process started, and it survives a
+		// scratch-editor round trip. Once the user has made an in-process choice,
+		// keep that choice even if this refresh observed the old option before
+		// persistSource completed.
+		if sourceGeneration == 0 && snap.Source != "" {
 			srcIdx = nav.SourceByID(snap.Source)
 		}
 
@@ -277,7 +317,10 @@ func (m *model) refreshState(force bool) tea.Cmd {
 			trace.Phase("source-skipped", time.Now())
 			// Nothing the active source renders has changed. Report the fresh
 			// snapshot but leave fetchKey empty so applyState keeps its rows.
-			return stateMsg{snap: snap, contentPane: content, ftRoot: ftRoot, srcIdx: srcIdx}
+			return stateMsg{
+				snap: snap, contentPane: content, ftRoot: ftRoot,
+				srcIdx: srcIdx, sourceGeneration: sourceGeneration,
+			}
 		}
 
 		// One registry lookup, no per-tab switch: adding a Source needs no edit
@@ -292,7 +335,8 @@ func (m *model) refreshState(force bool) tea.Cmd {
 		trace.Phase("source-fetch:"+nav.Sources[srcIdx].ID(), t)
 		return stateMsg{
 			snap: snap, contentPane: content, ftRoot: ftRoot,
-			srcIdx: srcIdx, rows: rows, fetchKey: key,
+			srcIdx: srcIdx, sourceGeneration: sourceGeneration,
+			rows: rows, fetchKey: key,
 		}
 	}
 }
@@ -338,15 +382,23 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch key {
 	case "q", "esc", "ctrl+c":
 		return m, m.quit()
+	// Lowercase movement stays in the current focus region. Region rotation is
+	// explicit so a long navigator list cannot accidentally enter an agent row.
 	case "j", "down":
-		m.move(1)
+		m.moveWithinRegion(1)
 	case "k", "up":
-		m.move(-1)
+		m.moveWithinRegion(-1)
+	// Ghostty transports Ctrl-Tab/Ctrl-Shift-Tab as unmodified F13/F14 so tmux
+	// forwards them into this pane without root bindings. Keep those aliases
+	// local to the sidebar: F13 remains Ctrl-Tab for zsh and pi elsewhere.
+	case "J", "f13":
+		m.cycleFocusRegion(1)
+	case "K", "f14":
+		m.cycleFocusRegion(-1)
 	case "g", "home":
-		m.sel = 0
+		m.focusFirst()
 	case "G", "end":
-		m.sel = len(m.rows) - 1
-		m.clampSel()
+		m.focusLast()
 	case "r":
 		return m, tea.Batch(m.refreshState(true), m.fetchAllBlocks())
 	case "?":
@@ -375,6 +427,9 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	if !tea.MouseEvent(msg).IsWheel() {
+		m.hoverAt(msg.Y)
+	}
 	switch msg.Button {
 	case tea.MouseButtonWheelUp:
 		m.wheel(-1, msg.Y)
@@ -394,20 +449,50 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		if line < len(m.lineRow) {
 			// Navigator: either line of a two-line row selects that row.
 			if m.lineRow[line] >= 0 {
+				m.focusRegion = focusNavigator
 				m.sel = m.lineRow[line]
 			}
 			return m, nil
 		}
-		// A docked block. Blocks hold no cursor, so a click acts immediately --
-		// only those implementing Clickable act at all.
+		// A docked block. A click acts immediately; Navigable blocks additionally
+		// adopt the clicked row as keyboard focus before activation.
 		if i := line - len(m.lineRow); i < len(m.blockLines) {
 			hit := m.blockLines[i]
 			if c, ok := hit.block.(blocks.Clickable); ok {
+				if n, ok := hit.block.(blocks.Navigable); ok {
+					if row := navigationRowForLine(hit.local, n); row >= 0 {
+						m.setBlockFocus(blockIndex(m.docked, hit.block), row)
+					}
+				}
 				return m, c.OnClick(hit.local)
 			}
 		}
 	}
 	return m, nil
+}
+
+// hoverAt clears the prior target before giving the rendered line under the
+// pointer to its owner. Header, navigator, dividers, padding, and inert block
+// lines all clear hover; only a Hoverable block can accept it.
+func (m *model) clearHover() {
+	if m.hoverBlock != nil {
+		m.hoverBlock.SetHoverLine(-1)
+	}
+	m.hoverBlock, m.hoverLine = nil, -1
+}
+
+func (m *model) hoverAt(y int) {
+	m.clearHover()
+	line := y - m.navFirstLine()
+	if line < len(m.lineRow) {
+		return
+	}
+	if i := line - len(m.lineRow); i >= 0 && i < len(m.blockLines) {
+		hit := m.blockLines[i]
+		if h, ok := hit.block.(blocks.Hoverable); ok && h.SetHoverLine(hit.local) {
+			m.hoverBlock, m.hoverLine = h, hit.local
+		}
+	}
 }
 
 func (m *model) navFirstLine() int {
@@ -495,6 +580,257 @@ func (m *model) move(delta int) {
 	m.sel = ((m.sel+delta)%n + n) % n // wraps, like the bash dispatcher
 }
 
+// visibleNavigableBlocks returns block indices in render order. layout() is the
+// source of truth because short panes may have degraded the tail of docked.
+func (m *model) visibleNavigableBlocks() []int {
+	arr := m.currentArrangement()
+	out := make([]int, 0, len(arr.blocks))
+	for _, b := range arr.blocks {
+		n, ok := b.(blocks.Navigable)
+		if !ok || n.NavigationCount() == 0 {
+			continue
+		}
+		if i := blockIndex(m.docked, b); i >= 0 {
+			out = append(out, i)
+		}
+	}
+	return out
+}
+
+func (m *model) currentArrangement() arrangement {
+	usable := m.height - headerLines
+	if m.showHelp {
+		usable -= helpLineCount
+	}
+	if usable < 1 {
+		usable = 1
+	}
+	return m.layout(usable)
+}
+
+func blockIndex(all []blocks.Block, target blocks.Block) int {
+	for i, b := range all {
+		if b.ID() == target.ID() {
+			return i
+		}
+	}
+	return -1
+}
+
+func navigationRowForLine(line int, n blocks.Navigable) int {
+	return n.NavigationIndex(line)
+}
+
+func (m *model) setBlockFocus(index, row int) {
+	if index < 0 || index >= len(m.docked) {
+		return
+	}
+	n, ok := m.docked[index].(blocks.Navigable)
+	if !ok || row < 0 || row >= n.NavigationCount() {
+		return
+	}
+	m.rememberBlockSelection(index, row)
+	m.focusRegion = focusBlock
+	m.focusBlock = index
+	m.focusRow = row
+}
+
+func (m *model) rememberBlockSelection(index, row int) {
+	if m.blockSelections == nil {
+		m.blockSelections = make(map[int]int)
+	}
+	m.blockSelections[index] = row
+	if identifiable, ok := m.docked[index].(blocks.SelectionIdentifiable); ok {
+		if m.blockSelectionIDs == nil {
+			m.blockSelectionIDs = make(map[int]string)
+		}
+		m.blockSelectionIDs[index] = identifiable.NavigationID(row)
+	}
+}
+
+// focusTarget identifies one visible keyboard-focus region. The navigator uses
+// block -1; every other region is a visible non-empty blocks.Navigable.
+type focusTarget struct{ block int }
+
+const navigatorTarget = -1
+
+// focusRegions is derived from the current arrangement, so informational blocks
+// and blocks dropped by short-pane degradation never participate in rotation.
+func (m *model) focusRegions() []focusTarget {
+	return m.focusRegionsFor(m.currentArrangement())
+}
+
+func (m *model) focusRegionsFor(arr arrangement) []focusTarget {
+	regions := make([]focusTarget, 0, len(arr.blocks)+1)
+	if len(m.rows) > 0 {
+		regions = append(regions, focusTarget{block: navigatorTarget})
+	}
+	for _, b := range arr.blocks {
+		n, ok := b.(blocks.Navigable)
+		if !ok || n.NavigationCount() == 0 {
+			continue
+		}
+		if index := blockIndex(m.docked, b); index >= 0 {
+			regions = append(regions, focusTarget{block: index})
+		}
+	}
+	return regions
+}
+
+func (m *model) activeFocusRegion(regions []focusTarget) int {
+	for i, region := range regions {
+		if region.block == navigatorTarget && m.focusRegion == focusNavigator {
+			return i
+		}
+		if region.block == m.focusBlock && m.focusRegion == focusBlock {
+			return i
+		}
+	}
+	return -1
+}
+
+func (m *model) blockSelection(index, count int) int {
+	if count < 1 {
+		return -1
+	}
+	if identifiable, ok := m.docked[index].(blocks.SelectionIdentifiable); ok && m.blockSelectionIDs != nil {
+		if id := m.blockSelectionIDs[index]; id != "" {
+			if row := identifiable.NavigationIndexByID(id); row >= 0 {
+				return row
+			}
+			// The selected row disappeared; do not retain its old numeric index,
+			// which could now name a different agent.
+			return 0
+		}
+	}
+	row := 0
+	if m.blockSelections != nil {
+		if saved, ok := m.blockSelections[index]; ok {
+			row = saved
+		}
+	}
+	if m.focusRegion == focusBlock && m.focusBlock == index {
+		row = m.focusRow
+	}
+	if row < 0 {
+		return 0
+	}
+	if row >= count {
+		return count - 1
+	}
+	return row
+}
+
+// setFocusTarget changes only the active region. The navigator cursor and each
+// block cursor are retained independently, so region cycling is non-activating
+// and returning to a region restores its prior selected row.
+func (m *model) setFocusTarget(target focusTarget) bool {
+	if target.block == navigatorTarget {
+		if len(m.rows) == 0 {
+			return false
+		}
+		m.focusRegion = focusNavigator
+		m.clampSel()
+		return true
+	}
+	n, ok := m.dockedBlockNav(target.block)
+	if !ok || n.NavigationCount() == 0 {
+		return false
+	}
+	row := m.blockSelection(target.block, n.NavigationCount())
+	m.rememberBlockSelection(target.block, row)
+	m.focusRegion = focusBlock
+	m.focusBlock = target.block
+	m.focusRow = row
+	return true
+}
+
+// moveWithinRegion wraps inside the active focus region only. Moving from the
+// last navigator row no longer silently enters agents; J/K (or F13/F14) are the
+// explicit region transitions.
+func (m *model) moveWithinRegion(delta int) {
+	if delta == 0 {
+		return
+	}
+	regions := m.focusRegions()
+	if len(regions) == 0 {
+		m.focusRegion, m.sel = focusNavigator, 0
+		return
+	}
+	pos := m.activeFocusRegion(regions)
+	if pos < 0 {
+		if delta > 0 {
+			pos = 0
+		} else {
+			pos = len(regions) - 1
+		}
+		m.setFocusTarget(regions[pos])
+	}
+	region := regions[pos]
+	if region.block == navigatorTarget {
+		m.move(delta)
+		return
+	}
+	n, _ := m.dockedBlockNav(region.block)
+	row := m.blockSelection(region.block, n.NavigationCount())
+	row = ((row+delta)%n.NavigationCount() + n.NavigationCount()) % n.NavigationCount()
+	m.setBlockFocus(region.block, row)
+}
+
+// cycleFocusRegion rotates through visible non-empty regions while keeping each
+// region's saved cursor untouched. It intentionally does not call act().
+func (m *model) cycleFocusRegion(delta int) {
+	if delta == 0 {
+		return
+	}
+	regions := m.focusRegions()
+	if len(regions) == 0 {
+		return
+	}
+	pos := m.activeFocusRegion(regions)
+	if pos < 0 {
+		if delta > 0 {
+			m.setFocusTarget(regions[0])
+		} else {
+			m.setFocusTarget(regions[len(regions)-1])
+		}
+		return
+	}
+	pos = ((pos+delta)%len(regions) + len(regions)) % len(regions)
+	m.setFocusTarget(regions[pos])
+}
+
+func (m *model) focusFirst() {
+	regions := m.focusRegions()
+	if len(regions) == 0 {
+		return
+	}
+	first := regions[0]
+	if first.block == navigatorTarget {
+		m.sel = 0
+		m.setFocusTarget(first)
+		return
+	}
+	if _, ok := m.dockedBlockNav(first.block); ok {
+		m.setBlockFocus(first.block, 0)
+	}
+}
+
+func (m *model) focusLast() {
+	regions := m.focusRegions()
+	if len(regions) == 0 {
+		return
+	}
+	last := regions[len(regions)-1]
+	if last.block == navigatorTarget {
+		m.sel = len(m.rows) - 1
+	} else if n, ok := m.dockedBlockNav(last.block); ok {
+		m.setBlockFocus(last.block, n.NavigationCount()-1)
+		return
+	}
+	m.setFocusTarget(last)
+}
+
 func (m *model) clampSel() {
 	if m.sel >= len(m.rows) {
 		m.sel = len(m.rows) - 1
@@ -504,11 +840,47 @@ func (m *model) clampSel() {
 	}
 }
 
+// syncFocus projects model focus into blocks after layout has decided which
+// regions remain visible. If degradation removes the active region, its saved
+// cursor remains in blockSelections and focus falls back to the first surviving
+// region. Every non-active Navigable block receives -1 for rendering.
+func (m *model) syncFocus(arr arrangement) {
+	regions := m.focusRegionsFor(arr)
+	if len(regions) == 0 {
+		m.focusRegion, m.sel = focusNavigator, 0
+	} else if m.activeFocusRegion(regions) < 0 {
+		m.setFocusTarget(regions[0])
+	} else if m.focusRegion == focusBlock {
+		// Clamp a selected row after a refresh reduces the visible row count,
+		// without discarding the block region just because its last rows vanished.
+		m.setFocusTarget(focusTarget{block: m.focusBlock})
+	}
+
+	for i, b := range m.docked {
+		if n, ok := b.(blocks.Navigable); ok {
+			if i == m.focusBlock && m.focusRegion == focusBlock && m.activeFocusRegion(regions) >= 0 {
+				n.SetNavigationIndex(m.focusRow)
+			} else {
+				n.SetNavigationIndex(-1)
+			}
+		}
+	}
+}
+
+func (m *model) dockedBlockNav(index int) (blocks.Navigable, bool) {
+	if index < 0 || index >= len(m.docked) {
+		return nil, false
+	}
+	n, ok := m.docked[index].(blocks.Navigable)
+	return n, ok
+}
+
 func (m *model) setSource(idx int) tea.Cmd {
 	if idx == m.srcIdx || idx < 0 || idx >= len(nav.Sources) {
 		return nil
 	}
 	m.srcIdx = idx
+	m.sourceGeneration++
 	m.sel = 0
 	m.rows = nil
 	// Persist the tab OFF the input path. This used to call SetWinOpt inline --
@@ -577,7 +949,16 @@ func (m *model) fetchAllBlocks() tea.Cmd {
 // TUI so the editor gets this pane, then resumes -- the pane is the sidebar's,
 // so there is nowhere else to put it.
 func (m *model) act() tea.Cmd {
-	if len(m.rows) == 0 {
+	if m.focusRegion == focusBlock {
+		if m.focusBlock < 0 || m.focusBlock >= len(m.docked) {
+			return nil
+		}
+		if n, ok := m.docked[m.focusBlock].(blocks.Navigable); ok {
+			return n.ActivateNavigation(m.focusRow)
+		}
+		return nil
+	}
+	if len(m.rows) == 0 || m.sel < 0 || m.sel >= len(m.rows) {
 		return nil
 	}
 	row := m.rows[m.sel]
@@ -643,6 +1024,19 @@ func (m *model) View() string {
 	}
 
 	arr := m.layout(usable)
+	m.syncFocus(arr)
+	if m.hoverBlock != nil {
+		rendered := false
+		for _, b := range arr.blocks {
+			if h, ok := b.(blocks.Hoverable); ok && h == m.hoverBlock {
+				rendered = true
+				break
+			}
+		}
+		if !rendered {
+			m.clearHover()
+		}
+	}
 	lines = append(lines, m.navLines(arr.navAvail)...)
 
 	// Record which block owns each line as it is emitted, so a click can be
@@ -758,7 +1152,7 @@ func (m *model) navLines(avail int) []string {
 				break
 			}
 			prefix := "  "
-			if j == 0 && i == m.sel {
+			if j == 0 && i == m.sel && m.focusRegion == focusNavigator {
 				prefix = m.theme.Accent.Render("▶") + " "
 			}
 			out = append(out, prefix+clipLine(line, rowWidth))

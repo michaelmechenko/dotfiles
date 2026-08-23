@@ -108,3 +108,4 @@ __pycache__/
 /zshrc.local
 /tmux_sessions
 /pi-config/agent/plan-history
+/tmux_scripts/mm-sidebar/mm-sidebar

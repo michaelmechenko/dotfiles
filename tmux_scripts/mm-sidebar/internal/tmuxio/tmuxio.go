@@ -176,6 +176,7 @@ type PaneRow struct {
 	WindowName  string
 	Command     string // pane_current_command
 	CurrentPath string // pane_current_path
+	PaneLabel   string // @pane-label (empty when unset)
 }
 
 var paneRowTokens = []string{
@@ -186,6 +187,7 @@ var paneRowTokens = []string{
 	"#{window_name}",
 	"#{pane_current_command}",
 	"#{pane_current_path}",
+	"#{@pane-label}",
 }
 
 // PaneSet indexes a ListPanes result by pane id so callers can answer "is this
@@ -242,6 +244,7 @@ func ListPanes() ([]PaneRow, error) {
 			WindowName:  f[4],
 			Command:     f[5],
 			CurrentPath: f[6],
+			PaneLabel:   f[7],
 		})
 	}
 	return rows, nil

@@ -107,3 +107,4 @@ __pycache__/
 /pi-config/agent/pi-debug.log
 /zshrc.local
 /tmux_sessions
+/pi-config/agent/plan-history

@@ -1,15 +1,28 @@
 import type { AccessMode } from "./plan-state.ts";
 
-export const SHARED_READ_ONLY_TOOLS = new Set(["read", "bash", "grep", "find", "ls", "webfetch", "websearch", "lsp", "ast_grep", "session_search", "session_query", "ask_user"]);
+/** Direct file mutations stay unavailable while planning or inspecting. Bash remains intentionally available. */
+export const RESTRICTED_MUTATION_TOOLS = new Set(["write", "edit", "apply_patch"]);
 export const PLAN_UPDATE_TOOL = "plan_update";
 export const PLAN_EXECUTION_TOOLS = ["plan_step", PLAN_UPDATE_TOOL, "plan_complete"];
-const SIMPLE_READ_COMMANDS = new Set(["cat", "head", "tail", "grep", "rg", "fd", "ls", "pwd", "wc", "sort", "uniq", "diff", "file", "stat", "du", "df", "tree", "which", "whereis", "type", "env", "printenv", "uname", "whoami", "id", "date", "cal", "uptime", "ps", "jq", "bat", "eza"]);
-const SHELL_SYNTAX = /[\n\r;|&<>`$(){}\\'"*?~]/;
-const FIND_MUTATIONS = new Set(["-exec", "-execdir", "-ok", "-okdir", "-delete", "-fprint", "-fprint0", "-fprintf", "-fls"]);
 
-export function restrictedTools(accessMode: AccessMode, availableTools: Iterable<string>): string[] { const available = new Set(availableTools); const names = accessMode === "plan" ? [...SHARED_READ_ONLY_TOOLS, PLAN_UPDATE_TOOL] : accessMode === "read-only" ? [...SHARED_READ_ONLY_TOOLS] : []; return names.filter((name) => available.has(name)); }
-export function restrictionGuidance(accessMode: AccessMode): string | undefined { if (accessMode === "plan") return "[PLAN MODE: READ ONLY]\nInspect only. Use only the active read-only tools. Ask a focused clarification when needed. When ready, call plan_update with the goal, top-level steps, verification criteria, follow-up work, and a complete execution brief. Do not edit files or treat free-text planning as authoritative."; if (accessMode === "read-only") return "[READ-ONLY MODE]\nInspect only. Use only the active read-only tools. Do not edit files, create a structured plan, or call plan tools. Explain findings and request a mode change before making changes."; return undefined; }
-export function checkRestrictedToolCall(accessMode: AccessMode, toolName: string, input: unknown): string | undefined { if (accessMode === "none") return undefined; const allowed = accessMode === "plan" ? new Set([...SHARED_READ_ONLY_TOOLS, PLAN_UPDATE_TOOL]) : SHARED_READ_ONLY_TOOLS; if (!allowed.has(toolName)) return `${accessMode} mode blocks '${toolName}'; only the positive read-only allowlist is available.`; if (toolName === "bash") { const command = typeof (input as { command?: unknown })?.command === "string" ? (input as { command: string }).command : ""; if (!isStrictReadOnlyCommand(command)) return `${accessMode} mode allows only strict single-command read-only bash invocations.`; } return undefined; }
-export function checkRestrictedUserBash(accessMode: AccessMode, command: string): string | undefined { return accessMode === "none" || isStrictReadOnlyCommand(command) ? undefined : `${accessMode} mode allows only strict single-command read-only bash invocations.`; }
-/** No shell grammar, substitutions, quoting, globbing, redirection, or mutating find/git/curl variants. */
-export function isStrictReadOnlyCommand(command: string): boolean { if (!command.trim() || SHELL_SYNTAX.test(command)) return false; const argv = command.trim().split(/\s+/); const [bin, ...args] = argv; if (!bin) return false; if (bin === "find") return !args.some((arg) => FIND_MUTATIONS.has(arg)); if (bin === "git") return ["status", "log", "diff", "show", "branch", "remote"].includes(args[0] ?? "") || (args[0] === "config" && args[1] === "--get") || (args[0]?.startsWith("ls-") ?? false); if (bin === "node" || bin === "python" || bin === "python3") return args.length === 1 && args[0] === "--version"; return SIMPLE_READ_COMMANDS.has(bin); }
+/** Preserve the caller's active-tool baseline instead of maintaining a stale inspection allowlist. */
+export function restrictedTools(accessMode: AccessMode, baseline: Iterable<string>, availableTools: Iterable<string>): string[] {
+	const available = new Set(availableTools);
+	const names = [...baseline].filter((name) => !RESTRICTED_MUTATION_TOOLS.has(name) && !PLAN_EXECUTION_TOOLS.includes(name));
+	if (accessMode === "plan") names.push(PLAN_UPDATE_TOOL);
+	return [...new Set(names)].filter((name) => available.has(name));
+}
+
+export function restrictionGuidance(accessMode: AccessMode): string | undefined {
+	if (accessMode === "plan") return "[PLAN MODE: DIRECT FILE MUTATIONS DISABLED]\nInspect and investigate freely, including with bash. Do not use write, edit, or apply_patch. Ask a focused clarification when needed. When ready, call plan_update with the goal, top-level steps, verification criteria, follow-up work, and a complete execution brief. Do not treat free-text planning as authoritative.";
+	if (accessMode === "read-only") return "[READ-ONLY MODE: DIRECT FILE MUTATIONS DISABLED]\nInspect and investigate freely, including with bash. Do not use write, edit, or apply_patch, create a structured plan, or call plan tools. Explain findings and request a mode change before making direct file changes.";
+	return undefined;
+}
+
+/** Defense in depth for extensions or stale active-tool state that invoke a blocked direct mutation. */
+export function checkRestrictedToolCall(accessMode: AccessMode, toolName: string): string | undefined {
+	if (accessMode !== "none" && RESTRICTED_MUTATION_TOOLS.has(toolName)) return `${accessMode} mode blocks direct file mutation tool '${toolName}'.`;
+	if (accessMode === "read-only" && PLAN_EXECUTION_TOOLS.includes(toolName)) return "read-only mode blocks plan tools.";
+	if (accessMode === "plan" && (toolName === "plan_step" || toolName === "plan_complete")) return "plan mode blocks execution-only plan tools.";
+	return undefined;
+}

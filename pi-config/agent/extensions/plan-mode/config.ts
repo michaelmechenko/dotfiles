@@ -8,6 +8,11 @@ export interface PlanModeConfig {
 	executionModel?: ModelSnapshot;
 }
 
+export type SavedExecutionModelState =
+	| { status: "missing" }
+	| { status: "invalid" }
+	| { status: "valid"; executionModel: ModelSnapshot };
+
 const THINKING_LEVELS = new Set<ThinkingLevel>(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
 
 export function isModelSnapshot(value: unknown): value is ModelSnapshot {
@@ -26,15 +31,24 @@ export function planModeConfigPath(agentDir = defaultAgentDir()): string {
 	return join(agentDir, "plan-mode.json");
 }
 
-export function loadPlanModeConfig(agentDir = defaultAgentDir()): PlanModeConfig {
+/** Preserve missing versus malformed configuration so the execution wizard can explain its fallback. */
+export function inspectSavedExecutionModel(agentDir = defaultAgentDir()): SavedExecutionModelState {
 	const path = planModeConfigPath(agentDir);
-	if (!existsSync(path)) return {};
+	if (!existsSync(path)) return { status: "missing" };
 	try {
 		const parsed = JSON.parse(readFileSync(path, "utf8")) as { executionModel?: unknown };
-		return isModelSnapshot(parsed.executionModel) ? { executionModel: { ...parsed.executionModel } } : {};
+		if (parsed.executionModel === undefined) return { status: "missing" };
+		return isModelSnapshot(parsed.executionModel)
+			? { status: "valid", executionModel: { ...parsed.executionModel } }
+			: { status: "invalid" };
 	} catch {
-		return {};
+		return { status: "invalid" };
 	}
+}
+
+export function loadPlanModeConfig(agentDir = defaultAgentDir()): PlanModeConfig {
+	const saved = inspectSavedExecutionModel(agentDir);
+	return saved.status === "valid" ? { executionModel: saved.executionModel } : {};
 }
 
 /** Atomically update only plan-mode.json's executionModel, preserving unrelated keys. */

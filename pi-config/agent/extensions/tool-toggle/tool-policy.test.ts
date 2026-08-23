@@ -6,7 +6,7 @@ test("disabled deltas retain newly installed tools", () => {
 	assert.deepEqual(resolveToolSelection(["read", "write", "new_tool"], ["read", "write"], ["write"], false), ["read", "new_tool"]);
 });
 
-test("plan and read-only positive allowlists remain authoritative", () => {
+test("plan and read-only restricted baselines remain authoritative", () => {
 	assert.deepEqual(resolveToolSelection(["read", "write", "new_tool"], ["read", "plan_update"], [], true), ["read", "plan_update"]);
 	assert.deepEqual(resolveToolSelection(["read", "write", "new_tool", "plan_step", "plan_complete"], ["read", "write", "plan_step", "plan_complete"], [], true), ["read", "write", "plan_step", "plan_complete"]);
 	assert.deepEqual(resolveToolSelection(["read", "write"], ["read"], ["read"], true), []);

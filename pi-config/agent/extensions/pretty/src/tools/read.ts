@@ -18,7 +18,8 @@ import { fillToolBackground, fillToolCallBackground, renderFrameStatus, renderFi
 import { resolveTextCtor } from "../tui-text.js";
 import type { ReadDetails, RenderCtxLike, SdkToolDef, TextContent, ThemeLike } from "../types.js";
 import { wrapExecuteWithMetrics } from "./metrics.js";
-import { cardEdgeColor, frameDivider, framePadding, frameResult, frameRow, frameRows, frameText } from "../../../tool-display/frame.js";
+import { areToolOutputsWrapped } from "../../../tool-display/state.js";
+import { cardEdgeColor, frameDivider, framePadding, frameResult, frameRow, frameRows, frameText, layoutToolText } from "../../../tool-display/frame.js";
 
 type Result = AgentToolResult<Record<string, unknown>>;
 
@@ -130,67 +131,73 @@ export function registerReadTool(
 				const skillName = getSkillName(filePath, d.content);
 				if (!ctx.expanded) {
 					const previewCount = Math.min(total, 3);
-					const width = Math.max(1, tw - 7);
-					const preview = lines.slice(0, previewCount).map((line, index) => {
-						const lineNo = String((d.offset || 0) + index + 1).padStart(3, " ");
-						const code = line.length > width ? `${line.slice(0, Math.max(0, width - 1))}${FG_DIM}›${RST}` : line;
-						return `${TOOL_RESULT_INDENT}${FG_LNUM}${lineNo}${RST} ${FG_RULE}│${RST} ${code}`;
-					});
-					const more = total > previewCount ? `\n${TOOL_RESULT_INDENT}${FG_DIM}… ${total - previewCount} more lines — ctrl+o${RST}` : "";
 					const summary = `${theme.fg("success", "✓")} ${FG_DIM}${total} lines${RST}`;
-					const rows = preview.map((line) => line);
-					if (more) rows.push(more.trimStart());
-					return frameText(text, (width) => [
-						frameDivider(theme, BG_BASE, width),
-						frameRow(summary, BG_BASE, width),
-						...rows.map((line) => frameRow(line, BG_BASE, width)),
-						framePadding(BG_BASE, width),
-					].join("\n"));
+					return frameText(text, (renderWidth) => {
+						const codeWidth = Math.max(1, renderWidth - 8);
+						const rows = lines.slice(0, previewCount).flatMap((line, index) => {
+							const lineNo = String((d.offset || 0) + index + 1).padStart(3, " ");
+							const gutter = `${TOOL_RESULT_INDENT}${FG_LNUM}${lineNo}${RST} ${FG_RULE}│${RST} `;
+							const continuation = `${TOOL_RESULT_INDENT}${FG_LNUM}   ${RST} ${FG_RULE}│${RST} `;
+							return layoutToolText(line, codeWidth).map((segment, segmentIndex) => `${segmentIndex === 0 ? gutter : continuation}${segment}`);
+						});
+						if (total > previewCount) rows.push(`${TOOL_RESULT_INDENT}${FG_DIM}… ${total - previewCount} more lines — ctrl+o${RST}`);
+						return [
+							frameDivider(theme, BG_BASE, renderWidth),
+							frameRow(summary, BG_BASE, renderWidth),
+							...rows.map((line) => frameRow(line, BG_BASE, renderWidth)),
+							framePadding(BG_BASE, renderWidth),
+						].join("\n");
+					});
 				}
 				const maxShow = lines.length;
 				const show = lines.slice(0, maxShow);
 				const nw = Math.max(3, String((d.offset || 0) + total).length);
-				const gw = nw + 3;
-				const cw = Math.max(1, tw - gw);
-
 				const header = skillName ? `${TOOL_RESULT_INDENT}${renderSkillHeader(skillName, true, theme)}` : "";
-				const out: string[] = [renderToolResultDivider(theme, tw), ...(header ? ["", header] : [])];
-				out.push(`${TOOL_RESULT_INDENT}${FG_RULE}${"─".repeat(tw - 1)}${RST}`);
-				for (let i = 0; i < show.length; i++) {
-					const ln = (d.offset || 0) + i + 1;
-					const code = show[i] ?? "";
-					const display = code.length > cw ? code.slice(0, Math.max(0, cw - 1)) + `${FG_DIM}›${RST}` : code;
-					const lineNo = String(ln);
-					out.push(
-						`${TOOL_RESULT_INDENT}${FG_LNUM}${" ".repeat(Math.max(0, nw - lineNo.length))}${lineNo}${RST} ${FG_RULE}│${RST} ${display}${RST}`,
-					);
-				}
-				if (total > maxShow) {
-					out.push(`${TOOL_RESULT_INDENT}${FG_DIM}… ${total - maxShow} more lines (${total} total)${RST}`);
-				}
-				out.push("");
-				const rendered = out.join("\n");
-				frameText(text, (width) => frameRows(rendered.split("\n").map((line) => line.startsWith(" ") ? line.slice(1) : line), BG_BASE, width));
-				text.setText(frameRows(rendered.split("\n").map((line) => line.startsWith(" ") ? line.slice(1) : line), BG_BASE, tw));
+				const textRecord = text as any;
+				const buildPlain = (renderWidth: number) => {
+					const codeWidth = Math.max(1, renderWidth - nw - 5);
+					const out: string[] = [renderToolResultDivider(theme, renderWidth), ...(header ? ["", header] : [])];
+					out.push(`${TOOL_RESULT_INDENT}${FG_RULE}${"─".repeat(Math.max(1, renderWidth - 1))}${RST}`);
+					const displayLines: string[] = textRecord.__prettyReadHighlight ?? show;
+					for (let i = 0; i < show.length; i++) {
+						const ln = (d.offset || 0) + i + 1;
+						const lineNo = String(ln);
+						const gutter = `${TOOL_RESULT_INDENT}${FG_LNUM}${" ".repeat(Math.max(0, nw - lineNo.length))}${lineNo}${RST} ${FG_RULE}│${RST} `;
+						const continuation = `${TOOL_RESULT_INDENT}${FG_LNUM}${" ".repeat(nw)}${RST} ${FG_RULE}│${RST} `;
+						for (const [segmentIndex, segment] of layoutToolText(displayLines[i] ?? "", codeWidth).entries()) {
+							out.push(`${segmentIndex === 0 ? gutter : continuation}${segment}${RST}`);
+						}
+					}
+					out.push("");
+					return frameRows(out.map((line) => (line.startsWith(" ") ? line.slice(1) : line)), BG_BASE, renderWidth);
+				};
+				const rendered = buildPlain(tw);
+				text.setText(rendered);
 				(ctx as any).state._rt = rendered;
+				if (!textRecord.__prettyReadWidthAware && typeof textRecord.render === "function") {
+					const baseRender = textRecord.render.bind(textRecord);
+					textRecord.__prettyReadWidthAware = true;
+					textRecord.__prettyReadRenderKey = "";
+					textRecord.render = (width: number) => {
+						const actual = Math.max(1, Math.floor(width || termWidth()));
+						const key = `${actual}:${areToolOutputsWrapped() ? "wrap" : "clip"}`;
+						if (key !== textRecord.__prettyReadRenderKey) {
+							textRecord.setText(buildPlain(actual));
+							textRecord.__prettyReadRenderKey = key;
+						}
+						return baseRender(width);
+					};
+				}
 
-				// Async syntax highlighting via Shiki
-				renderFileContent(d.content, d.filePath, d.offset || 0, maxShow, cw, theme)
+				// Highlight source lines at a deliberately wide width, then apply the
+				// shared display policy on every render. This keeps the ANSI source
+				// intact for both wrapping and one-row clipping modes.
+				renderFileContent(d.content, d.filePath, d.offset || 0, maxShow, 100_000, theme)
 					.then((hl) => {
-						const padded = hl
-							.split("\n")
-							.map((line, index) => {
-								const lineNo = String((d.offset || 0) + index + 1);
-								return `${TOOL_RESULT_INDENT}${FG_LNUM}${" ".repeat(Math.max(0, nw - lineNo.length))}${lineNo}${RST} ${FG_RULE}│${RST} ${line}${RST}`;
-							})
-							.join("\n");
-						const divider = skillName
-							? `${TOOL_RESULT_INDENT}${FG_RULE}${"─".repeat(Math.max(1, tw - 1))}${RST}\n`
-							: "";
-						const rendered = `\n${header}\n${divider}${padded}\n`;
-						frameText(text, (width) => frameRows(rendered.split("\n").map((line) => line.startsWith(" ") ? line.slice(1) : line), BG_BASE, width));
-						text.setText(frameRows(rendered.split("\n").map((line) => line.startsWith(" ") ? line.slice(1) : line), BG_BASE, tw));
-						(ctx as any).state._rt = rendered;
+						textRecord.__prettyReadHighlight = hl.split("\n");
+						textRecord.__prettyReadRenderKey = "";
+						textRecord.setText(buildPlain(termWidth()));
+						ctx.invalidate();
 					})
 					.catch(() => {});
 

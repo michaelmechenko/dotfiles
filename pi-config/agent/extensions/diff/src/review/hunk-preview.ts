@@ -6,6 +6,7 @@ import * as Diff from "diff";
 import { configIndicatorStyle } from "../core/config.js";
 import { getSepStyle, type ParsedDiff, sepLabelSplit, sepLabelUnified } from "../core/diff.js";
 import type { ReviewHunk } from "./git.js";
+import { areToolOutputsWrapped } from "../../../tool-display/state.js";
 
 type BundledLanguage = Parameters<typeof codeToANSI>[1];
 type BundledTheme = Parameters<typeof codeToANSI>[2];
@@ -580,6 +581,7 @@ function normalizeShikiContrast(ansi: string): string {
 
 function wrapAnsi(content: string, width: number, maxRows: number, fillBg = ""): string[] {
 	if (width <= 0) return [""];
+	maxRows = areToolOutputsWrapped() ? Number.MAX_SAFE_INTEGER : 1;
 	const plain = strip(content);
 	if (plain.length <= width) {
 		const padding = width - plain.length;
@@ -618,7 +620,7 @@ function wrapAnsi(content: string, width: number, maxRows: number, fillBg = ""):
 					hasMore = true;
 					break;
 				}
-				if (hasMore && width > 2) row += `${RST}${FG_DIM}›${RST}`;
+				if (hasMore && width > 2) row += `${RST}${fillBg}${FG_DIM}…${RST}`;
 				else row += fillBg + " ".repeat(Math.max(0, width - visible)) + RST;
 				rows.push(row);
 				return rows;

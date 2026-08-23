@@ -29,7 +29,7 @@
 
 import { ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
 import { visibleWidth } from "@earendil-works/pi-tui";
-import { cardEdgeColor, isBorderedCard, type ToolFrameTheme } from "./frame.js";
+import { cardEdgeColor, isBorderedCard, layoutToolText, type ToolFrameTheme } from "./frame.js";
 
 const THEME_KEY = Symbol.for("@earendil-works/pi-coding-agent:theme");
 const PATCH_FLAG = Symbol.for("pi.tool-display.hostDecorator.v1");
@@ -109,7 +109,15 @@ export function composeDefaultShellRows(box: any, instance: any, width: number, 
 	// The host owns the sole call/result divider for every default-shell card.
 	if (resultChild) {
 		out.push(applyBg(`${edge}${theme.fg("dim", "─".repeat(contentWidth))}`, width, bgFn));
-		for (const line of resultChild.render(contentWidth)) out.push(applyBg(`${edge}${line}`, width, bgFn));
+		// Core find/grep/ls and fallback tool results are direct Text instances.
+		// Render their source ourselves so no-wrap can discard the implicit rows
+		// pi-tui's Text renderer would otherwise have already created. Diff owns
+		// its width-aware renderer and is deliberately left to its own adapter.
+		const rawText = typeof resultChild.text === "string" && !resultChild.__piDiffWidthAware
+			? resultChild.text
+			: undefined;
+		const resultLines = rawText === undefined ? resultChild.render(contentWidth) : layoutToolText(rawText, contentWidth);
+		for (const line of resultLines) out.push(applyBg(`${edge}${line}`, width, bgFn));
 	}
 
 	// Bottom padding.

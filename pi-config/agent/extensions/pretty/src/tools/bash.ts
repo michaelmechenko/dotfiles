@@ -8,8 +8,9 @@ import { fillToolBackground, renderFrameStatus, renderToolDuration, renderToolEr
 import { resolveTextCtor } from "../tui-text.js";
 import type { BashDetails, ComponentLike, RenderCtxLike, SdkToolDef, TextContent, ThemeLike } from "../types.js";
 import { wrapExecuteWithMetrics } from "./metrics.js";
-import { areToolCallsExpanded, CALL_TOGGLE_HINT, previewResult } from "../../../tool-display/state.js";
-import { cardEdgeColor, frameDivider, framePadding, frameResult, frameRow, frameRows, frameText } from "../../../tool-display/frame.js";
+import { areToolCallsExpanded, areToolOutputsWrapped, CALL_TOGGLE_HINT } from "../../../tool-display/state.js";
+import { previewResult } from "../../../tool-display/preview.js";
+import { cardEdgeColor, frameDivider, framePadding, frameResult, frameRow, frameRows, frameText, layoutToolText } from "../../../tool-display/frame.js";
 
 type Result = AgentToolResult<Record<string, unknown>>;
 
@@ -152,7 +153,7 @@ export function registerBashTool(
 					const out = [
 						frameDivider(theme, resultBg, w, edge),
 						frameRow(header, resultBg, w, edge),
-						...preview.body.split("\n").map((line: string) => frameRow(line, resultBg, w, edge)),
+						...layoutToolText(preview.body, Math.max(1, w - 2)).map((line) => frameRow(line, resultBg, w, edge)),
 					];
 					if (preview.remaining) out.push(frameRow(theme.fg("dim", `… ${preview.remaining} more lines (ctrl+o)`), resultBg, w, edge));
 					out.push(framePadding(resultBg, w, edge));
@@ -166,7 +167,7 @@ export function registerBashTool(
 					let key: string | undefined;
 					(text as unknown as Record<string, unknown>).render = (w: number) => {
 						const width = Math.max(1, Math.floor(w || termWidth()));
-						const k = `bash:${resultsExpanded ? "1" : "0"}:${width}:${d.exitCode ?? "killed"}:${output.length}:${renderToolDuration(result)}`;
+						const k = `bash:${resultsExpanded ? "1" : "0"}:${areToolOutputsWrapped() ? "wrap" : "clip"}:${width}:${d.exitCode ?? "killed"}:${output.length}:${renderToolDuration(result)}`;
 						if (key !== k) {
 							text.setText(renderFn(width));
 							key = k;

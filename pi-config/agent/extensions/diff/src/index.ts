@@ -45,6 +45,7 @@ import { registerEditGuard } from "./edit-guard.js";
 import { normalizeEditOperations } from "./edit-operations.js";
 
 import { frameInnerRow, frameInnerRows, frameRow, frameText } from "../../tool-display/frame.js";
+import { areToolOutputsWrapped } from "../../tool-display/state.js";
 
 import {
 	applyDiffPalette as applySharedDiffPalette,
@@ -700,6 +701,9 @@ function normalizeShikiContrast(ansi: string): string {
 /** Wrap ANSI-encoded string into rows of `w` visible chars. Max `maxRows` rows; last row truncates with ›. */
 function wrapAnsi(s: string, w: number, maxRows = adaptiveWrapRows(), fillBg = ""): string[] {
 	if (w <= 0) return [""];
+	// Tool-output wrapping is a display preference. In wrap mode, retain every
+	// continuation row; in clip mode, reserve the final cell for an ellipsis.
+	maxRows = areToolOutputsWrapped() ? Number.MAX_SAFE_INTEGER : 1;
 	const plain = strip(s);
 	if (plain.length <= w) {
 		const pad = w - plain.length;
@@ -746,7 +750,8 @@ function wrapAnsi(s: string, w: number, maxRows = adaptiveWrapRows(), fillBg = "
 					hasMore = true;
 					break;
 				}
-				row += fillBg + " ".repeat(Math.max(0, w - vis)) + RST;
+				if (hasMore && w > 2) row += `${RST}${fillBg}${FG_DIM}…${RST}`;
+				else row += fillBg + " ".repeat(Math.max(0, w - vis)) + RST;
 				rows.push(row);
 				return rows;
 			}
@@ -1801,7 +1806,7 @@ export default async function diffRendererExtension(pi: ExtensionAPI): Promise<v
 			invalidate: ctx.invalidate,
 			key: (width: number) => {
 				const headerKey = frame?.omitHeader ? "" : header(width);
-				return `${keyPrefix}:${themeKey}:${width}:${headerKey}:${contentKey}:${maxLines}:${language ?? ""}:${frame?.omitHeader ? "oh" : "h"}:${frame?.headerLeftPad ?? 0}:${frame?.topPad ?? 0}:${frame?.bottomPad ?? 0}:${frame?.previewBottomPad ?? 0}:${frame?.compactGutter ? "cg" : "rg"}:${frame?.bodyLeftPad ?? 0}`;
+				return `${keyPrefix}:${themeKey}:${width}:${areToolOutputsWrapped() ? "wrap" : "clip"}:${headerKey}:${contentKey}:${maxLines}:${language ?? ""}:${frame?.omitHeader ? "oh" : "h"}:${frame?.headerLeftPad ?? 0}:${frame?.topPad ?? 0}:${frame?.bottomPad ?? 0}:${frame?.previewBottomPad ?? 0}:${frame?.compactGutter ? "cg" : "rg"}:${frame?.bodyLeftPad ?? 0}`;
 			},
 			render: async (width: number) =>
 				joinHeaderBody(

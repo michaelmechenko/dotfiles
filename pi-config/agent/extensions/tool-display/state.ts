@@ -1,15 +1,17 @@
-import { truncateToWidth } from "@earendil-works/pi-tui";
-
 const STATE_KEY = Symbol.for("pi.tool-display.state");
 
-type ToolDisplayState = { callsExpanded: boolean };
+type ToolDisplayState = {
+	callsExpanded: boolean;
+	outputWrapped: boolean;
+};
 
 function state(): ToolDisplayState {
 	const host = globalThis as typeof globalThis & { [STATE_KEY]?: ToolDisplayState };
-	return (host[STATE_KEY] ??= { callsExpanded: false });
+	return (host[STATE_KEY] ??= { callsExpanded: false, outputWrapped: true });
 }
 
 export const CALL_TOGGLE_HINT = "ctrl+shift+o";
+export const WRAP_TOGGLE_HINT = "ctrl+shift+w";
 
 export function areToolCallsExpanded(): boolean {
 	return state().callsExpanded;
@@ -21,16 +23,20 @@ export function toggleToolCallsExpanded(): boolean {
 	return shared.callsExpanded;
 }
 
-export function resetToolCallsExpanded(): void {
-	state().callsExpanded = false;
+/** Whether textual tool output may occupy continuation rows. Display-only. */
+export function areToolOutputsWrapped(): boolean {
+	return state().outputWrapped;
 }
 
-export function previewResult(text: string, maxLines: number, expanded: boolean): { body: string; remaining: number } {
-	const lines = text.split("\n");
-	const shown = expanded ? lines : lines.slice(0, Math.max(1, maxLines));
-	const width = Math.max(12, process.stdout.columns ?? 80);
-	return {
-		body: shown.map((line) => truncateToWidth(line, width, "…")).join("\n"),
-		remaining: Math.max(0, lines.length - shown.length),
-	};
+export function toggleToolOutputWrap(): boolean {
+	const shared = state();
+	shared.outputWrapped = !shared.outputWrapped;
+	return shared.outputWrapped;
+}
+
+/** Reset session-local display state. */
+export function resetToolDisplayState(): void {
+	const shared = state();
+	shared.callsExpanded = false;
+	shared.outputWrapped = true;
 }

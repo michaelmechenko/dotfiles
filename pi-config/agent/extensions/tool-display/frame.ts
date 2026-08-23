@@ -1,4 +1,5 @@
-import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import { areToolOutputsWrapped } from "./state.js";
 import type { Component } from "@earendil-works/pi-tui";
 
 export type ToolFrameTheme = {
@@ -8,6 +9,19 @@ export type ToolFrameTheme = {
 
 export const FRAME_OUTER_INDENT = " ";
 const PAD = FRAME_OUTER_INDENT;
+
+/**
+ * Render textual tool output at a given content width without mutating the
+ * result sent to the model. Explicit newlines stay logical-line boundaries.
+ * Wrapped mode uses pi-tui's ANSI-aware word wrapper; no-wrap mode deliberately
+ * emits one display row per logical line and marks clipped content with `…`.
+ */
+export function layoutToolText(text: string, width: number): string[] {
+	const actual = Math.max(1, Math.floor(width));
+	return text.split("\n").flatMap((line) =>
+		areToolOutputsWrapped() ? wrapTextWithAnsi(line, actual) : [truncateToWidth(line, actual, "…")],
+	);
+}
 
 // ---------------------------------------------------------------------------
 // Hybrid card policy — left accent edge for mutations, interactive tools, errors

@@ -9,16 +9,16 @@
  *   - An `analyze_image` tool lets the agent describe an explicit local image
  *     file (PNG/JPEG/GIF/WebP/BMP) on demand, regardless of the active model.
  *
- * The vision model is a single fixed route — `openai-codex/gpt-5.6-terra` —
+ * The vision model is a single fixed route — `openai-codex/gpt-5.6-sol` —
  * resolved from the existing catalog (no new provider is registered, no
- * credentials are duplicated). Terra uses the existing openai-codex
+ * credentials are duplicated). Sol uses the existing openai-codex
  * authentication, so it is available with no extra setup.
  *
  * Deliberately omitted vs. the upstream `pi-multimodal-proxy` package: video,
  * audio, YouTube download, image cropping, session image recall, path
  * auto-detection from prompt text, a model picker, persistent configuration,
  * and per-session data-egress consent. This extension sends image data to the
- * configured Terra route by design; that is the whole point.
+ * configured Sol route by design; that is the whole point.
  */
 
 import { readFile } from "node:fs/promises";
@@ -41,7 +41,7 @@ import {
 // ── Vision route (fixed) ────────────────────────────────────────────────────
 
 const VISION_PROVIDER = "openai-codex";
-const VISION_MODEL_ID = "gpt-5.6-terra";
+const VISION_MODEL_ID = "gpt-5.6-sol";
 const VISION_REASONING = "high";
 
 const SYSTEM_PROMPT = [
@@ -194,7 +194,7 @@ async function describeAttached(
   if (ctx.hasUI) {
     ctx.ui.setStatus(
       "image-proxy",
-      `Analyzing ${count} image${count === 1 ? "" : "s"} via Terra…`,
+      `Analyzing ${count} image${count === 1 ? "" : "s"} via Sol…`,
     );
   }
 
@@ -207,7 +207,7 @@ async function describeAttached(
     const ok = results.filter((r) => r.record.description != null).length;
     ctx.ui.setStatus("image-proxy", undefined);
     ctx.ui.notify(
-      `image-proxy: described ${ok}/${count} image${count === 1 ? "" : "s"} via Terra`,
+      `image-proxy: described ${ok}/${count} image${count === 1 ? "" : "s"} via Sol`,
       ok === count ? "info" : "warning",
     );
   }
@@ -352,7 +352,7 @@ export default function (pi: ExtensionAPI) {
           : null;
 
       onUpdate?.({
-        content: [{ type: "text", text: `Analyzing ${basename(absPath)} via Terra…` }],
+        content: [{ type: "text", text: `Analyzing ${basename(absPath)} via Sol…` }],
       });
 
       const userText = focus

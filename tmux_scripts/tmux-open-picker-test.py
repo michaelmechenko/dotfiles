@@ -11,9 +11,11 @@ These are red until tmux-open-picker implements the documented functions.
 import importlib.machinery
 import importlib.util
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 MODULE = os.path.join(HERE, "tmux-open-picker")
@@ -402,30 +404,105 @@ class ResolutionRoots(unittest.TestCase):
         self.assertEqual(roots.count(root), 1)
 
 
-class MenuMapping(unittest.TestCase):
-    """The path menu must map keys to tmux-open-target action keywords, not the
-    single chars (regression guard: an earlier version returned 'n'/'f'/'c',
-    which fell through tmux-open-target to legacy open)."""
+class UnifiedFzfModel(unittest.TestCase):
+    """Regression guards for the opaque-ID unified fzf boundary."""
 
     def setUp(self):
-        import curses as _curses
         self.m = load_module()
-        self.ENTER = _curses.KEY_ENTER
+        self.root = make_tree()
 
-    def test_n_maps_nvim(self):
-        self.assertEqual(self.m.menu_action_for_key(ord("n")), "nvim")
+    def test_global_terminal_appearance_order(self):
+        candidates = self.m.build_candidates(
+            "src/main.rs then https://example.com then docs/", self.root)
+        self.assertEqual([c.kind for c in candidates], ["file", "url", "dir"])
+        self.assertEqual([c.label for c in candidates],
+                         ["src/main.rs", "https://example.com", "docs/"])
 
-    def test_f_maps_finder(self):
-        self.assertEqual(self.m.menu_action_for_key(ord("f")), "finder")
+    def test_valid_quoted_path_beats_github_shorthand(self):
+        os.makedirs(os.path.join(self.root, "user", "repo"))
+        candidates = self.m.build_candidates("'user/repo'", self.root)
+        self.assertEqual(len(candidates), 1)
+        self.assertEqual(candidates[0].kind, "dir")
+        self.assertEqual(candidates[0].target, os.path.join(self.root, "user", "repo"))
 
-    def test_c_maps_copy(self):
-        self.assertEqual(self.m.menu_action_for_key(ord("c")), "copy")
+    def test_github_shorthand_is_url_without_existing_path(self):
+        candidates = self.m.build_candidates("'user/repo'", self.root)
+        self.assertEqual(len(candidates), 1)
+        self.assertEqual(candidates[0].kind, "url")
+        self.assertEqual(candidates[0].target, "https://github.com/user/repo")
 
-    def test_enter_defaults_nvim(self):
-        self.assertEqual(self.m.menu_action_for_key(self.ENTER), "nvim")
+    def test_rows_only_expose_safe_opaque_ids(self):
+        candidates = self.m.build_candidates("https://a.com src/main.rs", self.root)
+        rows = self.m.candidate_rows(candidates)
+        self.assertEqual([row.split("\t", 1)[0] for row in rows], ["0", "1"])
+        self.assertTrue(all("\t" in row for row in rows))
+        self.assertTrue(all("URL " in self.m.strip_ansi(row) or "FILE " in self.m.strip_ansi(row)
+                            for row in rows))
 
-    def test_unknown_returns_none(self):
-        self.assertIsNone(self.m.menu_action_for_key(ord("x")))
+    def test_trailing_commas_are_removed_from_labels_not_payloads(self):
+        candidates = self.m.build_candidates("notes.txt, docs, src/main.rs,", self.root)
+        self.assertEqual([candidate.label for candidate in candidates],
+                         ["notes.txt", "docs", "src/main.rs"])
+        self.assertEqual([candidate.target for candidate in candidates], [
+            os.path.join(self.root, "notes.txt"),
+            os.path.join(self.root, "docs"),
+            os.path.join(self.root, "src", "main.rs"),
+        ])
+
+    def test_tag_only_colors_keep_ids_and_labels_unstyled(self):
+        candidates = self.m.build_candidates("https://a.com notes.txt docs/", self.root)
+        palette = {"url": "#8ba9c1", "file": "#bb9dbd", "dir": "#aeaed1"}
+        rows = self.m.candidate_rows(candidates, palette)
+        self.assertEqual([row.split("\t", 1)[0] for row in rows], ["0", "1", "2"])
+        self.assertEqual(rows, [
+            "0\t\x1b[38;2;139;169;193mURL\x1b[0m  https://a.com",
+            "1\t\x1b[38;2;187;157;189mFILE\x1b[0m  notes.txt",
+            "2\t\x1b[38;2;174;174;209mDIR\x1b[0m  docs/",
+        ])
+
+    def test_palette_is_read_once_with_role_fallbacks(self):
+        completed = subprocess.CompletedProcess(
+            [], 0, "#123456\t#abcdef\t#fedcba\n", "")
+        with patch.object(self.m.subprocess, "run", return_value=completed) as run:
+            self.assertEqual(self.m.tag_colors(), {
+                "url": "#123456", "file": "#abcdef", "dir": "#fedcba"})
+        self.assertEqual(run.call_count, 1)
+        self.assertEqual(run.call_args.args[0][:3], ["tmux", "display-message", "-p"])
+
+    def test_selection_uses_visible_row_id_not_pre_filter_index(self):
+        candidates = self.m.build_candidates("https://a.com https://ab.com", self.root)
+        rows = self.m.candidate_rows(candidates)
+        # fzf's post-filter selected row must dispatch its opaque ID, never a
+        # cursor retained from the unfiltered candidate list.
+        action, selected = self.m.decode_fzf_selection("enter\n" + rows[1] + "\n", candidates)
+        self.assertEqual(action, "open")
+        self.assertEqual(selected.target, "https://ab.com")
+
+    def test_action_keys_are_direct_and_type_checked(self):
+        candidates = self.m.build_candidates("https://a.com src/main.rs docs/", self.root)
+        self.assertEqual(self.m.action_for("enter", candidates[0]), "open")
+        self.assertEqual(self.m.action_for("ctrl-y", candidates[0]), "copy")
+        self.assertEqual(self.m.action_for("ctrl-f", candidates[1]), "finder")
+        self.assertEqual(self.m.action_for("ctrl-n", candidates[1]), "nvim")
+        self.assertIsNone(self.m.action_for("ctrl-f", candidates[0]))
+
+    def test_safe_path_payloads_survive_display_sanitization(self):
+        names = ["space name.txt", "quo'te.txt", "semi;$.txt", "tab\tname.txt", "-leading.txt"]
+        for name in names:
+            open(os.path.join(self.root, name), "w").close()
+        text = " ".join('"%s"' % name for name in names)
+        candidates = self.m.build_candidates(text, self.root)
+        self.assertEqual({c.target for c in candidates}, {os.path.join(self.root, name) for name in names})
+        rows = self.m.candidate_rows(candidates)
+        self.assertTrue(any("tab\\tname.txt" in row for row in rows))
+        self.assertFalse(any("\n" in row for row in rows))
+
+    def test_unknown_or_tampered_selection_is_rejected(self):
+        candidates = self.m.build_candidates("https://a.com", self.root)
+        with self.assertRaises(ValueError):
+            self.m.decode_fzf_selection("enter\n999\tURL forged\n", candidates)
+        with self.assertRaises(ValueError):
+            self.m.decode_fzf_selection("ctrl-f\n0\tURL https://a.com\n", candidates)
 
 
 if __name__ == "__main__":

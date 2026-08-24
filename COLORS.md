@@ -260,6 +260,7 @@ perimeter, not corner-only segments.
 - `border`/`separator`/`scrollbar`/`preview-border`/`preview-scrollbar` `#383848` (`divider-subtle`)
 - `prompt` `#aeaed1` (`accent-secondary`) · `marker` `#bb9dbd` (`accent-tertiary`) · `spinner` `#f3be7c` (`accent-amber`) · `info` `#656a80` (`text-muted` — the preview scroll-position "N/M" indicator)
 - `header`/`disabled`/`label` `#656a80` (`text-muted`)
+- **M-o target picker tags only** — `URL` is `accent-info` `#8ba9c1`, `FILE` is `accent-tertiary` `#bb9dbd`, and `DIR` is `accent-secondary` `#aeaed1`. `tmux-open-picker` reads those three `@color-*` options in one runtime tmux call, emits ANSI only around the tag, then resets before the target label so normal fzf selected/unselected row colors still apply. Trailing display commas are removed without changing the canonical action payload.
 
 Note: `~/.config/zshrc` is the tracked source of truth; the live `~/.zshrc` is synced manually (they have diverged — see future persona/work-profile split).
 

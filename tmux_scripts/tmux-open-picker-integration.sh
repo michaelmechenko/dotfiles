@@ -121,11 +121,8 @@ LOUT="$(OPEN_TARGET_DRY_RUN=1 "$TARGET" "$TMP/src/main.rs" 2>&1)"
 echo "$LOUT" | grep -qF 'split-window' && ok "sidebar legacy open -> nvim split" || bad "sidebar legacy" "$LOUT"
 unset TMUX_OPEN_PANE
 
-# Regression: run-shell must expand #{pane_id} before the launcher calls
-# display-popup; display-popup leaves formats literal inside its nested command.
-# Reselect the original pane first — the multi-root test above created a subpane
-# which changed the active pane.
-tmux -L "$SRV" select-pane -t "$PANE" 2>/dev/null
+# The picker itself owns popup creation. Its command receives the explicit pane
+# only once and carries it privately into the popup inner mode.
 LAUNCH_LOG="$TMP/launcher.log"
 FAKE_LAUNCH="$TMP/fake-launch"
 mkdir -p "$FAKE_LAUNCH"
@@ -134,18 +131,48 @@ cat >"$FAKE_LAUNCH/tmux" <<EOF
 printf '%s\\n' "\$@" >"$LAUNCH_LOG"
 EOF
 chmod +x "$FAKE_LAUNCH/tmux"
-"$TMUX_BIN" -L "$SRV" set-environment -g PATH "$FAKE_LAUNCH"
-"$TMUX_BIN" -L "$SRV" run-shell "$CONF/tmux-open-picker-popup '#{pane_id}'"
-for _ in $(seq 1 20); do
-  [ -f "$LAUNCH_LOG" ] && break
-  sleep 0.05
-done
-if grep -Fxq "python3 ~/.config/tmux_scripts/tmux-open-picker '$PANE'" "$LAUNCH_LOG" 2>/dev/null && \
-   grep -Fxq 'display-popup' "$LAUNCH_LOG" 2>/dev/null; then
-  ok "launcher expands origin pane before display-popup"
+PATH="$FAKE_LAUNCH:$PATH" "$PICKER" "$PANE"
+if grep -Fxq 'display-popup' "$LAUNCH_LOG" 2>/dev/null && \
+   grep -Fq -- "--inner $PANE" "$LAUNCH_LOG" 2>/dev/null; then
+  ok "picker owns popup with explicit private origin"
 else
-  bad "launcher kept pane format literal" "$(cat "$LAUNCH_LOG" 2>/dev/null)"
+  bad "picker popup origin" "$(cat "$LAUNCH_LOG" 2>/dev/null)"
 fi
+
+# A pane may disappear after outer launch; inner mode must report nonzero rather
+# than silently detaching through a background action.
+set +e
+STALE_OUT="$("$PICKER" --inner %999999 2>&1)"; STALE_STATUS=$?
+set -e
+[ "$STALE_STATUS" -ne 0 ] && ok "stale pane inner exits nonzero" || bad "stale pane inner accepted" "$STALE_OUT"
+
+# Actual attached-client transport: tmux must recognize Ghostty's CSI-u Alt+O
+# sequence as the M-o root binding, not merely accept a synthetic send-keys.
+CSI_LOG="$TMP/csi-o.log"
+tmux -L "$SRV" set -g extended-keys on
+tmux -L "$SRV" set -g extended-keys-format csi-u
+tmux -L "$SRV" bind-key -n M-o run-shell "printf hit > '$CSI_LOG'"
+TMUX_BIN="$TMUX_BIN" TMUX_SOCKET="$SRV" TMUX_SESSION=s CSI_LOG="$CSI_LOG" python3 - <<'PY2'
+import os, pty, time
+pid, fd = pty.fork()
+if pid == 0:
+    os.execvp(os.environ["TMUX_BIN"], [os.environ["TMUX_BIN"], "-L", os.environ["TMUX_SOCKET"], "attach", "-t", os.environ["TMUX_SESSION"]])
+time.sleep(.4)
+os.write(fd, b"\x1b[111;3u")
+deadline = time.time() + 3
+while time.time() < deadline and not os.path.exists(os.environ["CSI_LOG"]):
+    time.sleep(.05)
+os.write(fd, b"\x02d")
+for _ in range(30):
+    child, _status = os.waitpid(pid, os.WNOHANG)
+    if child == pid:
+        break
+    time.sleep(.05)
+else:
+    os.kill(pid, 9)
+    os.waitpid(pid, 0)
+PY2
+[ -f "$CSI_LOG" ] && ok "attached CSI-u Alt+O reaches M-o" || bad "CSI-u Alt+O was not recognized"
 
 echo
 echo "pass=$pass fail=$fail"

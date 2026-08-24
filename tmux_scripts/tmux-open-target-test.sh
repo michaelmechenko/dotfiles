@@ -66,6 +66,53 @@ out="$(run "$TMP/notes.txt")";                       assert_contains "legacy ope
 echo "## origin pane recorded for relative resolution ##"
 out="$(run open "$PANE" notes.txt)";                 assert_contains "relative resolves from pane cwd" "$out" "$TMP/notes.txt"
 
+echo "## hostile explicit payloads ##"
+for name in "space name.txt" "quo'te.txt" 'semi;$.txt' $'tab\tname.txt' "-leading.txt"; do
+  : >"$TMP/$name"
+  out="$(run nvim "$PANE" "$TMP/$name" 7)"
+  # The dry-run command must put every hostile filename after nvim's --;
+  # `%q` may escape its display, so do not treat rendered shell text as data.
+  assert_contains "safe nvim payload: $name" "$out" "--"
+done
+
+echo "## action failure propagation ##"
+FAILBIN="$TMP/failbin"; mkdir -p "$FAILBIN"
+cat >"$FAILBIN/open" <<'EOF'
+#!/bin/sh
+echo forced open failure >&2
+exit 41
+EOF
+cat >"$FAILBIN/pbcopy" <<'EOF'
+#!/bin/sh
+echo forced copy failure >&2
+exit 42
+EOF
+cat >"$FAILBIN/tmux" <<EOF
+#!/bin/sh
+case "\$1" in split-window) echo forced nvim failure >&2; exit 43;; esac
+exec "$TMUX_BIN" -L "$SRV" "\$@"
+EOF
+chmod +x "$FAILBIN/open" "$FAILBIN/pbcopy" "$FAILBIN/tmux"
+for action in "open https://example.com" "copy https://example.com" "finder $TMP/dir" "nvim $TMP/notes.txt"; do
+  set -- $action
+  set +e
+  out="$(PATH="$FAILBIN:$PATH" "$TARGET" "$1" "$PANE" "$2" 2>&1)"; status=$?
+  set -e
+  if [ "$status" -ne 0 ]; then pass=$((pass+1)); printf 'ok   failed %s propagates\n' "$1"; else fail=$((fail+1)); printf 'FAIL failed %s was swallowed\n' "$1"; fi
+  assert_contains "failed $1 reports stderr" "$out" "forced"
+done
+
+echo "## explicit errors ##"
+set +e
+out="$(OPEN_TARGET_DRY_RUN=1 "$TARGET" open %999999 "$TMP/notes.txt" 2>&1)"; status=$?
+set -e
+if [ "$status" -ne 0 ]; then pass=$((pass+1)); printf 'ok   stale pane is nonzero\n'; else fail=$((fail+1)); printf 'FAIL stale pane accepted\n'; fi
+assert_contains "stale pane reports error" "$out" "invalid pane"
+# A pane-looking second word remains a legacy multi-word selection, rather than
+# being misclassified as a malformed explicit adapter invocation.
+out="$(OPEN_TARGET_DRY_RUN=1 "$TARGET" legacy "$PANE" "$TMP/notes.txt" 2>&1)"
+assert_contains "legacy multi-word selection stays legacy" "$out" "open"
+
 echo
 echo "pass=$pass fail=$fail"
 [ "$fail" -eq 0 ]

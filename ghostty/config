@@ -149,6 +149,9 @@ keybind = global:cmd+shift+e=toggle_quick_terminal
 # Update modified arrow bindings. Super-arrow is used by pi for line start/end.
 keybind = alt+left=csi:1;3D
 keybind = alt+right=csi:1;3C
+# alt+o: CSI-u transports M-o to tmux's typed open picker (111 = lowercase o,
+# 3 = Alt modifier). Ghostty otherwise sends modified Option keys unreliably.
+keybind = alt+o=csi:111;3u
 keybind = cmd+left=csi:1;9D
 keybind = cmd+right=csi:1;9C
 

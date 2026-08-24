@@ -1,56 +1,70 @@
 #!/usr/bin/env python3
-"""tmux-open-picker <pane-id> — two-column URL/path picker for the M-o binding.
+"""tmux-open-picker <pane-id> — typed unified fzf target picker for M-o.
 
-Capture the given pane once, extract URLs (left column) and validated filesystem
-targets (right column) against that pane's cwd, and render two side-by-side
-searchable lists. Tab/h/l switch columns, j/k or arrows move the cursor, Enter
-acts: a URL opens in the browser; a path opens a Copy/Finder/nvim action menu.
-q/Esc closes.
-
-Runs inside a tmux popup (tmux display-popup -E). Designed for stdlib only.
-
-Importable functions (extraction/classification) are unit-tested by
-tmux-open-picker-test.py; the curses UI is a thin layer over them.
+The outer invocation owns popup creation; ``--inner <pane-id>`` runs inside it.
+It captures the explicit origin pane once, builds typed candidates, and gives fzf
+only opaque numeric IDs plus display text. The selected ID is resolved against
+that in-memory model before dispatching the shared tmux-open-target adapter.
 """
-import curses
 import os
 import re
+import shlex
 import subprocess
 import sys
+from typing import NamedTuple, Optional
+
+
+class PickerError(Exception):
+    pass
+
+
+class Candidate(NamedTuple):
+    id: int
+    kind: str  # url | file | dir
+    label: str  # display-only original terminal text
+    target: str  # canonical executable payload
+    line: Optional[str]
+    start: int
+
+
+_OPEN_TARGET = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tmux-open-target")
+
 
 # ---------------------------------------------------------------------------
 # Pane capture
 # ---------------------------------------------------------------------------
 
 def capture_pane(pane):
-    """Return ANSI-escaped visible pane content for the given pane id."""
-    out = subprocess.run(
+    """Return ANSI-escaped visible content for the explicitly named pane."""
+    return subprocess.run(
         ["tmux", "capture-pane", "-J", "-p", "-e", "-t", pane],
         check=True, capture_output=True, text=True,
     ).stdout
-    return out
 
 
 def pane_cwd(pane):
-    """Return the cwd of the given pane (empty string on failure)."""
+    """Return the cwd for pane or raise; an empty cwd is not a safe fallback."""
     try:
-        return subprocess.run(
+        cwd = subprocess.run(
             ["tmux", "display", "-p", "-t", pane, "#{pane_current_path}"],
             check=True, capture_output=True, text=True,
         ).stdout.strip()
-    except subprocess.CalledProcessError:
-        return ""
+    except subprocess.CalledProcessError as exc:
+        raise PickerError("invalid pane: %s" % pane) from exc
+    if not cwd:
+        raise PickerError("invalid pane: %s" % pane)
+    return cwd
 
 
 # ---------------------------------------------------------------------------
-# ANSI stripping (for text matching; URLs/paths come from the cleaned text)
+# ANSI stripping and URL extraction (ported from tmux-fzf-url patterns)
 # ---------------------------------------------------------------------------
 
 _ANSI_RE = re.compile(
     r"""(?x)
-      \x1b\[ [0-?]* [ -/]* [@-~]        # CSI sequences (SGR, cursor, ?25l, 2J, ...)
-    | \x1b\] [^\x07\x1b]* (?:\x07|\x1b\\)  # OSC sequences (incl. OSC 8 hyperlinks)
-    | \x1b[@-_] [0-~]                  # other escape sequences
+      \x1b\[ [0-?]* [ -/]* [@-~]
+    | \x1b\] [^\x07\x1b]* (?:\x07|\x1b\\)
+    | \x1b[@-_] [0-~]
     """,
 )
 
@@ -59,104 +73,88 @@ def strip_ansi(s):
     return _ANSI_RE.sub("", s)
 
 
-# ---------------------------------------------------------------------------
-# URL extraction (ported from tmux-fzf-url's xre patterns, priority + dedup)
-# ---------------------------------------------------------------------------
-
 _PAT_URL = re.compile(r"""(?:https?|ftp|file):/?//[-\w+&@#/%?=~|!:,.;]*[-\w+&@#/%=~|]""")
-_PAT_GIT = re.compile(r"""(?:ssh://)?git@([^\s'"`:]+)[:/]([^\s'"`]+)""")
+_PAT_GIT = re.compile(r"""(?:ssh://)?git@([^\s'"`:+]+)[:/]([^\s'"`]+)""")
 _PAT_WWW = re.compile(r"""www\.[a-zA-Z](?:-?[a-zA-Z0-9])+\.[a-zA-Z]{2,}(?:/[^\s'"`]+)*""")
 _PAT_IP = re.compile(r"""\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(?::\d{1,5})?(?:/[^\s'"`]+)*""")
 _PAT_GH = re.compile(r"""['"]([\w-]+/[\w.-]+)['"]""")
 
+# The final GitHub-shorthand pattern is intentionally fallback-only: a valid
+# filesystem path occupying the same quoted span wins in build_candidates().
 _URL_PATTERNS = [
-    # (regex, transform: match -> url or None to drop)
-    (_PAT_URL, lambda m: m.group(0)),
-    (_PAT_GIT, lambda m: "https://%s/%s" % (m.group(1), m.group(2))),
-    (_PAT_WWW, lambda m: "http://%s" % m.group(0)),
-    (_PAT_IP, lambda m: "http://%s" % m.group(0)),
-    (_PAT_GH, lambda m: "https://github.com/%s" % m.group(1)),
+    ("url", _PAT_URL, lambda m: m.group(0)),
+    ("url", _PAT_GIT, lambda m: "https://%s/%s" % (m.group(1), m.group(2))),
+    ("url", _PAT_WWW, lambda m: "http://%s" % m.group(0)),
+    ("url", _PAT_IP, lambda m: "http://%s" % m.group(0)),
+    ("github", _PAT_GH, lambda m: "https://github.com/%s" % m.group(1)),
 ]
 
 
-def extract_urls(text):
-    """Return URLs in appearance order, deduplicated, priority-resolved."""
+def _overlaps(start, end, spans):
+    return any(start < other_end and other_start < end for other_start, other_end in spans)
+
+
+def _url_records(text, path_spans=()):
+    """Return (start, end, label, canonical-url) records in source order."""
     text = strip_ansi(text)
-    taken = [False] * len(text)  # byte-occupied markers
-    found = []     # (start, url)
-    for pat, transform in _URL_PATTERNS:
-        for m in pat.finditer(text):
-            if any(taken[m.start():m.end()]):
+    taken = [False] * len(text)
+    found = []
+    for pattern_kind, pat, transform in _URL_PATTERNS:
+        for match in pat.finditer(text):
+            if pattern_kind == "github" and _overlaps(match.start(), match.end(), path_spans):
                 continue
-            url = transform(m)
-            if not url:
+            if any(taken[match.start():match.end()]):
                 continue
-            for i in range(m.start(), m.end()):
-                taken[i] = True
-            found.append((m.start(), url))
-    found.sort(key=lambda x: x[0])
+            url = transform(match)
+            for index in range(match.start(), match.end()):
+                taken[index] = True
+            found.append((match.start(), match.end(), match.group(0), url))
+    found.sort(key=lambda item: item[0])
     seen = set()
-    out = []
-    for _, url in found:
-        if url in seen:
-            continue
-        seen.add(url)
-        out.append(url)
-    return out
+    return [item for item in found if not (item[3] in seen or seen.add(item[3]))]
+
+
+def extract_urls(text):
+    """Return canonical URLs in appearance order, retaining the public API."""
+    return [url for _, _, _, url in _url_records(text)]
 
 
 # ---------------------------------------------------------------------------
-# Path candidate extraction + filesystem validation
+# Path candidate extraction and filesystem validation
 # ---------------------------------------------------------------------------
 
-# Quoted spans and bare whitespace-delimited tokens. Order matters: quotes
-# first so a quoted path with spaces is captured as one candidate.
 _TOKEN_RE = re.compile(r"""'([^']*)'|"([^"]*)"|([^\s'"]+)""")
-
-# Trailing :line or :line:col suffix on a candidate.
 _LINE_RE = re.compile(r"""(?P<path>.*?)(?::(?P<line>\d+))?(?::\d+)?$""")
-
-_BAD_EXT_CHARS = re.compile(r"""[<>|?*\x00-\x1f]""")
-
-# Punctuation wrapping paths in terminal output: (src/main.rs), [foo], {bar},
-# or trailing sentence punctuation: src/main.rs, src/main.rs.  Leading dots and
-# tilde are NOT stripped — they are path-significant (./, ../, .zshrc, ~/).
+# Tabs are valid filesystem bytes and remain safe because fzf receives only an
+# opaque ID; line breaks/NUL and shell-glob metacharacters are not candidates.
+_BAD_EXT_CHARS = re.compile(r"""[<>|?*\x00-\x08\x0a-\x1f]""")
 _LEADING_PUNCT = "([{"
 _TRAILING_PUNCT = ")]},;:!?.'\""
 
 
 def _trim_punctuation(s):
-    """Strip wrapping brackets and trailing sentence punctuation so candidates
-    like (src/main.rs) or src/main.rs, resolve to the real path."""
-    s = s.lstrip(_LEADING_PUNCT)
-    s = s.rstrip(_TRAILING_PUNCT)
-    return s
+    return s.lstrip(_LEADING_PUNCT).rstrip(_TRAILING_PUNCT)
 
 
 def _git_root(cwd):
-    """Return the git toplevel for cwd, or None if not a git repo."""
     try:
-        out = subprocess.run(
+        root = subprocess.run(
             ["git", "-C", cwd, "rev-parse", "--show-toplevel"],
             check=True, capture_output=True, text=True,
         ).stdout.strip()
-        return out or None
+        return root or None
     except (subprocess.CalledProcessError, FileNotFoundError, OSError):
         return None
 
 
 def _resolution_roots(cwd):
-    """Ordered candidate roots for relative-path resolution:
-    [cwd, git_root, *parents(cwd) up to git_root or /]).  Deduplicates roots
-    that resolve to the same path (e.g. when cwd's parent IS the git root)."""
     roots = [cwd]
     seen = {cwd}
-    gr = _git_root(cwd)
-    if gr and gr not in seen:
-        roots.append(gr)
-        seen.add(gr)
-    # walk up from cwd's parent, stopping at git root or filesystem root
-    stop = gr or "/"
+    git_root = _git_root(cwd)
+    if git_root and git_root not in seen:
+        roots.append(git_root)
+        seen.add(git_root)
+    stop = git_root or "/"
     parent = os.path.dirname(cwd)
     while parent and parent != stop and parent not in seen:
         roots.append(parent)
@@ -168,284 +166,268 @@ def _resolution_roots(cwd):
 
 
 def _resolve(candidate, roots):
-    """Resolve a candidate string against the given roots; return
-    (abs_path, line, is_dir) or None if it does not name an existing file or
-    directory in any root.  Display text is preserved by the caller — only the
-    resolution path is trimmed."""
     if not candidate or candidate in (".", "..", "~"):
         return None
     candidate = _trim_punctuation(candidate)
-    if not candidate or candidate in (".", "..", "~"):
+    if not candidate or candidate in (".", "..", "~") or _BAD_EXT_CHARS.search(candidate):
         return None
-    if _BAD_EXT_CHARS.search(candidate):
-        return None
-    m = _LINE_RE.match(candidate)
-    path = m.group("path") or ""
-    line = m.group("line")
+    match = _LINE_RE.match(candidate)
+    path = match.group("path") or ""
+    line = match.group("line")
     if not path:
         return None
-    # expand ~
     if path.startswith("~"):
         path = os.path.expanduser(path)
     if path.startswith("/"):
-        abs_path = os.path.normpath(path)
-        if os.path.isdir(abs_path):
-            return (abs_path, line, True)
-        if os.path.isfile(abs_path):
-            return (abs_path, line, False)
+        absolute = os.path.normpath(path)
+        if os.path.isdir(absolute):
+            return absolute, line, True
+        if os.path.isfile(absolute):
+            return absolute, line, False
         return None
-    # relative: bare filenames (no /) only try cwd to avoid false positives
-    # (e.g. "at" matching /var/at via the parent chain); paths with / try all
-    # roots in precedence order (cwd, git root, parent chain).
-    roots_to_try = roots if "/" in path else roots[:1]
-    for root in roots_to_try:
-        abs_path = os.path.normpath(os.path.join(root, path))
-        if os.path.isdir(abs_path):
-            return (abs_path, line, True)
-        if os.path.isfile(abs_path):
-            return (abs_path, line, False)
+    for root in (roots if "/" in path else roots[:1]):
+        absolute = os.path.normpath(os.path.join(root, path))
+        if os.path.isdir(absolute):
+            return absolute, line, True
+        if os.path.isfile(absolute):
+            return absolute, line, False
     return None
 
 
 def extract_path_candidates(text, cwd):
-    """Return validated filesystem targets as dicts in appearance order, deduped
-    by resolved path. Each dict: {display, path, line, is_dir}.  Relative paths
-    are resolved against [cwd, git_root, *parents] — see _resolution_roots."""
+    """Return validated path records, ordered/deduplicated by first span.
+
+    Extra start/end fields are internal metadata; the established display/path/
+    line/is_dir fields remain available to existing callers and tests.
+    """
     text = strip_ansi(text)
     roots = _resolution_roots(cwd)
-    # record byte ranges already consumed by URL extraction so a URL string is
-    # not also treated as a path candidate
+    # Explicit URLs and Git remotes never name local candidates. GitHub
+    # shorthand is deliberately excluded: it may be a valid quoted path.
     taken = [False] * len(text)
-    for pat, _ in _URL_PATTERNS:
-        for m in pat.finditer(text):
-            for i in range(m.start(), m.end()):
-                taken[i] = True
+    for _, pat, _ in _URL_PATTERNS[:-1]:
+        for match in pat.finditer(text):
+            for index in range(match.start(), match.end()):
+                taken[index] = True
 
-    out = []
-    seen = set()
-    pos = 0
-    for m in _TOKEN_RE.finditer(text):
-        # skip tokens that overlap any URL match
-        if any(taken[i] for i in range(m.start(), m.end())):
+    out, seen = [], set()
+    for match in _TOKEN_RE.finditer(text):
+        if any(taken[index] for index in range(match.start(), match.end())):
             continue
-        g = m.group(1)
-        if g is None:
-            g = m.group(2)
-        if g is None:
-            g = m.group(3)
-        if g is None or not g:
+        value = match.group(1) if match.group(1) is not None else match.group(2)
+        value = match.group(3) if value is None else value
+        if not value or "://" in value or value.startswith(("www.", "git@")):
             continue
-        # drop an obvious URL-looking token that escaped the byte map
-        if "://" in g or g.startswith(("www.", "git@")):
+        resolved = _resolve(value, roots)
+        if not resolved:
             continue
-        res = _resolve(g, roots)
-        if not res:
+        absolute, line, is_dir = resolved
+        if absolute in seen:
             continue
-        abs_path, line, is_dir = res
-        if abs_path in seen:
-            continue
-        seen.add(abs_path)
+        seen.add(absolute)
         out.append({
-            "display": g,
-            "path": abs_path,
+            "display": value,
+            "path": absolute,
             "line": line,
             "is_dir": is_dir,
+            "start": match.start(),
+            "end": match.end(),
         })
     return out
 
 
 # ---------------------------------------------------------------------------
-# TUI
+# Typed fzf model and dispatch
 # ---------------------------------------------------------------------------
 
-_OPEN_TARGET = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tmux-open-target")
+def build_candidates(text, cwd):
+    """Merge URL/file/directory records by original terminal appearance."""
+    clean = strip_ansi(text)
+    paths = extract_path_candidates(clean, cwd)
+    path_spans = [(path["start"], path["end"]) for path in paths]
+    records = []
+    for path in paths:
+        # Resolution already trims terminal punctuation for the canonical target.
+        # Mirror only trailing commas in the display label; periods and other
+        # original spelling remain visible by design.
+        label = path["display"].rstrip(",")
+        records.append((path["start"], path["end"], "dir" if path["is_dir"] else "file",
+                        label, path["path"], path["line"]))
+    for start, end, label, url in _url_records(clean, path_spans):
+        records.append((start, end, "url", label, url, None))
+    records.sort(key=lambda record: record[0])
+    return [Candidate(index, kind, label, target, line, start)
+            for index, (start, _end, kind, label, target, line) in enumerate(records)]
 
-# (key, action keyword for tmux-open-target, label)
-_PATH_ACTIONS = [
-    ("n", "nvim", "nvim"),
-    ("f", "finder", "Finder"),
-    ("c", "copy", "copy"),
-]
+
+def _sanitize_display(value):
+    """Keep terminal control bytes out of fzf without touching the payload."""
+    return "".join("\\t" if char == "\t" else "\\n" if char in "\r\n" else
+                   "\\x%02x" % ord(char) if ord(char) < 32 or ord(char) == 127 else char
+                   for char in value)
 
 
-def menu_action_for_key(ch):
-    """Map a path-menu keypress to a tmux-open-target action keyword, or None."""
-    for k, action, _ in _PATH_ACTIONS:
-        if ch == ord(k):
-            return action
-    if ch == curses.KEY_ENTER or ch in (10, 13):
-        return "nvim"  # default to nvim on Enter
+_TAG_COLOR_FALLBACKS = {
+    "url": "#8ba9c1",       # accent-info
+    "file": "#bb9dbd",      # accent-tertiary
+    "dir": "#aeaed1",       # accent-secondary
+}
+_TAG_COLOR_FORMAT = "#{@color-accent-info}\t#{@color-accent-tertiary}\t#{@color-accent-secondary}"
+_HEX_COLOR = re.compile(r"#[0-9a-fA-F]{6}$")
+
+
+def tag_colors():
+    """Read all tag colors in one tmux call, retaining safe palette fallbacks."""
+    try:
+        result = subprocess.run(
+            ["tmux", "display-message", "-p", _TAG_COLOR_FORMAT],
+            check=True, capture_output=True, text=True,
+        )
+        values = result.stdout.strip().split("\t")
+    except (OSError, subprocess.CalledProcessError):
+        values = []
+    return {
+        kind: value if _HEX_COLOR.fullmatch(value or "") else _TAG_COLOR_FALLBACKS[kind]
+        for kind, value in zip(("url", "file", "dir"), values + [""] * 3)
+    }
+
+
+def _ansi_tag(tag, color):
+    red, green, blue = (int(color[index:index + 2], 16) for index in (1, 3, 5))
+    return "\x1b[38;2;%d;%d;%dm%s\x1b[0m" % (red, green, blue, tag)
+
+
+def candidate_rows(candidates, colors=None):
+    """Return fzf rows with an opaque unstyled ID and a colored type tag only."""
+    colors = colors or _TAG_COLOR_FALLBACKS
+    tags = {"url": "URL", "file": "FILE", "dir": "DIR"}
+    return ["%d\t%s  %s" % (
+        candidate.id,
+        _ansi_tag(tags[candidate.kind], colors[candidate.kind]),
+        _sanitize_display(candidate.label),
+    ) for candidate in candidates]
+
+
+def action_for(key, candidate):
+    if key in ("", "enter"):
+        return "open"
+    if key == "ctrl-y":
+        return "copy"
+    if key == "ctrl-f" and candidate.kind != "url":
+        return "finder"
+    if key == "ctrl-n" and candidate.kind != "url":
+        return "nvim"
     return None
 
 
-def _dispatch(action, pane, target, line=None):
-    """Invoke tmux-open-target with the explicit pane/action interface."""
-    args = [_OPEN_TARGET, action, pane, target]
-    if line:
-        args.append(line)
-    subprocess.Popen(args, stdin=subprocess.DEVNULL,
-                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+def decode_fzf_selection(output, candidates):
+    """Map fzf's action + opaque ID output to a canonical candidate."""
+    lines = output.splitlines()
+    if not lines:
+        raise ValueError("no selected target")
+    # fzf does not emit `enter` for its default accept binding even when enter
+    # appears in --expect. Other expected keys prepend their name.
+    key, row = ("enter", lines[0]) if len(lines) == 1 else (lines[0], lines[1])
+    candidate_id, separator, _display = row.partition("\t")
+    if not separator or not candidate_id.isdecimal():
+        raise ValueError("invalid selection")
+    index = int(candidate_id)
+    if index >= len(candidates) or candidates[index].id != index:
+        raise ValueError("unknown selection")
+    action = action_for(key, candidates[index])
+    if action is None:
+        raise ValueError("unsupported action")
+    return action, candidates[index]
 
 
-def _draw(stdscr, urls, paths, sel_col, cursors, queries, hint):
-    stdscr.erase()
-    h, w = stdscr.getmaxyx()
-    col_w = (w - 1) // 2
-    left_x = 0
-    right_x = col_w + 1
-
-    def header(x, title, active):
-        attr = curses.A_BOLD if active else curses.A_DIM
-        stdscr.addnstr(0, x, title.ljust(col_w), col_w, attr)
-
-    def filtered(items, q):
-        if not q:
-            return list(range(len(items)))
-        ql = q.lower()
-        return [i for i, it in enumerate(items)
-                if ql in (it if isinstance(it, str) else it["display"]).lower()]
-
-    def draw_col(items, x, title, idxs, cursor, active, label_of):
-        header(x, title, active)
-        stdscr.addnstr(1, x, "-" * col_w, col_w, curses.A_DIM)
-        body_h = h - 3
-        start = max(0, cursor - body_h + 1)
-        for row, ii in enumerate(idxs[start:start + body_h], start=0):
-            y = 2 + row
-            if y >= h - 1:
-                break
-            label = label_of(items[ii])
-            if len(label) > col_w - 3:
-                label = label[: col_w - 6] + "..."
-            mark = ">" if (active and ii == cursor) else " "
-            text = "%s %s" % (mark, label)
-            attr = curses.A_REVERSE if (active and ii == cursor) else curses.A_NORMAL
-            stdscr.addnstr(y, x, text.ljust(col_w), col_w, attr)
-        # empty state
-        if not idxs:
-            stdscr.addnstr(2, x, "(none)", col_w, curses.A_DIM)
-
-    url_idxs = filtered(urls, queries[0])
-    path_idxs = filtered(paths, queries[1])
-    c0 = cursors[0] if url_idxs else 0
-    c1 = cursors[1] if path_idxs else 0
-    draw_col(urls, left_x, "URLs", url_idxs, c0, sel_col == 0,
-             lambda it: it)
-    draw_col(paths, right_x, "Paths", path_idxs, c1, sel_col == 1,
-             lambda it: it["display"] + ("/" if it["is_dir"] else ""))
-
-    stdscr.addnstr(h - 1, 0, hint, w - 1, curses.A_DIM)
-    stdscr.refresh()
-    return url_idxs, path_idxs, c0, c1
+def _target_program():
+    return os.environ.get("TMUX_OPEN_TARGET", _OPEN_TARGET)
 
 
-def _path_menu(stdscr, cand):
-    h, w = stdscr.getmaxyx()
-    opts = _PATH_ACTIONS
-    while True:
-        stdscr.erase()
-        line = "open in: "
-        for k, _, name in opts:
-            line += "%s=%s  " % (k, name)
-        line += "Esc=cancel"
-        stdscr.addnstr(h - 2, 0, line, w - 1, curses.A_BOLD)
-        stdscr.addnstr(h - 1, 0, cand["display"][: w - 1], w - 1, curses.A_NORMAL)
-        stdscr.refresh()
-        ch = stdscr.getch()
-        if ch in (27, ord("q")):
-            return None
-        action = menu_action_for_key(ch)
-        if action:
-            return action
+def dispatch(action, pane, candidate):
+    args = [_target_program(), action, pane, candidate.target]
+    if candidate.line:
+        args.append(candidate.line)
+    return subprocess.run(args, text=True, capture_output=True)
 
 
-def main(pane):
-    raw = capture_pane(pane)
-    cwd = pane_cwd(pane)
-    urls = extract_urls(raw)
-    paths = extract_path_candidates(raw, cwd)
-
-    def run(stdscr):
-        curses.curs_set(0)
-        stdscr.keypad(True)
-        sel_col = 1 if not urls and paths else 0
-        cursors = [0, 0]
-        queries = ["", ""]
-        while True:
-            if sel_col == 0:
-                hint = "Tab/h/l switch  j/k move  Enter=open  c=copy  / search  q/Esc close"
-            else:
-                hint = "Tab/h/l switch  j/k move  Enter=menu(n/f/c)  / search  q/Esc close"
-            url_idxs, path_idxs, c0, c1 = _draw(
-                stdscr, urls, paths, sel_col, cursors, queries, hint)
-            ch = stdscr.getch()
-            if ch in (27, ord("q")):
-                break
-            elif ch in (9, curses.KEY_LEFT, ord("h"), ord("l"), curses.KEY_RIGHT):
-                if ch in (9, ord("l"), curses.KEY_RIGHT):
-                    sel_col = (sel_col + 1) % 2
-                else:
-                    sel_col = (sel_col - 1) % 2
-                cursors = [c0, c1]
-            elif ch in (ord("j"), curses.KEY_DOWN):
-                idxs = url_idxs if sel_col == 0 else path_idxs
-                if idxs:
-                    cur = c0 if sel_col == 0 else c1
-                    pos = idxs.index(cur) if cur in idxs else 0
-                    pos = min(pos + 1, len(idxs) - 1)
-                    cursors[sel_col] = idxs[pos]
-            elif ch in (ord("k"), curses.KEY_UP):
-                idxs = url_idxs if sel_col == 0 else path_idxs
-                if idxs:
-                    cur = c0 if sel_col == 0 else c1
-                    pos = idxs.index(cur) if cur in idxs else 0
-                    pos = max(pos - 1, 0)
-                    cursors[sel_col] = idxs[pos]
-            elif ch in (curses.KEY_ENTER, 10, 13):
-                idxs = url_idxs if sel_col == 0 else path_idxs
-                cur = c0 if sel_col == 0 else c1
-                if not idxs:
-                    continue
-                if sel_col == 0:
-                    _dispatch("open", pane, urls[cur])
-                    break
-                else:
-                    cand = paths[cur]
-                    action = _path_menu(stdscr, cand)
-                    if action is None:
-                        continue
-                    line = cand.get("line") or ""
-                    _dispatch(action, pane, cand["path"], line)
-                    if action == "nvim":
-                        break  # nvim split takes over; close popup
-            elif ch == ord("c") and sel_col == 0 and url_idxs:
-                # URL copy: mirror path-copy semantics without closing the popup
-                # so the user can copy more URLs or open one with Enter.
-                _dispatch("copy", pane, urls[c0])
-            elif ch == ord("/"):
-                hint = "type to filter active column, Backspace deletes, Esc closes search"
-                # fallthrough handled by printable catch below; just update hint
-                _draw(stdscr, urls, paths, sel_col, cursors, queries, hint)
-                continue
-            elif 32 <= ch <= 126:
-                queries[sel_col] += chr(ch)
-                cursors[sel_col] = (url_idxs if sel_col == 0 else path_idxs)[0] if \
-                    (url_idxs if sel_col == 0 else path_idxs) else 0
-            elif ch in (curses.KEY_BACKSPACE, 127, 8):
-                queries[sel_col] = queries[sel_col][:-1]
-                idxs = url_idxs if sel_col == 0 else path_idxs
-                cursors[sel_col] = idxs[0] if idxs else 0
-            elif ch == curses.KEY_RESIZE:
-                continue
-
+def _notice(message):
     try:
-        curses.wrapper(run)
-    except curses.error:
+        subprocess.run(["tmux", "display-message", "-d", "4000", "open picker: " + message],
+                       check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except OSError:
+        # A missing tmux binary must not turn an already-useful picker error
+        # into a traceback (for example during a failed direct invocation).
         pass
 
 
+def _error_text(completed):
+    detail = (completed.stderr or completed.stdout or "").strip().splitlines()
+    return detail[0] if detail else "command failed (%d)" % completed.returncode
+
+
+def _fzf(candidates):
+    result = subprocess.run(
+        ["fzf", "--ansi", "--no-multi", "--delimiter=\\t", "--with-nth=2..",
+         "--prompt", "open> ", "--header", "Enter open  Ctrl-Y copy  Ctrl-F Finder  Ctrl-N nvim  Esc close",
+         "--expect", "enter,ctrl-y,ctrl-f,ctrl-n", "--bind", "alt-o:abort,alt-q:abort"],
+        input="\n".join(candidate_rows(candidates, tag_colors())) + "\n", text=True, capture_output=True,
+    )
+    if result.returncode == 130:
+        return None
+    if result.returncode == 1:
+        raise PickerError("no matching target")
+    if result.returncode != 0:
+        raise PickerError(_error_text(result))
+    try:
+        return decode_fzf_selection(result.stdout, candidates)
+    except ValueError as exc:
+        raise PickerError(str(exc)) from exc
+
+
+def inner(pane):
+    try:
+        raw = capture_pane(pane)  # single visible-pane capture by design
+        candidates = build_candidates(raw, pane_cwd(pane))
+        if not candidates:
+            raise PickerError("no candidates")
+        selection = _fzf(candidates)
+        if selection is None:
+            return 0
+        action, candidate = selection
+        completed = dispatch(action, pane, candidate)
+        if completed.returncode:
+            raise PickerError(_error_text(completed))
+        return 0
+    except subprocess.CalledProcessError:
+        _notice("invalid pane: %s" % pane)
+    except (PickerError, OSError) as exc:
+        _notice(str(exc))
+    return 1
+
+
+def launch(pane):
+    if not pane:
+        raise PickerError("invalid pane")
+    command = "%s --inner %s" % (shlex.quote(os.path.abspath(__file__)), shlex.quote(pane))
+    return subprocess.run(
+        ["tmux", "display-popup", "-E", "-w", "80%", "-h", "60%", "-T", "open", command],
+        check=False,
+    ).returncode
+
+
+def main(argv):
+    if len(argv) == 3 and argv[1] == "--inner":
+        return inner(argv[2])
+    if len(argv) == 2:
+        try:
+            return launch(argv[1])
+        except (PickerError, OSError) as exc:
+            _notice(str(exc))
+            return 2
+    sys.stderr.write("usage: tmux-open-picker <pane-id> | tmux-open-picker --inner <pane-id>\n")
+    return 2
+
+
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        sys.stderr.write("usage: tmux-open-picker <pane-id>\n")
-        sys.exit(2)
-    main(sys.argv[1])
+    sys.exit(main(sys.argv))

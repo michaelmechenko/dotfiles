@@ -345,15 +345,15 @@ Lists panes outside the current session in an fzf popup with fixed columns (incl
 - **M-g** — same as `alt-g` (enter ripgrep mode)
 - **M-T** — toggle close/open (press again to close active popup)
 
-### `M-o` — URL/path picker (`tmux-open-picker`)
-Two side-by-side lists over the visible pane content: **URLs** (left) and validated **files/directories** (right). Paths are resolved against [pane cwd, git root, parent directories] — paths containing `/` try all roots (so `src/main.rs` from a subdirectory resolves via the project root); bare filenames (no `/`) only try the pane cwd to avoid false positives. Punctuation-wrapped paths like `(src/main.rs)` or `src/main.rs,` are trimmed before resolution. The origin pane is passed explicitly (`'#{pane_id}'`); no global `TMUX_OPEN_PANE` state.
-- **Tab / h / l** — switch columns
-- **j / k or ↑/↓** — move within the active column
-- **type** — incremental substring filter on the active column; **Backspace** deletes
-- **Enter on a URL** → open in the browser
-- **c on a URL** → copy to clipboard (popup stays open)
-- **Enter on a path** → action menu: **n**=nvim split, **f**=Finder (reveal file / open dir), **c**=copy to clipboard
-- **M-o / Esc / q** — toggle close/open (press again to close active popup)
+### `M-o` — target picker (`tmux-open-picker`)
+One vertical fuzzy list over the visible origin pane. Every row is tagged **URL**, **FILE**, or **DIR**; selection resolves through an opaque ID, never rendered text. Paths are validated against [pane cwd, git root, parent directories]; paths containing `/` try all roots, bare filenames only the pane cwd, and punctuation wrappers such as `(src/main.rs)` are trimmed. The origin pane is explicit (`'#{pane_id}'`); M-o has no global `TMUX_OPEN_PANE` state.
+- **type** — unrestricted fuzzy query; all printable keys, including `q/c/h/j/k/l`, remain searchable
+- **Enter** — smart-open: URL → browser; FILE → nvim at its optional line; DIR → Finder
+- **Ctrl-Y** — copy any selected target
+- **Ctrl-F** — reveal a selected file or open a selected directory in Finder
+- **Ctrl-N** — open a selected file or directory in nvim
+- **M-o / Alt-Q / Esc** — close the active picker
+- No candidates, stale panes, unsupported actions, and adapter failures show a concise tmux message and return nonzero.
 
 ### `M-K` — extrakto (`tmux-extrakto-launch`)
 Extract words/lines/URLs from pane content (default grab area = window full) into fzf. Records the origin pane in `TMUX_OPEN_PANE`; `@extrakto_open_tool` routes ctrl-o opens through the shared `tmux-open-target` (files → nvim split, else `open`). Keeps `FZF_DEFAULT_OPTS` palette (`@extrakto_fzf_unset_default_opts "false"`).

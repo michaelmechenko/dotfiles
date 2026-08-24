@@ -9,7 +9,7 @@ import { executionGuidance, renderExecutionContext } from "./execution-context.t
 import { candidateFor, createExecutionSettings, cycleExecutionSettingValue, defaultExecutionDestination, resolveExecutionSettings, retainSelectedExecutionRow, type ExecutionDestination, type ExecutionSettings, type ModelCandidate } from "./execution-settings.ts";
 import { deletePlanFile, readPlanFile, writePlanFile } from "./plan-file.ts";
 import { applyPlanUpdate, canClosePlan, createPlanState, enterRestrictedMode, isStepDone, leaveRestrictedMode, materializePlan, migratePlanState, pendingSteps, type ModelSnapshot, type PlanCloseout, type PlanState, type ThinkingLevel } from "./plan-state.ts";
-import { archiveCompletedPlan, completedPlanRecord, listCompletedPlans, resolvePlanProject, watchCompletedPlans, type PlanProject } from "./plan-history.ts";
+import { archiveCompletedPlan, completedPlanRecord, listCompletedPlansForSession, resolvePlanProject, watchCompletedPlans, type PlanProject } from "./plan-history.ts";
 import { planFooterStatus } from "./plan-status.ts";
 import { checkRestrictedToolCall, PLAN_EXECUTION_TOOLS, PLAN_UPDATE_TOOL, restrictedTools, restrictionGuidance } from "./restricted-mode.ts";
 import { buildRecalibrationMessage, promptForRecalibration } from "./recalibration-editor.ts";
@@ -98,7 +98,7 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 	}
 	function refreshCompletedHistory(ctx: ExtensionContext): void {
 		if (!project) return;
-		const records = listCompletedPlans(agentDir, project);
+		const records = listCompletedPlansForSession(agentDir, project, sessionId);
 		completedPlanCount = records.length;
 		// A detached child finishes the same plan in another process. Once its
 		// archive arrives, release this source session for its next sequential plan.

@@ -107,6 +107,11 @@ export function listCompletedPlans(agentDir: string, project: PlanProject): Comp
 	return records.sort((a, b) => a.completedAt.localeCompare(b.completedAt));
 }
 
+/** Project storage is shared, while the footer count belongs to one source session. */
+export function listCompletedPlansForSession(agentDir: string, project: PlanProject, sessionId: string): CompletedPlanRecord[] {
+	return listCompletedPlans(agentDir, project).filter((record) => record.sessionId === sessionId);
+}
+
 /** Watch one project directory only; callers close it with their session. */
 export function watchCompletedPlans(agentDir: string, project: PlanProject, listener: () => void): FSWatcher {
 	const dir = planHistoryDirectory(agentDir, project);

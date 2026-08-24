@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { archiveCompletedPlan, completedPlanRecord, listCompletedPlans, planHistoryKey } from "./plan-history.ts";
+import { archiveCompletedPlan, completedPlanRecord, listCompletedPlans, listCompletedPlansForSession, planHistoryKey } from "./plan-history.ts";
 import { applyPlanUpdate, createPlanState, materializePlan } from "./plan-state.ts";
 
 const brief = { summary: "summary", findings: ["finding"], decisions: ["decision"], relevantFiles: [{ path: "index.ts", note: "flow" }], constraints: ["safe"] };
@@ -22,8 +22,11 @@ test("completed plans archive atomically and retain sequential session history",
 		const second = completedPlanRecord(completedState("second"), "session-a", project, closeout, "2026-01-03T00:00:00.000Z");
 		archiveCompletedPlan(dir, first);
 		archiveCompletedPlan(dir, first);
+		const otherSession = completedPlanRecord(completedState("third"), "session-b", project, closeout, "2026-01-04T00:00:00.000Z");
 		archiveCompletedPlan(dir, second);
-		assert.deepEqual(listCompletedPlans(dir, project).map((record) => record.id), ["first", "second"]);
+		archiveCompletedPlan(dir, otherSession);
+		assert.deepEqual(listCompletedPlans(dir, project).map((record) => record.id), ["first", "second", "third"]);
+		assert.deepEqual(listCompletedPlansForSession(dir, project, "session-a").map((record) => record.id), ["first", "second"]);
 		assert.equal(listCompletedPlans(dir, project)[0]?.closeout.outcome, "done");
 	} finally { rmSync(dir, { recursive: true, force: true }); }
 });

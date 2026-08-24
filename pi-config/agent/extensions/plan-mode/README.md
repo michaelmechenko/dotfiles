@@ -43,7 +43,7 @@ The saved default is only `agent/plan-mode.json`'s `executionModel`; it never ch
 
 ## Footer status
 
-The footer's plan status is derived from the active plan and completed project history:
+The footer's plan status is derived from the active plan and completed history for the current source session. Project storage remains shared across sessions and worktrees, but other sessions' completions do not affect this count:
 
 - `waiting to plan`
 - `1 plan · planning`, `1 plan · waiting to execute`, or `1 plan · paused`

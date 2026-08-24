@@ -6,7 +6,7 @@ import { planFooterStatus } from "./plan-status.ts";
 const brief = { summary: "summary", findings: [], decisions: [], relevantFiles: [], constraints: [] };
 const withPlan = (phase: "drafting" | "ready" | "revising" | "executing" | "paused" | "handed-off") => ({ ...applyPlanUpdate({ ...createPlanState(), phase }, { goal: "Ship", steps: ["Inspect", "Implement"], executionBrief: brief }), phase });
 
-test("footer status distinguishes empty and completed project history", () => {
+test("footer status distinguishes empty and completed session history", () => {
 	assert.equal(planFooterStatus(createPlanState(), 0), "waiting to plan");
 	assert.equal(planFooterStatus(createPlanState(), 1), "1 plan executed · waiting for next plan");
 	assert.equal(planFooterStatus(createPlanState(), 2), "2 plans executed · waiting for next plan");

@@ -68,6 +68,7 @@ chrome
 /claude/security
 /homebrew/trust.json
 /homebrew/trust.json.lock
+/worktrunk/approvals.toml
 /claude/.claude.json.backup
 /pi-config/agent/sessions
 /pi-config/agent/extensions/*/node_modules

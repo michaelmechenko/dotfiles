@@ -31,6 +31,7 @@ font: lilex
 keybindings and app switching: raycast
 
 cool tools and things used:
+- worktrunk (`wt`) for isolated worktree workflows
 - opencode
 - k9s
 - orbstack

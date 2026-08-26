@@ -75,6 +75,14 @@
 - Do not poll tmux panes. Completion is durable and silence is an explicit one-shot notification; mute silence when it is expected.
 - Never terminate tmux sessions, windows, or panes automatically.
 
+## Worktrunk
+
+- Prefer `wt switch --create --base=<explicit-ref>` over raw `git worktree add` for parallel feature work; the tracked user config places worktrees under `~/.worktrees/<repo>/<branch>`
+- Launch an isolated pi task with `wt switch --create --base=<explicit-ref> -x pi <branch> -- '<task>'`
+- Keep each worktree and commit scoped to one feature; do not sweep changes from the main checkout or another session
+- Never run `wt merge`, `wt remove`, force removal, branch deletion, `--clobber`, `--yes`, push, or PR creation without explicit user approval
+- Never bypass project hook approval with `--yes` or `--no-hooks`; stop and let the user review `wt config approvals add`
+
 ## Safety
 
 - Never expose secrets, tokens, credentials, or private keys

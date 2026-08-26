@@ -314,10 +314,10 @@ background/async subagents with tmux pane observability become a real need.
 
 ## Skills (`agent/skills/`)
 
-24 skills are present. Flat layout — one `skills/<name>/SKILL.md` per skill, with support files beside it when needed.
+25 skills are present. Flat layout — one `skills/<name>/SKILL.md` per skill, with support files beside it when needed.
 
 <!-- inventory:skills -->
-`bc-batch-commit`, `bro`, `cc-clipboard`, `code-review`, `codebase-design`, `cx-handoff`, `diagnosing-bugs`, `domain-modeling`, `grill-me`, `grill-with-docs`, `grilling`, `implement`, `improve-codebase-architecture`, `index-knowledge`, `interface-kit`, `research`, `resolving-merge-conflicts`, `tdd`, `terminate-slop`, `to-spec`, `to-tickets`, `triage`, `wayfinder`, `writing-great-skills`
+`bc-batch-commit`, `bro`, `cc-clipboard`, `code-review`, `codebase-design`, `cx-handoff`, `diagnosing-bugs`, `domain-modeling`, `grill-me`, `grill-with-docs`, `grilling`, `implement`, `improve-codebase-architecture`, `index-knowledge`, `interface-kit`, `research`, `resolving-merge-conflicts`, `tdd`, `terminate-slop`, `to-spec`, `to-tickets`, `triage`, `wayfinder`, `worktrunk`, `writing-great-skills`
 <!-- /inventory:skills -->
 
 Settings currently disable `code-review`, `tdd`, `terminate-slop`, `to-spec`, `to-tickets`, and `triage`; the remaining skills are available.
@@ -370,6 +370,7 @@ before landing here:
 | `improve-codebase-architecture` | mattpocock-skills/engineering | Scan for deepening opportunities, present as an HTML report, grill through the pick. |
 | `research` | mattpocock-skills/engineering | Investigate against primary sources, capture cited findings as a Markdown file. |
 | `resolving-merge-conflicts` | mattpocock-skills/engineering | Work an in-progress merge/rebase conflict hunk by hunk by intent; never `--abort`. |
+| `worktrunk` | max-sixty/worktrunk v0.74.0 | Official Worktrunk Agent Skill and reference bundle, locally adapted for pi, explicit bases, the tracked personal config, and this repo's approval/commit policy. |
 | `tdd` | mattpocock-skills/engineering | Red-green-refactor loop; what a good test is, seams, anti-patterns. |
 | `to-spec` | mattpocock-skills/engineering | Synthesize the current conversation into a spec/PRD, publish to the issue tracker. |
 | `to-tickets` | mattpocock-skills/engineering | Break a plan/spec into blocking-edge-declared tracer-bullet tickets. |
@@ -379,6 +380,13 @@ before landing here:
 | `grilling` | mattpocock-skills/productivity | Relentless one-question-at-a-time interview to resolve a decision tree. |
 | `writing-great-skills` | mattpocock-skills/productivity | Reference for writing/editing skills well — the vocabulary behind predictable skills. |
 | `terminate-slop` | juliusbrusse-skills (renamed from `fuck-slop`, de-vulgarized) | Detects and erases AI-writing tells; rewrites text into its target register. |
+
+The `worktrunk/` skill is pinned from the upstream `v0.74.0` release. Its
+`reference/` directory is an unchanged copy of Worktrunk's generated docs;
+`SKILL.md` carries the local pi policy and replaces Claude/OpenCode handoff
+examples with explicit-base pi commands. To update it, copy the matching release's
+`skills/worktrunk/` tree, then reapply and review those local policy sections
+against `worktrunk/config.toml` and both `AGENTS.md` files.
 
 Project-local `.pi/skills/` or `.agents/skills/` (if a project adds either) layer on top of these
 user-level skills — no interplay to note beyond pi's normal name-collision-keeps-first-found rule.

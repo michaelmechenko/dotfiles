@@ -35,6 +35,12 @@ plugins=(macos zsh-syntax-highlighting zsh-autosuggestions)
 
 source $ZSH/oh-my-zsh.sh
 
+# Load Worktrunk's safe split-directive wrapper without letting its installer
+# modify ~/.zshrc, which must remain the minimal shim into this tracked file.
+if (( $+commands[wt] )); then
+  eval "$(wt config shell init zsh)"
+fi
+
 # Tab's no-autosuggestion fallback: insert the first match immediately when there
 # are fewer than TAB_MENU_THRESHOLD candidates (skip the list); at or above the
 # threshold, fall back to oh-my-zsh's default completion behavior (list first,

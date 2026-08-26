@@ -12,6 +12,18 @@ A personal macOS dotfiles tree mounted at `~/.config`. The `README.md` lists the
 
 For visual/config rendering work, define the intended result for every affected conditional branch before editing. Validate the actual rendered output at representative focus, label, zoom, and size states; parsing and format expansion are supplementary checks only. Do not regress an existing requested state while correcting a neighboring visual defect.
 
+## Worktrees
+
+Worktrunk (`wt`) is the canonical worktree workflow. Its tracked user config is
+`worktrunk/config.toml`; linked worktrees live under
+`~/.worktrees/<repo>/<sanitized-branch>`. For parallel feature work, use
+`wt switch --create --base=<explicit-ref>` rather than raw `git worktree add`,
+and keep one feature/session per branch and worktree. Never run `wt merge`,
+`wt remove`, force removal, branch deletion, `--clobber`, `--yes`, push, or PR
+creation without explicit approval. Never bypass project hook approval with
+`--yes` or `--no-hooks`. The main checkout may be dirty from concurrent or live
+config changes; do not sweep them into a worktree or integration.
+
 ## Commits
 
 Stage and commit via explicit request (e.g. the `batch-commit` skill) — scoped commits, Conventional Commits, no emojis, no fluff. Never push or open a PR without explicit approval; those stay separate, explicit user actions.

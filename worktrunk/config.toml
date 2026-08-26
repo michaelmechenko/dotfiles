@@ -1,0 +1,25 @@
+# Personal Worktrunk defaults for isolated parallel-agent worktrees.
+worktree-path = "~/.worktrees/{{ repo }}/{{ branch | sanitize }}"
+
+[list]
+json-schema = 2
+summary = false
+full = false
+
+# Never sweep unstaged or untracked files into a generated commit.
+[commit]
+stage = "none"
+
+# Preserve reviewed commits and worktrees. Integration remains an explicit,
+# user-approved operation even with these conservative defaults.
+[merge]
+squash = false
+commit = false
+rebase = false
+remove = false
+verify = true
+ff = true
+
+# Removing a worktree must not implicitly delete its branch.
+[remove]
+delete-branch = false

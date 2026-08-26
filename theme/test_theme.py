@@ -87,6 +87,41 @@ class BuildTests(unittest.TestCase):
         self.assertEqual(theme._active_name(), active_before)
 
 
+class LazyGitAdapterTests(unittest.TestCase):
+    def test_default_foreground_uses_primary_text(self):
+        for path in sorted(theme.PALETTES_DIR.glob("*.json")):
+            with self.subTest(palette=path.stem):
+                palette = theme.load_palette(path.stem)
+                lazygit = theme.render_bundle(palette)["lazygit/colors.yml"]
+                self.assertIn(
+                    f'defaultFgColor:\n    - "{palette["roles"]["text"]}"',
+                    lazygit,
+                )
+
+    def test_selected_background_keeps_default_foreground_readable(self):
+        for path in sorted(theme.PALETTES_DIR.glob("*.json")):
+            with self.subTest(palette=path.stem):
+                palette = theme.load_palette(path.stem)
+                selected_bg = theme._lazygit_selected_bg(palette)
+                self.assertGreaterEqual(
+                    theme.contrast_ratio(palette["roles"]["text"], selected_bg),
+                    theme.CONTRAST_NORMAL,
+                )
+                lazygit = theme.render_bundle(palette)["lazygit/colors.yml"]
+                self.assertIn(f'selectedLineBgColor:\n    - "{selected_bg}"', lazygit)
+
+    def test_all_launch_paths_use_generated_config(self):
+        generated = "theme/generated/lazygit/config.yml"
+        zsh = (theme.CONFIG_DIR / "zshrc").read_text()
+        popup = (theme.CONFIG_DIR / "tmux_scripts/tmux-lazygit-popup").read_text()
+        nvim = (theme.CONFIG_DIR / "nvim/lua/plugins/lazygit.lua").read_text()
+        for entrypoint in (zsh, popup, nvim):
+            self.assertIn(generated, entrypoint)
+        self.assertIn("--use-config-file", zsh)
+        self.assertIn("--use-config-file", popup)
+        self.assertIn("lazygit_use_custom_config_file_path = 1", nvim)
+
+
 class TmuxAdapterTests(unittest.TestCase):
     def test_static_styles_are_materialized(self):
         tmux = theme.render_bundle(theme.load_palette("vague"))["tmux/colors.conf"]

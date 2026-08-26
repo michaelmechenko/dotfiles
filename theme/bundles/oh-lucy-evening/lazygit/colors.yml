@@ -9,7 +9,7 @@ theme:
   optionsTextColor:
     - "#7F737D"
   selectedLineBgColor:
-    - "#CFD0D7"
+    - "#29292E"
   cherryPickedCommitFgColor:
     - "#FF7DA3"
   cherryPickedCommitBgColor:
@@ -21,4 +21,4 @@ theme:
   unstagedChangesColor:
     - "#FF7DA3"
   defaultFgColor:
-    - "#1A1B1F"
+    - "#DED7D0"

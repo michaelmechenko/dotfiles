@@ -669,8 +669,20 @@ k9s:
 """
 
 
+def _lazygit_selected_bg(p: dict) -> str:
+    """Choose the most semantic selected-row background that keeps LazyGit's
+    single global foreground readable. LazyGit has no selected-line foreground
+    option, so palettes with a light selection-bg need a dark surface fallback."""
+    r = p["roles"]
+    for role in ("selection-bg", "surface-highlight", "surface-active"):
+        if contrast_ratio(r["text"], r[role]) >= CONTRAST_NORMAL:
+            return r[role]
+    raise ThemeError(f"{p['name']}: no readable LazyGit selected-row background")
+
+
 def _lazygit(p: dict) -> str:
     r = p["roles"]
+    selected_bg = _lazygit_selected_bg(p)
     return f"""authorColors:
   "*": "{r['accent-amber']}"
 theme:
@@ -682,7 +694,7 @@ theme:
   optionsTextColor:
     - "{r['copy-mode-indicator']}"
   selectedLineBgColor:
-    - "{r['selection-bg']}"
+    - "{selected_bg}"
   cherryPickedCommitFgColor:
     - "{r['accent-primary']}"
   cherryPickedCommitBgColor:
@@ -694,7 +706,7 @@ theme:
   unstagedChangesColor:
     - "{r['accent-primary']}"
   defaultFgColor:
-    - "{r['selection-fg']}"
+    - "{r['text']}"
 """
 
 

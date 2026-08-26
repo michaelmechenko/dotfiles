@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"mm-sidebar/internal/display"
 	"mm-sidebar/internal/theme"
 )
 
@@ -26,12 +27,15 @@ func (Filetree) Title() string { return "filetree" }
 // an earlier `eza --tree --icons` version stripped tree glyphs to recover paths
 // and silently resolved every row to the tree root, so Enter on a nested
 // directory opened a pane in the wrong place.
-func (Filetree) Fetch(c Ctx) []Row {
-	dirs, files := readSplit(c.Root)
+func (f Filetree) Fetch(c Ctx) ([]Row, error) {
+	if _, err := os.ReadDir(c.Root); err != nil {
+		return nil, FetchFailure(f, err)
+	}
+	dirs, files := readSplit(c.Root, c.ShowHidden)
 	rows := make([]Row, 0, len(dirs)+len(files))
 	for _, d := range dirs {
 		rows = append(rows, dirRow(c.Theme, d, 0))
-		subDirs, subFiles := readSplit(d)
+		subDirs, subFiles := readSplit(d, c.ShowHidden)
 		for _, s := range subDirs {
 			rows = append(rows, dirRow(c.Theme, s, 1))
 		}
@@ -42,16 +46,56 @@ func (Filetree) Fetch(c Ctx) []Row {
 	for _, f := range files {
 		rows = append(rows, fileRow(c.Theme, f, 0))
 	}
-	return rows
+	return rows, nil
 }
 
-// Up implements Ascender: move the browse root to its parent.
-func (Filetree) Up(c Ctx) (string, bool) {
-	parent := parentDir(c.Root)
-	if parent == c.Root {
-		return c.Root, false
+// SyncRoot derives the tree root only until the user pins it. The generic model
+// invokes this optional hook; it has no filetree-specific lifecycle branch.
+func (Filetree) SyncRoot(c Ctx) (string, string) {
+	if c.Root == "" || (!c.RootPinned && c.ContentPane != c.RootPane) {
+		return c.Cwd, c.ContentPane
 	}
-	return parent, true
+	return c.Root, c.RootPane
+}
+
+// WatchRoot makes the existing scoped watcher opt-in for this source only.
+func (Filetree) WatchRoot(c Ctx) string { return c.Root }
+
+// KeyActions advertises the local controls that HandleSourceKey accepts. The
+// optional ActionProvider contract keeps help extensible without a filetree name
+// branch in the model.
+func (Filetree) KeyActions() []KeyAction {
+	return []KeyAction{
+		{Key: "h", Summary: "toggle hidden"},
+		{Key: "p", Summary: "pin root"},
+		{Key: "R", Summary: "reset root"},
+		{Key: "Backspace", Summary: "parent directory"},
+	}
+}
+
+// HandleSourceKey owns the tree's local controls: h includes dotfiles, R resets
+// the root to the current content cwd, p pins/unpins that root, and Backspace
+// ascends. The model only applies this generic state descriptor.
+func (Filetree) HandleSourceKey(key string, c Ctx) (SourceControl, bool) {
+	switch key {
+	case "h":
+		return SourceControl{ShowHidden: !c.ShowHidden, SetShowHidden: true, Refresh: true}, true
+	case "R":
+		return SourceControl{Root: c.Cwd, RootPane: c.ContentPane, SetRoot: true, RootPinned: false, SetRootPinned: true, Refresh: true}, true
+	case "p":
+		return SourceControl{RootPinned: !c.RootPinned, SetRootPinned: true, Refresh: true}, true
+	case "backspace":
+		if c.Root == "" {
+			return SourceControl{}, true
+		}
+		parent := parentDir(c.Root)
+		if parent == c.Root {
+			return SourceControl{}, true
+		}
+		return SourceControl{Root: parent, RootPane: c.RootPane, SetRoot: true, Refresh: true}, true
+	default:
+		return SourceControl{}, false
+	}
 }
 
 func parentDir(path string) string {
@@ -70,18 +114,26 @@ func parentDir(path string) string {
 }
 
 func dirRow(th theme.Theme, path string, depth int) Row {
+	name := display.Sanitize(filepath.Base(path))
 	return Row{
-		Lines: []string{indent(depth) + th.Accent.Render(filepath.Base(path)+"/")},
-		Kind:  ActionOpenDir,
-		Path:  path,
+		ID:         "dir:" + path,
+		SearchText: name + " " + display.Sanitize(path),
+		Lines:      []string{indent(depth) + th.Accent.Render(name+"/")},
+		Kind:       ActionOpenDir,
+		Path:       path,
+		Actions:    dirActions(path),
 	}
 }
 
 func fileRow(th theme.Theme, path string, depth int) Row {
+	name := display.Sanitize(filepath.Base(path))
 	return Row{
-		Lines: []string{indent(depth) + th.Text.Render(filepath.Base(path))},
-		Kind:  ActionOpenFile,
-		Path:  path,
+		ID:         "file:" + path,
+		SearchText: name + " " + display.Sanitize(path),
+		Lines:      []string{indent(depth) + th.Text.Render(name)},
+		Kind:       ActionOpenFile,
+		Path:       path,
+		Actions:    fileActions(path),
 	}
 }
 
@@ -90,12 +142,15 @@ func indent(depth int) string { return strings.Repeat("  ", depth) }
 // readSplit returns a directory's immediate children, split into directories and
 // files, each sorted by name. Symlinks are classified by their target so a
 // symlinked directory (this repo has several) still expands.
-func readSplit(dir string) (dirs, files []string) {
+func readSplit(dir string, showHidden bool) (dirs, files []string) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, nil
 	}
 	for _, e := range entries {
+		if !showHidden && strings.HasPrefix(e.Name(), ".") {
+			continue
+		}
 		path := filepath.Join(dir, e.Name())
 		isDir := e.IsDir()
 		if e.Type()&os.ModeSymlink != 0 {

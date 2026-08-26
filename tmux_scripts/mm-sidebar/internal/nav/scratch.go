@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"mm-sidebar/internal/display"
 )
 
 // Scratch offers exactly two markdown buffers: a global one and a per-project
@@ -17,9 +19,11 @@ func (Scratch) Title() string { return "scratch" }
 
 // Fetch deliberately does NOT read SMAP-TODOS.md -- smap is Claude-only and pi
 // disregards it, so the scratch tab stays tool-agnostic.
-func (Scratch) Fetch(c Ctx) []Row {
+func (s Scratch) Fetch(c Ctx) ([]Row, error) {
 	dir := ScratchDir()
-	_ = os.MkdirAll(dir, 0o755)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return nil, FetchFailure(s, err)
+	}
 	entries := []struct {
 		label string
 		path  string
@@ -29,14 +33,18 @@ func (Scratch) Fetch(c Ctx) []Row {
 	}
 	rows := make([]Row, 0, len(entries))
 	for _, e := range entries {
+		label := display.Sanitize(e.label)
+		size := scratchSize(e.path)
 		rows = append(rows, Row{
-			Lines: []string{c.Theme.Accent.Render(e.label) + "  " +
-				c.Theme.Muted.Render(scratchSize(e.path))},
+			ID:         "scratch:" + e.path,
+			SearchText: label + " " + display.Sanitize(e.path),
+			Lines: []string{c.Theme.Accent.Render(label) + "  " +
+				c.Theme.Muted.Render(size)},
 			Kind: ActionEditFile,
 			Path: e.path,
 		})
 	}
-	return rows
+	return rows, nil
 }
 
 // ScratchDir is where the scratch tab's buffers live. Gitignored via

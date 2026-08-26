@@ -178,6 +178,25 @@ func TestAgentsGlanceHoverUnderlinesLocationOnly(t *testing.T) {
 	}
 }
 
+func TestAgentLocationSanitizesHostileTmuxFields(t *testing.T) {
+	got := agentLocation(agents.Row{
+		PaneLabel:   "label\x1f\n\t\x1b中é",
+		WindowName:  "window\r\u0080",
+		SessionName: "session\\\"'",
+	})
+	if strings.ContainsAny(got, "\x1f\n\t\r\x1b") {
+		t.Fatalf("agent location leaked control byte: %q", got)
+	}
+	for _, escaped := range []string{`\x1f`, `\n`, `\t`, `\x1b`, `\r`, `\u0080`} {
+		if !strings.Contains(got, escaped) {
+			t.Fatalf("agent location missing %q: %q", escaped, got)
+		}
+	}
+	if !strings.Contains(got, "中é") {
+		t.Fatalf("agent location lost ordinary Unicode: %q", got)
+	}
+}
+
 func TestAgentLocationIncludesOnlyPresentSegments(t *testing.T) {
 	if got := agentLocation(agents.Row{PaneLabel: "p", WindowName: "w", SessionName: "s"}); got != "p · w · s" {
 		t.Fatalf("labeled location = %q", got)
@@ -187,6 +206,20 @@ func TestAgentLocationIncludesOnlyPresentSegments(t *testing.T) {
 	}
 	if got := agentLocation(agents.Row{PaneLabel: "p", WindowName: "-", SessionName: "s"}); got != "p · s" {
 		t.Fatalf("missing window location = %q", got)
+	}
+}
+
+func TestAgentsGlanceExposesRegistryOwnedContextActions(t *testing.T) {
+	b := NewAgentsGlance(theme.Theme{}, make(chan struct{}, 1))
+	b.Update(AgentRowsMsg{Rows: []agents.Row{{
+		PaneID: "%1", Target: "sess:1", SessionID: "stable-session", Agent: agents.AgentPi,
+	}}})
+	actions := b.Actions(0)
+	if len(actions) != 4 || actions[0].ID != "focus" || actions[1].ID != "response" || actions[2].ID != "plan" || actions[3].Text != "stable-session" {
+		t.Fatalf("agent actions = %#v", actions)
+	}
+	if got := b.Actions(1); got != nil {
+		t.Fatalf("hidden agent actions = %#v, want nil", got)
 	}
 }
 

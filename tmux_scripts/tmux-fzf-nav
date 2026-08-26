@@ -262,6 +262,74 @@ list_sessions() {
     }'
 }
 
+# Sidebar-only adapters. Every tmux-owned string is q/a encoded before it
+# crosses either the unit-separator stream or the TSV boundary. The Go tmuxio
+# decoder owns decoding and validation. Existing picker modes above remain
+# byte-compatible for their established consumers.
+list_windows_sidebar() {
+  local current_session_id
+  if [ -n "${TMUX_PANE:-}" ]; then
+    current_session_id=$(tmux display-message -p -t "$TMUX_PANE" '#{q/a:session_id}')
+  else
+    current_session_id=$(tmux display-message -p '#{q/a:session_id}')
+  fi
+
+  tmux list-panes -a -F "#{?pane_active,1,0}${SEP}#{q/a:pane_id}${SEP}#{q/a:session_id}${SEP}#{q/a:window_index}${SEP}#{q/a:window_name}${SEP}#{q/a:pane_current_command}${SEP}#{q/a:pane_current_path}" \
+    | awk -F "$SEP" -v current_id="$current_session_id" '
+      BEGIN { OFS = "\t"; print "PANE", "TARGET", "DISPLAY", "WNAME", "CMD", "CWD", "ACTIVE" }
+      $3 == current_id { print $2, $3, $4, $5, $6, $7, $1 }
+    '
+}
+
+list_sessions_sidebar() {
+  local current_session_id
+  if [ -n "${TMUX_PANE:-}" ]; then
+    current_session_id=$(tmux display-message -p -t "$TMUX_PANE" '#{q/a:session_id}')
+  else
+    current_session_id=$(tmux display-message -p '#{q/a:session_id}')
+  fi
+
+  {
+    tmux list-sessions -O creation -F "S${SEP}#{q/a:session_id}${SEP}#{q/a:session_name}${SEP}#{q/a:session_windows}${SEP}#{q/a:session_attached}${SEP}#{m/r:^float,#{session_name}}"
+    tmux list-panes -a -F "P${SEP}#{q/a:session_id}${SEP}#{q/a:pane_id}${SEP}#{q/a:window_index}${SEP}#{?pane_active,1,0}${SEP}#{?window_active,1,0}${SEP}#{q/a:pane_current_path}"
+  } | awk -F "$SEP" -v current_id="$current_session_id" '
+    BEGIN { OFS = "\t"; print "PANE", "TARGET", "DISPLAY", "SNAME", "WINDOWS", "ATTACHED", "CWD", "CURRENT" }
+    $1 == "S" {
+      sid = $2
+      sname[sid] = $3
+      windows[sid] = $4
+      attached[sid] = $5
+      if ($6 == 1) float_order[++float_count] = sid
+      else other_order[++other_count] = sid
+      next
+    }
+    $1 == "P" {
+      sid = $2
+      if (!(sid in fallback_pane)) {
+        fallback_pane[sid] = $3
+        fallback_win[sid] = $4
+        fallback_cwd[sid] = $7
+      }
+      if ($5 == 1 && $6 == 1) {
+        active_pane[sid] = $3
+        active_win[sid] = $4
+        active_cwd[sid] = $7
+      }
+    }
+    function emit(sid, pane, win, cwd) {
+      pane = (sid in active_pane) ? active_pane[sid] : fallback_pane[sid]
+      win = (sid in active_win) ? active_win[sid] : fallback_win[sid]
+      cwd = (sid in active_cwd) ? active_cwd[sid] : fallback_cwd[sid]
+      if (pane == "") { pane = "-"; win = "-"; cwd = "-" }
+      print pane, sid, win, sname[sid], windows[sid], attached[sid], cwd, (sid == current_id ? 1 : 0)
+    }
+    END {
+      for (i = 1; i <= float_count; i++) emit(float_order[i])
+      for (i = 1; i <= other_count; i++) emit(other_order[i])
+    }
+  '
+}
+
 list_other_panes() {
   local current_session_id
   current_session_id=$(tmux display-message -p '#{session_id}')
@@ -627,6 +695,14 @@ case "${1:-}" in
 
   --list-sessions)
     list_sessions
+    ;;
+
+  --list-windows-sidebar)
+    list_windows_sidebar
+    ;;
+
+  --list-sessions-sidebar)
+    list_sessions_sidebar
     ;;
 
   --list-other-panes)

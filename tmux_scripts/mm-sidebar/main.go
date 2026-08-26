@@ -15,10 +15,19 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	"mm-sidebar/internal/agents"
+	"mm-sidebar/internal/tmuxio"
+)
+
+const (
+	originClientEnv = "MM_SIDEBAR_ORIGIN_CLIENT"
+	ownerWindowEnv  = "MM_SIDEBAR_OWNER_WINDOW"
+	gatePathEnv     = "MM_SIDEBAR_GATE_PATH"
 )
 
 func main() {
@@ -46,9 +55,11 @@ func usage() {
 `)
 }
 
-// runAgents prints the 11-field TSV schema. --tsv is accepted and ignored: it is
-// the only output format, and spelling it out keeps the tmux-agent-ls wrapper
-// self-documenting.
+// runAgents prints the append-only 11-field TSV schema:
+// sessionId, pane_id, target, session_name, state, name, transcript, window_name,
+// agent, cwd, pane_label. --tsv is accepted and ignored: it is the only output
+// format, and spelling it out keeps the tmux-agent-ls wrapper self-documenting.
+// Fields 10-11 were appended; consumers must retain the original 1-9 prefix.
 func runAgents() int {
 	rows, err := agents.NewResolver().Resolve()
 	if err != nil {
@@ -64,12 +75,55 @@ func runAgents() int {
 }
 
 func runSidebar() int {
+	// Install HUP handling before ownership/theme initialization. The gate shell
+	// ignores HUP until exec, so any signal after exec is either queued here or
+	// handled by the running Bubble Tea program below.
+	hup := make(chan os.Signal, 1)
+	signal.Notify(hup, syscall.SIGHUP)
+	defer signal.Stop(hup)
+
+	client := tmuxio.NewClient(os.Getenv("TMUX_PANE"), os.Getenv(originClientEnv))
+	if gate := os.Getenv(gatePathEnv); gate != "" {
+		hupPath := gate + ".hup"
+		if _, err := os.Stat(hupPath); err == nil {
+			_ = os.Remove(hupPath)
+			client.RunQuiet("run-shell", "-b", "-t", client.PaneID(), closeScript(client.PaneID()))
+			return 0
+		}
+	}
+	// The launcher checks ownership before releasing its child gate, but a pane
+	// can move after that shell check and before exec. Verify the stable owner
+	// window again inside the binary before creating any long-lived state.
+	if owner := os.Getenv(ownerWindowEnv); owner != "" {
+		actual, err := client.PaneWindowID()
+		if err != nil || actual != owner {
+			// The pane moved after the launcher's final gate check. Clean only
+			// the recorded source window; expected-owner guards prevent touching
+			// any sidebar already present in the destination.
+			client.RunQuiet("run-shell", "-b", "-t", client.PaneID(), closeScript(client.PaneID()))
+			return 0
+		}
+	}
 	// No alt screen: the sidebar owns a whole tmux pane for its lifetime, so
 	// there is no prior screen content to preserve or restore, and staying on
 	// the primary buffer keeps tmux's own copy-mode scrollback coherent.
 	// All-motion reports hover without a pressed button; cell-motion would only
 	// report drag events and cannot drive row hover styling.
-	p := tea.NewProgram(newModel(), tea.WithMouseAllMotion())
+	m := newModel(client)
+	p := tea.NewProgram(m, tea.WithMouseAllMotion())
+	// The signal worker is also explicitly stopped on an ordinary q/Esc exit.
+	// m.Close cancels and joins every watcher/worker once Program.Run returns.
+	done := make(chan struct{})
+	defer close(done)
+	defer m.Close()
+	go func() {
+		select {
+		case <-hup:
+			client.RunQuiet("run-shell", "-b", "-t", client.PaneID(), closeScript(client.PaneID()))
+			p.Quit()
+		case <-done:
+		}
+	}()
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "mm-sidebar: %v\n", err)
 		return 1

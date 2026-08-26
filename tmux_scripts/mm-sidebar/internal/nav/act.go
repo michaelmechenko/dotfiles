@@ -4,13 +4,13 @@ import "mm-sidebar/internal/tmuxio"
 
 // Act performs a row's action. ActionEditFile is handled by the caller (it has
 // to suspend the TUI), so it is a no-op here.
-func Act(r Row, contentPane string) {
+func Act(client *tmuxio.Client, r Row, content tmuxio.PaneRef) {
 	switch r.Kind {
 	case ActionFocusPane:
-		tmuxio.FocusPane(r.PaneID, r.Target)
+		client.FocusPaneRef(r.Pane)
 	case ActionOpenDir:
-		tmuxio.SplitAt(contentPane, r.Path)
+		client.SplitAt(content, r.Path)
 	case ActionOpenFile:
-		_ = OpenFileCmd(contentPane, r.Path).Run()
+		client.OpenFileAt(content, openTargetPath(), r.Path)
 	}
 }

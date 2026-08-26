@@ -9,6 +9,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"mm-sidebar/internal/agents"
+	"mm-sidebar/internal/display"
+	"mm-sidebar/internal/nav"
 	"mm-sidebar/internal/theme"
 	"mm-sidebar/internal/tmuxio"
 )
@@ -24,7 +26,8 @@ const AgentsGlanceMax = 6
 // what would happen if a tick-driven Cmd and an fsnotify-driven Cmd both called
 // it. See model.go's agentFeed.
 type AgentRowsMsg struct {
-	Rows []agents.Row
+	Rows             []agents.Row
+	WorldFingerprint string
 }
 
 func (AgentRowsMsg) IsBlockMsg() {}
@@ -33,7 +36,8 @@ func (AgentRowsMsg) IsBlockMsg() {}
 // the active navigator tab, capped, and sorted by urgency so the rows that most
 // need attention are the ones that survive truncation.
 type AgentsGlance struct {
-	theme theme.Theme
+	theme  theme.Theme
+	client *tmuxio.Client
 	// rows holds every agent from the last sweep, urgency-sorted. Truncation is a
 	// render-time decision (see limit), not something baked in on receipt, so the
 	// layout can grant more room without waiting for another sweep.
@@ -47,10 +51,15 @@ type AgentsGlance struct {
 	request chan<- struct{}
 }
 
-// NewAgentsGlance builds the block. request is the resolver goroutine's trigger
-// channel.
+// NewAgentsGlance builds a standalone block for package users and tests.
 func NewAgentsGlance(th theme.Theme, request chan<- struct{}) *AgentsGlance {
-	return &AgentsGlance{theme: th, request: request, focus: -1, hover: -1}
+	return NewAgentsGlanceWithClient(th, tmuxio.NewClient("", ""), request)
+}
+
+// NewAgentsGlanceWithClient builds the sidebar block with its invoking tmux
+// client context. request is the resolver goroutine's trigger channel.
+func NewAgentsGlanceWithClient(th theme.Theme, client *tmuxio.Client, request chan<- struct{}) *AgentsGlance {
+	return &AgentsGlance{theme: th, client: client, request: request, focus: -1, hover: -1}
 }
 
 func (b *AgentsGlance) ID() string { return "agents_glance" }
@@ -248,9 +257,33 @@ func (b *AgentsGlance) ActivateNavigation(index int) tea.Cmd {
 		return nil
 	}
 	row := b.rows[index]
+	ref := tmuxio.PaneRef{
+		PaneID: row.PaneID, SessionID: row.TmuxSessionID,
+		WindowID: row.WindowID, WindowIndex: row.WindowIndex,
+	}
 	return func() tea.Msg {
-		tmuxio.FocusPane(row.PaneID, row.Target)
+		b.client.FocusPaneRef(ref)
 		return nil
+	}
+}
+
+// Actions implements the optional block action registry. It intentionally uses
+// existing response/plan dispatchers: the glance remains a focused shortcut,
+// not a second M-b picker or an approval surface.
+func (b *AgentsGlance) Actions(index int) []nav.ContextAction {
+	if index < 0 || index >= b.NavigationCount() {
+		return nil
+	}
+	r := b.rows[index]
+	ref := tmuxio.PaneRef{
+		PaneID: r.PaneID, SessionID: r.TmuxSessionID,
+		WindowID: r.WindowID, WindowIndex: r.WindowIndex,
+	}
+	return []nav.ContextAction{
+		{ID: "focus", Label: "focus agent", Kind: nav.ContextFocusPane, Pane: ref, PaneID: r.PaneID, Target: r.Target},
+		{ID: "response", Label: "open last response", Kind: nav.ContextAgentResponse, Pane: ref, Agent: r.Agent},
+		{ID: "plan", Label: "open plan / last response", Kind: nav.ContextAgentPlan, Pane: ref, Agent: r.Agent},
+		{ID: "copy-session", Label: "copy session ID", Kind: nav.ContextCopyText, Text: r.SessionID},
 	}
 }
 
@@ -304,13 +337,13 @@ func (b *AgentsGlance) renderRow(index int, r agents.Row) string {
 func agentLocation(r agents.Row) string {
 	parts := make([]string, 0, 3)
 	if r.PaneLabel != "" && r.PaneLabel != "-" {
-		parts = append(parts, r.PaneLabel)
+		parts = append(parts, display.Sanitize(r.PaneLabel))
 	}
 	if r.WindowName != "" && r.WindowName != "-" {
-		parts = append(parts, r.WindowName)
+		parts = append(parts, display.Sanitize(r.WindowName))
 	}
 	if r.SessionName != "" && r.SessionName != "-" {
-		parts = append(parts, r.SessionName)
+		parts = append(parts, display.Sanitize(r.SessionName))
 	}
 	return strings.Join(parts, " · ")
 }

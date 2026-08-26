@@ -1,12 +1,17 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
@@ -14,6 +19,7 @@ import (
 
 	"mm-sidebar/internal/agents"
 	"mm-sidebar/internal/blocks"
+	"mm-sidebar/internal/display"
 	"mm-sidebar/internal/nav"
 	"mm-sidebar/internal/theme"
 	"mm-sidebar/internal/tmuxio"
@@ -31,15 +37,25 @@ const (
 )
 
 type model struct {
-	theme theme.Theme
+	client *tmuxio.Client
+	theme  theme.Theme
+
+	// Lifetime is owned by runSidebar. Every watcher and background resolver
+	// selects on ctx.Done so a Bubble Tea quit or HUP cannot leave work behind.
+	ctx    context.Context
+	cancel context.CancelFunc
+	close  sync.Once
 
 	// Geometry, from WindowSizeMsg (Bubble Tea tracks SIGWINCH for us).
 	width, height int
 
 	// tmux state.
-	winTarget   string
-	selfPane    string
-	contentPane string
+	winTarget    string
+	selfPane     string
+	contentPane  string
+	contentRef   tmuxio.PaneRef
+	contentCwd   string
+	sidebarWidth int // persisted @sidebar_width; zero means use the launch fallback
 
 	// Navigator. srcIdx indexes nav.Sources -- the registry is the only place
 	// tabs are enumerated, so there is no tab enum to keep in sync.
@@ -49,9 +65,35 @@ type model struct {
 	// initial load); after that, an in-process choice must win over an older
 	// snapshot that races with it.
 	sourceGeneration uint64
-	rows             []nav.Row
-	sel              int
-	vpStart          int // first visible row index
+	// rows always preserves the source's display order. Filtering is a view over
+	// this slice rather than a replacement, so source order and refresh payloads
+	// remain authoritative.
+	rows []nav.Row
+	sel  int // index into navigatorRows(), never the unfiltered source slice
+	// selectionID keeps the navigator cursor attached to its source-local Row.ID
+	// when a refresh reorders rows or a query narrows and widens the view.
+	selectionID string
+	vpStart     int // first visible filtered row index
+	// queryActive owns the inline filter focus. A query line is rendered while it
+	// is active; Esc clears it and returns to normal navigator keys before a
+	// later Esc can close the sidebar.
+	queryActive bool
+	query       string
+	// actionPalette is a generic modal over the selected row's source-owned
+	// descriptors. It deliberately stores no source type or tab name.
+	actionPalette  bool
+	actionSel      int
+	paletteActions []nav.ContextAction
+	confirmAction  *nav.ContextAction
+	// panePreview is an explicit, on-demand modal from a pane row action. It
+	// never participates in the recurring World poll or source fetch key.
+	panePreview  bool
+	previewTitle string
+	previewLines []string
+	previewErr   error
+	// diagnostics is a cached modal: it reads model state collected by normal
+	// refreshes and never starts a tmux, Git, or filesystem command of its own.
+	diagnostics bool
 	// lineRow maps each rendered navigator line back to its row index (-1 for
 	// padding), rebuilt on every View. Rows are variable-height, so the mouse
 	// handler cannot derive the row from the click's Y offset arithmetically.
@@ -80,18 +122,43 @@ type model struct {
 	// content pane, filetree root and the tmux fingerprint. refreshState skips
 	// the source's Fetch entirely while it is unchanged.
 	fetchKey string
+	// stateSeq orders every refresh completion, including skipped and failed
+	// polls. Bubble Tea Cmds run concurrently; an older World must never replace
+	// newer pane targets, rows, or agent inputs.
+	stateSeq         uint64
+	appliedStateSeq  uint64
+	worldFingerprint string
+	rowContextKey    string
+	// Diagnostics retains the latest accepted observation and refresh outcome.
+	// These counters describe work the normal refresh already performed; viewing
+	// diagnostics is therefore free of recurring forks.
+	world          tmuxio.World
+	lastSnapshot   tmuxio.Snapshot
+	lastStateErr   string
+	lastFetchErr   string
+	lastRefresh    time.Duration
+	refreshApplied uint64
+	sourceFetches  uint64
+	sourceSkips    uint64
 
-	// Filetree browse root. Only re-derived from the content pane's cwd when the
-	// content pane actually changes (tracked by ftLastPane), so Backspace-up
-	// isn't silently reset by the next poll.
-	ftRoot     string
-	ftLastPane string
+	// Source-owned root state is meaningful only to optional RootSynchronizer /
+	// SourceController implementations. Keeping it generic prevents filetree
+	// controls from creating source-name branches in the model.
+	sourceRoot     string
+	sourceRootPane string
+	rootPinned     bool
+	showHidden     bool
+	watchRoot      string // last root handed to the optional filesystem watcher
 
 	// Docked blocks, in render order. This slice is also the degradation
 	// priority: blocks are dropped from the END first on a short pane.
 	docked []blocks.Block
+	// blockVisible records the latest layout decision. It drives optional block
+	// visibility and background-fetch contracts without naming concrete blocks.
+	blockVisible map[string]bool
 
-	feed *agentFeed
+	feed      *agentFeed
+	fileWatch *filetreeWatch
 }
 
 // blockHit is one rendered line's owner: the block it belongs to and the line's
@@ -108,14 +175,38 @@ const (
 	focusBlock
 )
 
-func newModel() *model {
-	th := theme.Load()
-	feed := newAgentFeed()
-	return &model{
-		theme:  th,
-		docked: blocks.Build(blocks.Deps{Theme: th, Agents: feed.request}),
-		feed:   feed,
+func newModel(client *tmuxio.Client) *model {
+	return newModelWithContext(context.Background(), client)
+}
+
+func newModelWithContext(parent context.Context, client *tmuxio.Client) *model {
+	if client == nil {
+		client = tmuxio.NewClient("", "")
 	}
+	ctx, cancel := context.WithCancel(parent)
+	th := theme.Load(client)
+	feed := newAgentFeed(ctx, client)
+	return &model{
+		client:       client,
+		theme:        th,
+		ctx:          ctx,
+		cancel:       cancel,
+		selfPane:     client.PaneID(),
+		docked:       blocks.Build(blocks.Deps{Theme: th, Client: client, Agents: feed.request}),
+		blockVisible: make(map[string]bool),
+		feed:         feed,
+		fileWatch:    newFiletreeWatch(ctx),
+	}
+}
+
+// Close stops all process-lifetime work. It is idempotent because HUP, q, and
+// Bubble Tea errors can all converge on the same shutdown path.
+func (m *model) Close() {
+	m.close.Do(func() {
+		m.cancel()
+		m.feed.Close()
+		m.fileWatch.Close()
+	})
 }
 
 // ---- messages -------------------------------------------------------------
@@ -124,16 +215,25 @@ func newModel() *model {
 // gathered in a single Cmd so a poll costs one round of forks, not one per
 // consumer.
 type stateMsg struct {
+	world            tmuxio.World
 	snap             tmuxio.Snapshot
 	contentPane      string
-	ftRoot           string
+	cwd              string
+	root             string
+	rootPane         string
 	srcIdx           int
 	sourceGeneration uint64
 	rows             []nav.Row
 	// fetchKey identifies the inputs `rows` was fetched for. Empty means the
 	// source was NOT re-fetched this poll and the model must keep its cached
 	// rows -- see refreshState.
-	fetchKey string
+	fetchKey      string
+	contextKey    string
+	stateSeq      uint64
+	stateErr      error
+	fetchErr      error
+	elapsed       time.Duration
+	sourceFetched bool
 }
 
 // tickMsg fires a block's own cadence. Blocks with genuinely different
@@ -144,21 +244,39 @@ type tickMsg struct{ blockID string }
 // navTickMsg is the navigator/tmux-state poll.
 type navTickMsg struct{}
 
+// filetreeChangedMsg is emitted by the scoped watcher when the current root or
+// one of its immediate subdirectories changes. Its refresh must be forced: the
+// tmux fingerprint intentionally cannot see filesystem-only changes.
+type filetreeChangedMsg struct{}
+
 // editDoneMsg returns control after an external editor exited.
 type editDoneMsg struct{}
+
+type sidebarWidthMsg int
+
+type panePreviewMsg struct {
+	title string
+	body  string
+	err   error
+}
 
 // ---- lifecycle ------------------------------------------------------------
 
 func (m *model) Init() tea.Cmd {
+	m.feed.Start()
+	m.fileWatch.Start()
 	cmds := []tea.Cmd{
 		tea.ClearScreen, // the pane may still show shell output from before the split
 		m.refreshState(false),
 		m.feed.wait(),
-		m.feed.watch(),
+		m.fileWatch.wait(),
 		tea.Tick(navTickInterval, func(time.Time) tea.Msg { return navTickMsg{} }),
 	}
+	// Do not fetch here: dimensions have not arrived, so visibility/degradation
+	// is unknown. syncBlockVisibility samples newly visible blocks after the
+	// first state/size update instead.
 	for _, b := range m.docked {
-		cmds = append(cmds, b.Fetch(), tickFor(b))
+		cmds = append(cmds, tickFor(b))
 	}
 	return tea.Batch(cmds...)
 }
@@ -172,7 +290,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
-		return m, nil
+		return m, m.syncBlockVisibility()
 
 	case tea.KeyMsg:
 		return m.handleKey(msg)
@@ -187,8 +305,14 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.sourceGeneration != m.sourceGeneration {
 			return m, nil
 		}
+		if msg.stateSeq < m.appliedStateSeq {
+			return m, nil
+		}
 		m.applyState(msg)
-		return m, nil
+		if msg.stateErr == nil && m.feed != nil {
+			m.feed.setWorld(msg.world)
+		}
+		return m, m.syncBlockVisibility()
 
 	case navTickMsg:
 		return m, tea.Batch(
@@ -196,10 +320,28 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			tea.Tick(navTickInterval, func(time.Time) tea.Msg { return navTickMsg{} }),
 		)
 
+	case filetreeChangedMsg:
+		// Always re-arm the one blocking wait. The watcher is source-optional, so
+		// a queued event after a tab switch is inert without naming that source.
+		if m.fileWatch == nil {
+			return m, nil
+		}
+		if m.srcIdx < 0 || m.srcIdx >= len(nav.Sources) {
+			return m, m.fileWatch.wait()
+		}
+		if _, ok := nav.Sources[m.srcIdx].(nav.Watchable); !ok {
+			return m, m.fileWatch.wait()
+		}
+		return m, tea.Batch(m.refreshState(true), m.fileWatch.wait())
+
 	case tickMsg:
 		for _, b := range m.docked {
 			if b.ID() == msg.blockID {
-				return m, tea.Batch(b.Fetch(), tickFor(b))
+				cmds := []tea.Cmd{tickFor(b)}
+				if m.shouldFetchBlock(b) {
+					cmds = append(cmds, b.Fetch())
+				}
+				return m, tea.Batch(cmds...)
 			}
 		}
 		return m, nil
@@ -209,15 +351,28 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// the feed re-arm, which is model-owned resolver plumbing rather than
 	// something a block knows about.
 	case blocks.AgentRowsMsg:
-		m.broadcast(msg)
-		// Re-arm the reader: the feed goroutine publishes one result per sweep.
-		return m, m.feed.wait()
+		// A resolver sweep may finish after a newer World was accepted. Re-arm
+		// the feed either way, but never publish rows for stale pane identities.
+		if msg.WorldFingerprint == "" || msg.WorldFingerprint == m.worldFingerprint {
+			m.broadcast(msg)
+		}
+		return m, tea.Batch(m.feed.wait(), m.syncBlockVisibility())
 
 	// Every other block message, including ones added later. Blocks ignore
 	// messages they don't own, so a broadcast is cheaper than a registry lookup
 	// and keeps model.go out of the "add a block" recipe entirely.
 	case blocks.BlockMsg:
 		m.broadcast(msg)
+		return m, m.syncBlockVisibility()
+
+	case sidebarWidthMsg:
+		m.sidebarWidth = int(msg)
+		return m, nil
+
+	case panePreviewMsg:
+		m.previewTitle, m.previewErr = msg.title, msg.err
+		m.previewLines = previewLines(msg.body)
+		m.panePreview = true
 		return m, nil
 
 	case editDoneMsg:
@@ -262,95 +417,120 @@ func (m *model) broadcast(msg tea.Msg) {
 func (m *model) refreshState(force bool) tea.Cmd {
 	srcIdx := m.srcIdx
 	sourceGeneration := m.sourceGeneration
-	ftRoot := m.ftRoot
-	ftLastPane := m.ftLastPane
+	root, rootPane := m.sourceRoot, m.sourceRootPane
+	rootPinned, showHidden := m.rootPinned, m.showHidden
 	lastKey := m.fetchKey
 	th := m.theme
+	client := m.client
+	m.stateSeq++
+	stateSeq := m.stateSeq
 	return func() tea.Msg {
+		started := time.Now()
 		if trace.Enabled {
-			defer trace.Phase("refresh-total", time.Now())
+			defer trace.Phase("refresh-total", started)
 		}
-		t := time.Now()
-		snap, err := tmuxio.Query()
+		t := started
+		world, err := client.World()
 		if err != nil {
-			return nil
+			return stateMsg{srcIdx: srcIdx, sourceGeneration: sourceGeneration, stateSeq: stateSeq, stateErr: err, elapsed: time.Since(started)}
 		}
-		trace.Phase("tmux-query", t)
-
-		// The persisted tab seeds the initial load: tmux-sidebar-toggle may have
-		// set @sidebar_source before this process started, and it survives a
-		// scratch-editor round trip. Once the user has made an in-process choice,
-		// keep that choice even if this refresh observed the old option before
-		// persistSource completed.
+		snap := world.Snapshot
+		trace.Phase("tmux-world", t)
 		if sourceGeneration == 0 && snap.Source != "" {
 			srcIdx = nav.SourceByID(snap.Source)
 		}
 
-		// One batched list-panes answers both "is the content pane alive" and
-		// "what is its cwd". Those used to be two extra display-message forks
-		// per poll.
-		t = time.Now()
-		panes := tmuxio.PaneSet{}
-		if rows, err := tmuxio.ListPanes(); err == nil {
-			panes = tmuxio.NewPaneSet(rows)
-		}
-		trace.Phase("tmux-list-panes", t)
-
-		content := resolveContentPane(snap, panes)
-		cwd := ""
-		if content != "" {
-			cwd = panes.CurrentPath(content)
-		}
+		panes := world.PaneSet()
+		content := resolveContentPane(client, world)
+		cwd := panes.CurrentPath(content)
 		if cwd == "" {
 			cwd = homeDir()
 		}
-		// Re-root the filetree only when the content pane itself changed, so a
-		// Backspace-navigated root survives the next poll.
-		if ftRoot == "" || content != ftLastPane {
-			ftRoot = cwd
+		source := nav.Sources[srcIdx]
+		ctx := nav.Ctx{
+			Theme: th, Cwd: cwd, ContentPane: content, Root: root, RootPane: rootPane,
+			RootPinned: rootPinned, ShowHidden: showHidden, World: world,
+		}
+		if rooted, ok := source.(nav.RootSynchronizer); ok {
+			root, rootPane = rooted.SyncRoot(ctx)
+			ctx.Root, ctx.RootPane = root, rootPane
 		}
 
-		key := strings.Join([]string{
-			nav.Sources[srcIdx].ID(), content, ftRoot, snap.Fingerprint,
-		}, "\x1f")
+		contextKey := strings.Join([]string{source.ID(), content, cwd, root, strconv.FormatBool(rootPinned), strconv.FormatBool(showHidden)}, "\x1f")
+		invalidation := snap.Fingerprint
+		if keyed, ok := source.(nav.FetchKeyer); ok {
+			invalidation = keyed.FetchKey(ctx)
+		}
+		key := contextKey + "\x1f" + invalidation
 		if !force && key == lastKey {
 			trace.Phase("source-skipped", time.Now())
-			// Nothing the active source renders has changed. Report the fresh
-			// snapshot but leave fetchKey empty so applyState keeps its rows.
 			return stateMsg{
-				snap: snap, contentPane: content, ftRoot: ftRoot,
-				srcIdx: srcIdx, sourceGeneration: sourceGeneration,
+				world: world, snap: snap, contentPane: content, cwd: cwd, root: root, rootPane: rootPane,
+				srcIdx: srcIdx, sourceGeneration: sourceGeneration, stateSeq: stateSeq, contextKey: contextKey,
+				elapsed: time.Since(started),
 			}
 		}
 
-		// One registry lookup, no per-tab switch: adding a Source needs no edit
-		// here.
 		t = time.Now()
-		rows := nav.Sources[srcIdx].Fetch(nav.Ctx{
-			Theme:       th,
-			Cwd:         cwd,
-			ContentPane: content,
-			Root:        ftRoot,
-		})
-		trace.Phase("source-fetch:"+nav.Sources[srcIdx].ID(), t)
+		rows, fetchErr := source.Fetch(ctx)
+		trace.Phase("source-fetch:"+source.ID(), t)
 		return stateMsg{
-			snap: snap, contentPane: content, ftRoot: ftRoot,
+			world: world, snap: snap, contentPane: content, cwd: cwd, root: root, rootPane: rootPane,
 			srcIdx: srcIdx, sourceGeneration: sourceGeneration,
-			rows: rows, fetchKey: key,
+			rows: rows, fetchKey: key, contextKey: contextKey,
+			stateSeq: stateSeq, fetchErr: fetchErr, elapsed: time.Since(started), sourceFetched: true,
 		}
 	}
 }
 
 func (m *model) applyState(msg stateMsg) {
+	m.appliedStateSeq = msg.stateSeq
+	m.refreshApplied++
+	m.lastRefresh = msg.elapsed
+	if msg.sourceFetched {
+		m.sourceFetches++
+	} else if msg.stateErr == nil {
+		m.sourceSkips++
+	}
+	if msg.stateErr != nil {
+		m.lastStateErr = msg.stateErr.Error()
+		return
+	}
+	m.lastStateErr = ""
+	m.world, m.lastSnapshot = msg.world, msg.snap
 	m.winTarget = msg.snap.WinTarget
-	m.selfPane = msg.snap.PaneID
+	m.sidebarWidth = msg.snap.SidebarWidth
+	m.worldFingerprint = msg.world.Fingerprint()
+	if msg.snap.PaneID != "" {
+		m.selfPane = msg.snap.PaneID
+	}
 	m.contentPane = msg.contentPane
-	m.ftLastPane = msg.contentPane
-	m.ftRoot = msg.ftRoot
+	m.contentRef = msg.world.PaneSet()[msg.contentPane].Ref()
+	m.contentCwd = msg.cwd
+	m.sourceRoot = msg.root
+	m.sourceRootPane = msg.rootPane
 	m.srcIdx = msg.srcIdx
+	m.syncSourceWatch()
 	if msg.fetchKey != "" {
-		m.rows = msg.rows
-		m.fetchKey = msg.fetchKey
+		if msg.fetchErr == nil {
+			m.lastFetchErr = ""
+			m.rememberNavigatorSelection()
+			m.rows = msg.rows
+			m.fetchKey = msg.fetchKey
+			m.rowContextKey = msg.contextKey
+		} else {
+			m.lastFetchErr = msg.fetchErr.Error()
+			// A failed fetch must retry even when it belongs to the same context:
+			// keeping fetchKey would make the next unchanged World skip it forever.
+			m.fetchKey = ""
+			if msg.contextKey != m.rowContextKey {
+				// Rows from another source/root/content pane are unsafe to keep: their
+				// Enter actions target the old context, so clear them while retaining
+				// only the new context identity.
+				m.rows = nil
+				m.rowContextKey = msg.contextKey
+			}
+		}
 	}
 	m.clampSel()
 	// WindowSizeMsg is the normal source of geometry, but the very first render
@@ -364,13 +544,22 @@ func (m *model) applyState(msg stateMsg) {
 // recorded pane is gone, the pane immediately right of the sidebar is the content
 // area by construction (the sidebar is always leftmost and full height) -- the
 // neo-tree "don't lose track of the target window" guarantee.
-func resolveContentPane(snap tmuxio.Snapshot, panes tmuxio.PaneSet) string {
-	if snap.ContentPane != "" && panes.Alive(snap.ContentPane) {
+func resolveContentPane(client *tmuxio.Client, world tmuxio.World) string {
+	snap, panes := world.Snapshot, world.PaneSet()
+	if pane, ok := panes[snap.ContentPane]; ok && pane.SessionID == snap.SessionID && pane.WindowIndex == snap.WindowIndex {
 		return snap.ContentPane
 	}
-	found := tmuxio.RightOfPane(snap.PaneLeft)
+	bestLeft, found := 0, ""
+	for _, pane := range world.Panes() {
+		if pane.SessionID != snap.SessionID || pane.WindowIndex != snap.WindowIndex || pane.PaneLeft <= snap.PaneLeft {
+			continue
+		}
+		if found == "" || pane.PaneLeft < bestLeft {
+			bestLeft, found = pane.PaneLeft, pane.PaneID
+		}
+	}
 	if found != "" && snap.WinTarget != "" {
-		tmuxio.SetWinOpt(snap.WinTarget, "@sidebar_content_pane", found)
+		client.SetWinOpt(snap.WinTarget, "@sidebar_content_pane", found)
 	}
 	return found
 }
@@ -379,9 +568,40 @@ func resolveContentPane(snap tmuxio.Snapshot, panes tmuxio.PaneSet) string {
 
 func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	key := msg.String()
+	if m.diagnostics {
+		switch key {
+		case "esc", "q", "d", "enter", "space":
+			m.diagnostics = false
+		}
+		return m, nil
+	}
+	if m.panePreview {
+		switch key {
+		case "esc", "q", "enter", "space":
+			m.panePreview, m.previewLines, m.previewErr = false, nil, nil
+		}
+		return m, nil
+	}
+	if m.actionPalette {
+		return m.handleActionKey(msg)
+	}
+	if m.queryActive {
+		return m.handleQueryKey(msg)
+	}
+	if controller, ok := nav.Sources[m.srcIdx].(nav.SourceController); ok {
+		if control, handled := controller.HandleSourceKey(key, m.navCtx()); handled {
+			return m, m.applySourceControl(control)
+		}
+	}
 	switch key {
 	case "q", "esc", "ctrl+c":
 		return m, m.quit()
+	case "/":
+		m.beginQuery()
+		return m, m.syncBlockVisibility()
+	case "a", ":":
+		m.openActionPalette()
+		return m, nil
 	// Lowercase movement stays in the current focus region. Region rotation is
 	// explicit so a long navigator list cannot accidentally enter an agent row.
 	case "j", "down":
@@ -401,16 +621,20 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.focusLast()
 	case "r":
 		return m, tea.Batch(m.refreshState(true), m.fetchAllBlocks())
+	case "w":
+		return m, m.cycleSidebarWidth()
 	case "?":
 		m.showHelp = !m.showHelp
+		return m, m.syncBlockVisibility()
+	case "d":
+		m.diagnostics = true
+		return m, nil
 	case "tab":
 		return m, m.cycleTab(1)
 	case "shift+tab":
 		return m, m.cycleTab(-1)
 	case "enter":
 		return m, m.act()
-	case "backspace":
-		return m, m.ascend()
 	default:
 		// Number keys select a tab by position, derived from the registry -- so a
 		// fifth Source is reachable as "5" with no edit here. The length check has
@@ -426,7 +650,170 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// handleActionKey owns the in-TUI confirmation boundary. A destructive action
+// can only leave this pane after a second explicit y/Enter confirmation; its
+// tmuxio execution then revalidates the immutable rendered identity.
+func (m *model) handleActionKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	key := msg.String()
+	if m.confirmAction != nil {
+		switch key {
+		case "y", "Y", "enter":
+			action := *m.confirmAction
+			m.closeActionPalette()
+			return m, m.runContextAction(action)
+		case "n", "N", "esc", "q":
+			m.confirmAction = nil
+		}
+		return m, nil
+	}
+	actions := m.paletteActions
+	if len(actions) == 0 {
+		m.closeActionPalette()
+		return m, nil
+	}
+	switch key {
+	case "esc", "q":
+		m.closeActionPalette()
+	case "j", "down":
+		m.actionSel = (m.actionSel + 1) % len(actions)
+	case "k", "up":
+		m.actionSel = (m.actionSel - 1 + len(actions)) % len(actions)
+	case "enter":
+		action := actions[m.actionSel]
+		if action.Destructive {
+			m.confirmAction = &action
+			return m, nil
+		}
+		m.closeActionPalette()
+		return m, m.runContextAction(action)
+	}
+	return m, nil
+}
+
+func (m *model) openActionPalette() {
+	actions := m.selectedActions()
+	if len(actions) == 0 {
+		return
+	}
+	m.paletteActions = append(m.paletteActions[:0], actions...)
+	m.actionPalette, m.actionSel, m.confirmAction = true, 0, nil
+}
+
+func (m *model) closeActionPalette() {
+	m.actionPalette, m.actionSel, m.confirmAction = false, 0, nil
+	m.paletteActions = nil
+}
+
+func (m *model) selectedActions() []nav.ContextAction {
+	if m.focusRegion == focusBlock {
+		if m.focusBlock < 0 || m.focusBlock >= len(m.docked) {
+			return nil
+		}
+		if actionable, ok := m.docked[m.focusBlock].(blocks.Actionable); ok {
+			return actionable.Actions(m.focusRow)
+		}
+		return nil
+	}
+	rows := m.navigatorRows()
+	if m.sel < 0 || m.sel >= len(rows) {
+		return nil
+	}
+	return rows[m.sel].Actions
+}
+
+func (m *model) runContextAction(action nav.ContextAction) tea.Cmd {
+	if action.Kind == nav.ContextPreviewPane {
+		return func() tea.Msg {
+			body, err := m.client.CapturePane(action.Pane)
+			return panePreviewMsg{title: action.Label, body: body, err: err}
+		}
+	}
+	content := m.contentRef
+	return func() tea.Msg {
+		nav.ExecuteContextAction(m.client, action, content)
+		return nil
+	}
+}
+
+// handleQueryKey keeps printable input (including Bubble Tea's bracketed-paste
+// KeyRunes messages) inside the filter while leaving the non-text F13/F14
+// focus-region controls available. This makes filtering a navigator view, not a
+// separate modal that can strand block focus.
+func (m *model) handleQueryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.clearQuery()
+		return m, m.syncBlockVisibility()
+	case "ctrl+c":
+		return m, m.quit()
+	case "backspace":
+		m.deleteQueryRune()
+		return m, m.syncBlockVisibility()
+	case "f13":
+		m.cycleFocusRegion(1)
+		return m, nil
+	case "f14":
+		m.cycleFocusRegion(-1)
+		return m, nil
+	case "up":
+		m.moveWithinRegion(-1)
+		return m, nil
+	case "down":
+		m.moveWithinRegion(1)
+		return m, nil
+	case "enter":
+		return m, m.act()
+	}
+	if msg.Type == tea.KeyRunes {
+		m.appendQuery(string(msg.Runes))
+		return m, m.syncBlockVisibility()
+	}
+	return m, nil
+}
+
+func (m *model) beginQuery() {
+	m.rememberNavigatorSelection()
+	m.queryActive = true
+}
+
+func (m *model) clearQuery() {
+	m.rememberNavigatorSelection()
+	m.queryActive, m.query = false, ""
+	m.clampSel()
+}
+
+// appendQuery accepts Unicode and bracketed paste while keeping the inline
+// control to one terminal line. Control characters cannot match a source's
+// sanitized SearchText or render safely, so normalize them to spaces.
+func (m *model) appendQuery(text string) {
+	m.rememberNavigatorSelection()
+	text = strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return ' '
+		}
+		return r
+	}, text)
+	if text == "" {
+		return
+	}
+	m.query += text
+	m.clampSel()
+}
+
+func (m *model) deleteQueryRune() {
+	if m.query == "" {
+		return
+	}
+	m.rememberNavigatorSelection()
+	_, size := utf8.DecodeLastRuneInString(m.query)
+	m.query = m.query[:len(m.query)-size]
+	m.clampSel()
+}
+
 func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	if m.actionPalette {
+		return m, nil
+	}
 	if !tea.MouseEvent(msg).IsWheel() {
 		m.hoverAt(msg.Y)
 	}
@@ -451,6 +838,7 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 			if m.lineRow[line] >= 0 {
 				m.focusRegion = focusNavigator
 				m.sel = m.lineRow[line]
+				m.rememberNavigatorSelection()
 			}
 			return m, nil
 		}
@@ -496,10 +884,14 @@ func (m *model) hoverAt(y int) {
 }
 
 func (m *model) navFirstLine() int {
+	line := headerLines
 	if m.showHelp {
-		return headerLines + helpLineCount
+		line += m.helpLineCount()
 	}
-	return headerLines
+	if m.queryActive {
+		line += queryLineCount
+	}
+	return line
 }
 
 // wheel scrolls the navigator's VIEWPORT by delta rows, dragging the cursor along
@@ -517,7 +909,7 @@ func (m *model) navFirstLine() int {
 func (m *model) wheel(delta, y int) {
 	top := m.navFirstLine()
 	avail := len(m.lineRow)
-	if y < top || y >= top+avail || len(m.rows) == 0 {
+	if y < top || y >= top+avail || len(m.navigatorRows()) == 0 {
 		return
 	}
 	maxStart := m.maxScrollStart(avail)
@@ -534,10 +926,12 @@ func (m *model) wheel(delta, y int) {
 	m.vpStart = start
 	if m.sel < start {
 		m.sel = start
+		m.rememberNavigatorSelection()
 		return
 	}
 	if last := m.lastVisibleRow(start, avail); m.sel > last {
 		m.sel = last
+		m.rememberNavigatorSelection()
 	}
 }
 
@@ -545,10 +939,11 @@ func (m *model) wheel(delta, y int) {
 // within avail lines. At least the start row always counts, even if it is taller
 // than the viewport (it is then clipped, as View already does).
 func (m *model) lastVisibleRow(start, avail int) int {
+	rows := m.navigatorRows()
 	used := 0
 	last := start
-	for i := start; i < len(m.rows); i++ {
-		used += len(m.rows[i].Lines)
+	for i := start; i < len(rows); i++ {
+		used += len(rows[i].Lines)
 		if used > avail && i > start {
 			break
 		}
@@ -561,9 +956,10 @@ func (m *model) lastVisibleRow(start, avail int) int {
 // scrolling can't run past the end of the list into blank space. 0 means the
 // whole list already fits.
 func (m *model) maxScrollStart(avail int) int {
+	rows := m.navigatorRows()
 	used := 0
-	for i := len(m.rows) - 1; i >= 0; i-- {
-		used += len(m.rows[i].Lines)
+	for i := len(rows) - 1; i >= 0; i-- {
+		used += len(rows[i].Lines)
 		if used > avail {
 			return i + 1
 		}
@@ -572,12 +968,14 @@ func (m *model) maxScrollStart(avail int) int {
 }
 
 func (m *model) move(delta int) {
-	if len(m.rows) == 0 {
+	rows := m.navigatorRows()
+	if len(rows) == 0 {
 		m.sel = 0
 		return
 	}
-	n := len(m.rows)
+	n := len(rows)
 	m.sel = ((m.sel+delta)%n + n) % n // wraps, like the bash dispatcher
+	m.rememberNavigatorSelection()
 }
 
 // visibleNavigableBlocks returns block indices in render order. layout() is the
@@ -600,7 +998,10 @@ func (m *model) visibleNavigableBlocks() []int {
 func (m *model) currentArrangement() arrangement {
 	usable := m.height - headerLines
 	if m.showHelp {
-		usable -= helpLineCount
+		usable -= m.helpLineCount()
+	}
+	if m.queryActive {
+		usable -= queryLineCount
 	}
 	if usable < 1 {
 		usable = 1
@@ -662,7 +1063,7 @@ func (m *model) focusRegions() []focusTarget {
 
 func (m *model) focusRegionsFor(arr arrangement) []focusTarget {
 	regions := make([]focusTarget, 0, len(arr.blocks)+1)
-	if len(m.rows) > 0 {
+	if len(m.navigatorRows()) > 0 {
 		regions = append(regions, focusTarget{block: navigatorTarget})
 	}
 	for _, b := range arr.blocks {
@@ -726,7 +1127,7 @@ func (m *model) blockSelection(index, count int) int {
 // and returning to a region restores its prior selected row.
 func (m *model) setFocusTarget(target focusTarget) bool {
 	if target.block == navigatorTarget {
-		if len(m.rows) == 0 {
+		if len(m.navigatorRows()) == 0 {
 			return false
 		}
 		m.focusRegion = focusNavigator
@@ -808,6 +1209,7 @@ func (m *model) focusFirst() {
 	first := regions[0]
 	if first.block == navigatorTarget {
 		m.sel = 0
+		m.rememberNavigatorSelection()
 		m.setFocusTarget(first)
 		return
 	}
@@ -823,7 +1225,8 @@ func (m *model) focusLast() {
 	}
 	last := regions[len(regions)-1]
 	if last.block == navigatorTarget {
-		m.sel = len(m.rows) - 1
+		m.sel = len(m.navigatorRows()) - 1
+		m.rememberNavigatorSelection()
 	} else if n, ok := m.dockedBlockNav(last.block); ok {
 		m.setBlockFocus(last.block, n.NavigationCount()-1)
 		return
@@ -831,13 +1234,61 @@ func (m *model) focusLast() {
 	m.setFocusTarget(last)
 }
 
+// navigatorRows is the order-preserving inline-filter view. SearchText is the
+// source-provided, unstyled search surface; display Lines stay solely for
+// rendering and are never scraped back into application state.
+func (m *model) navigatorRows() []nav.Row {
+	if m.query == "" {
+		return m.rows
+	}
+	needle := strings.ToLower(m.query)
+	out := make([]nav.Row, 0, len(m.rows))
+	for _, row := range m.rows {
+		if strings.Contains(strings.ToLower(row.SearchText), needle) {
+			out = append(out, row)
+		}
+	}
+	return out
+}
+
+// rememberNavigatorSelection records the current visible row's stable identity
+// before a query or source refresh changes the view. Rows without an ID are
+// tolerated for test stubs and third-party Sources, but cannot promise identity
+// retention.
+func (m *model) rememberNavigatorSelection() {
+	rows := m.navigatorRows()
+	if m.sel >= 0 && m.sel < len(rows) && rows[m.sel].ID != "" {
+		m.selectionID = rows[m.sel].ID
+	}
+}
+
+// clampSel restores a selection by ID whenever possible. A query that excludes
+// the selected row intentionally starts at its first result; widening the query
+// then returns to that current selection rather than an unrelated raw index.
 func (m *model) clampSel() {
-	if m.sel >= len(m.rows) {
-		m.sel = len(m.rows) - 1
+	rows := m.navigatorRows()
+	if len(rows) == 0 {
+		m.sel, m.vpStart = 0, 0
+		return
+	}
+	if m.selectionID != "" {
+		for i, row := range rows {
+			if row.ID == m.selectionID {
+				m.sel = i
+				return
+			}
+		}
+		m.sel = 0
+		m.rememberNavigatorSelection()
+		return
+	}
+	if m.sel >= len(rows) {
+		m.sel = len(rows) - 1
 	}
 	if m.sel < 0 {
 		m.sel = 0
 	}
+	m.rememberNavigatorSelection()
 }
 
 // syncFocus projects model focus into blocks after layout has decided which
@@ -882,7 +1333,11 @@ func (m *model) setSource(idx int) tea.Cmd {
 	m.srcIdx = idx
 	m.sourceGeneration++
 	m.sel = 0
+	m.selectionID = ""
+	m.queryActive, m.query = false, ""
 	m.rows = nil
+	m.lastFetchErr = ""
+	m.syncSourceWatch()
 	// Persist the tab OFF the input path. This used to call SetWinOpt inline --
 	// a ~20ms tmux fork blocking the key loop on every 1-N / Tab / S-Tab press,
 	// the last synchronous fork left on the keypress path. Nothing reads the
@@ -892,13 +1347,37 @@ func (m *model) setSource(idx int) tea.Cmd {
 
 // persistSource writes @sidebar_source in the background. Returns nil when the
 // window target isn't known yet (no WindowSizeMsg / Query has landed).
+// cycleSidebarWidth rotates compact/normal/wide presets for this window. The
+// value is persisted in @sidebar_width and immediately resized, so no sidebar
+// restart or lifecycle transition is required.
+func (m *model) cycleSidebarWidth() tea.Cmd {
+	const compact, normal, wide = 30, 36, 44
+	presets := []int{compact, normal, wide}
+	current := m.sidebarWidth
+	if current == 0 {
+		current = m.width
+	}
+	next := presets[0]
+	for i, width := range presets {
+		if current <= width {
+			next = presets[(i+1)%len(presets)]
+			break
+		}
+	}
+	target := m.winTarget
+	return func() tea.Msg {
+		m.client.SetSidebarWidth(target, next)
+		return sidebarWidthMsg(next)
+	}
+}
+
 func (m *model) persistSource(idx int) tea.Cmd {
 	if m.winTarget == "" {
 		return nil
 	}
 	target, id := m.winTarget, nav.Sources[idx].ID()
 	return func() tea.Msg {
-		tmuxio.SetWinOpt(target, "@sidebar_source", id)
+		m.client.SetWinOpt(target, "@sidebar_source", id)
 		return nil
 	}
 }
@@ -908,20 +1387,23 @@ func (m *model) cycleTab(delta int) tea.Cmd {
 	return m.setSource(((m.srcIdx+delta)%n + n) % n)
 }
 
-// ascend is Backspace: move up one level in a hierarchical source. Sources that
-// aren't hierarchical don't implement nav.Ascender and the key is inert for them,
-// so the model never names a specific tab.
-func (m *model) ascend() tea.Cmd {
-	a, ok := nav.Sources[m.srcIdx].(nav.Ascender)
-	if !ok {
+// applySourceControl projects an optional source's key result into generic
+// source state. There is intentionally no source ID or control-key branch here.
+func (m *model) applySourceControl(control nav.SourceControl) tea.Cmd {
+	if control.SetRoot {
+		m.sourceRoot, m.sourceRootPane = control.Root, control.RootPane
+	}
+	if control.SetRootPinned {
+		m.rootPinned = control.RootPinned
+	}
+	if control.SetShowHidden {
+		m.showHidden = control.ShowHidden
+	}
+	if !control.Refresh {
 		return nil
 	}
-	root, moved := a.Up(m.navCtx())
-	if !moved {
-		return nil
-	}
-	m.ftRoot = root
-	m.sel = 0
+	m.sel, m.selectionID = 0, ""
+	m.syncSourceWatch()
 	return m.refreshState(false)
 }
 
@@ -930,19 +1412,82 @@ func (m *model) ascend() tea.Cmd {
 // goroutine); this one serves the synchronous key path.
 func (m *model) navCtx() nav.Ctx {
 	return nav.Ctx{
-		Theme:       m.theme,
-		Cwd:         m.ftRoot,
-		ContentPane: m.contentPane,
-		Root:        m.ftRoot,
+		Theme: m.theme, Cwd: m.contentCwd, ContentPane: m.contentPane,
+		Root: m.sourceRoot, RootPane: m.sourceRootPane, RootPinned: m.rootPinned,
+		ShowHidden: m.showHidden,
 	}
 }
 
 func (m *model) fetchAllBlocks() tea.Cmd {
 	cmds := make([]tea.Cmd, 0, len(m.docked))
 	for _, b := range m.docked {
-		cmds = append(cmds, b.Fetch())
+		if m.shouldFetchBlock(b) {
+			cmds = append(cmds, b.Fetch())
+		}
 	}
 	return tea.Batch(cmds...)
+}
+
+// syncBlockVisibility publishes one layout decision to optional blocks. A block
+// that becomes visible gets an immediate fetch; hidden blocks only keep fetching
+// when they explicitly opt into background work. The registry stays the sole
+// block list: this method depends only on optional interfaces.
+func (m *model) syncBlockVisibility() tea.Cmd {
+	if m.height <= 0 || m.width <= 0 {
+		return nil
+	}
+	if m.blockVisible == nil {
+		m.blockVisible = make(map[string]bool)
+	}
+	usable := m.height - headerLines
+	if m.showHelp {
+		usable -= m.helpLineCount()
+	}
+	if m.queryActive {
+		usable -= queryLineCount
+	}
+	if usable < 1 {
+		usable = 1
+	}
+	arr := m.layout(usable)
+	visible := make(map[string]bool, len(arr.blocks))
+	for _, b := range arr.blocks {
+		visible[b.ID()] = true
+	}
+	cmds := make([]tea.Cmd, 0, len(m.docked))
+	for _, b := range m.docked {
+		now, was := visible[b.ID()], m.blockVisible[b.ID()]
+		if aware, ok := b.(blocks.VisibilityAware); ok {
+			aware.SetVisible(now)
+		}
+		m.blockVisible[b.ID()] = now
+		if now && !was {
+			cmds = append(cmds, b.Fetch())
+		}
+	}
+	return tea.Batch(cmds...)
+}
+
+func (m *model) shouldFetchBlock(b blocks.Block) bool {
+	if m.blockVisible[b.ID()] {
+		return true
+	}
+	background, ok := b.(blocks.BackgroundFetcher)
+	return !ok || background.FetchInBackground()
+}
+
+func (m *model) syncSourceWatch() {
+	if m.fileWatch == nil || m.srcIdx < 0 || m.srcIdx >= len(nav.Sources) {
+		m.watchRoot = ""
+		return
+	}
+	if watchable, ok := nav.Sources[m.srcIdx].(nav.Watchable); ok {
+		m.watchRoot = watchable.WatchRoot(m.navCtx())
+		m.fileWatch.SetRoot(m.watchRoot)
+		return
+	}
+	m.watchRoot = ""
+	m.fileWatch.SetRoot("")
 }
 
 // act runs the selected row's action. ActionEditFile is special: it suspends the
@@ -958,24 +1503,25 @@ func (m *model) act() tea.Cmd {
 		}
 		return nil
 	}
-	if len(m.rows) == 0 || m.sel < 0 || m.sel >= len(m.rows) {
+	rows := m.navigatorRows()
+	if len(rows) == 0 || m.sel < 0 || m.sel >= len(rows) {
 		return nil
 	}
-	row := m.rows[m.sel]
+	row := rows[m.sel]
 	if row.Kind == nav.ActionEditFile {
 		return tea.ExecProcess(exec.Command("nvim", "--", row.Path), func(error) tea.Msg {
 			return editDoneMsg{}
 		})
 	}
-	content := m.contentPane
+	content := m.contentRef
 	return func() tea.Msg {
-		nav.Act(row, content)
+		nav.Act(m.client, row, content)
 		return nil
 	}
 }
 
-// quit hands the whole close sequence to tmux-sidebar-toggle --close rather than
-// doing it here.
+// quit is an explicit user dismissal: it hands the global persistence shutdown
+// to tmux-sidebar-toggle, which closes every owner transactionally.
 //
 // This used to clear the options and select the content pane inline, which meant
 // `q` skipped the ONE thing the script's close path does that this can't: replaying
@@ -987,20 +1533,53 @@ func (m *model) act() tea.Cmd {
 //
 // `run-shell -b` is what makes this safe: it runs as a child of the tmux SERVER,
 // not of this pane, so it survives the kill-pane it is about to issue. The script
-// then owns kill + select-layout + focus, exactly as it does for M-Tab. tea.Quit
-// still follows, so the TUI releases the terminal even if the script never lands.
+// then owns global desired-state removal plus each local kill + select-layout +
+// focus transaction. tea.Quit still follows, so the TUI releases the terminal
+// even if the script never lands.
 //
 // @sidebar_source is deliberately left set (by the script), so re-opening the
 // sidebar in this window restores the tab that was active.
 func (m *model) quit() tea.Cmd {
-	tmuxio.RunQuiet("run-shell", "-b", "-t", m.selfPane, closeScript())
+	// Clear desired state while this pane is still alive. Otherwise pane-exited
+	// can launch an ensure job that observed persistent mode before the async
+	// dismiss script gets a server turn.
+	m.client.RunQuiet("set-option", "-gu", "@sidebar_persistent")
+	// Run synchronously while this pane is still alive. Bubble Tea may tear down
+	// queued commands after a quit, but the final local kill must happen only
+	// after every other owner has completed its close transaction.
+	_ = exec.Command("/bin/sh", "-c", dismissScript(m.selfPane)).Run()
 	return tea.Quit
 }
 
-// closeScript is tmux-sidebar-toggle's --close invocation. Quoted as one shell
-// word because run-shell passes the string to sh -c.
-func closeScript() string {
-	return "'" + filepath.Join(homeDir(), ".config", "tmux_scripts", "tmux-sidebar-toggle") + "' --close"
+// closeScript is tmux-sidebar-toggle's local failure/HUP --close invocation. run-shell's -t scopes
+// tmux's command queue but does NOT export that target as TMUX_PANE to the child
+// shell, so pass the immutable sidebar pane explicitly. Without this, q/Esc can
+// close whichever window another attached client currently has active.
+func closeScript(paneID string) string {
+	path := filepath.Join(homeDir(), ".config", "tmux_scripts", "tmux-sidebar-toggle")
+	// TMUX_PANE selects the window to clean up; EXPECTED_PANE proves that the
+	// current window still owns this exact sidebar before --close can kill it.
+	// OWNER_WINDOW lets a moved pane restore only its original window.
+	command := "TMUX_PANE=" + shellQuote(paneID) + " MM_SIDEBAR_EXPECTED_PANE=" + shellQuote(paneID)
+	if ownerWindow := os.Getenv("MM_SIDEBAR_OWNER_WINDOW"); ownerWindow != "" {
+		command += " MM_SIDEBAR_EXPECTED_WINDOW=" + shellQuote(ownerWindow)
+	}
+	return command + " " + shellQuote(path) + " --close"
+}
+
+// dismissScript uses the same immutable owner context but intentionally clears
+// global persistent mode before canonical close-all.
+func dismissScript(paneID string) string {
+	path := filepath.Join(homeDir(), ".config", "tmux_scripts", "tmux-sidebar-toggle")
+	command := "TMUX_PANE=" + shellQuote(paneID) + " MM_SIDEBAR_EXPECTED_PANE=" + shellQuote(paneID)
+	if ownerWindow := os.Getenv("MM_SIDEBAR_OWNER_WINDOW"); ownerWindow != "" {
+		command += " MM_SIDEBAR_EXPECTED_WINDOW=" + shellQuote(ownerWindow)
+	}
+	return command + " " + shellQuote(path) + " --dismiss"
+}
+
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'"
 }
 
 // ---- view -----------------------------------------------------------------
@@ -1012,10 +1591,22 @@ func (m *model) View() string {
 	if m.height <= 0 || m.width <= 0 {
 		return ""
 	}
+	if m.diagnostics {
+		return m.diagnosticsView()
+	}
+	if m.panePreview {
+		return m.panePreviewView()
+	}
+	if m.actionPalette {
+		return m.actionPaletteView()
+	}
 	lines := make([]string, 0, m.height)
 	lines = append(lines, m.headerLines()...)
 	if m.showHelp {
 		lines = append(lines, m.helpLines()...)
+	}
+	if m.queryActive {
+		lines = append(lines, m.queryLine())
 	}
 
 	usable := m.height - len(lines)
@@ -1078,30 +1669,228 @@ func (m *model) headerLines() []string {
 	}
 }
 
-// helpLineCount is the '?' overlay's height. navFirstLine (which maps a click's
-// Y back to a row) and View's line budget both derive from it, so the overlay
-// must always render exactly this many lines -- a line's CONTENT may vary, the
-// COUNT may not, or the mouse mapping silently offsets by one.
-const helpLineCount = 6
-
-// helpOverlay is the '?' overlay's content, exactly helpLineCount lines.
-//
-// The tab-count is derived from nav.Sources rather than written out, because the
-// tab strip (headerLines) already derives from it: hardcoding "1-4" here meant
-// registering a fifth tab left the help telling a comfortable lie.
-func helpOverlay() []string {
-	return []string{
-		"j/k ↑/↓ move    1-" + strconv.Itoa(len(nav.Sources)) + "/Tab switch tab",
-		"Enter   act     r       refetch",
-		"g/G     top/end ?       toggle help",
-		"q/Esc   close   click   select row",
-		"filetree: Backspace = up one dir",
-		"blocks: click a row to act on it",
+// diagnosticsView renders only cached model state. It deliberately calls no
+// Client method: opening it must not turn a request for observability into a
+// second tmux/Git/filesystem collection path.
+func (m *model) diagnosticsView() string {
+	m.lineRow = m.lineRow[:0]
+	m.blockLines = m.blockLines[:0]
+	name := "-"
+	if m.srcIdx >= 0 && m.srcIdx < len(nav.Sources) {
+		name = nav.Sources[m.srcIdx].ID()
 	}
+	root := m.sourceRoot
+	if root == "" {
+		root = "-"
+	}
+	watch := m.watchRoot
+	if watch == "" {
+		watch = "off"
+	}
+	filter := "off"
+	if m.queryActive {
+		filter = fmt.Sprintf("%q", m.query)
+	}
+	visible := make([]string, 0, len(m.docked))
+	for _, b := range m.docked {
+		if m.blockVisible[b.ID()] {
+			visible = append(visible, b.ID())
+		}
+	}
+	if len(visible) == 0 {
+		visible = append(visible, "none")
+	}
+	fingerprint := m.worldFingerprint
+	if fingerprint == "" {
+		fingerprint = "-"
+	}
+	originClient := "-"
+	if m.client != nil {
+		originClient = valueOrDash(m.client.OriginClient())
+	}
+	lines := []string{
+		"▸ diagnostics/help",
+		"source: " + name + fmt.Sprintf(" (%d/%d)", m.srcIdx+1, len(nav.Sources)),
+		"root: " + root + fmt.Sprintf("  pinned=%t hidden=%t", m.rootPinned, m.showHidden),
+		"filter: " + filter + "  watch: " + watch,
+		"visible: " + strings.Join(visible, ","),
+		fmt.Sprintf("world: %d sessions, %d panes", len(m.world.Sessions()), len(m.world.Panes())),
+		"fingerprint: " + fingerprint,
+		fmt.Sprintf("refresh: applied=%d fetch=%d skip=%d last=%s", m.refreshApplied, m.sourceFetches, m.sourceSkips, m.lastRefresh.Round(time.Millisecond)),
+		fmt.Sprintf("ids: pane=%s content=%s", valueOrDash(m.selfPane), valueOrDash(m.contentPane)),
+		fmt.Sprintf("ids: client=%s window=%s session=%s", originClient, valueOrDash(m.lastSnapshot.WindowID), valueOrDash(m.lastSnapshot.SessionID)),
+	}
+	if m.lastStateErr != "" {
+		lines = append(lines, "state error: "+m.lastStateErr)
+	}
+	if m.lastFetchErr != "" {
+		lines = append(lines, "fetch error: "+m.lastFetchErr)
+	}
+	lines = append(lines, "actions:")
+	for _, action := range m.registeredKeyActions() {
+		lines = append(lines, "  "+action.Key+"  "+action.Summary)
+	}
+	lines = append(lines, "d/Esc close")
+	out := make([]string, 0, m.height)
+	for i, line := range lines {
+		if i >= m.height {
+			break
+		}
+		style := m.theme.Text
+		if i == 0 || line == "actions:" {
+			style = m.theme.Accent
+		} else if strings.Contains(line, "error:") {
+			style = m.theme.Urgent
+		} else if strings.HasPrefix(line, "  ") || line == "d/Esc close" {
+			style = m.theme.Muted
+		}
+		out = append(out, clipLine(style.Render(line), m.width))
+	}
+	for len(out) < m.height {
+		out = append(out, "")
+	}
+	return strings.Join(out[:m.height], "\n")
+}
+
+func valueOrDash(s string) string {
+	if s == "" {
+		return "-"
+	}
+	return s
+}
+
+// actionPaletteView owns a modal frame while preserving View's exact-height
+// contract. It clears the mouse hit maps because palette navigation is keyboard
+// only; the underlying variable-height navigator remains untouched.
+func (m *model) panePreviewView() string {
+	m.lineRow = m.lineRow[:0]
+	m.blockLines = m.blockLines[:0]
+	lines := []string{clipLine(m.theme.Accent.Render("▸ "+m.previewTitle), m.width)}
+	if m.previewErr != nil {
+		lines = append(lines, clipLine(m.theme.Urgent.Render("preview unavailable: "+m.previewErr.Error()), m.width))
+	} else if len(m.previewLines) == 0 {
+		lines = append(lines, clipLine(m.theme.Muted.Render("(empty pane)"), m.width))
+	} else {
+		for _, line := range m.previewLines {
+			if len(lines) >= m.height-1 {
+				break
+			}
+			lines = append(lines, clipLine(m.theme.Text.Render(line), m.width))
+		}
+	}
+	if len(lines) < m.height {
+		lines = append(lines, clipLine(m.theme.Muted.Render("Esc close"), m.width))
+	}
+	for len(lines) < m.height {
+		lines = append(lines, "")
+	}
+	return strings.Join(lines[:m.height], "\n")
+}
+
+// previewLines performs no ANSI interpretation. Captured terminal controls are
+// made visibly inert before the sidebar applies its own styles.
+func previewLines(body string) []string {
+	if body == "" {
+		return nil
+	}
+	lines := strings.Split(body, "\n")
+	for i, line := range lines {
+		lines[i] = display.Sanitize(line)
+	}
+	return lines
+}
+
+func (m *model) actionPaletteView() string {
+	m.lineRow = m.lineRow[:0]
+	m.blockLines = m.blockLines[:0]
+	lines := []string{clipLine(m.theme.Accent.Render("▸ actions"), m.width)}
+	if m.confirmAction != nil {
+		lines = append(lines,
+			clipLine(m.theme.Text.Render("confirm: ")+m.theme.Accent.Render(m.confirmAction.Label), m.width),
+			clipLine(m.theme.Muted.Render("y/Enter confirm  n/Esc cancel"), m.width),
+		)
+	} else {
+		for i, action := range m.paletteActions {
+			prefix := "  "
+			style := m.theme.Text
+			if i == m.actionSel {
+				prefix, style = "▶ ", m.theme.Accent
+			}
+			label := action.Label
+			if action.Destructive {
+				label += " (confirm)"
+			}
+			lines = append(lines, clipLine(style.Render(prefix+label), m.width))
+		}
+		lines = append(lines, clipLine(m.theme.Muted.Render("Enter act  Esc cancel"), m.width))
+	}
+	for len(lines) < m.height {
+		lines = append(lines, "")
+	}
+	return strings.Join(lines[:m.height], "\n")
+}
+
+// helpLineCount derives the '?' overlay's exact height from its action
+// registry. navFirstLine and View's line budget call the same method, so adding
+// an optional source action grows the frame and cannot offset mouse mapping.
+func helpLineCount(actions []nav.KeyAction) int {
+	return (len(actions) + 1) / 2
+}
+
+func (m *model) helpLineCount() int { return helpLineCount(m.registeredKeyActions()) }
+
+// queryLineCount stays explicit because navFirstLine and the vertical layout
+// both depend on it. The filter is a one-line inline control, never an overlay.
+const queryLineCount = 1
+
+// globalKeyActions is the model's keyboard-action registry. The input switch is
+// deliberately still direct (it owns ordering/modal precedence), but all help
+// presentation comes from these descriptors rather than a second hardcoded map.
+var globalKeyActions = []nav.KeyAction{
+	{Key: "1-N / Tab", Summary: "switch tab"},
+	{Key: "j/k / arrows", Summary: "move"},
+	{Key: "J/K / F13/F14", Summary: "rotate focus"},
+	{Key: "g/G / Enter", Summary: "first/last/act"},
+	{Key: "/ / a/:", Summary: "filter / actions"},
+	{Key: "r / w", Summary: "refresh / width"},
+	{Key: "d", Summary: "diagnostics"},
+	{Key: "? / q / Esc", Summary: "help / close"},
+}
+
+// registeredKeyActions combines global actions with the active source's
+// optional ActionProvider. Adding a tab-local key therefore updates both help
+// surfaces without teaching model.go that source's identity.
+func (m *model) registeredKeyActions() []nav.KeyAction {
+	actions := append([]nav.KeyAction(nil), globalKeyActions...)
+	if m.srcIdx >= 0 && m.srcIdx < len(nav.Sources) {
+		if provider, ok := nav.Sources[m.srcIdx].(nav.ActionProvider); ok {
+			actions = append(actions, provider.KeyActions()...)
+		}
+	}
+	return actions
+}
+
+// helpOverlay packs every registered action into two columns. Its dynamic
+// height is consumed through helpLineCount, so optional source extensions are
+// never silently omitted or allowed to desynchronize mouse geometry.
+func helpOverlay(actions []nav.KeyAction) []string {
+	lines := make([]string, 0, helpLineCount(actions))
+	for i := 0; i < len(actions); i += 2 {
+		line := actions[i].Key + " " + actions[i].Summary
+		if i+1 < len(actions) {
+			line += "    " + actions[i+1].Key + " " + actions[i+1].Summary
+		}
+		lines = append(lines, line)
+	}
+	return lines
+}
+
+func (m *model) queryLine() string {
+	return clipLine(m.theme.Accent.Render("/")+" "+m.theme.Text.Render(m.query)+m.theme.Muted.Render("▏"), m.width)
 }
 
 func (m *model) helpLines() []string {
-	lines := helpOverlay()
+	lines := helpOverlay(m.registeredKeyActions())
 	out := make([]string, 0, len(lines))
 	for _, l := range lines {
 		out = append(out, clipLine(m.theme.Muted.Render(l), m.width))
@@ -1132,9 +1921,14 @@ func (m *model) navLines(avail int) []string {
 		return out
 	}
 
-	if len(m.rows) == 0 {
+	rows := m.navigatorRows()
+	if len(rows) == 0 {
 		m.vpStart = 0
-		out = append(out, clipLine(m.theme.Muted.Render("(empty)"), m.width))
+		label := "(empty)"
+		if m.query != "" && len(m.rows) > 0 {
+			label = "(no matches)"
+		}
+		out = append(out, clipLine(m.theme.Muted.Render(label), m.width))
 		m.lineRow = append(m.lineRow, -1)
 		return pad()
 	}
@@ -1146,8 +1940,8 @@ func (m *model) navLines(avail int) []string {
 	if rowWidth < 1 {
 		rowWidth = 1
 	}
-	for i := m.vpStart; i < len(m.rows) && len(out) < avail; i++ {
-		for j, line := range m.rows[i].Lines {
+	for i := m.vpStart; i < len(rows) && len(out) < avail; i++ {
+		for j, line := range rows[i].Lines {
 			if len(out) >= avail {
 				break
 			}
@@ -1167,8 +1961,9 @@ func (m *model) navLines(avail int) []string {
 // the selection mid-viewport (the old behavior) doesn't generalize to
 // variable-height rows without the view jumping on every move.
 func (m *model) scrollTo(avail int) int {
+	rows := m.navigatorRows()
 	total := 0
-	for _, r := range m.rows {
+	for _, r := range rows {
 		total += len(r.Lines)
 	}
 	if total <= avail {
@@ -1184,7 +1979,7 @@ func (m *model) scrollTo(avail int) int {
 	for start < m.sel {
 		used := 0
 		for i := start; i <= m.sel; i++ {
-			used += len(m.rows[i].Lines)
+			used += len(rows[i].Lines)
 		}
 		if used <= avail {
 			break
@@ -1204,77 +1999,134 @@ func (m *model) scrollTo(avail int) int {
 // otherwise enter it at the same time. Funnelling every request through one
 // goroutine keeps it single-threaded AND keeps a slow sweep entirely off the
 // input path -- the bash version blocked its key loop for the whole 1.26s.
+type agentResult struct {
+	rows             []agents.Row
+	worldFingerprint string
+}
+
 type agentFeed struct {
-	request chan struct{}     // coalescing trigger (buffered 1)
-	results chan []agents.Row // one published sweep (buffered 1)
-	watch   func() tea.Cmd
+	ctx     context.Context
+	request chan struct{}    // coalescing trigger (buffered 1)
+	results chan agentResult // one versioned published sweep (buffered 1)
+	mu      sync.RWMutex
+	world   *tmuxio.World
+	start   sync.Once
+	close   sync.Once
+	wg      sync.WaitGroup
+	client  *tmuxio.Client
 }
 
-func newAgentFeed() *agentFeed {
-	f := &agentFeed{
+func newAgentFeed(ctx context.Context, client *tmuxio.Client) *agentFeed {
+	return &agentFeed{
+		ctx:     ctx,
+		client:  client,
 		request: make(chan struct{}, 1),
-		results: make(chan []agents.Row, 1),
+		results: make(chan agentResult, 1),
 	}
-	resolver := agents.NewResolver()
-	go func() {
-		for range f.request {
-			rows, err := resolver.Resolve()
-			if err != nil {
-				continue
-			}
-			f.results <- rows
-		}
-	}()
-	f.watch = func() tea.Cmd { return f.watchCmd(resolver.WatchDirs()) }
-	return f
 }
 
-// wait blocks in its own goroutine until a sweep is published. Re-armed by the
-// model each time an AgentRowsMsg is handled.
+// Start launches the resolver and its fsnotify watcher once Bubble Tea owns the
+// model. Constructing models in unit tests therefore never leaves goroutines.
+func (f *agentFeed) Start() {
+	f.start.Do(func() {
+		resolver := agents.NewResolverWithClient(f.client)
+		f.wg.Add(2)
+		go f.resolveLoop(resolver)
+		go f.watchLoop(resolver.WatchDirs())
+	})
+}
+
+func (f *agentFeed) resolveLoop(resolver *agents.Resolver) {
+	defer f.wg.Done()
+	for {
+		select {
+		case <-f.ctx.Done():
+			return
+		case <-f.request:
+		}
+		f.mu.RLock()
+		if f.world == nil {
+			f.mu.RUnlock()
+			continue
+		}
+		world := *f.world
+		f.mu.RUnlock()
+		rows, err := resolver.ResolveWorld(world)
+		if err != nil {
+			continue
+		}
+		result := agentResult{rows: rows, worldFingerprint: world.Fingerprint()}
+		select {
+		case f.results <- result:
+		case <-f.ctx.Done():
+			return
+		}
+	}
+}
+
+// watchLoop turns agent on-disk state into pushes. The watcher is explicitly
+// closed by context cancellation, then joined by Close; it cannot outlive a
+// Bubble Tea program or a HUP-triggered shutdown.
+func (f *agentFeed) watchLoop(dirs []string) {
+	defer f.wg.Done()
+	w, err := fsnotify.NewWatcher()
+	if err != nil {
+		return // the periodic tick remains the legacy backstop
+	}
+	defer w.Close()
+	for _, d := range dirs {
+		_ = w.Add(d) // a missing dir (no permission prompts yet) is fine
+	}
+	for {
+		select {
+		case <-f.ctx.Done():
+			return
+		case _, ok := <-w.Events:
+			if !ok {
+				return
+			}
+			f.requestSweep()
+		case _, ok := <-w.Errors:
+			if !ok {
+				return
+			}
+		}
+	}
+}
+
+func (f *agentFeed) requestSweep() {
+	select {
+	case f.request <- struct{}{}:
+	default:
+	}
+}
+
+// setWorld publishes the model's immutable observation before nudging the
+// resolver. Filesystem and block-timer requests reuse this latest World, so no
+// agent path can run a second recurring list-panes query.
+func (f *agentFeed) setWorld(world tmuxio.World) {
+	f.mu.Lock()
+	f.world = &world
+	f.mu.Unlock()
+	f.requestSweep()
+}
+
+// wait blocks in Bubble Tea's command goroutine until a sweep is published or
+// the model shuts down. The cancellation arm prevents its command goroutine
+// from leaking after Program.Run returns.
 func (f *agentFeed) wait() tea.Cmd {
 	return func() tea.Msg {
-		return blocks.AgentRowsMsg{Rows: <-f.results}
+		select {
+		case result := <-f.results:
+			return blocks.AgentRowsMsg{Rows: result.rows, WorldFingerprint: result.worldFingerprint}
+		case <-f.ctx.Done():
+			return nil
+		}
 	}
 }
 
-// watchCmd turns agent on-disk state into pushes. Claude Code writes live status
-// into claude/sessions/<pid>.json and the Notification hook writes/clears
-// /tmp/claude-session-state/<sessionId>; pi publishes exact identity under
-// /tmp/pi-session-state/<pid>.json. Watching these surfaces updates rows without
-// waiting for the next poll; the periodic tick remains the legacy backstop.
-//
-// The watcher runs for the process lifetime and only ever triggers a sweep; it
-// never touches model state, so it needs no synchronization.
-func (f *agentFeed) watchCmd(dirs []string) tea.Cmd {
-	return func() tea.Msg {
-		w, err := fsnotify.NewWatcher()
-		if err != nil {
-			return nil // no watches: the periodic tick still covers everything
-		}
-		for _, d := range dirs {
-			_ = w.Add(d) // a missing dir (no permission prompts yet) is fine
-		}
-		go func() {
-			defer w.Close()
-			for {
-				select {
-				case _, ok := <-w.Events:
-					if !ok {
-						return
-					}
-					select {
-					case f.request <- struct{}{}:
-					default: // sweep already pending; coalesce
-					}
-				case _, ok := <-w.Errors:
-					if !ok {
-						return
-					}
-				}
-			}
-		}()
-		return nil
-	}
+func (f *agentFeed) Close() {
+	f.close.Do(func() { f.wg.Wait() })
 }
 
 // dividerLine renders one full-width horizontal rule in the divider-subtle role,

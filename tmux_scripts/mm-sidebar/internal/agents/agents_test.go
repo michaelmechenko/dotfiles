@@ -9,6 +9,49 @@ import (
 	"mm-sidebar/internal/tmuxio"
 )
 
+func TestResolveWorldConsumesSharedPaneStateWithoutClientQuery(t *testing.T) {
+	panes := []tmuxio.PaneRow{{PanePID: 10, PaneID: "%10", SessionID: "$1"}}
+	r := &Resolver{
+		panePIDsKey: panePIDsKey(panes), piRegistryKey: "",
+		piByPanePID: map[int]piProc{}, probedCmd: map[int]string{},
+		cwdByPID: map[int]string{}, ppidByPID: map[int]int{}, transcript: map[string]string{},
+		claudeSessDir: t.TempDir(), piStateDir: t.TempDir(),
+	}
+	rows, err := r.ResolveWorld(tmuxio.NewWorld(tmuxio.Snapshot{}, nil, panes))
+	if err != nil || len(rows) != 0 {
+		t.Fatalf("ResolveWorld = %#v, %v", rows, err)
+	}
+}
+
+func TestTransientTranscriptMissRecoversWithoutResolverRebuild(t *testing.T) {
+	projects := t.TempDir()
+	r := &Resolver{claudeProjDir: projects, transcript: map[string]string{}}
+	if got := r.claudeTranscript("late"); got != "" {
+		t.Fatalf("first transcript lookup = %q, want miss", got)
+	}
+	path := filepath.Join(projects, "project", "late.jsonl")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := r.claudeTranscript("late"); got != path {
+		t.Fatalf("cached transient miss did not recover: got %q want %q", got, path)
+	}
+}
+
+func TestTransientCwdMissIsRetriedWithoutProcessSweep(t *testing.T) {
+	r := &Resolver{piByPanePID: map[int]piProc{10: {pid: 11}}, cwdByPID: map[int]string{}}
+	if !r.hasTransientCwdMiss() {
+		t.Fatal("missing cached cwd did not request lsof-only retry")
+	}
+	r.cwdByPID[11] = "/cwd"
+	if r.hasTransientCwdMiss() {
+		t.Fatal("resolved cached cwd still requested retry")
+	}
+}
+
 func TestPiRowsPreferExactRegistryForSelfAndChild(t *testing.T) {
 	dir := t.TempDir()
 	selfFile := filepath.Join(dir, "self.jsonl")
@@ -43,6 +86,21 @@ func TestPiRowsPreferExactRegistryForSelfAndChild(t *testing.T) {
 	}
 	if rows[1].SessionID != "exact-child" || rows[1].Transcript != childFile {
 		t.Fatalf("child row = %#v", rows[1])
+	}
+}
+
+func TestTSVEscapesFramingControlsWithoutChangingSchema(t *testing.T) {
+	r := Row{
+		SessionID: "1", PaneID: "%1", Target: "$1:1", SessionName: "s\tname",
+		State: StateIdle, Name: "line\nname", Transcript: "/tmp/a\x1fb", WindowName: "w\x1b",
+		Agent: AgentPi, Cwd: "/cwd\r", PaneLabel: "label\t\n",
+	}
+	got := r.TSV()
+	if strings.Count(got, "\t") != 10 || strings.ContainsAny(got, "\n\r\x1b\x1f") {
+		t.Fatalf("hostile TSV broke 11-field framing: %q", got)
+	}
+	if !strings.Contains(got, `s\tname`) || !strings.Contains(got, `line\nname`) {
+		t.Fatalf("hostile TSV controls were not visible escapes: %q", got)
 	}
 }
 

@@ -20,6 +20,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
+
+	"mm-sidebar/internal/nav"
 )
 
 // Block is a docked region of the sidebar.
@@ -66,6 +68,21 @@ type Block interface {
 // satisfy it -- reintroducing the same "your message goes nowhere" failure one
 // package over. A test in package main caught exactly that.
 type BlockMsg interface{ IsBlockMsg() }
+
+// VisibilityAware is the optional lifecycle half of Block. The model calls it
+// whenever layout degradation adds or removes a block from the rendered frame.
+// Implementations must make it safe for Fetch to observe visibility from a
+// Bubble Tea command goroutine.
+type VisibilityAware interface {
+	SetVisible(bool)
+}
+
+// BackgroundFetcher opts a block into sampling while layout has hidden it.
+// Blocks that do not implement it keep the historical background-refresh
+// behavior; expensive blocks can implement it and return false instead.
+type BackgroundFetcher interface {
+	FetchInBackground() bool
+}
 
 // Expandable is the optional half of Block: a block that is holding data it
 // isn't showing, and can show more of it when the layout has space going spare.
@@ -130,6 +147,14 @@ type Navigable interface {
 type SelectionIdentifiable interface {
 	NavigationID(index int) string
 	NavigationIndexByID(id string) int
+}
+
+// Actionable is the optional context-action half of a Navigable block. The
+// block owns its selected row and descriptors; model.go only opens the same
+// generic palette used by navigator rows. This keeps adding block actions out
+// of model-specific type switches.
+type Actionable interface {
+	Actions(index int) []nav.ContextAction
 }
 
 // label renders a block's title row in the same "▸ name" idiom the header's

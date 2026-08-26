@@ -1,12 +1,16 @@
 package blocks
 
-import "mm-sidebar/internal/theme"
+import (
+	"mm-sidebar/internal/theme"
+	"mm-sidebar/internal/tmuxio"
+)
 
 // Deps is everything a block constructor may need. A new block that needs some
 // other shared resource adds a field here rather than reaching for it directly,
 // so the model stays the single owner of the resolver goroutine and the palette.
 type Deps struct {
-	Theme theme.Theme
+	Theme  theme.Theme
+	Client *tmuxio.Client
 	// Agents is the resolver goroutine's coalescing trigger. Buffered and
 	// non-blocking: a nudge, not a queue.
 	Agents chan<- struct{}
@@ -28,7 +32,7 @@ type Factory func(Deps) Block
 // constructors take different arguments (agents_glance needs the trigger channel,
 // system_stats doesn't), so they aren't assignable to Factory directly.
 var Factories = []Factory{
-	func(d Deps) Block { return NewAgentsGlance(d.Theme, d.Agents) },
+	func(d Deps) Block { return NewAgentsGlanceWithClient(d.Theme, d.Client, d.Agents) },
 	func(d Deps) Block { return NewSystemStats(d.Theme) },
 }
 

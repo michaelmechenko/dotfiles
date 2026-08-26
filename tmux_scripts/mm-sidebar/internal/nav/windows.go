@@ -1,6 +1,11 @@
 package nav
 
-import "mm-sidebar/internal/theme"
+import (
+	"os"
+	"sort"
+
+	"mm-sidebar/internal/tmuxio"
+)
 
 // Windows lists the current session's PANES, one row each -- a 3-pane window
 // produces three rows sharing a sid:win target. It is user-facing as "panes"
@@ -15,21 +20,46 @@ func (Windows) ID() string    { return "windows" }
 func (Windows) Short() string { return "pane" }
 func (Windows) Title() string { return "panes" }
 
-func (Windows) Fetch(c Ctx) []Row {
-	return fetchFzfNav(c.Theme, "--list-windows", windowRow)
-}
-
-// windowRow: "<index:name padded> <cmd>" over "  <cwd>".
-func windowRow(th theme.Theme, f []string) ([]string, bool) {
-	if len(f) < 7 {
-		return nil, false
+func (w Windows) Fetch(c Ctx) ([]Row, error) {
+	home, _ := os.UserHomeDir()
+	panes := c.World.Panes()
+	current := c.World.Snapshot.SessionID
+	filtered := make([]tmuxio.PaneRow, 0, len(panes))
+	for _, pane := range panes {
+		// The sidebar pane is lifecycle infrastructure, not a navigation target.
+		// Excluding it also prevents the generic kill action from bypassing the
+		// canonical close owner and stranding saved layout state.
+		if pane.SessionID == current && !pane.Sidebar {
+			filtered = append(filtered, pane)
+		}
 	}
-	wname, cmd, cwd, active := f[3], f[4], f[5], f[6]
-
-	nameStyle := th.Text
-	if active == "1" {
-		nameStyle = th.Accent // the active pane of its window
+	sort.SliceStable(filtered, func(i, j int) bool {
+		if filtered[i].WindowIndex != filtered[j].WindowIndex {
+			return filtered[i].WindowIndex < filtered[j].WindowIndex
+		}
+		return filtered[i].PaneIndex < filtered[j].PaneIndex
+	})
+	rows := make([]Row, 0, len(filtered))
+	for _, pane := range filtered {
+		name, cmd, cwd := itoa(pane.WindowIndex)+":"+safe(pane.WindowName), safe(pane.Command), compactPath(pane.CurrentPath, home)
+		identity := name
+		if label := safe(pane.PaneLabel); label != "" {
+			identity = label + " · " + name
+		}
+		if cmd == "" {
+			cmd = "-"
+		}
+		nameStyle := c.Theme.Text
+		if pane.PaneActive {
+			nameStyle = c.Theme.Accent
+		}
+		first := nameStyle.Render(padTo(identity, nameCol)) + " " + c.Theme.Muted.Render(cmd) + badge(c.Theme, pane.Activity, pane.Bell, pane.Silence)
+		rows = append(rows, Row{
+			ID: "pane:" + pane.PaneID, SearchText: identity + " " + cmd + " " + cwd,
+			Lines: []string{first, "  " + c.Theme.Muted.Render(truncLeft(cwd, cwdCol))},
+			Kind:  ActionFocusPane, PaneID: pane.PaneID, Target: pane.Target, Pane: pane.Ref(),
+			Actions: paneActions(pane),
+		})
 	}
-	first := nameStyle.Render(padTo(wname, nameCol)) + " " + th.Muted.Render(cmd)
-	return []string{first, "  " + th.Muted.Render(truncLeft(cwd, cwdCol))}, true
+	return rows, nil
 }

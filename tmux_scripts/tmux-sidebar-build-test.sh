@@ -36,3 +36,18 @@ if [ "$NEW_HASH" = "$BAD_HASH" ]; then
     exit 1
 fi
 "$REBUILT" --help >/dev/null 2>&1
+
+# Freshness must recurse beyond the historical internal/*/*.go glob. This
+# package is intentionally unimported: the build only needs the source mtime,
+# not a new production dependency.
+mkdir -p "$MODULE/internal/freshness/deep"
+sleep 1
+cat >"$MODULE/internal/freshness/deep/freshness.go" <<'SOURCE'
+package deep
+SOURCE
+NESTED_REBUILT=$(HOME="$HOME_DIR" GOMODCACHE="$GOMODCACHE" GOCACHE="$GOCACHE" "$ROOT/tmux-sidebar-build")
+if [ "$NESTED_REBUILT" -ot "$MODULE/internal/freshness/deep/freshness.go" ]; then
+    echo "tmux-sidebar-build ignored a nested Go source file" >&2
+    exit 1
+fi
+"$NESTED_REBUILT" --help >/dev/null 2>&1

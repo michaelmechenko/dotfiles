@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 
 	"mm-sidebar/internal/theme"
+	"mm-sidebar/internal/tmuxio"
 )
 
 // Ctx is everything a Source may need to build its rows. It is passed by value
@@ -36,9 +37,13 @@ import (
 // (the model's single batched Query).
 type Ctx struct {
 	Theme       theme.Theme
-	Cwd         string // the content pane's current directory
-	ContentPane string // pane id the sidebar navigates/opens into
-	Root        string // filetree browse root (Ascender moves this)
+	Cwd         string       // the content pane's current directory
+	ContentPane string       // pane id the sidebar navigates/opens into
+	Root        string       // source-owned browse root
+	RootPane    string       // pane from which Root was last derived
+	RootPinned  bool         // source keeps Root across content-pane changes
+	ShowHidden  bool         // source-owned hidden-entry display preference
+	World       tmuxio.World // immutable global state for world-fed sources
 }
 
 // Source is one navigator tab.
@@ -55,16 +60,72 @@ type Source interface {
 	Short() string
 	// Title is the "▸ <title>" subtitle under the strip.
 	Title() string
-	// Fetch builds the rows, in display order.
-	Fetch(Ctx) []Row
+	// Fetch builds the rows, in display order. Typed errors let the model retain
+	// last-good rows while the next gated poll retries transient failures.
+	Fetch(Ctx) ([]Row, error)
 }
 
 // Ascender is the optional half of Source: a tab with a navigable hierarchy,
 // where Backspace should move up a level. Only filetree implements it, which is
 // what keeps the model from special-casing one tab by name.
-type Ascender interface {
-	// Up returns the new Ctx.Root, or ok=false when already at the top.
-	Up(Ctx) (root string, ok bool)
+// FetchError identifies a source failure without treating an empty successful
+// result as an error. It is intentionally typed so callers can retain prior
+// rows and retry without inventing a second source-specific error channel.
+type FetchError struct {
+	SourceID string
+	Err      error
+}
+
+func (e *FetchError) Error() string { return e.SourceID + ": " + e.Err.Error() }
+func (e *FetchError) Unwrap() error { return e.Err }
+
+func FetchFailure(source Source, err error) error {
+	if err == nil {
+		return nil
+	}
+	return &FetchError{SourceID: source.ID(), Err: err}
+}
+
+// RootSynchronizer is an optional source lifecycle hook for sources whose
+// context has a browse root. It keeps root derivation source-owned: the model
+// supplies only generic state and never recognizes a source by ID.
+type RootSynchronizer interface {
+	// SyncRoot returns the source's current root and the pane it is associated
+	// with. It is called from the refresh command, after the current content cwd
+	// is known. A pinned root may intentionally retain an older RootPane.
+	SyncRoot(Ctx) (root, rootPane string)
+}
+
+// SourceController is an optional key-control surface. It makes a source's
+// local controls available without adding source-name branches to model.go.
+type SourceController interface {
+	HandleSourceKey(key string, c Ctx) (SourceControl, bool)
+}
+
+// SourceControl is a state update returned by SourceController. A zero value
+// changes nothing; Refresh asks the model to refetch after applying it.
+type SourceControl struct {
+	Root, RootPane string
+	SetRoot        bool
+	RootPinned     bool
+	SetRootPinned  bool
+	ShowHidden     bool
+	SetShowHidden  bool
+	Refresh        bool
+}
+
+// Watchable is the optional filesystem-watch half of Source. The model owns the
+// watcher lifetime, while the source decides whether it needs a root watched.
+type Watchable interface {
+	WatchRoot(Ctx) string
+}
+
+// FetchKeyer is an optional invalidation surface for a source whose expensive
+// Fetch does not depend on the complete tmux World fingerprint. Projects uses
+// it so bell/activity/session changes cannot turn the 2-second tmux refresh into
+// recurring Git work.
+type FetchKeyer interface {
+	FetchKey(Ctx) string
 }
 
 // Sources is every tab, in display order. This slice IS the tab configuration:
@@ -76,6 +137,7 @@ type Ascender interface {
 var Sources = []Source{
 	Sessions{},
 	Windows{},
+	Projects{},
 	Filetree{},
 	Scratch{},
 }
@@ -121,11 +183,19 @@ const (
 // same-named sessions apart) was the thing that truncated away. Filetree and
 // scratch rows stay single-line; the render loop handles both uniformly.
 type Row struct {
-	Lines  []string
-	Kind   ActionKind
-	PaneID string // ActionFocusPane
-	Target string // ActionFocusPane
-	Path   string // ActionOpenDir / ActionOpenFile / ActionEditFile
+	// ID is a stable source-local identity for future selection retention.
+	// SearchText is the unstyled searchable representation for future filtering.
+	// Neither changes current rendering or action behavior.
+	ID         string
+	SearchText string
+	Lines      []string
+	Kind       ActionKind
+	PaneID     string         // ActionFocusPane
+	Target     string         // ActionFocusPane
+	Pane       tmuxio.PaneRef // stable target for focus actions
+	Path       string         // ActionOpenDir / ActionOpenFile / ActionEditFile
+	// Actions are source-owned descriptors for the generic a/: palette.
+	Actions []ContextAction
 }
 
 // OpenFileCmd builds the tmux-open-target invocation for a file row. The origin

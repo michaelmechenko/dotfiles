@@ -88,11 +88,12 @@ func dockCost(bs []blocks.Block) int {
 // navContentLines is how many lines the current rows actually need. Rows are
 // variable-height, so this is a sum, not a count.
 func (m *model) navContentLines() int {
-	if len(m.rows) == 0 {
+	rows := m.navigatorRows()
+	if len(rows) == 0 {
 		return 1 // the "(empty)" placeholder
 	}
 	total := 0
-	for _, r := range m.rows {
+	for _, r := range rows {
 		total += len(r.Lines)
 	}
 	return total

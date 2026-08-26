@@ -1,42 +1,128 @@
 #!/bin/sh
 # tmux-sidebar-repin -- restore every mm-sidebar pane to its configured width.
 #
-# tmux scales panes PROPORTIONALLY when a client or window resizes, so a Ghostty
-# window resize or a monitor attach/detach drifts the 36-col sidebar off 36
-# columns (measured: 160->100 cols collapsed it to 1 column).
-#
-# Two things this has to get right, both found by testing the naive version:
-#
-#  1. It must run DEFERRED, via `run-shell -b`, not inline in the hook. A
-#     `resize-pane` issued synchronously inside window-layout-changed /
-#     client-resized is discarded -- tmux finishes applying its own proportional
-#     layout after the hook body returns and overwrites it. Confirmed live: the
-#     hook fired with the correct pane id every time and the width still ended up
-#     at 1. Backgrounding it lets the resize land after that pass completes.
-#  2. It must sweep ALL windows, not just the hook's target. `client-resized`
-#     resolves formats against the client's current window, so an inline
-#     `#{@sidebar_pane_id}` only ever re-pins the window you happen to be looking
-#     at -- sidebars in other windows stay drifted.
-#
-# The "already correct" check is also the recursion brake: this script's own
-# resize-pane re-fires window-layout-changed, and the next invocation sees the
-# width already matching and does nothing.
+# tmux scales panes proportionally on client/window resize. Hooks run this in the
+# background because an inline resize is overwritten by tmux's later layout pass.
+# A resize can fire both client-resized and window-layout-changed repeatedly, so
+# one lock owner drains a coalesced dirty bit rather than each hook storm walking
+# every pane independently.
 
-WIDTH="${TMUX_SIDEBAR_WIDTH:-36}"
+WIDTH_FALLBACK="${TMUX_SIDEBAR_WIDTH:-36}"
+case "$WIDTH_FALLBACK" in
+    ''|*[!0-9]*|0) WIDTH_FALLBACK=36 ;;
+esac
+TAB=$(printf '\t')
+# TMUX is "<server socket>,<server pid>,<pane id>" inside run-shell. Scope the
+# lock by its socket basename so isolated tmux -L servers cannot coalesce away
+# one another's resize repair; direct manual invocations use "default".
+SERVER_SOCKET=${TMUX%%,*}
+SERVER_SOCKET=${SERVER_SOCKET##*/}
+[ -n "$SERVER_SOCKET" ] || SERVER_SOCKET=default
+STATE_DIR="${TMPDIR:-/tmp}/tmux-sidebar-repin.${UID:-$(id -u)}.${SERVER_SOCKET}.lock"
+DIRTY="$STATE_DIR/dirty"
+OWNER="$STATE_DIR/pid"
+CLOSING="$STATE_DIR.closing"
 
-tmux list-windows -a -F '#{session_id}:#{window_index}	#{@sidebar_pane_id}' 2>/dev/null |
-while IFS='	' read -r _win sb; do
-    [ -n "$sb" ] || continue
+acquire() {
+    while ! mkdir "$STATE_DIR" 2>/dev/null; do
+        # A killed hook process cannot run its trap. The only unowned window is
+        # between mkdir and the pid write; wait briefly for a live creator, then
+        # reclaim a lock that remains uninitialized instead of wedging forever.
+        if [ ! -r "$OWNER" ]; then
+            # During orderly close the owner must temporarily remove pid so
+            # rmdir can test whether dirty won the race. A sibling closing file
+            # keeps that live transition distinguishable from a crashed opener.
+            if [ -r "$CLOSING" ]; then
+                IFS= read -r closing_pid <"$CLOSING" || closing_pid=
+                if [ -n "$closing_pid" ] && kill -0 "$closing_pid" 2>/dev/null; then
+                    : >"$DIRTY" 2>/dev/null || true
+                    while [ -d "$STATE_DIR" ] && [ ! -r "$OWNER" ] && kill -0 "$closing_pid" 2>/dev/null; do
+                        sleep 0.02
+                    done
+                    continue
+                fi
+                rm -f "$CLOSING"
+            fi
+            attempts=0
+            while [ ! -r "$OWNER" ] && [ "$attempts" -lt 5 ]; do
+                sleep 0.02
+                attempts=$((attempts + 1))
+            done
+            if [ ! -r "$OWNER" ]; then
+                rm -rf "$STATE_DIR" 2>/dev/null || exit 0
+                continue
+            fi
+        fi
+        IFS= read -r pid <"$OWNER" || pid=
+        case "$pid" in
+            ''|*[!0-9]*)
+                rm -rf "$STATE_DIR" 2>/dev/null || exit 0
+                continue
+                ;;
+            *) if ! kill -0 "$pid" 2>/dev/null; then
+                rm -rf "$STATE_DIR" 2>/dev/null || exit 0
+                continue
+            fi ;;
+        esac
+        : >"$DIRTY" 2>/dev/null || true
+        return 1
+    done
+    printf '%s\n' "$$" >"$OWNER"
+    return 0
+}
 
-    cur=$(tmux display-message -p -t "$sb" '#{pane_width}' 2>/dev/null) || continue
-    [ -n "$cur" ] || continue
-    [ "$cur" = "$WIDTH" ] && continue
+cleanup() {
+    owner_pid=
+    closing_pid=
+    [ ! -r "$OWNER" ] || IFS= read -r owner_pid <"$OWNER" || owner_pid=
+    [ ! -r "$CLOSING" ] || IFS= read -r closing_pid <"$CLOSING" || closing_pid=
+    if [ "$owner_pid" = "$$" ] || [ "$closing_pid" = "$$" ]; then
+        rm -rf "$STATE_DIR" 2>/dev/null || true
+    fi
+    [ "$closing_pid" != "$$" ] || rm -f "$CLOSING" 2>/dev/null || true
+}
 
-    # Don't fight a window too narrow to honor the request; tmux would clamp it and
-    # this would re-run on every layout change forever.
-    ww=$(tmux display-message -p -t "$sb" '#{window_width}' 2>/dev/null)
-    [ -n "$ww" ] || continue
-    [ "$ww" -le "$((WIDTH + 10))" ] && continue
+acquire || exit 0
+trap 'cleanup' EXIT
+trap 'cleanup; exit 0' HUP INT TERM
 
-    tmux resize-pane -x "$WIDTH" -t "$sb" 2>/dev/null || true
+repin_once() {
+    # One tmux query contains every target and both dimensions. @sidebar_pane is
+    # pane-scoped, unlike @sidebar_pane_id (window-scoped), so stale window state
+    # cannot make this resize a normal content pane.
+    format="#{pane_id}${TAB}#{pane_width}${TAB}#{window_width}${TAB}#{@sidebar_pane}${TAB}#{@sidebar_width}"
+    tmux list-panes -a -F "$format" 2>/dev/null |
+    while IFS="$TAB" read -r pane cur ww marker width; do
+        [ "$marker" = 1 ] || continue
+        [ -n "$pane" ] && [ -n "$cur" ] && [ -n "$ww" ] || continue
+        case "$width" in
+            ''|*[!0-9]*) width="$WIDTH_FALLBACK" ;;
+        esac
+        [ "$width" -gt 0 ] 2>/dev/null || width="$WIDTH_FALLBACK"
+        [ "$cur" = "$width" ] && continue
+
+        # Don't fight a window too narrow to honor the request; tmux would clamp
+        # it and re-fire window-layout-changed forever.
+        [ "$ww" -le "$((width + 10))" ] && continue
+        tmux resize-pane -x "$width" -t "$pane" 2>/dev/null || true
+    done
+}
+
+while :; do
+    rm -f "$DIRTY"
+    repin_once
+    [ -e "$DIRTY" ] && continue
+    # A writer can create dirty after the test above. rmdir succeeds only while
+    # the directory is empty, making close-or-repeat atomic without a sleep.
+    printf '%s\n' "$$" >"$CLOSING"
+    rm -f "$OWNER"
+    if rmdir "$STATE_DIR" 2>/dev/null; then
+        rm -f "$CLOSING"
+        trap - EXIT HUP INT TERM
+        exit 0
+    fi
+    # dirty won the close race; restore ownership before dropping the closing
+    # marker so contenders can only ever see one live owner state.
+    printf '%s\n' "$$" >"$OWNER"
+    rm -f "$CLOSING"
 done

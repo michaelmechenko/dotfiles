@@ -3,12 +3,13 @@
 #   1 pane            -> new pane to the right.
 #   2+ panes          -> new pane above the rightmost pane (stacked atop the right column).
 f="$1"
+origin=${2:-$(tmux display -p '#{pane_id}')}
 # tmux runs the split command via `sh -c`; shell-quote the path defensively.
 printf -v q '%q' "$f"
-panes=$(tmux display -p '#{window_panes}')
+panes=$(tmux display -p -t "$origin" '#{window_panes}')
 if [ "${panes:-1}" -le 1 ]; then
-  tmux split-window -h "nvim -- $q"
+  tmux split-window -h -t "$origin" "nvim -- $q"
 else
-  rp=$(tmux list-panes -F '#{pane_left} #{pane_id}' | sort -n | tail -1 | cut -d' ' -f2)
+  rp=$(tmux list-panes -t "$origin" -F '#{pane_left} #{pane_id}' | sort -n | tail -1 | cut -d' ' -f2)
   tmux split-window -v -b -t "$rp" "nvim -- $q"
 fi

@@ -1,15 +1,14 @@
 #!/usr/bin/env bash
-# tmux-sidebar-toggle -- M-Tab / M-BTab / prefix-Tab entry point for the
-# mm-sidebar pane. TWO MODES, one per keybinding:
+# tmux-sidebar-toggle -- persistent-mode and lifecycle owner for mm-sidebar.
 #
-#   (default)  OPEN/CLOSE     no sidebar -> open it, focus it
-#                             sidebar open (from anywhere) -> close it
+#   --toggle-persistent       M-Tab: enable+ensure current, or disable+close all
+#   --focus                   M-BTab: local three-state sidebar/content focus switch
+#   --ensure                  hook-only idempotent open when persistent mode is enabled
+#   --dismiss                 q/Esc: disable persistent mode and close all
+#   --close                   local owner cleanup only (failures/HUP/scripts)
 #
-#   --focus    FOCUS SWITCH   no sidebar -> open it, focus it
-#              (three-state)  open, focus in content -> focus the sidebar
-#                             open, focus in sidebar -> focus content, pane STAYS
-#
-#   --close                   close if open, never opens (for scripts)
+# The default remains the legacy local open/close mode for direct script callers;
+# root bindings use --toggle-persistent.
 #
 # The split exists because the two gestures have different costs. Open/close pays
 # a full process respawn on every re-open, which is why the reference doc once
@@ -27,19 +26,94 @@
 #   @sidebar_content_pane  the pane the sidebar navigates/opens into
 #   @sidebar_source        active tab; deliberately NOT cleared on close, so
 #                          re-opening restores the tab you were on
+#   @sidebar_width         per-window width; unset uses TMUX_SIDEBAR_WIDTH/36
+#   @sidebar_was_zoomed    1/0 zoom state before opening
+#   @sidebar_zoom_pane     that original zoomed pane
+#   @sidebar_saved_layout  pre-open pane geometry (when the window had 2+ panes)
+#   @sidebar_gate          temporary child-start gate for an open transaction
 #
-# Open runs the compiled mm-sidebar binary, falling back to the legacy bash
+# Open runs as a transaction: every saved-state, split, mark, or option failure
+# rolls back the partial pane, geometry, and temporary options before returning.
+# The compiled mm-sidebar binary falls back to the legacy bash
 # dispatcher if the build fails (no Go toolchain, compile error) so M-Tab always
 # does something.
 
 set -uo pipefail
 
-SIDEBAR_WIDTH="${TMUX_SIDEBAR_WIDTH:-36}"
+SIDEBAR_WIDTH_FALLBACK="${TMUX_SIDEBAR_WIDTH:-36}"
+case "$SIDEBAR_WIDTH_FALLBACK" in
+  ''|*[!0-9]*|0) SIDEBAR_WIDTH_FALLBACK=36 ;;
+esac
 SCRIPTS="$HOME/.config/tmux_scripts"
 BUILD="$SCRIPTS/tmux-sidebar-build"
 FALLBACK="$SCRIPTS/tmux-sidebar"
 
 mode="${1:-toggle}"
+# Bound launches set this from #{client_name}; it identifies the exact client
+# sidebar actions must switch, rather than whichever client becomes active later.
+origin_client="${MM_SIDEBAR_ORIGIN_CLIENT:-}"
+PERSIST_OPTION='@sidebar_persistent'
+PERSIST_LOCK="${TMPDIR:-/tmp}/mm-sidebar-persistent.lock"
+
+persistent_enabled() { [ "$(tmux show-options -gqv "$PERSIST_OPTION" 2>/dev/null || true)" = 1 ]; }
+
+# Every sidebar remains owned by its own window. Global mode only records the
+# desired state; close-all reuses canonical close so each owner restores layout,
+# focus, and zoom instead of directly killing panes.
+close_all_sidebars() {
+  local skip_pane="${1:-}" rows pane marker
+  rows=$(tmux list-panes -a -F $'#{pane_id}\t#{@sidebar_pane}' 2>/dev/null || true)
+  while IFS=$'\t' read -r pane marker; do
+    [ "$marker" = 1 ] || continue
+    [ "$pane" = "$skip_pane" ] && continue
+    # Do not inherit the invoking sidebar's owner window into a different
+    # owner's canonical close; that guard would intentionally reject it.
+    TMUX_PANE="$pane" MM_SIDEBAR_EXPECTED_PANE="$pane" MM_SIDEBAR_EXPECTED_WINDOW= "$0" --close || true
+  done <<<"$rows"
+}
+
+acquire_persist_lock() {
+  local tries=0
+  while ! mkdir "$PERSIST_LOCK" 2>/dev/null; do
+    if [ -f "$PERSIST_LOCK/pid" ] && ! kill -0 "$(cat "$PERSIST_LOCK/pid" 2>/dev/null)" 2>/dev/null; then
+      rm -rf "$PERSIST_LOCK"
+      continue
+    fi
+    tries=$((tries + 1))
+    [ "$tries" -lt 150 ] || return 1
+    sleep 0.02
+  done
+  printf '%s\n' "$$" >"$PERSIST_LOCK/pid"
+}
+
+# Handle global desired-state transitions before taking the per-lifecycle lock:
+# close_all_sidebars invokes this script recursively for each independent owner.
+case "$mode" in
+  --toggle-persistent|--dismiss)
+    acquire_persist_lock || exit 0
+    trap 'rm -rf "$PERSIST_LOCK"' EXIT
+    if [ "$mode" = --toggle-persistent ] && ! persistent_enabled; then
+      tmux set-option -g "$PERSIST_OPTION" 1 || exit 1
+      TMUX_PANE="${TMUX_PANE:-}" MM_SIDEBAR_ORIGIN_CLIENT="$origin_client" "$0" --ensure
+    else
+      # Clear desired state before any pane dies: its pane-exited hook must not
+      # recreate it. q/Esc runs from a server job targeted at its sidebar; close
+      # every OTHER owner first, then the invoking owner last. Killing it first
+      # can terminate that targeted job before it completes the global sweep.
+      tmux set-option -gu "$PERSIST_OPTION" 2>/dev/null || true
+      if [ "$mode" = --dismiss ] && [ -n "${MM_SIDEBAR_EXPECTED_PANE:-}" ]; then
+        close_all_sidebars "$MM_SIDEBAR_EXPECTED_PANE"
+        TMUX_PANE="${TMUX_PANE:-}" \
+          MM_SIDEBAR_EXPECTED_PANE="$MM_SIDEBAR_EXPECTED_PANE" \
+          MM_SIDEBAR_EXPECTED_WINDOW="${MM_SIDEBAR_EXPECTED_WINDOW:-}" \
+          "$0" --close || true
+      else
+        close_all_sidebars
+      fi
+    fi
+    exit 0
+    ;;
+esac
 
 # Double-guard: the M-Tab bind already forwards raw inside popups/nnn, but a direct
 # invocation should no-op there rather than spawn a sidebar into a popup.
@@ -49,22 +123,30 @@ if [ -n "$popup" ] || [ "$session" = "nnn" ]; then
   exit 0
 fi
 
-# `run-shell` is asynchronous, so a fast double-press can start two copies of this
-# script before either has written @sidebar_pane_id -- both would take the open path
-# and the window would end up with two sidebars. mkdir is the atomic lock (macOS has
-# no flock(1)); the pid + `kill -0` guard clears a lock left behind by a killed run,
-# so a stale lock can never permanently break M-Tab (the failure mode the
-# @in_float_popup flag hit -- see AGENTS.md).
+# Every lifecycle transition shares one atomic lock. Open/focus gestures remain
+# edge-triggered (a duplicate press is dropped), while canonical --close waits
+# briefly for an in-flight gated open to publish and release the lock. This keeps
+# an old close from clearing a newly-opened sidebar's state.
 LOCK="${TMPDIR:-/tmp}/mm-sidebar-toggle.lock"
-if ! mkdir "$LOCK" 2>/dev/null; then
-  if [ -f "$LOCK/pid" ] && ! kill -0 "$(cat "$LOCK/pid" 2>/dev/null)" 2>/dev/null; then
-    rm -rf "$LOCK"
-    mkdir "$LOCK" 2>/dev/null || exit 0
-  else
-    exit 0   # a press is already being handled; this one is a duplicate
-  fi
-fi
-echo $$ >"$LOCK/pid"
+acquire_lock() {
+  local attempts=0
+  while ! mkdir "$LOCK" 2>/dev/null; do
+    if [ -f "$LOCK/pid" ] && ! kill -0 "$(cat "$LOCK/pid" 2>/dev/null)" 2>/dev/null; then
+      rm -rf "$LOCK"
+      continue
+    fi
+    # Event-driven ensure must wait behind a close/open transaction; dropping it
+    # would lose the only recovery event after a sidebar crash.
+    [ "$mode" = "--close" ] || [ "$mode" = "--ensure" ] || return 1
+    attempts=$((attempts + 1))
+    [ "$attempts" -lt 150 ] || return 1
+    sleep 0.02
+  done
+  echo $$ >"$LOCK/pid"
+}
+acquire_lock || exit 0
+# Replaced by the transaction-aware EXIT trap immediately before open state is
+# saved. It still covers early command/build/close exits.
 trap 'rm -rf "$LOCK"' EXIT
 
 # "Which pane am I acting for" must come from $TMUX_PANE, not `display-message -p
@@ -76,11 +158,138 @@ trap 'rm -rf "$LOCK"' EXIT
 current_pane="${TMUX_PANE:-}"
 [ -n "$current_pane" ] || current_pane=$(tmux display-message -p '#{pane_id}')
 
-win_target=$(tmux display-message -p -t "$current_pane" '#{session_id}:#{window_index}')
+# A window ID is stable across index changes. Every pane-targeting lifecycle
+# action below conditions on this captured owner inside the tmux server queue.
+win_target=$(tmux display-message -p -t "$current_pane" '#{window_id}')
+expected_pane="${MM_SIDEBAR_EXPECTED_PANE:-}"
+expected_window="${MM_SIDEBAR_EXPECTED_WINDOW:-}"
+# A sidebar process carries the window that opened it. If it has moved, clean
+# that source window only; do not even inspect the destination's sidebar state.
+if [ "$mode" = "--close" ] && [ -n "$expected_pane" ] && [ -n "$expected_window" ] && [ "$expected_window" != "$win_target" ]; then
+  win_target="$expected_window"
+fi
 existing=$(tmux show-options -wqv -t "$win_target" @sidebar_pane_id 2>/dev/null || true)
+# Width is window-scoped so compact/normal/wide choices survive a close/reopen.
+# TMUX_SIDEBAR_WIDTH remains the global fallback for windows with no preference.
+SIDEBAR_WIDTH=$(tmux show-options -wqv -t "$win_target" @sidebar_width 2>/dev/null || true)
+case "$SIDEBAR_WIDTH" in
+  ''|*[!0-9]*) SIDEBAR_WIDTH="$SIDEBAR_WIDTH_FALLBACK" ;;
+esac
+[ "$SIDEBAR_WIDTH" -gt 0 ] 2>/dev/null || SIDEBAR_WIDTH="$SIDEBAR_WIDTH_FALLBACK"
 
-pane_alive() {
-  [ -n "${1:-}" ] && tmux display-message -p -t "$1" '#{pane_id}' >/dev/null 2>&1
+# pane_owned is the only ownership validator for sidebar lifecycle state.
+# Pane ids stay valid after a move, so liveness alone would let this window kill
+# or focus a pane that now belongs to another window. State is always owned by
+# win_target; moved or dead ids are stale state here.
+pane_owned() {
+  [ -n "${1:-}" ] && tmux list-panes -t "$win_target" -F '#{pane_id}' 2>/dev/null | grep -Fxq "$1"
+}
+
+# Keep the ownership condition and pane action in one tmux server command. A
+# pane can move between client commands but cannot move between this if-shell's
+# condition and queued action. Pane/window IDs are tmux-generated tokens, so
+# they are safe as direct tmux command arguments here.
+owned_action() { # $1 = pane id, $2 = one tmux command string
+  local pane="$1" action="$2"
+  tmux if-shell -F -t "$pane" "#{==:#{window_id},$win_target}" "$action" ''
+}
+
+# Query an outcome without acting on the pane. These are only used after an
+# atomic action to distinguish a failed action from a harmless ownership loss.
+pane_has_marker() {
+  local pane="$1"
+  # These are outcome checks only, never a precondition for a pane action.
+  [ "$(tmux display-message -p -t "$pane" '#{window_id}' 2>/dev/null || true)" = "$win_target" ] &&
+    [ "$(tmux display-message -p -t "$pane" '#{@sidebar_pane}' 2>/dev/null || true)" = 1 ]
+}
+pane_has_title() {
+  local pane="$1"
+  [ "$(tmux display-message -p -t "$pane" '#{window_id}' 2>/dev/null || true)" = "$win_target" ] &&
+    [ "$(tmux display-message -p -t "$pane" '#{pane_title}' 2>/dev/null || true)" = sidebar ]
+}
+focus_owned_pane() {
+  local pane="$1"
+  owned_action "$pane" "select-pane -t $pane" 2>/dev/null || true
+}
+# tmux parses an if-shell action itself, so quote dynamic values as shell words
+# before placing them in that single server-queued command string.
+tmux_word() { printf '%q' "$1"; }
+
+# list-panes -a is intentional: a signal can interrupt split-window's command
+# substitution after the child has been moved out of win_target but before this
+# shell receives its pane ID.
+gate_path=""
+gate_cancelled=0
+sidebar_pane=""
+transaction_open=0
+rollback_running=0
+
+remove_gate() {
+  local gate="${gate_path:-}"
+  [ -n "$gate" ] || gate=$(tmux show-options -wqv -t "$win_target" @sidebar_gate 2>/dev/null || true)
+  [ -z "$gate" ] || rm -f -- "$gate" 2>/dev/null || true
+  gate_path=""
+}
+
+# A child moved before publication must not be killed or initialized in its new
+# window. Tell its gate wrapper to exit on its own, then discard only this
+# window's state; no tmux operation targets the moved pane.
+cancel_gate() {
+  [ -n "$gate_path" ] && printf 'cancel\n' >"$gate_path" 2>/dev/null || true
+  # Do not let clear_transient_state unlink this file before the moved child
+  # reads cancel: a missing gate means "exec". The child removes it on exit.
+  gate_cancelled=1
+  gate_path=""
+  tmux set-option -wqu -t "$win_target" @sidebar_gate 2>/dev/null || true
+}
+
+# split-window can finish just as a signal interrupts its command substitution,
+# before the shell assigns sidebar_pane. The unique gate pathname is an argv
+# token in pane_start_command, so recover that one child across ALL panes: it
+# may already have moved out of win_target and must still be cancelled.
+find_gated_pane() {
+  [ -n "$gate_path" ] || return 1
+  local pane command
+  while IFS=$'\t' read -r pane command; do
+    case "$command" in
+      *"$gate_path"*) printf '%s' "$pane"; return 0;;
+    esac
+  done < <(tmux list-panes -a -F '#{pane_id}\t#{pane_start_command}' 2>/dev/null)
+  return 1
+}
+
+clear_transient_state() {
+  [ "$gate_cancelled" = 1 ] || remove_gate
+  tmux set-option -wqu -t "$win_target" @sidebar_pane_id 2>/dev/null || true
+  tmux set-option -wqu -t "$win_target" @sidebar_content_pane 2>/dev/null || true
+  tmux set-option -wqu -t "$win_target" @sidebar_saved_layout 2>/dev/null || true
+  tmux set-option -wqu -t "$win_target" @sidebar_was_zoomed 2>/dev/null || true
+  tmux set-option -wqu -t "$win_target" @sidebar_zoom_pane 2>/dev/null || true
+  tmux set-option -wqu -t "$win_target" @sidebar_gate 2>/dev/null || true
+}
+
+# restore_saved_state is intentionally best-effort. Layout replay can reject a
+# stale checksum after panes changed, and a disappeared/moved zoom pane cannot
+# safely be restored. Either way the temporary state is always cleared.
+restore_saved_state() {
+  local layout was_zoomed zoom_pane zoomed
+  layout=$(tmux show-options -wqv -t "$win_target" @sidebar_saved_layout 2>/dev/null || true)
+  was_zoomed=$(tmux show-options -wqv -t "$win_target" @sidebar_was_zoomed 2>/dev/null || true)
+  zoom_pane=$(tmux show-options -wqv -t "$win_target" @sidebar_zoom_pane 2>/dev/null || true)
+
+  if [ -n "$layout" ]; then
+    tmux select-layout -t "$win_target" "$layout" 2>/dev/null || true
+  fi
+  if [ "$was_zoomed" = 1 ] && [ -n "$zoom_pane" ]; then
+    # Do not check then zoom: the pane may move between those client commands.
+    # The window ownership and already-zoomed checks are evaluated atomically.
+    # Nest the zoom predicate inside the ownership branch rather than encoding
+    # both in one nested format (tmux format commas need fragile escaping).
+    tmux if-shell -F -t "$zoom_pane" "#{==:#{window_id},$win_target}" \
+      "if-shell -F -t $zoom_pane '#{!=:#{window_zoomed_flag},1}' 'resize-pane -Z -t $zoom_pane' ''" \
+      '' 2>/dev/null || true
+  fi
+  clear_transient_state
 }
 
 # return_pane resolves where focus should land when the sidebar stops holding it:
@@ -91,53 +300,132 @@ pane_alive() {
 return_pane() {
   local last content other
   last=$(tmux list-panes -t "$win_target" -F '#{?pane_last,#{pane_id},}' 2>/dev/null | grep . | head -1)
-  if [ -n "$last" ] && [ "$last" != "$existing" ]; then
+  if [ -n "$last" ] && [ "$last" != "$existing" ] && pane_owned "$last"; then
     printf '%s' "$last"
     return 0
   fi
   content=$(tmux show-options -wqv -t "$win_target" @sidebar_content_pane 2>/dev/null || true)
-  if [ "$content" != "$existing" ] && pane_alive "$content"; then
+  if [ "$content" != "$existing" ] && pane_owned "$content"; then
     printf '%s' "$content"
     return 0
   fi
   other=$(tmux list-panes -t "$win_target" -F '#{pane_id}' 2>/dev/null | grep -v "^$existing$" | head -1)
-  printf '%s' "$other"
+  [ -n "$other" ] && pane_owned "$other" && printf '%s' "$other"
+}
+
+# Keep a failed rollback discoverable: its waiting child and the saved layout
+# remain owned by this window so a later --close can retry the kill. This is
+# deliberately best-effort only after the normal publish path has already run.
+retain_failed_sidebar() {
+  [ -n "$sidebar_pane" ] || return 1
+  tmux set-option -wt "$win_target" @sidebar_pane_id "$sidebar_pane" || return 1
+  tmux set-option -wt "$win_target" @sidebar_content_pane "$content_pane" 2>/dev/null || true
+  [ -n "$gate_path" ] && tmux set-option -wt "$win_target" @sidebar_gate "$gate_path" 2>/dev/null || true
+  existing="$sidebar_pane"
+}
+
+rollback_open() {
+  [ "$rollback_running" = 0 ] || return 0
+  rollback_running=1
+  [ -n "$sidebar_pane" ] || sidebar_pane=$(find_gated_pane 2>/dev/null || true)
+  if [ -n "$sidebar_pane" ] && ! pane_owned "$sidebar_pane"; then
+    cancel_gate
+    restore_saved_state
+    transaction_open=0
+    rollback_running=0
+    return 0
+  fi
+  if [ -n "$sidebar_pane" ]; then
+    # The ownership condition and kill share one server queue. A moved pane is
+    # never killed; a real kill failure remains retained for a later retry.
+    if ! owned_action "$sidebar_pane" "kill-pane -t $sidebar_pane" 2>/dev/null; then
+      if pane_owned "$sidebar_pane"; then
+        retain_failed_sidebar || true
+        transaction_open=0
+        rollback_running=0
+        return 1
+      fi
+    fi
+  fi
+  restore_saved_state
+  transaction_open=0
+  rollback_running=0
+}
+
+# Signal/EXIT cleanup owns open transaction rollback after any state has been
+# saved. Signals exit through EXIT so cleanup runs once; clearing traps first
+# avoids recursive EXIT/SIGNAL handling if a cleanup command itself fails.
+cleanup_lock() {
+  rm -rf "$LOCK" 2>/dev/null || true
+}
+on_exit() {
+  local status="$1"
+  # A second termination signal must not interrupt a half-complete rollback.
+  trap - EXIT
+  trap '' INT TERM HUP
+  if [ "$transaction_open" = 1 ]; then
+    rollback_open || true
+  fi
+  cleanup_lock
+  return "$status"
+}
+on_signal() {
+  local status="$1"
+  exit "$status"
 }
 
 close_sidebar() {
-  local target layout
-  # Resolve the focus target BEFORE the kill, while the options still exist.
+  local target
+  # Resolve the focus target before the kill, while the window still has the
+  # sidebar. Its eventual select is ownership-guarded separately below.
   target=$(return_pane)
-  layout=$(tmux show-options -wqv -t "$win_target" @sidebar_saved_layout 2>/dev/null || true)
-
-  tmux kill-pane -t "$existing" 2>/dev/null || true
-  tmux set-option -wqu -t "$win_target" @sidebar_pane_id
-  tmux set-option -wqu -t "$win_target" @sidebar_content_pane
-
-  # Restore the pane sizes the window had before the sidebar squeezed them. The
-  # -f (full-height) split is a whole-window geometry event, so tmux reflows every
-  # pane proportionally on open and gives the reclaimed columns to an arbitrary
-  # neighbor on close -- measured: a 99/40 split came back as 109/30.
-  #
-  # Failure is expected and must be harmless: select-layout validates the layout
-  # string's checksum AND its pane count, so a pane added or killed while the
-  # sidebar was open makes the saved string stale and tmux rejects it (verified).
-  # That degrades to tmux's own redistribution, which is what used to happen
-  # always. Clear the option either way so a stale string is never reused.
-  if [ -n "$layout" ]; then
-    tmux select-layout -t "$win_target" "$layout" 2>/dev/null || true
+  # The ownership condition and kill share one server queue. If it moved before
+  # that queue runs, this is a harmless no-op and only this window's state clears.
+  if ! owned_action "$existing" "kill-pane -t $existing" 2>/dev/null && pane_owned "$existing"; then
+    # Ownership and geometry remain intact so another close can retry.
+    return 1
   fi
-  tmux set-option -wqu -t "$win_target" @sidebar_saved_layout
+  if pane_owned "$existing"; then
+    # A successful if-shell that leaves an owned pane means kill failed.
+    return 1
+  fi
+  # Fixture-only pause used to prove the lifecycle lock prevents a new open from
+  # publishing between the old pane's kill and saved-state restoration.
+  if [ -n "${MM_SIDEBAR_TEST_AFTER_CLOSE_KILL_MARKER:-}" ]; then
+    : >"$MM_SIDEBAR_TEST_AFTER_CLOSE_KILL_MARKER"
+    while [ -e "${MM_SIDEBAR_TEST_AFTER_CLOSE_KILL_HOLD:-}" ]; do sleep 0.02; done
+  fi
+
+  # Restoring geometry before focus mirrors the open transaction's rollback.
+  restore_saved_state
 
   # Focus last, so it wins regardless of what select-layout did.
-  pane_alive "$target" && tmux select-pane -t "$target" 2>/dev/null || true
+  [ -n "$target" ] && focus_owned_pane "$target"
 }
 
-if pane_alive "$existing"; then
+# A canonical close is emitted by the sidebar process itself. If that pane was
+# moved into a window that already owns another sidebar, it must not close the
+# destination's owner. Direct M-Tab --close calls omit this guard intentionally.
+if [ "$mode" = "--close" ] && [ -n "$expected_pane" ] && [ "$existing" != "$expected_pane" ]; then
+  exit 0
+fi
+
+# A dead pane id is stale transaction state, not an invitation to open a second
+# sidebar. First finish its close/rollback cleanup; --close then has nothing to
+# do, while open can begin from a known-empty state.
+if [ -n "$existing" ] && ! pane_owned "$existing"; then
+  close_sidebar
+  existing=""
+fi
+
+if pane_owned "$existing"; then
+  # Event-driven --ensure is idempotent: repeated select/pane hooks must not
+  # close or duplicate an already-owned sidebar.
+  [ "$mode" = "--ensure" ] && exit 0
   # Open/close (the default) and --close both dismiss an open sidebar; only
   # --focus moves focus around while keeping the pane alive.
   if [ "$mode" != "--focus" ]; then
-    close_sidebar
+    close_sidebar || exit 1
     exit 0
   fi
   if [ "$current_pane" = "$existing" ]; then
@@ -145,19 +433,24 @@ if pane_alive "$existing"; then
     # keeping the sidebar alive. See return_pane for why last-pane and not
     # @sidebar_content_pane.
     target=$(return_pane)
-    pane_alive "$target" && tmux select-pane -t "$target"
+    [ -n "$target" ] && focus_owned_pane "$target"
   else
     # Focus is in a content pane -> retarget the sidebar at THIS pane, then focus it.
     # Retargeting means the sidebar's filetree/scratch follow whichever pane you were
     # last working in, rather than staying pinned to whatever was focused at open.
-    tmux set-option -wt "$win_target" @sidebar_content_pane "$current_pane"
-    tmux select-pane -t "$existing"
+    # Retarget only if the caller is still in this captured window; focus has
+    # its own ownership guard, so neither action can follow a moved pane.
+    owned_action "$current_pane" "set-option -wt $win_target @sidebar_content_pane $current_pane" 2>/dev/null || true
+    focus_owned_pane "$existing"
   fi
   exit 0
 fi
 
 # No live sidebar in this window.
 [ "$mode" = "--close" ] && exit 0
+# --ensure is hook-only: it must never resurrect a sidebar after global user
+# dismissal, but it may recover a locally crashed sidebar while mode stays on.
+[ "$mode" = "--ensure" ] && ! persistent_enabled && exit 0
 
 # Open. Prefer the compiled binary; fall back to the legacy bash dispatcher.
 cmd=""
@@ -172,38 +465,107 @@ fi
 content_pane="$current_pane"
 cwd=$(tmux display-message -p -t "$content_pane" '#{pane_current_path}')
 
-# Snapshot the window's pane geometry BEFORE the split, so close_sidebar can put
-# it back. Only meaningful with 2+ panes -- a single-pane window has no sizes to
-# preserve. Stored window-scoped so it survives this process.
-panes=$(tmux display-message -p -t "$win_target" '#{window_panes}' 2>/dev/null || echo 1)
-if [ "${panes:-1}" -gt 1 ]; then
-  saved_layout=$(tmux display-message -p -t "$win_target" '#{window_layout}' 2>/dev/null || true)
-  [ -n "$saved_layout" ] && tmux set-option -wt "$win_target" @sidebar_saved_layout "$saved_layout"
+# All exits after this point roll back saved options/a split. Install this after
+# the helpers exist, so a signal cannot strand the lock or a partially-open pane.
+trap 'on_exit $?' EXIT
+trap 'on_signal 130' INT
+trap 'on_signal 143' TERM
+trap 'on_signal 129' HUP
+transaction_open=1
+
+# Snapshot pane geometry and zoom BEFORE the split. A split unzooms a window, so
+# close and rollback restore the original zoom only when that same pane remains
+# in this window. Clear stale state first: a prior interrupted open must never
+# leak into this transaction.
+clear_transient_state
+panes=$(tmux display-message -p -t "$win_target" '#{window_panes}' 2>/dev/null) || exit 1
+if [ "$panes" -gt 1 ]; then
+  saved_layout=$(tmux display-message -p -t "$win_target" '#{window_layout}' 2>/dev/null) || exit 1
+  tmux set-option -wt "$win_target" @sidebar_saved_layout "$saved_layout" || {
+    restore_saved_state
+    exit 1
+  }
 fi
+was_zoomed=$(tmux display-message -p -t "$content_pane" '#{window_zoomed_flag}' 2>/dev/null) || {
+  restore_saved_state
+  exit 1
+}
+tmux set-option -wt "$win_target" @sidebar_was_zoomed "$was_zoomed" || {
+  restore_saved_state
+  exit 1
+}
+tmux set-option -wt "$win_target" @sidebar_zoom_pane "$content_pane" || {
+  restore_saved_state
+  exit 1
+}
 
 # -h -f -b -l N -d: horizontal split, spanning the FULL window height (-f) rather
 # than just content_pane's height, placed to the LEFT of it (-b), N columns wide.
 # Without -f a content pane that isn't already full-height (the window already has
 # panes stacked around it) yields a sidebar only as tall as that one pane.
 #
-# -d leaves the new pane UNFOCUSED: plain M-Tab must not move the active pane, it
-# only opens the sidebar. The --focus mode selects it explicitly further down.
-sidebar_pane=$(tmux split-window -h -f -b -d -l "$SIDEBAR_WIDTH" -t "$content_pane" -c "$cwd" \
-  -P -F '#{pane_id}' "$cmd")
+# The child starts behind a filesystem gate. It cannot initialize, receive q/Esc,
+# or close itself before this window publishes @sidebar_pane_id ownership. Direct
+# argv preserves compiled and fallback paths containing shell-sensitive characters.
+gate_path=$(mktemp "${TMPDIR:-/tmp}/mm-sidebar-gate.XXXXXX") || exit 1
+tmux set-option -wt "$win_target" @sidebar_gate "$gate_path" || exit 1
+gate_command='trap "printf hup >\"$2.hup\"" HUP; while [ -e "$2" ]; do IFS= read -r state <"$2" || state=; if [ "$state" = cancel ]; then rm -f -- "$2"; exit 0; fi; sleep 0.02; done; owner=$(tmux show-options -wqv -t "$TMUX_PANE" @sidebar_pane_id 2>/dev/null || true); [ "$owner" = "$TMUX_PANE" ] || exit 0; if [ -e "$2.child-hold" ]; then : >"$2.child-marker"; while [ -e "$2.child-hold" ]; do sleep 0.02; done; fi; exec "$1"'
+split_action="split-window -h -f -b -d -l $SIDEBAR_WIDTH -t $(tmux_word "$content_pane") -c $(tmux_word "$cwd") -e $(tmux_word "MM_SIDEBAR_ORIGIN_CLIENT=$origin_client") -e $(tmux_word "MM_SIDEBAR_OWNER_WINDOW=$win_target") -e $(tmux_word "MM_SIDEBAR_GATE_PATH=$gate_path") -P -F $(tmux_word '#{pane_id}') /bin/sh -c $(tmux_word "$gate_command") mm-sidebar-gate $(tmux_word "$cmd") $(tmux_word "$gate_path")"
+# The source pane may move after cwd was read. Condition split creation on its
+# captured stable window so a launch never mutates the pane after that move.
+sidebar_pane=$(tmux if-shell -F -t "$content_pane" "#{==:#{window_id},$win_target}" "$split_action" '') || exit 1
+[ -n "$sidebar_pane" ] || { rollback_open; exit 1; }
 
-# Mark the pane so other scripts can detect it (tsave's filter, border coloring).
+# Fixture-only pause: it holds after split-window has returned but before any
+# ownership option is written, making signal rollback observable without adding
+# a production timing dependency.
+if [ -n "${MM_SIDEBAR_TEST_AFTER_SPLIT_MARKER:-}" ]; then
+  : >"$MM_SIDEBAR_TEST_AFTER_SPLIT_MARKER"
+  while [ -e "${MM_SIDEBAR_TEST_AFTER_SPLIT_HOLD:-}" ]; do sleep 0.02; done
+fi
+pane_owned "$sidebar_pane" || { rollback_open; exit 1; }
+
+# Mark/title actions are each ownership-guarded in the tmux server queue, then
+# verified without further pane actions. A child moved after the initial
+# validation is cancelled rather than initialized in its destination window.
+owned_action "$sidebar_pane" "set-option -pt $sidebar_pane @sidebar_pane 1" || { rollback_open; exit 1; }
+pane_has_marker "$sidebar_pane" || { rollback_open; exit 1; }
 # `select-pane -T` only sets the title -- verified live that it does NOT activate
 # the target pane, so it can't defeat the -d above.
-tmux set-option -pt "$sidebar_pane" @sidebar_pane 1
-tmux select-pane -t "$sidebar_pane" -T sidebar
+owned_action "$sidebar_pane" "select-pane -t $sidebar_pane -T sidebar" || { rollback_open; exit 1; }
+pane_has_title "$sidebar_pane" || { rollback_open; exit 1; }
 
-tmux set-option -wt "$win_target" @sidebar_pane_id "$sidebar_pane"
-tmux set-option -wt "$win_target" @sidebar_content_pane "$content_pane"
+tmux set-option -wt "$win_target" @sidebar_pane_id "$sidebar_pane" || { rollback_open; exit 1; }
+tmux set-option -wt "$win_target" @sidebar_content_pane "$content_pane" || { rollback_open; exit 1; }
 # Default tab on first open; preserved across close/re-open in the same window.
 cur_source=$(tmux show-options -wqv -t "$win_target" @sidebar_source 2>/dev/null || true)
-[ -n "$cur_source" ] || tmux set-option -wt "$win_target" @sidebar_source sessions
+[ -n "$cur_source" ] || tmux set-option -wt "$win_target" @sidebar_source sessions || { rollback_open; exit 1; }
+
+# Publishing is complete. Recheck ownership after every source-window publish
+# step and before releasing the gate; a moved child must be cancelled, never
+# initialized in its destination window.
+pane_owned "$sidebar_pane" || { rollback_open; exit 1; }
+if [ -n "${MM_SIDEBAR_TEST_BEFORE_GATE_RELEASE_MARKER:-}" ]; then
+  : >"$MM_SIDEBAR_TEST_BEFORE_GATE_RELEASE_MARKER"
+  while [ -e "${MM_SIDEBAR_TEST_BEFORE_GATE_RELEASE_HOLD:-}" ]; do sleep 0.02; done
+fi
+rm -f -- "$gate_path" || { rollback_open; exit 1; }
+gate_path=""
+tmux set-option -wqu -t "$win_target" @sidebar_gate || { rollback_open; exit 1; }
+# The gate wrapper independently verifies @sidebar_pane_id before execing. This
+# post-release check clears source state if a move won the release race.
+pane_owned "$sidebar_pane" || { rollback_open; exit 1; }
 
 # --focus opens AND focuses; plain open leaves focus where it was (the -d above).
-[ "$mode" = "--focus" ] && tmux select-pane -t "$sidebar_pane"
+if [ "$mode" = "--focus" ]; then
+  focus_owned_pane "$sidebar_pane"
+  # A post-publication move is stale ownership, not a reason to focus it in its
+  # destination window. Roll back only this window's transaction state.
+  if ! pane_owned "$sidebar_pane"; then
+    rollback_open
+    exit 1
+  fi
+fi
 
+transaction_open=0
 exit 0

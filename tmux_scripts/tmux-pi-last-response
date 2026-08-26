@@ -7,7 +7,7 @@
 # the exact transcript for this process. Unreloaded older pi processes degrade
 # explicitly to its legacy cwd -> newest-transcript fallback.
 
-origin=$(tmux display -p '#{pane_id}')
+origin=${1:-$(tmux display -p '#{pane_id}')}
 pane_pid=$(tmux display -p -t "$origin" '#{pane_pid}')
 
 info=$($HOME/.config/tmux_scripts/tmux-pi-session "$pane_pid" 2>/dev/null) || {
@@ -22,4 +22,4 @@ jq -c 'select(.type=="message" and .message.role=="assistant")' "$transcript" 2>
   | jq -r '.message.content[]? | select(.type=="text") | .text' 2>/dev/null > "$out"
 [ -s "$out" ] || printf '(no text response found)\n' > "$out"
 
-"$HOME/.config/tmux_scripts/tmux-claude-open-split" "$out"
+"$HOME/.config/tmux_scripts/tmux-claude-open-split" "$out" "$origin"

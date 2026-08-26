@@ -46,6 +46,7 @@ import (
 	"syscall"
 	"time"
 
+	"mm-sidebar/internal/display"
 	"mm-sidebar/internal/tmuxio"
 	"mm-sidebar/internal/trace"
 )
@@ -94,6 +95,11 @@ type Row struct {
 	// PaneLabel is tmux's @pane-label, captured by ListPanes in its existing
 	// batched query. It is appended to the TSV schema after Cwd.
 	PaneLabel string
+	// Stable tmux identity is internal action metadata only; it is deliberately
+	// excluded from the append-only 11-field TSV schema above.
+	TmuxSessionID string
+	WindowID      string
+	WindowIndex   int
 }
 
 // StateRank orders rows by how much they need attention: blocked on the user
@@ -120,7 +126,12 @@ func (r Row) TSV() string {
 	for i, v := range f {
 		if v == "" {
 			f[i] = "-"
+			continue
 		}
+		// Preserve all ordinary field bytes while escaping framing controls.
+		// This keeps the append-only schema safe for shell TSV consumers when a
+		// tmux label, path, or agent name contains tabs/newlines/ESC.
+		f[i] = display.Sanitize(v)
 	}
 	return strings.Join(f, "\t")
 }
@@ -129,6 +140,7 @@ func (r Row) TSV() string {
 // Not safe for concurrent use; the sidebar owns exactly one and calls Resolve
 // from a single background goroutine.
 type Resolver struct {
+	client         *tmuxio.Client
 	claudeSessDir  string
 	claudeProjDir  string
 	claudeStateDir string
@@ -161,14 +173,25 @@ type piRecord struct {
 	Cwd         string `json:"cwd"`
 }
 
-// NewResolver builds a Resolver rooted at the standard config locations.
+// NewResolver builds a Resolver for the standalone `mm-sidebar agents` CLI.
 func NewResolver() *Resolver {
+	return NewResolverWithClient(tmuxio.NewClient("", ""))
+}
+
+// NewResolverWithClient builds the sidebar resolver with its explicit tmux
+// command context. Keeping the injected constructor distinct makes dependency
+// ownership visible instead of hiding it in an optional variadic argument.
+func NewResolverWithClient(client *tmuxio.Client) *Resolver {
+	if client == nil {
+		client = tmuxio.NewClient("", "")
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		home = os.Getenv("HOME")
 	}
 	cfg := filepath.Join(home, ".config")
 	return &Resolver{
+		client:         client,
 		claudeSessDir:  filepath.Join(cfg, "claude", "sessions"),
 		claudeProjDir:  filepath.Join(cfg, "claude", "projects"),
 		claudeStateDir: "/tmp/claude-session-state",
@@ -190,22 +213,28 @@ func (r *Resolver) WatchDirs() []string {
 	return []string{r.claudeSessDir, r.claudeStateDir, r.piStateDir}
 }
 
-// Resolve returns the current agent rows: Claude rows first (in sessions-dir
-// order, matching tmux-claude-ls), then pi rows.
+// Resolve builds a pane-only World for the standalone `mm-sidebar agents`
+// command. The sidebar itself calls ResolveWorld with its already-collected
+// full World; keeping this command to its historic one list-panes fork avoids
+// paying navigator-only snapshot/session reads for TSV output.
 func (r *Resolver) Resolve() ([]Row, error) {
+	panes, err := r.client.ListPanes()
+	if err != nil {
+		return nil, err
+	}
+	return r.ResolveWorld(tmuxio.NewWorld(tmuxio.Snapshot{}, nil, panes))
+}
+
+// ResolveWorld returns current agent rows from the shared immutable pane state:
+// Claude rows first (in sessions-dir order, matching tmux-claude-ls), then pi.
+func (r *Resolver) ResolveWorld(world tmuxio.World) ([]Row, error) {
 	if trace.Enabled {
 		defer trace.Phase("resolve-total", time.Now())
 	}
 
+	panes := world.Panes()
 	t := time.Now()
-	panes, err := tmuxio.ListPanes()
-	trace.Phase("tmux-list-panes", t)
-	if err != nil {
-		return nil, err
-	}
-
-	t = time.Now()
-	claudeSessions := r.readClaudeSessions()
+	claudeSessions := r.liveClaudeSessions(r.readClaudeSessions())
 	trace.Phase("claude-sessions", t)
 	piRecords := r.readPiRecords()
 	registryKey := piRecordsKey(piRecords)
@@ -226,10 +255,15 @@ func (r *Resolver) Resolve() ([]Row, error) {
 	}
 	if needPS {
 		t = time.Now()
-		r.refreshProcessTable(panes, claudeSessions)
+		if r.refreshProcessTable(panes, claudeSessions) {
+			r.panePIDsKey = key
+			r.piRegistryKey = registryKey
+		}
 		trace.Phase("process-table", t)
-		r.panePIDsKey = key
-		r.piRegistryKey = registryKey
+	} else if r.hasTransientCwdMiss() {
+		// A transient lsof miss must recover on the next shared World without
+		// paying for another process-table sweep.
+		r.refreshPiCwds()
 	}
 
 	byPanePID := make(map[int]tmuxio.PaneRow, len(panes))
@@ -284,6 +318,28 @@ func (r *Resolver) piSetChanged(panes []tmuxio.PaneRow) bool {
 
 // ---- Claude ---------------------------------------------------------------
 
+func processAlive(pid int) bool {
+	if pid <= 0 {
+		return false
+	}
+	err := syscall.Kill(pid, 0)
+	return err == nil || err == syscall.EPERM
+}
+
+// liveClaudeSessions prevents durable session JSON from keeping a dead process
+// attached to its cached parent pane. kill(2) is a syscall, not a fork.
+func (r *Resolver) liveClaudeSessions(sessions []claudeSession) []claudeSession {
+	live := sessions[:0]
+	for _, session := range sessions {
+		if processAlive(session.PID) {
+			live = append(live, session)
+			continue
+		}
+		delete(r.ppidByPID, session.PID)
+	}
+	return live
+}
+
 type claudeSession struct {
 	PID       int    `json:"pid"`
 	SessionID string `json:"sessionId"`
@@ -334,17 +390,20 @@ func (r *Resolver) claudeRows(sessions []claudeSession, byPanePID map[int]tmuxio
 			name = "-"
 		}
 		rows = append(rows, Row{
-			SessionID:   s.SessionID,
-			PaneID:      pane.PaneID,
-			Target:      pane.Target,
-			SessionName: pane.SessionName,
-			State:       r.claudeState(s),
-			Name:        name,
-			Transcript:  r.claudeTranscript(s.SessionID),
-			WindowName:  pane.WindowName,
-			Agent:       AgentClaude,
-			Cwd:         pane.CurrentPath,
-			PaneLabel:   pane.PaneLabel,
+			SessionID:     s.SessionID,
+			PaneID:        pane.PaneID,
+			Target:        pane.Target,
+			SessionName:   pane.SessionName,
+			State:         r.claudeState(s),
+			Name:          name,
+			Transcript:    r.claudeTranscript(s.SessionID),
+			WindowName:    pane.WindowName,
+			Agent:         AgentClaude,
+			Cwd:           pane.CurrentPath,
+			PaneLabel:     pane.PaneLabel,
+			TmuxSessionID: pane.SessionID,
+			WindowID:      pane.WindowID,
+			WindowIndex:   pane.WindowIndex,
 		})
 	}
 	return rows
@@ -377,7 +436,7 @@ func (r *Resolver) claudeTranscript(sessionID string) string {
 	if sessionID == "" {
 		return ""
 	}
-	if p, ok := r.transcript[sessionID]; ok {
+	if p := r.transcript[sessionID]; p != "" {
 		return p
 	}
 	matches, err := filepath.Glob(filepath.Join(r.claudeProjDir, "*", sessionID+".jsonl"))
@@ -385,8 +444,9 @@ func (r *Resolver) claudeTranscript(sessionID string) string {
 	if err == nil && len(matches) > 0 {
 		path = matches[0]
 	}
-	// Cache misses too: a session with no transcript yet stays cheap. It gets
-	// re-looked-up the next time the resolver is rebuilt (sidebar re-open).
+	// Keep a miss in the map for observability, but retry it on every shared
+	// World: a transcript is commonly created just after its session file. This
+	// is filesystem-only and never forces ps/lsof.
 	r.transcript[sessionID] = path
 	return path
 }
@@ -411,8 +471,11 @@ func (r *Resolver) piRows(panes []tmuxio.PaneRow, records map[int]piRecord) []Ro
 				// The PANE's cwd, matching the legacy path below and Claude's
 				// rows -- NOT record.Cwd (the pi process's own cwd). Both
 				// agents' Cwd must mean the same thing for the repo join.
-				Cwd:       p.CurrentPath,
-				PaneLabel: p.PaneLabel,
+				Cwd:           p.CurrentPath,
+				PaneLabel:     p.PaneLabel,
+				TmuxSessionID: p.SessionID,
+				WindowID:      p.WindowID,
+				WindowIndex:   p.WindowIndex,
 			})
 			exactPanes[p.PanePID] = true
 		}
@@ -446,8 +509,11 @@ func (r *Resolver) piRows(panes []tmuxio.PaneRow, records map[int]piRecord) []Ro
 			// (which piTranscript above uses to find the session dir). Both
 			// agents' Cwd must mean the same thing for the repo join, and for
 			// Claude only the pane's is available.
-			Cwd:       p.CurrentPath,
-			PaneLabel: p.PaneLabel,
+			Cwd:           p.CurrentPath,
+			PaneLabel:     p.PaneLabel,
+			TmuxSessionID: p.SessionID,
+			WindowID:      p.WindowID,
+			WindowIndex:   p.WindowIndex,
 		})
 	}
 	return rows
@@ -547,7 +613,7 @@ func (r *Resolver) piTranscript(cwd string) string {
 // version's per-pane pgrep + ps x2 + lsof with a single `ps` and a single
 // batched `lsof`. It rebuilds the pi identity map (so panes that stopped
 // running pi drop out) and fills in any missing agent pid -> ppid entries.
-func (r *Resolver) refreshProcessTable(panes []tmuxio.PaneRow, sessions []claudeSession) {
+func (r *Resolver) refreshProcessTable(panes []tmuxio.PaneRow, sessions []claudeSession) bool {
 	// -eww: every process, wide output. Without -ww, `args` is truncated to the
 	// terminal width and the /pi-coding-agent/dist/cli.js match silently fails
 	// on long command lines.
@@ -555,7 +621,7 @@ func (r *Resolver) refreshProcessTable(panes []tmuxio.PaneRow, sessions []claude
 	out, err := exec.Command("ps", "-eww", "-o", "pid=,ppid=,args=").Output()
 	trace.Phase("  ps-eww", t)
 	if err != nil {
-		return
+		return false
 	}
 
 	type proc struct {
@@ -577,8 +643,6 @@ func (r *Resolver) refreshProcessTable(panes []tmuxio.PaneRow, sessions []claude
 	for _, s := range sessions {
 		if p, ok := procs[s.PID]; ok {
 			next[s.PID] = p.ppid
-		} else if old, ok := r.ppidByPID[s.PID]; ok {
-			next[s.PID] = old // process table raced; keep the last known value
 		}
 	}
 	r.ppidByPID = next
@@ -612,6 +676,7 @@ func (r *Resolver) refreshProcessTable(panes []tmuxio.PaneRow, sessions []claude
 	r.probedCmd = probed
 
 	r.refreshPiCwds()
+	return true
 }
 
 // isPiProcess mirrors tmux-pi-session's match: recent pi releases set their
@@ -624,6 +689,15 @@ func isPiProcess(comm, args string) bool {
 // refreshPiCwds fills cwdByPID for any pi pid it doesn't already know, in a
 // single batched lsof call. pi doesn't chdir, so an entry is valid for the
 // process's lifetime; entries for dead pids are dropped.
+func (r *Resolver) hasTransientCwdMiss() bool {
+	for _, proc := range r.piByPanePID {
+		if r.cwdByPID[proc.pid] == "" {
+			return true
+		}
+	}
+	return false
+}
+
 func (r *Resolver) refreshPiCwds() {
 	var missing []string
 	live := map[int]bool{}

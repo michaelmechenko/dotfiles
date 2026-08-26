@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# tmux-sidebar-sync -- event-driven persistent mm-sidebar reconciler.
+#
+# Invoked from indexed tmux hooks with an immutable window ID and optional
+# origin client. It does no polling: one hook event selects one window, resolves
+# one non-sidebar pane, and asks the transactional toggle script to ensure its
+# per-window sidebar exists. The toggle's lifecycle lock makes concurrent hook
+# deliveries idempotent.
+
+set -uo pipefail
+
+window_id="${1:-}"
+origin_client="${2:-}"
+[ -n "$window_id" ] || exit 0
+
+persistent=$(tmux show-options -gqv @sidebar_persistent 2>/dev/null || true)
+[ "$persistent" = 1 ] || exit 0
+
+# Prefer the active content pane. If a sidebar is focused, use the first
+# ordinary pane in that window instead. A sidebar-only or vanished window is
+# intentionally a no-op.
+# `read` treats tab as whitespace and collapses an unset middle field, so use a
+# non-whitespace separator. These three fields are tmux-generated IDs/booleans.
+rows=$(tmux list-panes -t "$window_id" -F '#{pane_id}|#{@sidebar_pane}|#{pane_active}' 2>/dev/null || true)
+active=""
+fallback=""
+while IFS='|' read -r pane marker is_active; do
+  [ "$marker" = 1 ] && continue
+  [ -n "$fallback" ] || fallback="$pane"
+  [ "$is_active" = 1 ] && active="$pane"
+done <<<"$rows"
+content="${active:-$fallback}"
+[ -n "$content" ] || exit 0
+
+TMUX_PANE="$content" MM_SIDEBAR_ORIGIN_CLIENT="$origin_client" \
+  "$HOME/.config/tmux_scripts/tmux-sidebar-toggle" --ensure

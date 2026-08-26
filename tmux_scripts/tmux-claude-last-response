@@ -3,7 +3,7 @@
 # (always to the right; see tmux-claude-open-split for placement).
 
 LS="$HOME/.config/tmux_scripts/tmux-claude-ls"
-cur=$(tmux display -p '#{pane_id}')
+cur=${1:-$(tmux display -p '#{pane_id}')}
 row=$("$LS" | awk -F'\t' -v p="$cur" '$2==p{print; exit}')
 [ -n "$row" ] || { tmux display-message "no claude session in this pane"; exit 0; }
 
@@ -15,4 +15,4 @@ grep '"type":"assistant"' "$transcript" | tail -1 \
   | jq -r '.message.content[] | select(.type=="text") | .text' 2>/dev/null > "$out"
 [ -s "$out" ] || printf '(no text response found)\n' > "$out"
 
-"$HOME/.config/tmux_scripts/tmux-claude-open-split" "$out"
+"$HOME/.config/tmux_scripts/tmux-claude-open-split" "$out" "$cur"

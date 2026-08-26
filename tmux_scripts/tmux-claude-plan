@@ -4,7 +4,7 @@
 # are filtered out. Opens always to the right (see tmux-claude-open-split for placement).
 
 LS="$HOME/.config/tmux_scripts/tmux-claude-ls"
-cur=$(tmux display -p '#{pane_id}')
+cur=${1:-$(tmux display -p '#{pane_id}')}
 row=$("$LS" | awk -F'\t' -v p="$cur" '$2==p{print; exit}')
 [ -n "$row" ] || { tmux display-message "no claude session in this pane"; exit 0; }
 
@@ -17,4 +17,4 @@ plan=$(grep -ho 'claude/plans/[a-z0-9-]*\.md' "$transcript" 2>/dev/null | grep -
 planpath="$HOME/.config/$plan"
 [ -f "$planpath" ] || { tmux display-message "plan file missing: $plan"; exit 0; }
 
-"$HOME/.config/tmux_scripts/tmux-claude-open-split" "$planpath"
+"$HOME/.config/tmux_scripts/tmux-claude-open-split" "$planpath" "$cur"

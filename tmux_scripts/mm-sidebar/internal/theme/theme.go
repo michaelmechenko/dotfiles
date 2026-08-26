@@ -87,13 +87,18 @@ func loadFallback() map[string]string {
 //
 // ONE tmux fork for the whole palette, not one per role: measured at 20ms per
 // fork, the per-role version cost 110ms of blank pane on every sidebar open,
-// before Bubble Tea started. See tmuxio.GlobalOpts.
-func Load() Theme {
+// before Bubble Tea started. See tmuxio.Client.Opts.
+func Load(client *tmuxio.Client) Theme {
 	names := make([]string, 0, len(roles))
 	for n := range roles {
 		names = append(names, n)
 	}
-	got := tmuxio.GlobalOpts(names...)
+	got, err := client.Opts(names...)
+	if err != nil {
+		// Palette parsing is not an action target. Keep the sidebar usable with
+		// the generated/default palette if tmux returns malformed output.
+		got = map[string]string{}
+	}
 	fallback := loadFallback()
 	opt := func(name string) string {
 		if v := got[name]; v != "" {

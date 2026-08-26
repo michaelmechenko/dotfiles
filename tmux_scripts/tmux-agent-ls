@@ -3,7 +3,7 @@
 # schema-compatible so the mm-sidebar agents glance and the M-b menu can consume
 # both from one stream.
 #
-# 11 fields:
+# CLI TSV schema — 11 append-only fields (consumers retain the 1-9 prefix):
 #   sessionId <TAB> pane_id <TAB> target <TAB> session_name <TAB> state <TAB>
 #   name <TAB> transcript <TAB> window_name <TAB> agent <TAB> cwd <TAB> pane_label
 #   agent ∈ claude | pi

@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -39,6 +40,11 @@ type SystemStats struct {
 	theme theme.Theme
 	have  bool
 	stats SystemStatsMsg
+
+	// visible is written by the model's layout pass and read by Fetch's Tea Cmd.
+	// An atomic prevents a resize/degradation event from racing a background
+	// sampler that was already queued when the block became hidden.
+	visible atomic.Bool
 }
 
 func NewSystemStats(th theme.Theme) *SystemStats {
@@ -52,10 +58,22 @@ func (b *SystemStats) ID() string { return "system_stats" }
 // the priciest recurring call in this binary.
 func (b *SystemStats) Interval() time.Duration { return 5 * time.Second }
 
-// Fetch samples off the input path. Unlike agents_glance this holds no mutable
-// cache, so a plain concurrent Cmd is safe -- there is nothing to race on.
+// SetVisible implements VisibilityAware. A hidden/degraded system panel must
+// not keep running ps, vm_stat, and df merely to refresh rows nobody can see.
+func (b *SystemStats) SetVisible(visible bool) { b.visible.Store(visible) }
+
+// FetchInBackground implements BackgroundFetcher. The last visible sample is
+// retained while hidden and a newly visible panel schedules a fresh sample.
+func (*SystemStats) FetchInBackground() bool { return false }
+
+// Fetch samples off the input path only while the panel is visible. The atomic
+// re-check is deliberate: a Cmd queued just before a resize must not sample
+// after layout has degraded the block away.
 func (b *SystemStats) Fetch() tea.Cmd {
 	return func() tea.Msg {
+		if !b.visible.Load() {
+			return nil
+		}
 		return SystemStatsMsg{
 			CPU:  sampleCPU(),
 			Mem:  sampleMem(),

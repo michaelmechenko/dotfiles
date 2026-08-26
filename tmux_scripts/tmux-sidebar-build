@@ -20,12 +20,10 @@ BIN="$SRC/mm-sidebar"
 
 needs_build() {
     [ -x "$BIN" ] || return 0
-    # -nt on each source file rather than a find|sort pipeline: this runs on every
-    # M-Tab press, so it stays fork-free.
-    for f in "$SRC"/*.go "$SRC"/internal/*/*.go "$SRC"/go.mod "$SRC"/go.sum; do
-        [ -e "$f" ] || continue
-        [ "$f" -nt "$BIN" ] && return 0
-    done
+    # Source packages can be nested arbitrarily. Keep the check recursive so a
+    # new internal/foo/bar package cannot leave an apparently fresh binary stale.
+    # -print -quit limits the normal no-op path to one short find process.
+    find "$SRC" -type f \( -name '*.go' -o -name go.mod -o -name go.sum \) -newer "$BIN" -print -quit 2>/dev/null | grep -q . && return 0
     # Executable + fresh is insufficient on macOS: an invalid Mach-O signature
     # passes both checks, then the kernel kills it with SIGKILL on launch.
     "$BIN" --help >/dev/null 2>&1 || return 0

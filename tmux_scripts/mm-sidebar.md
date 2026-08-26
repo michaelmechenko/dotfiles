@@ -89,6 +89,7 @@ matching `#{pane_height}` each time.
 | `internal/tmuxio` | **The only place that talks to tmux.** Each tick reads the local snapshot, ordered sessions, and global panes; each response is batched. |
 | `internal/theme` | Resolves the `@color-*` palette into `lipgloss` styles. |
 | `internal/agents` | The Claude + pi pane join. |
+| `internal/agentdetail` | Bounded local selected-agent prompt/response, plan, cwd/worktree, and Git inspector. |
 | `internal/nav` | The navigator tabs (`Source` registry), optional source controls/help actions, and their `Enter` actions. |
 | `internal/blocks` | The `Block` interface, the `Factories` registry, and the docked blocks. |
 | `internal/projectcatalog` | Persistent XDG-backed repository identity/inventory: canonical common dirs, pinned/recent retention, validated roots, flocked schema-v1 state. |
@@ -437,7 +438,12 @@ active region; `J/K` rotate regions while retaining every region's cursor. Use
 the same action path for `Clickable` and `ActivateNavigation` so mouse and
 keyboard cannot drift. If rows can reorder on refresh, also implement
 `SelectionIdentifiable`; the model retains the selected stable ID rather than
-silently activating whatever moved into its old index.
+silently activating whatever moved into its old index. A block with
+selection-scoped, on-demand work can additionally implement
+`SelectionChangeAware` and `Refreshable`: the model passes the stable selected
+ID (or empty on focus loss) through the former, then runs the latter exactly once
+on a changed focused selection or explicit `r`. This is generic block plumbing,
+not a concrete-type branch, and it must not be used as a polling hook.
 
 ### Give a block context actions
 
@@ -510,8 +516,9 @@ beneath it; unused space collects at the **bottom** of the pane.
    variable-height), clamped to what's left after the blocks. A longer list is
    viewport-clipped around the cursor.
 4. Any slack left over is offered to blocks implementing `Expandable`, which show
-   more of what they already hold (`agents_glance` drops its `+N more` and lists
-   everything). Whatever nothing claims stays blank at the bottom.
+   more of what they already hold (`agents_glance` drops its `+N more`, lists
+   everything, then may show selected-agent detail). Whatever nothing claims
+   stays blank at the bottom.
 
 > **Two earlier versions of this failed the same way from opposite directions,
 > so don't reintroduce either.** Giving the navigator *all* leftover space (rev
@@ -555,6 +562,37 @@ empty-state text remain inert. Its optional `a`/`:` action provider offers focus
 existing response/plan dispatchers, and stable session-ID copy; it adds neither an
 agent join nor an approval action. `M-b` remains the full cross-session picker for
 preview and bulk actions.
+
+When this block has keyboard focus, its selected row starts an **on-demand inline
+inspector**. It consumes only slack *after every agent row is visible*; it never
+shrinks the navigator, hides an agent, or reserves height while inactive. Its
+bounded priority order is current `state` plus elapsed age, latest `prompt`,
+latest `response`, optional Claude `plan`, then `cwd`, Git `worktree`, and Git
+branch/change `summary` (at most seven detail rows). `inspecting…` and
+`inspector unavailable` retain the leading state-age row. Selection uses the full
+agent/pane/session/transcript identity plus a generation, so an urgency resort,
+pane reuse, or late command result cannot publish underneath a different agent.
+Leaving the focus region clears the inspector; returning selects and loads again.
+`r` explicitly refreshes the selected inspector alongside the ordinary forced
+sidebar refresh.
+
+The glance records each state observation in memory by stable agent/session ID
+with the injected clock: unchanged observations retain their first-seen time, a
+state transition resets it, and an absent session is pruned. This is what makes
+the inspector's compact `now`/`2m`/`1h`/`Nd` age describe the current state,
+rather than the sidebar process lifetime.
+
+Collection is local and bounded: it parses only the final 64 KiB of the known
+Claude or pi JSONL transcript and accepts only their user/assistant text records;
+malformed, partial, and tool-only JSONL records are ignored. Claude plan
+references must match the fixed `claude/plans/<safe-name>.md` grammar under
+`~/.config`, reject symlinks, and read at most 12 KiB. Git resolves the worktree
+with `rev-parse --show-toplevel` and reads `status --porcelain=v2 --branch` in
+the agent cwd, each under a 350 ms timeout. A missing or partial transcript
+uses explicit prompt/response fallbacks but still shows the local cwd/worktree/Git
+context. Results are control-sanitized and cache-keyed by stable agent identity
+plus transcript/plan file metadata and cwd for two seconds. There is no network,
+watcher, or recurring detail poll.
 
 Row format: `<2-char state tag> <pane label · window · session>`. A missing pane
 label preserves `<window · session>`; a missing window is omitted. ANSI-aware

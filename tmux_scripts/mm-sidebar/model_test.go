@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -280,6 +281,31 @@ func TestRefreshSequenceRejectsLateRowsAndSkippedWorld(t *testing.T) {
 	m.Update(stateMsg{srcIdx: 0, stateSeq: 1, world: olderWorld, contentPane: "%old"})
 	if got := m.rows[0].Lines[0]; got != "new" || m.contentPane != "%new" {
 		t.Fatalf("late skipped refresh replaced newer state: row=%q pane=%q", got, m.contentPane)
+	}
+}
+
+func TestLayoutShowsSelectedAgentDetailOnlyAfterAllAgentRows(t *testing.T) {
+	b := blocks.NewAgentsGlance(theme.Theme{}, make(chan struct{}, 1))
+	rows := make([]agents.Row, blocks.AgentsGlanceMax+2)
+	for i := range rows {
+		rows[i] = agents.Row{
+			Agent: agents.AgentPi, SessionID: "session-" + itoa(i), PaneID: "%" + itoa(i),
+			State: agents.StateIdle, Transcript: "-",
+		}
+	}
+	b.Update(blocks.AgentRowsMsg{Rows: rows})
+	if !b.SelectionChanged(b.NavigationID(0)) {
+		t.Fatal("selected agent did not start inspector")
+	}
+	b.Update(b.Refresh()())
+
+	m := &model{rows: testRows(3), docked: []blocks.Block{b}}
+	m.layout(21) // nav (3) + baseline block/divider (9) + post-list slack (9)
+	if shown := b.NavigationCount(); shown != len(rows) {
+		t.Fatalf("detail consumed row space: shown=%d want=%d", shown, len(rows))
+	}
+	if view := b.View(80); !strings.Contains(view, "state: idle") || !strings.Contains(view, "response:") {
+		t.Fatalf("post-list slack did not reach selected inspector: %q", view)
 	}
 }
 
@@ -585,6 +611,23 @@ func TestRegionCyclingPreservesSelectionsAndKeyAliases(t *testing.T) {
 	}
 }
 
+func TestIntegratedBlockOrderAndDegradation(t *testing.T) {
+	docked := blocks.Build(blocks.Deps{Theme: theme.Theme{}, Client: tmuxio.NewClient("", ""), Agents: make(chan<- struct{}, 1)})
+	if got := blockIDs(docked); !reflect.DeepEqual(got, []string{"agents_glance", "activity", "system_stats"}) {
+		t.Fatalf("block order = %v", got)
+	}
+	m := &model{rows: testRows(1), docked: docked}
+	for usable, want := range map[int][]string{
+		6:  {"agents_glance"},
+		9:  {"agents_glance", "activity"},
+		14: {"agents_glance", "activity", "system_stats"},
+	} {
+		if got := blockIDs(m.layout(usable).blocks); !reflect.DeepEqual(got, want) {
+			t.Fatalf("usable %d blocks = %v, want %v", usable, got, want)
+		}
+	}
+}
+
 func TestRegionCyclingSkipsInformationalAndDegradedBlocks(t *testing.T) {
 	first := &navigableStub{id: "first", count: 1, focus: -1}
 	info := &stubBlock{}
@@ -617,6 +660,119 @@ func TestInformationalBlocksAreSkipped(t *testing.T) {
 	m.cycleFocusRegion(1)
 	if m.focusBlock != 1 || m.focusRow != 0 {
 		t.Fatalf("focus landed on block %d row %d, want informational block skipped", m.focusBlock, m.focusRow)
+	}
+}
+
+type selectionRefreshStub struct {
+	navigableStub
+	selected       string
+	refreshes      int
+	freshRefreshes int
+	reacts         int
+}
+
+func (b *selectionRefreshStub) NavigationID(index int) string {
+	if index < 0 || index >= b.count {
+		return ""
+	}
+	return "agent-" + itoa(index)
+}
+func (b *selectionRefreshStub) NavigationIndexByID(id string) int {
+	for i := 0; i < b.count; i++ {
+		if b.NavigationID(i) == id {
+			return i
+		}
+	}
+	return -1
+}
+func (b *selectionRefreshStub) SelectionChanged(id string) bool {
+	if id == b.selected {
+		return false
+	}
+	b.selected = id
+	return id != ""
+}
+func (b *selectionRefreshStub) Refresh() tea.Cmd {
+	b.refreshes++
+	return func() tea.Msg { return nil }
+}
+func (b *selectionRefreshStub) RefreshFresh() tea.Cmd {
+	b.freshRefreshes++
+	return func() tea.Msg { return nil }
+}
+func (b *selectionRefreshStub) React(tea.Msg) tea.Cmd {
+	b.reacts++
+	return nil
+}
+
+func TestBeginQueryClearsFocusedAgentInspector(t *testing.T) {
+	b := blocks.NewAgentsGlance(theme.Theme{}, make(chan struct{}, 1))
+	b.Update(blocks.AgentRowsMsg{Rows: []agents.Row{{
+		Agent: agents.AgentPi, PaneID: "%1", SessionID: "agent", State: agents.StateIdle,
+		Transcript: "/tmp/pi.jsonl", Cwd: "/worktrees/sidebar",
+	}}})
+	if !b.SelectionChanged(b.NavigationID(0)) {
+		t.Fatal("selection did not start inspector")
+	}
+	b.Expand(7)
+	if b.Height() <= 2 {
+		t.Fatalf("inspector did not receive detail allocation: height=%d", b.Height())
+	}
+	b.SetNavigationIndex(0)
+
+	m := &model{
+		rows:                    testRows(1),
+		docked:                  []blocks.Block{b},
+		focusRegion:             focusBlock,
+		focusBlock:              0,
+		focusRow:                0,
+		selectionRefreshPending: true,
+	}
+	m.beginQuery()
+
+	if !m.queryActive || m.focusRegion != focusNavigator || m.focusBlock != -1 || m.focusRow != -1 {
+		t.Fatalf("query did not take navigator focus: active=%t region=%d block=%d row=%d", m.queryActive, m.focusRegion, m.focusBlock, m.focusRow)
+	}
+	if m.selectionRefreshPending {
+		t.Fatal("query retained focused-block refresh work")
+	}
+	view := b.View(80)
+	if b.Height() != 2 || strings.Contains(view, "state:") || strings.Contains(view, "▶") {
+		t.Fatalf("query retained agent inspector or focus: height=%d view=%q", b.Height(), view)
+	}
+}
+
+func TestSelectionChangeRefreshUsesGenericBlockInterfaces(t *testing.T) {
+	b := &selectionRefreshStub{navigableStub: navigableStub{count: 2, focus: -1}}
+	m := &model{height: 20, width: 36, rows: testRows(1), docked: []blocks.Block{b}}
+	m.setBlockFocus(0, 0)
+	if !m.selectionRefreshPending {
+		t.Fatal("selection-aware block did not request refresh")
+	}
+	if cmd := m.refreshFocusedBlock(); cmd == nil || b.refreshes != 1 {
+		t.Fatalf("generic refresh did not run once: cmd=%v refreshes=%d", cmd, b.refreshes)
+	}
+	if cmd := m.refreshFocusedBlock(); cmd != nil || b.refreshes != 1 {
+		t.Fatalf("unchanged selection refreshed again: cmd=%v refreshes=%d", cmd, b.refreshes)
+	}
+	if cmd := m.forceRefreshFocusedBlock(); cmd == nil || b.freshRefreshes != 1 || b.refreshes != 1 {
+		t.Fatalf("explicit refresh did not use fresh interface: cmd=%v fresh=%d normal=%d", cmd, b.freshRefreshes, b.refreshes)
+	}
+	m.setFocusTarget(focusTarget{block: navigatorTarget})
+	if b.selected != "" {
+		t.Fatalf("leaving block did not clear selection: %q", b.selected)
+	}
+}
+
+func TestBlockMessageComposesReactiveAndSelectionRefresh(t *testing.T) {
+	b := &selectionRefreshStub{navigableStub: navigableStub{count: 1, focus: -1}}
+	m := &model{height: 20, width: 36, rows: testRows(1), docked: []blocks.Block{b}}
+	m.setBlockFocus(0, 0)
+	if _, cmd := m.Update(stubMsg{payload: "combined"}); cmd == nil {
+		t.Fatal("combined reactive/selection update returned no command")
+	}
+	if b.reacts != 1 || b.refreshes != 1 {
+		t.Fatalf("combined update reactions=%d refreshes=%d, want 1/1", b.reacts, b.refreshes)
 	}
 }
 

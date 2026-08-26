@@ -1,13 +1,19 @@
 package blocks
 
 import (
+	"context"
+	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/muesli/termenv"
 
+	"mm-sidebar/internal/agentdetail"
 	"mm-sidebar/internal/agents"
 	"mm-sidebar/internal/theme"
 )
@@ -261,6 +267,107 @@ func fitsWidth(view string, width int) bool {
 		}
 	}
 	return true
+}
+
+func TestAgentsGlanceInspectorRejectsStaleSelectionAndUsesOnlySlack(t *testing.T) {
+	dir := t.TempDir()
+	config := filepath.Join(dir, "config")
+	first := filepath.Join(config, "pi-config", "agent", "sessions", "--project--", "first.jsonl")
+	second := filepath.Join(config, "pi-config", "agent", "sessions", "--project--", "second.jsonl")
+	if err := os.MkdirAll(filepath.Dir(first), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(first, []byte(`{"type":"message","message":{"role":"assistant","content":[{"type":"text","text":"first detail"}]}}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(second, []byte(`{"type":"message","message":{"role":"assistant","content":[{"type":"text","text":"second detail"}]}}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Unix(1, 0)
+	collector := agentdetail.New(agentdetail.Config{
+		ConfigDir: config,
+		Now:       func() time.Time { return now },
+		GitStatus: func(context.Context, string) ([]byte, error) {
+			return []byte("# branch.head main\n"), nil
+		},
+	})
+	b := NewAgentsGlance(theme.Theme{}, make(chan struct{}, 1), WithClock(func() time.Time { return now }), WithDetailCollector(collector))
+	b.Update(AgentRowsMsg{Rows: []agents.Row{
+		{Agent: agents.AgentPi, PaneID: "%1", SessionID: "one", Transcript: first, Cwd: dir},
+		{Agent: agents.AgentPi, PaneID: "%2", SessionID: "two", Transcript: second, Cwd: dir},
+	}})
+	firstID := b.NavigationID(0)
+	if !b.SelectionChanged(firstID) {
+		t.Fatal("first selection did not request an inspector refresh")
+	}
+	stale := b.Refresh()().(AgentDetailMsg)
+	secondID := b.NavigationID(1)
+	if !b.SelectionChanged(secondID) {
+		t.Fatal("second selection did not replace the first")
+	}
+	b.Update(stale)
+	if b.detailState != detailLoading || b.detailIdentity != detailIdentity(b.rows[1]) {
+		t.Fatalf("stale result changed selected detail: state=%d identity=%q", b.detailState, b.detailIdentity)
+	}
+	b.Update(b.Refresh()().(AgentDetailMsg))
+	if b.detailState != detailReady || b.detailData.Response != "second detail" {
+		t.Fatalf("ready detail = state %d data %#v", b.detailState, b.detailData)
+	}
+
+	// The inspector receives no default height. Expand first spends slack on the
+	// agent list, then (only once all rows are visible) grants its own lines.
+	b.SetExtra(0)
+	base := b.Height()
+	if base != 3 { // label + two agents; no inspector yet
+		t.Fatalf("base height = %d, want 3", base)
+	}
+	if got := b.Expand(3); got != 3 || b.detailExtra != 3 {
+		t.Fatalf("detail slack = used %d extra %d, want 3/3", got, b.detailExtra)
+	}
+	for _, width := range []int{1, 16, 36} {
+		if got := lineCount(b.View(width)); got != b.Height() {
+			t.Fatalf("View(%d) lines=%d height=%d", width, got, b.Height())
+		}
+	}
+}
+
+func TestAgentsGlanceDetailIdentityTracksCwdWithoutChangingNavigation(t *testing.T) {
+	b := NewAgentsGlance(theme.Theme{}, make(chan struct{}, 1))
+	row := agents.Row{Agent: agents.AgentPi, PaneID: "%1", SessionID: "s", Transcript: "/session.jsonl", Cwd: "/first"}
+	b.Update(AgentRowsMsg{Rows: []agents.Row{row}})
+	navigationID := b.NavigationID(0)
+	if !b.SelectionChanged(navigationID) {
+		t.Fatal("initial selection did not request detail")
+	}
+	firstDetailID := b.detailIdentity
+	row.Cwd = "/second"
+	b.Update(AgentRowsMsg{Rows: []agents.Row{row}})
+	if got := b.NavigationID(0); got != navigationID {
+		t.Fatalf("navigation identity changed with cwd: %q", got)
+	}
+	if !b.SelectionChanged(navigationID) {
+		t.Fatal("cwd change did not request fresh detail")
+	}
+	if b.detailIdentity == firstDetailID || !strings.HasSuffix(b.detailIdentity, "\x1f/second") {
+		t.Fatalf("detail identity did not include cwd: %q", b.detailIdentity)
+	}
+}
+
+func TestAgentsGlanceInspectorUnavailableState(t *testing.T) {
+	b := NewAgentsGlance(theme.Theme{}, make(chan struct{}, 1))
+	b.Update(AgentRowsMsg{Rows: []agents.Row{{Agent: agents.AgentPi, PaneID: "%1", SessionID: "gone", State: agents.StateIdle, Transcript: "/no/such/session.jsonl"}}})
+	if !b.SelectionChanged(b.NavigationID(0)) {
+		t.Fatal("selection did not request an inspector refresh")
+	}
+	b.Update(AgentDetailMsg{Identity: b.detailIdentity, Generation: b.detailGeneration, Err: errors.New("transcript unavailable")})
+	if b.detailState != detailUnavailable {
+		t.Fatalf("unavailable detail state = %d", b.detailState)
+	}
+	b.SetExtra(0)
+	b.Expand(2)
+	if view := b.View(80); !strings.Contains(view, "state: idle · now") || !strings.Contains(view, "inspector unavailable") {
+		t.Fatalf("unavailable detail did not render: %q", view)
+	}
 }
 
 func TestAgentsGlanceSelectionAndActivation(t *testing.T) {

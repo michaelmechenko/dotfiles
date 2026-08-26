@@ -117,6 +117,10 @@ type model struct {
 	focusRow          int            // selected row in the active block
 	blockSelections   map[int]int    // retained selection for each Navigable block
 	blockSelectionIDs map[int]string // stable IDs for blocks whose rows reorder
+	// selectionRefreshPending is set only by optional SelectionChangeAware
+	// blocks. It lets model.go run one generic on-demand Refresh without turning
+	// recurring block messages into detail polling.
+	selectionRefreshPending bool
 
 	// fetchKey identifies the inputs `rows` was last fetched for: source id,
 	// content pane, filetree root and the tmux fingerprint. refreshState skips
@@ -382,7 +386,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds := []tea.Cmd{m.feed.wait(), m.syncBlockVisibility()}
 		if msg.WorldFingerprint == "" || msg.WorldFingerprint == m.worldFingerprint {
 			m.broadcast(msg)
-			cmds = append(cmds, m.react(msg))
+			cmds = append(cmds, m.react(msg), m.refreshFocusedBlock())
 		}
 		return m, tea.Batch(cmds...)
 
@@ -391,7 +395,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// and keeps model.go out of the "add a block" recipe entirely.
 	case blocks.BlockMsg:
 		m.broadcast(msg)
-		return m, tea.Batch(m.react(msg), m.syncBlockVisibility())
+		return m, tea.Batch(m.react(msg), m.syncBlockVisibility(), m.refreshFocusedBlock())
 
 	case sidebarWidthMsg:
 		m.sidebarWidth = int(msg)
@@ -667,23 +671,29 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// explicit so a long navigator list cannot accidentally enter an agent row.
 	case "j", "down":
 		m.moveWithinRegion(1)
+		return m, m.refreshFocusedBlock()
 	case "k", "up":
 		m.moveWithinRegion(-1)
+		return m, m.refreshFocusedBlock()
 	// Ghostty transports Ctrl-Tab/Ctrl-Shift-Tab as unmodified F13/F14 so tmux
 	// forwards them into this pane without root bindings. Keep those aliases
 	// local to the sidebar: F13 remains Ctrl-Tab for zsh and pi elsewhere.
 	case "J", "f13":
 		m.cycleFocusRegion(1)
+		return m, m.refreshFocusedBlock()
 	case "K", "f14":
 		m.cycleFocusRegion(-1)
+		return m, m.refreshFocusedBlock()
 	case "g", "home":
 		m.focusFirst()
+		return m, m.refreshFocusedBlock()
 	case "G", "end":
 		m.focusLast()
+		return m, m.refreshFocusedBlock()
 	case "r":
 		refresh := blocks.RefreshMsg{}
 		m.broadcast(refresh)
-		return m, tea.Batch(m.refreshState(true), m.fetchAllBlocks(), m.react(refresh))
+		return m, tea.Batch(m.refreshState(true), m.fetchAllBlocks(), m.react(refresh), m.forceRefreshFocusedBlock())
 	case "w":
 		return m, m.cycleSidebarWidth()
 	case "?":
@@ -913,6 +923,17 @@ func (m *model) handleQueryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m *model) beginQuery() {
 	m.rememberNavigatorSelection()
+	// A query filters navigator rows, so it cannot retain a docked block's
+	// selection-scoped work. Clear it before switching regions rather than
+	// waiting for the next layout pass; otherwise an agent inspector can keep
+	// stale detail allocation while the filter owns input.
+	if m.focusRegion == focusBlock {
+		m.clearBlockSelection(m.focusBlock)
+		if navigable, ok := m.dockedBlockNav(m.focusBlock); ok {
+			navigable.SetNavigationIndex(-1)
+		}
+	}
+	m.focusRegion, m.focusBlock, m.focusRow = focusNavigator, -1, -1
 	m.queryActive = true
 }
 
@@ -976,7 +997,7 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		if line < len(m.lineRow) {
 			// Navigator: either line of a two-line row selects that row.
 			if m.lineRow[line] >= 0 {
-				m.focusRegion = focusNavigator
+				m.setFocusTarget(focusTarget{block: navigatorTarget})
 				m.sel = m.lineRow[line]
 				m.rememberNavigatorSelection()
 			}
@@ -992,7 +1013,7 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 						m.setBlockFocus(blockIndex(m.docked, hit.block), row)
 					}
 				}
-				return m, c.OnClick(hit.local)
+				return m, tea.Batch(m.refreshFocusedBlock(), c.OnClick(hit.local))
 			}
 		}
 	}
@@ -1170,10 +1191,14 @@ func (m *model) setBlockFocus(index, row int) {
 	if !ok || row < 0 || row >= n.NavigationCount() {
 		return
 	}
+	if m.focusRegion == focusBlock && m.focusBlock != index {
+		m.clearBlockSelection(m.focusBlock)
+	}
 	m.rememberBlockSelection(index, row)
 	m.focusRegion = focusBlock
 	m.focusBlock = index
 	m.focusRow = row
+	m.noteBlockSelection(index, row)
 }
 
 func (m *model) rememberBlockSelection(index, row int) {
@@ -1270,6 +1295,9 @@ func (m *model) setFocusTarget(target focusTarget) bool {
 		if len(m.navigatorRows()) == 0 {
 			return false
 		}
+		if m.focusRegion == focusBlock {
+			m.clearBlockSelection(m.focusBlock)
+		}
 		m.focusRegion = focusNavigator
 		m.clampSel()
 		return true
@@ -1278,12 +1306,80 @@ func (m *model) setFocusTarget(target focusTarget) bool {
 	if !ok || n.NavigationCount() == 0 {
 		return false
 	}
+	if m.focusRegion == focusBlock && m.focusBlock != target.block {
+		m.clearBlockSelection(m.focusBlock)
+	}
 	row := m.blockSelection(target.block, n.NavigationCount())
 	m.rememberBlockSelection(target.block, row)
 	m.focusRegion = focusBlock
 	m.focusBlock = target.block
 	m.focusRow = row
+	m.noteBlockSelection(target.block, row)
 	return true
+}
+
+// noteBlockSelection projects the generic navigation identity into optional
+// selection-scoped blocks. Returning refresh work through Refreshable keeps the
+// model independent of what the selected block happens to inspect.
+func (m *model) noteBlockSelection(index, row int) {
+	if index < 0 || index >= len(m.docked) {
+		return
+	}
+	aware, ok := m.docked[index].(blocks.SelectionChangeAware)
+	if !ok {
+		return
+	}
+	id := ""
+	if identifiable, ok := m.docked[index].(blocks.SelectionIdentifiable); ok {
+		id = identifiable.NavigationID(row)
+	}
+	if aware.SelectionChanged(id) {
+		m.selectionRefreshPending = true
+	}
+}
+
+func (m *model) clearBlockSelection(index int) {
+	if index < 0 || index >= len(m.docked) {
+		return
+	}
+	if m.focusRegion == focusBlock && m.focusBlock == index {
+		// A pending command belongs to this selection only. If the region loses
+		// focus before the input path can schedule it, do not carry it into a
+		// different Refreshable block later.
+		m.selectionRefreshPending = false
+	}
+	if aware, ok := m.docked[index].(blocks.SelectionChangeAware); ok {
+		aware.SelectionChanged("")
+	}
+}
+
+// refreshFocusedBlock consumes one selection-change request. It is called from
+// the input/message paths, never View, so an inspector cannot become polling.
+func (m *model) refreshFocusedBlock() tea.Cmd {
+	if !m.selectionRefreshPending {
+		return nil
+	}
+	m.selectionRefreshPending = false
+	if m.focusRegion != focusBlock || m.focusBlock < 0 || m.focusBlock >= len(m.docked) {
+		return nil
+	}
+	if refreshable, ok := m.docked[m.focusBlock].(blocks.Refreshable); ok {
+		return refreshable.Refresh()
+	}
+	return nil
+}
+
+func (m *model) forceRefreshFocusedBlock() tea.Cmd {
+	if m.focusRegion != focusBlock || m.focusBlock < 0 || m.focusBlock >= len(m.docked) {
+		return nil
+	}
+	if refreshable, ok := m.docked[m.focusBlock].(blocks.ForceRefreshable); ok {
+		return refreshable.RefreshFresh()
+	}
+	if refreshable, ok := m.docked[m.focusBlock].(blocks.Refreshable); ok {
+		return refreshable.Refresh()
+	}
+	return nil
 }
 
 // moveWithinRegion wraps inside the active focus region only. Moving from the
@@ -1466,8 +1562,10 @@ func (m *model) syncFocus(arr arrangement) {
 		if n, ok := b.(blocks.Navigable); ok {
 			if i == m.focusBlock && m.focusRegion == focusBlock && m.activeFocusRegion(regions) >= 0 {
 				n.SetNavigationIndex(m.focusRow)
+				m.noteBlockSelection(i, m.focusRow)
 			} else {
 				n.SetNavigationIndex(-1)
+				m.clearBlockSelection(i)
 			}
 		}
 	}

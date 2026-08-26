@@ -170,6 +170,30 @@ type SelectionIdentifiable interface {
 	NavigationIndexByID(id string) int
 }
 
+// SelectionChangeAware receives the stable identity of the row that currently
+// has keyboard focus, or an empty string when the block loses it. The model
+// calls this only through the generic Navigable/SelectionIdentifiable seam, so
+// a block may start selection-scoped work without model.go learning its type.
+type SelectionChangeAware interface {
+	// SelectionChanged reports whether the stable selection actually changed.
+	// The model uses that result to schedule one on-demand Refresh.
+	SelectionChanged(id string) bool
+}
+
+// Refreshable is optional on-demand work for the selected row. Unlike Fetch,
+// which belongs to a block's normal cadence, Refresh runs only after an explicit
+// selection change or the user's `r` request. This keeps expensive detail views
+// out of background polling.
+type Refreshable interface {
+	Refresh() tea.Cmd
+}
+
+// ForceRefreshable is the explicit-user-refresh variant. It bypasses a block's
+// normal cache without making recurring selection work expensive.
+type ForceRefreshable interface {
+	RefreshFresh() tea.Cmd
+}
+
 // Actionable is the optional context-action half of a Navigable block. The
 // block owns its selected row and descriptors; model.go only opens the same
 // generic palette used by navigator rows. This keeps adding block actions out

@@ -8,6 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"mm-sidebar/internal/agentdetail"
 	"mm-sidebar/internal/agents"
 	"mm-sidebar/internal/display"
 	"mm-sidebar/internal/nav"
@@ -32,6 +33,35 @@ type AgentRowsMsg struct {
 
 func (AgentRowsMsg) IsBlockMsg() {}
 
+// AgentDetailMsg is the result of an on-demand selected-agent inspection. Its
+// identity and generation are checked by AgentsGlance before it can replace the
+// current selection: a slow tail/Git read for a row that was moved past can
+// never render beneath a different agent.
+type AgentDetailMsg struct {
+	Identity   string
+	Generation uint64
+	Data       agentdetail.Data
+	Err        error
+}
+
+func (AgentDetailMsg) IsBlockMsg() {}
+
+type detailState uint8
+
+const (
+	detailInactive detailState = iota
+	detailLoading
+	detailReady
+	detailUnavailable
+)
+
+const detailMaxLines = 7
+
+type stateObservation struct {
+	state string
+	since time.Time
+}
+
 // AgentsGlance is a condensed agent status block: always visible regardless of
 // the active navigator tab, capped, and sorted by urgency so the rows that most
 // need attention are the ones that survive truncation.
@@ -44,22 +74,72 @@ type AgentsGlance struct {
 	rows  []agents.Row
 	extra int // additional rows granted by the layout beyond AgentsGlanceMax
 	focus int // selected visible row; -1 when keyboard focus is elsewhere
-	hover int // hovered visible row; -1 when the pointer is elsewhere
+	// observedStates is keyed by the stable agent/session identity, not a screen
+	// index or urgency rank. It survives resorting and carries the timestamp at
+	// which the current state first appeared; absent sessions are pruned on each
+	// sweep so a reused identity cannot inherit an old age.
+	observedStates map[string]stateObservation
+	hover          int // hovered visible row; -1 when the pointer is elsewhere
 
 	// request is how the block asks the model's resolver goroutine for a sweep.
 	// Buffered and non-blocking: a coalescing trigger, not a queue.
 	request chan<- struct{}
+
+	// The inspector is selection-scoped and deliberately separate from the
+	// recurring resolver. It reads a bounded transcript tail plus local Git only
+	// after the agent block is focused or explicitly refreshed.
+	details          *agentdetail.Collector
+	now              func() time.Time
+	detailState      detailState
+	detailIdentity   string
+	detailRow        agents.Row
+	detailGeneration uint64
+	detailData       agentdetail.Data
+	detailErr        error
+	detailExtra      int // layout-granted rows after every visible agent row
+}
+
+// AgentsGlanceOption configures the on-demand inspector. The clock is injected
+// so freshness/caching behavior is deterministic in focused tests.
+type AgentsGlanceOption func(*AgentsGlance)
+
+func WithDetailCollector(details *agentdetail.Collector) AgentsGlanceOption {
+	return func(b *AgentsGlance) { b.details = details }
+}
+
+func WithClock(now func() time.Time) AgentsGlanceOption {
+	return func(b *AgentsGlance) {
+		if now == nil {
+			return
+		}
+		b.now = now
+		// Options apply in order: a later WithDetailCollector deliberately wins,
+		// while an earlier custom collector remains the owner of its own clock.
+		if b.details == nil {
+			b.details = agentdetail.New(agentdetail.Config{Now: now})
+		}
+	}
 }
 
 // NewAgentsGlance builds a standalone block for package users and tests.
-func NewAgentsGlance(th theme.Theme, request chan<- struct{}) *AgentsGlance {
-	return NewAgentsGlanceWithClient(th, tmuxio.NewClient("", ""), request)
+func NewAgentsGlance(th theme.Theme, request chan<- struct{}, options ...AgentsGlanceOption) *AgentsGlance {
+	return NewAgentsGlanceWithClient(th, tmuxio.NewClient("", ""), request, options...)
 }
 
 // NewAgentsGlanceWithClient builds the sidebar block with its invoking tmux
 // client context. request is the resolver goroutine's trigger channel.
-func NewAgentsGlanceWithClient(th theme.Theme, client *tmuxio.Client, request chan<- struct{}) *AgentsGlance {
-	return &AgentsGlance{theme: th, client: client, request: request, focus: -1, hover: -1}
+func NewAgentsGlanceWithClient(th theme.Theme, client *tmuxio.Client, request chan<- struct{}, options ...AgentsGlanceOption) *AgentsGlance {
+	b := &AgentsGlance{
+		theme: th, client: client, request: request, focus: -1, hover: -1,
+		now: time.Now, observedStates: make(map[string]stateObservation),
+	}
+	for _, option := range options {
+		option(b)
+	}
+	if b.details == nil {
+		b.details = agentdetail.New(agentdetail.Config{Now: b.now})
+	}
+	return b
 }
 
 func (b *AgentsGlance) ID() string { return "agents_glance" }
@@ -84,23 +164,48 @@ func (b *AgentsGlance) Fetch() tea.Cmd {
 }
 
 func (b *AgentsGlance) Update(msg tea.Msg) {
-	m, ok := msg.(AgentRowsMsg)
-	if !ok {
-		return
+	switch m := msg.(type) {
+	case AgentRowsMsg:
+		rows := make([]agents.Row, len(m.Rows))
+		copy(rows, m.Rows)
+		b.observeStates(rows)
+		// Stable sort by urgency only: within a rank, the resolver's order (Claude
+		// rows in sessions-dir order, then pi rows) is preserved so rows don't
+		// shuffle between sweeps.
+		sort.SliceStable(rows, func(i, j int) bool {
+			return agents.StateRank(rows[i].State) < agents.StateRank(rows[j].State)
+		})
+		b.rows = rows
+		if len(rows) == 0 {
+			// An empty sweep has no selected agent. Drop every inspector allocation
+			// before the next layout so Height and View remain exactly aligned and a
+			// late detail command cannot render beneath the empty placeholder.
+			b.clearDetail()
+		}
+		// State is intentionally excluded from detailIdentity: it is live glance
+		// data, not an inspector input. Keep the selected row current so its state
+		// age changes without restarting a transcript/Git inspection.
+		for _, row := range rows {
+			if navigationIdentity(row) == navigationIdentity(b.detailRow) && detailIdentity(row) == b.detailIdentity {
+				b.detailRow = row
+				break
+			}
+		}
+		// The pointer may still be over the same screen line after a refresh, but
+		// that line can now belong to another urgency-sorted agent. The model clears
+		// hover before every block update; keep this local guard for direct callers.
+		b.hover = -1
+	case AgentDetailMsg:
+		if m.Identity == "" || m.Identity != b.detailIdentity || m.Generation != b.detailGeneration {
+			return
+		}
+		b.detailData, b.detailErr = m.Data, m.Err
+		if m.Err != nil {
+			b.detailState = detailUnavailable
+		} else {
+			b.detailState = detailReady
+		}
 	}
-	rows := make([]agents.Row, len(m.Rows))
-	copy(rows, m.Rows)
-	// Stable sort by urgency only: within a rank, the resolver's order (Claude
-	// rows in sessions-dir order, then pi rows) is preserved so rows don't
-	// shuffle between sweeps.
-	sort.SliceStable(rows, func(i, j int) bool {
-		return agents.StateRank(rows[i].State) < agents.StateRank(rows[j].State)
-	})
-	b.rows = rows
-	// The pointer may still be over the same screen line after a refresh, but
-	// that line can now belong to another urgency-sorted agent. The model clears
-	// hover before every block update; keep this local guard for direct callers.
-	b.hover = -1
 }
 
 // shown is how many rows render at the current allowance, and how many are left
@@ -113,34 +218,47 @@ func (b *AgentsGlance) shown() (n, more int) {
 	return n, len(b.rows) - n
 }
 
-// SetExtra resets the layout's row allowance.
-func (b *AgentsGlance) SetExtra(n int) { b.extra = n }
+// SetExtra resets the layout's row allowance. Detail rows are never reserved:
+// they use only slack left after the complete agent list has been revealed.
+func (b *AgentsGlance) SetExtra(n int) {
+	b.extra, b.detailExtra = n, 0
+}
 
-// Expand takes up to n extra lines, returning the resulting Height delta.
-//
-// Note the delta is not always the row count: showing the LAST hidden row also
-// retires the "+N more" line, so a 1-row grant that clears the backlog is a
-// net-zero height change.
+// Expand takes up to n spare lines. It first reveals hidden agents, then grants
+// the selected-agent inspector only the remaining post-list slack. The detail
+// therefore cannot squeeze a visible agent row or retain blank height on a
+// short pane.
 func (b *AgentsGlance) Expand(n int) int {
-	_, more := b.shown()
-	if n <= 0 || more == 0 {
+	if n <= 0 {
 		return 0
 	}
 	before := b.Height()
-	take := n
-	if take > more {
-		take = more
+	if _, more := b.shown(); more > 0 {
+		take := n
+		if take > more {
+			take = more
+		}
+		b.extra += take
 	}
-	b.extra += take
-	if delta := b.Height() - before; delta <= n {
-		return delta
+	used := b.Height() - before
+	_, more := b.shown()
+	if used < n && more == 0 && b.detailState != detailInactive {
+		take := n - used
+		remain := len(b.detailLines()) - b.detailExtra
+		if remain > detailMaxLines-b.detailExtra {
+			remain = detailMaxLines - b.detailExtra
+		}
+		if take > remain {
+			take = remain
+		}
+		b.detailExtra += take
+		used = b.Height() - before
 	}
-	b.extra -= take // the grant didn't fit after all
-	return 0
+	return used
 }
 
-// Height: label + visible rows (+ the "+N more" line). Minimum 2 so the block
-// never vanishes entirely -- an empty agents list still shows "▸ agents / (none)".
+// Height: label + visible rows (+ the "+N more" line) + only layout-granted
+// detail rows. Minimum 2 so an empty list still shows "▸ agents / (none)".
 func (b *AgentsGlance) Height() int {
 	n, more := b.shown()
 	h := 1 + n
@@ -149,6 +267,14 @@ func (b *AgentsGlance) Height() int {
 	}
 	if h < 2 {
 		h = 2
+	}
+	if len(b.rows) > 0 && more == 0 {
+		rows := b.detailLines()
+		if len(rows) < b.detailExtra {
+			h += len(rows)
+		} else {
+			h += b.detailExtra
+		}
 	}
 	return h
 }
@@ -170,8 +296,187 @@ func (b *AgentsGlance) View(width int) string {
 	}
 	if more > 0 {
 		lines = append(lines, b.theme.Muted.Render("  +"+strconv.Itoa(more)+" more"))
+	} else {
+		for i, line := range b.detailLines() {
+			if i >= b.detailExtra {
+				break
+			}
+			lines = append(lines, b.theme.Muted.Render("  "+line))
+		}
 	}
 	return join(lines, width)
+}
+
+// SelectionChanged implements blocks.SelectionChangeAware. Detail identity
+// includes every row field the inspector consumes, while navigation stays keyed
+// to tmux's stable pane ID so a cwd refresh never resets keyboard selection.
+func (b *AgentsGlance) SelectionChanged(id string) bool {
+	row, ok := b.rowByNavigationID(id)
+	identity := ""
+	if ok {
+		identity = detailIdentity(row)
+	}
+	if identity == b.detailIdentity {
+		return false
+	}
+	if identity == "" {
+		b.clearDetail()
+		return false
+	}
+	b.detailGeneration++
+	b.detailIdentity, b.detailRow = identity, row
+	b.detailData, b.detailErr = agentdetail.Data{}, nil
+	b.detailState = detailLoading
+	return true
+}
+
+func (b *AgentsGlance) clearDetail() {
+	b.detailGeneration++
+	b.detailState = detailInactive
+	b.detailIdentity = ""
+	b.detailRow = agents.Row{}
+	b.detailData, b.detailErr = agentdetail.Data{}, nil
+	b.detailExtra = 0
+}
+
+// Refresh implements blocks.Refreshable. It is invoked only after a focused
+// selection changes; normal agent sweeps never inspect a transcript, plan, or
+// repository.
+func (b *AgentsGlance) Refresh() tea.Cmd {
+	return b.refreshDetail(false)
+}
+
+// RefreshFresh implements blocks.ForceRefreshable for an explicit r command.
+// It bypasses the collector's short TTL cache without changing normal refreshes.
+func (b *AgentsGlance) RefreshFresh() tea.Cmd {
+	return b.refreshDetail(true)
+}
+
+func (b *AgentsGlance) refreshDetail(fresh bool) tea.Cmd {
+	if b.detailIdentity == "" || b.detailState == detailInactive || b.details == nil {
+		return nil
+	}
+	b.detailGeneration++
+	identity, generation, row := b.detailIdentity, b.detailGeneration, b.detailRow
+	b.detailState, b.detailErr = detailLoading, nil
+	return func() tea.Msg {
+		var (
+			data agentdetail.Data
+			err  error
+		)
+		if fresh {
+			data, err = b.details.CollectFresh(row)
+		} else {
+			data, err = b.details.Collect(row)
+		}
+		return AgentDetailMsg{Identity: identity, Generation: generation, Data: data, Err: err}
+	}
+}
+
+func (b *AgentsGlance) rowByNavigationID(id string) (agents.Row, bool) {
+	for i := 0; i < b.NavigationCount(); i++ {
+		if navigationIdentity(b.rows[i]) == id {
+			return b.rows[i], true
+		}
+	}
+	return agents.Row{}, false
+}
+
+func navigationIdentity(r agents.Row) string { return r.IdentityKey() }
+
+func detailIdentity(r agents.Row) string {
+	return strings.Join([]string{r.Agent, r.PaneID, r.SessionID, r.Transcript, r.Cwd}, "\x1f")
+}
+
+// observedIdentity uses the agent's persistent session ID when available. A
+// pane ID is only a fallback for malformed/legacy rows with no session ID.
+func observedIdentity(r agents.Row) string {
+	stable := r.SessionID
+	if stable == "" || stable == "-" {
+		stable = r.PaneID
+	}
+	return strings.Join([]string{r.Agent, stable}, "\x1f")
+}
+
+func (b *AgentsGlance) observeStates(rows []agents.Row) {
+	now := b.now()
+	seen := make(map[string]struct{}, len(rows))
+	for _, row := range rows {
+		identity := observedIdentity(row)
+		if identity == "\x1f" {
+			continue
+		}
+		seen[identity] = struct{}{}
+		if prior, ok := b.observedStates[identity]; ok && prior.state == row.State {
+			continue
+		}
+		b.observedStates[identity] = stateObservation{state: row.State, since: now}
+	}
+	for identity := range b.observedStates {
+		if _, ok := seen[identity]; !ok {
+			delete(b.observedStates, identity)
+		}
+	}
+}
+
+func (b *AgentsGlance) stateAge(row agents.Row) time.Duration {
+	observation, ok := b.observedStates[observedIdentity(row)]
+	if !ok || observation.since.IsZero() {
+		return 0
+	}
+	age := b.now().Sub(observation.since)
+	if age < 0 {
+		return 0
+	}
+	return age
+}
+
+func humanAge(age time.Duration) string {
+	switch {
+	case age < time.Minute:
+		return "now"
+	case age < time.Hour:
+		return strconv.Itoa(int(age/time.Minute)) + "m"
+	case age < 24*time.Hour:
+		return strconv.Itoa(int(age/time.Hour)) + "h"
+	default:
+		return strconv.Itoa(int(age/(24*time.Hour))) + "d"
+	}
+}
+
+func (b *AgentsGlance) detailLines() []string {
+	if b.detailState == detailInactive {
+		return nil
+	}
+	// State age is live glance metadata, not transcript data: it leads every
+	// inspector state and remains accurate while a detail command is loading.
+	lines := []string{"state: " + display.Sanitize(b.detailRow.State) + " · " + humanAge(b.stateAge(b.detailRow))}
+	switch b.detailState {
+	case detailLoading:
+		lines = append(lines, "inspecting…")
+	case detailUnavailable:
+		lines = append(lines, "inspector unavailable")
+	case detailReady:
+		// Collector data is already sanitized, but keep the rendering boundary
+		// defensive for test/custom collectors too. The ordering makes current
+		// conversation context visible before optional plan and repository detail.
+		lines = append(lines,
+			"prompt: "+display.Sanitize(b.detailData.Prompt),
+			"response: "+display.Sanitize(b.detailData.Response),
+		)
+		if b.detailData.Plan != "" {
+			lines = append(lines, "plan: "+display.Sanitize(b.detailData.Plan))
+		}
+		lines = append(lines,
+			"cwd: "+display.Sanitize(b.detailData.Cwd),
+			"worktree: "+display.Sanitize(b.detailData.Worktree),
+			"git: "+display.Sanitize(b.detailData.Git),
+		)
+	}
+	if len(lines) > detailMaxLines {
+		return lines[:detailMaxLines]
+	}
+	return lines
 }
 
 // OnClick implements Clickable: a click on an agent row switches to that agent's

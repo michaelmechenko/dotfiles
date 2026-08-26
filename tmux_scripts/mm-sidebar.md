@@ -723,6 +723,20 @@ bounded NUL-delimited `git worktree list --porcelain -z`. Neither Worktrunk nor 
 pane counts and focus the shallowest matching pane; absent worktrees open a
 guarded split rooted there.
 
+Each materialized worktree owns an ordered `a`/`:` action center: optional focus
+of its live pane, shell split, shell window, pinned filetree, lazygit, project
+scratch, new pi window, new Claude window, copy path, and Finder reveal. Every
+descriptor retains the cleaned absolute worktree path and canonical common-dir
+identity. Repository identity is revalidated asynchronously before local
+filetree/scratch effects and immediately before guarded tmux tool/agent launches.
+Tmux actions also revalidate the immutable content-pane session/window identity
+inside one `if-shell`; agent launches are limited to fixed `exec pi` /
+`exec claude` commands. Filetree switches through the source registry, resets
+stale filter/selection/rows, and re-arms its scoped watcher; scratch uses the
+existing `tea.ExecProcess(nvim)` lifecycle and creates its parent directory. The
+lazygit launcher accepts cwd/client as argv while its no-argument `M-g` behavior
+and generated palette config remain unchanged.
+
 A branch-only row is inert on ordinary Enter and exposes `create worktree and
 open split`. It re-resolves its root and requires the rendered canonical common
 dir immediately before `wt switch <branch> --no-cd --format=json`, as well as

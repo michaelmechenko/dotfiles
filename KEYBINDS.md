@@ -482,7 +482,7 @@ Ghostty transports Ctrl-Tab/Ctrl-Shift-Tab as F13/F14; only mm-sidebar interpret
 | --- | --- | --- | --- |
 | sessions | `tmux-fzf-nav --list-sessions` | `switch-client` + `select-pane` to that session's active pane | — |
 | windows | `tmux-fzf-nav --list-windows` | `switch-client` + `select-pane` to that pane (current session only) | — |
-| projects | persistent pinned/recent Git catalog observed from live pane cwds | focus a live worktree pane, else split at its root | `a`/`:` heading: pin/unpin; confirmed forget only when non-live; no recurring Git polling |
+| projects | persistent pinned/recent Git catalog observed from live pane cwds | focus a live worktree pane, else split at its root | `a`/`:` heading: pin/unpin/confirmed forget; worktree: focus, shell split/window, pinned filetree, lazygit, project scratch, pi/Claude windows, copy/reveal; no recurring Git polling |
 | filetree | `find`-based 2-level tree over the content pane's cwd | dir → `split-window -h -c <dir>` in the content pane; file → `tmux-open-target` (nvim split) | `h` hidden, `p` pin, `R` reset/unpin, `Backspace` up |
 | scratch | `~/.config/tmux_scratch/{global,<slug>}.md` | `exec nvim <file>`; `:wq` returns to the dispatcher loop | — |
 

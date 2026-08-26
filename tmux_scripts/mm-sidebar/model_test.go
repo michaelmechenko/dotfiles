@@ -367,6 +367,43 @@ func TestProjectFilterHeadingMatchKeepsAllChildren(t *testing.T) {
 	}
 }
 
+func TestContextEffectsTransitionSourcesAndReuseEditorLifecycle(t *testing.T) {
+	m := &model{srcIdx: nav.SourceByID("projects"), sourceRoot: "/old", rootPinned: false}
+	action := nav.ContextAction{
+		Local:    nav.LocalEffectSource,
+		SourceID: "filetree",
+		SourceControl: nav.SourceControl{
+			Root: "/repo/clean", SetRoot: true, RootPinned: true, SetRootPinned: true, Refresh: true,
+		},
+	}
+	if cmd, handled := m.applyContextEffect(action); !handled || cmd == nil {
+		t.Fatalf("source context effect = handled:%t cmd:%T", handled, cmd)
+	}
+	if m.srcIdx != nav.SourceByID("filetree") || m.sourceRoot != "/repo/clean" || !m.rootPinned {
+		t.Fatalf("source transition did not apply generic state: source=%d root=%q pinned=%t", m.srcIdx, m.sourceRoot, m.rootPinned)
+	}
+	generation := m.sourceGeneration
+	m.queryActive, m.query = true, "stale"
+	m.sel, m.selectionID = 3, "stale"
+	m.rows = []nav.Row{{ID: "stale"}}
+	if cmd, handled := m.applyContextEffect(action); !handled || cmd == nil {
+		t.Fatalf("same-source context effect = handled:%t cmd:%T", handled, cmd)
+	}
+	if m.sourceGeneration != generation+1 || m.queryActive || m.query != "" || m.sel != 0 || m.selectionID != "" || m.rows != nil {
+		t.Fatalf("same-source transition retained stale state: generation=%d query=%q sel=%d selection=%q rows=%v", m.sourceGeneration, m.query, m.sel, m.selectionID, m.rows)
+	}
+	editPath := filepath.Join(t.TempDir(), "scratch", "project.md")
+	if cmd, handled := m.applyContextEffect(nav.ContextAction{Local: nav.LocalEffectEditFile, Path: editPath}); !handled || cmd == nil {
+		t.Fatalf("editor context effect = handled:%t cmd:%T", handled, cmd)
+	}
+	if info, err := os.Stat(filepath.Dir(editPath)); err != nil || !info.IsDir() {
+		t.Fatalf("editor context effect did not create parent directory: info=%v err=%v", info, err)
+	}
+	if _, handled := m.applyContextEffect(nav.ContextAction{}); handled {
+		t.Fatal("ordinary tmux action was treated as a local effect")
+	}
+}
+
 func TestGenericActionCompletionForcesRefresh(t *testing.T) {
 	m := newModel(tmuxio.NewClient("", ""))
 	defer m.Close()

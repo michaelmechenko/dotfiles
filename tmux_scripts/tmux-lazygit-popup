@@ -2,9 +2,32 @@
 
 set -e
 
+if (( $# > 2 )); then
+  print -u2 "usage: tmux-lazygit-popup [cwd [client]]"
+  exit 2
+fi
+
 BORDER_COLOR=$(tmux show-options -gqv @color-text-muted)
 BORDER_COLOR=${BORDER_COLOR:-"#a9b1d6"}
 LAZYGIT_CONFIG="$HOME/.config/theme/generated/lazygit/config.yml"
 
-tmux popup -E -d '#{pane_current_path}' -xC -yC -w100% -h100% -S "fg=$BORDER_COLOR" \
-  "lazygit --use-config-file '$LAZYGIT_CONFIG'"
+# No arguments keeps the root binding's historic active-pane behavior. Sidebar
+# callers pass both values as argv, so another attached client cannot redirect
+# the popup's cwd or client target between the guarded action and this launch.
+cwd=${1:-}
+client=${2:-}
+popup=(popup -E)
+if [[ -n "$client" ]]; then
+  popup+=(-t "$client")
+fi
+if [[ -n "$cwd" ]]; then
+  popup+=(-d "$cwd")
+else
+  popup+=(-d '#{pane_current_path}')
+fi
+popup+=(-xC -yC -w100% -h100% -S "fg=$BORDER_COLOR")
+# popup executes its final argument through a shell, so quote the config as a
+# command argument even when HOME itself contains shell punctuation.
+popup+=("lazygit --use-config-file ${(q)LAZYGIT_CONFIG}")
+
+tmux "${popup[@]}"

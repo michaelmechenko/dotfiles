@@ -202,6 +202,44 @@ func TestContentActionsAreIdentityGuardedAndQuotePaths(t *testing.T) {
 	}
 }
 
+func TestProjectLaunchersAreGuardedAndAgentAllowlisted(t *testing.T) {
+	var calls [][]string
+	client := &Client{originClient: "/dev/tty 7", run: func(args ...string) (string, error) {
+		calls = append(calls, append([]string(nil), args...))
+		return "", nil
+	}}
+	ref := PaneRef{PaneID: "%7", SessionID: "$4", WindowID: "@9", WindowIndex: 2}
+	path := "/tmp/worktree ' ; touch PWN"
+	client.NewWindowAt(ref, path)
+	client.OpenAgentAt(ref, path, "pi")
+	client.OpenAgentAt(ref, path, "claude")
+	client.OpenAgentAt(ref, path, "sh -c PWN")
+	client.OpenLazygitAt(ref, path)
+	if len(calls) != 4 {
+		t.Fatalf("launcher calls = %#v, want guarded new-window, pi, claude, lazygit", calls)
+	}
+	for _, call := range calls {
+		joined := strings.Join(call, " ")
+		for _, want := range []string{"if-shell -F -t %7", "#{==:#{session_id},$4}", "#{==:#{window_id},@9}"} {
+			if !strings.Contains(joined, want) {
+				t.Fatalf("unguarded launcher lacks %q: %#v", want, call)
+			}
+		}
+	}
+	if got := strings.Join(calls[0], " "); !strings.Contains(got, "new-window -c") || !strings.Contains(got, `'"'"'`) {
+		t.Fatalf("new window did not preserve one quoted cwd: %#v", calls[0])
+	}
+	if got := strings.Join(calls[1], " "); !strings.Contains(got, "new-window -c") || !strings.Contains(got, "exec pi") {
+		t.Fatalf("pi launcher = %#v", calls[1])
+	}
+	if got := strings.Join(calls[2], " "); !strings.Contains(got, "new-window -c") || !strings.Contains(got, "exec claude") {
+		t.Fatalf("Claude launcher = %#v", calls[2])
+	}
+	if got := strings.Join(calls[3], " "); !strings.Contains(got, "tmux-lazygit-popup") || !strings.Contains(got, "/dev/tty 7") {
+		t.Fatalf("lazygit launcher lost argv-safe cwd/client: %#v", calls[3])
+	}
+}
+
 func TestSidebarWidthPersistsBeforeLiveResize(t *testing.T) {
 	var calls [][]string
 	client := &Client{paneID: "%sidebar", run: func(args ...string) (string, error) {

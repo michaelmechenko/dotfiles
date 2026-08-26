@@ -72,13 +72,23 @@ func projectCwds(panes []tmuxio.PaneRow) []string {
 	cwds := make([]string, 0, len(panes))
 	seen := make(map[string]bool)
 	for _, pane := range panes {
-		if pane.Sidebar || pane.CurrentPath == "" || seen[pane.CurrentPath] {
+		cwd := cleanProjectPath(pane.CurrentPath)
+		if pane.Sidebar || cwd == "" || seen[cwd] {
 			continue
 		}
-		seen[pane.CurrentPath] = true
-		cwds = append(cwds, pane.CurrentPath)
+		seen[cwd] = true
+		cwds = append(cwds, cwd)
 	}
 	return cwds
+}
+
+// cleanProjectPath is the lexical representation retained by rows/actions.
+// Canonical Git identity remains the catalog's resolved common directory.
+func cleanProjectPath(path string) string {
+	if path == "" {
+		return ""
+	}
+	return filepath.Clean(path)
 }
 
 type worktree struct {
@@ -171,9 +181,10 @@ func statusFromWorktrunk(item wtapi.Item) projectStatus {
 
 func projectRow(c Ctx, wt worktree) Row {
 	home, _ := os.UserHomeDir()
-	path := filepath.Clean(wt.Path)
+	path := cleanProjectPath(wt.Path)
+	wt.RepoRoot, wt.CommonDir = cleanProjectPath(wt.RepoRoot), cleanProjectPath(wt.CommonDir)
 	if wt.BranchOnly {
-		path = filepath.Clean(wt.RepoRoot)
+		path = wt.RepoRoot
 	}
 	name := filepath.Base(path)
 	branch := display.Sanitize(wt.Branch)
@@ -198,7 +209,7 @@ func projectRow(c Ctx, wt worktree) Row {
 		Kind:       ActionOpenDir,
 		Path:       path,
 		CommonDir:  wt.CommonDir,
-		Actions:    projectDirActions(path, wt.CommonDir),
+		Actions:    projectActions(path, wt.CommonDir, nil),
 	}
 	if wt.BranchOnly {
 		row.ID = "branch:" + wt.CommonDir + ":" + wt.Branch
@@ -215,7 +226,7 @@ func projectRow(c Ctx, wt worktree) Row {
 	}
 	if livePanes > 0 {
 		row.Kind, row.PaneID, row.Target, row.Pane = ActionFocusPane, pane.PaneID, pane.Target, pane.Ref()
-		row.Actions = append([]ContextAction{{ID: "focus", Label: "focus worktree pane", Kind: ContextFocusPane, Pane: pane.Ref(), PaneID: pane.PaneID, Target: pane.Target}}, row.Actions...)
+		row.Actions = projectActions(path, wt.CommonDir, &pane)
 	}
 	return row
 }

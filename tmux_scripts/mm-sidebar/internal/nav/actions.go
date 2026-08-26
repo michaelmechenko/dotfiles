@@ -31,6 +31,12 @@ type ContextAction struct {
 	RepoRoot    string
 	Branch      string
 	CommonDir   string
+
+	// Local is applied by the sidebar after asynchronous repository validation.
+	// SourceID and SourceControl are meaningful only for LocalEffectSource.
+	Local         LocalEffect
+	SourceID      string
+	SourceControl SourceControl
 }
 
 type ContextActionKind uint8
@@ -57,6 +63,20 @@ const (
 	ContextPinRepository
 	ContextUnpinRepository
 	ContextForgetRepository
+	ContextOpenLazygit
+	ContextOpenPi
+	ContextOpenClaude
+)
+
+// LocalEffect is an in-sidebar transition which deliberately does not shell out
+// through tmux. Context actions describe it declaratively, allowing model.go to
+// apply source and editor lifecycle changes without recognizing their source.
+type LocalEffect uint8
+
+const (
+	LocalEffectNone LocalEffect = iota
+	LocalEffectSource
+	LocalEffectEditFile
 )
 
 func paneActions(p tmuxio.PaneRow) []ContextAction {
@@ -106,6 +126,30 @@ func projectDirActions(path, commonDir string) []ContextAction {
 	}
 }
 
+// projectActions is the ordered action center for a materialized worktree. A
+// focus action is prepended only when this exact worktree already owns a live
+// pane. Enter remains the row's primary action; this list is only for a/:.
+func projectActions(path, commonDir string, pane *tmuxio.PaneRow) []ContextAction {
+	path, commonDir = cleanProjectPath(path), cleanProjectPath(commonDir)
+	actions := make([]ContextAction, 0, 10)
+	if pane != nil {
+		ref := pane.Ref()
+		actions = append(actions, ContextAction{ID: "focus", Label: "focus worktree pane", Kind: ContextFocusPane, Pane: ref, PaneID: pane.PaneID, Target: pane.Target})
+	}
+	actions = append(actions,
+		ContextAction{ID: "shell-split", Label: "open shell split", Kind: ContextOpenDir, Path: path, CommonDir: commonDir},
+		ContextAction{ID: "shell-window", Label: "open shell window", Kind: ContextNewWindow, Path: path, CommonDir: commonDir},
+		ContextAction{ID: "filetree", Label: "browse filetree", RepoRoot: path, CommonDir: commonDir, Local: LocalEffectSource, SourceID: Filetree{}.ID(), SourceControl: SourceControl{Root: path, SetRoot: true, RootPinned: true, SetRootPinned: true, Refresh: true}},
+		ContextAction{ID: "lazygit", Label: "open lazygit", Kind: ContextOpenLazygit, Path: path, CommonDir: commonDir},
+		ContextAction{ID: "scratch", Label: "edit project scratch", RepoRoot: path, CommonDir: commonDir, Local: LocalEffectEditFile, Path: filepath.Join(ScratchDir(), Slug(path)+".md")},
+		ContextAction{ID: "pi", Label: "open pi", Kind: ContextOpenPi, Path: path, CommonDir: commonDir},
+		ContextAction{ID: "claude", Label: "open Claude", Kind: ContextOpenClaude, Path: path, CommonDir: commonDir},
+		ContextAction{ID: "copy-path", Label: "copy path", Kind: ContextCopyPath, Path: path},
+		ContextAction{ID: "reveal", Label: "reveal in Finder", Kind: ContextRevealPath, Path: path},
+	)
+	return actions
+}
+
 // ContextExecutor is the sole dispatcher for descriptors. Its Worktrunk client
 // is injectable for tests; the zero value uses the bounded wt adapter.
 type ContextExecutor struct {
@@ -142,6 +186,22 @@ func (e ContextExecutor) projectMatches(path, commonDir string) bool {
 	}
 	identity, err := e.catalog().Resolve(path)
 	return err == nil && identity.CommonDir == commonDir
+}
+
+// ValidateProjectAction checks the canonical repository identity retained by a
+// local TUI action before model.go mutates source/editor state.
+func ValidateProjectAction(action ContextAction) error {
+	if action.CommonDir == "" {
+		return nil
+	}
+	root := action.RepoRoot
+	if root == "" {
+		root = action.Path
+	}
+	if !(ContextExecutor{}).projectMatches(root, action.CommonDir) {
+		return fmt.Errorf("repository changed; action cancelled")
+	}
+	return nil
 }
 
 // ExecuteContextAction uses the default executor for production callers.
@@ -184,7 +244,7 @@ func (e ContextExecutor) Execute(client *tmuxio.Client, action ContextAction, co
 		if !e.projectMatches(action.Path, action.CommonDir) {
 			return result, fmt.Errorf("repository changed; worktree not opened")
 		}
-		client.NewWindowAt(action.Path)
+		client.NewWindowAt(content, action.Path)
 	case ContextCopyPath:
 		copyPath(action.Path)
 	case ContextRevealPath:
@@ -201,6 +261,21 @@ func (e ContextExecutor) Execute(client *tmuxio.Client, action ContextAction, co
 		client.RunScriptAtPane(action.Pane, scriptPath("tmux-M-P-dispatch"))
 	case ContextCopyText:
 		copyText(action.Text)
+	case ContextOpenLazygit:
+		if !e.projectMatches(action.Path, action.CommonDir) {
+			return result, fmt.Errorf("repository changed; lazygit not opened")
+		}
+		client.OpenLazygitAt(content, action.Path)
+	case ContextOpenPi:
+		if !e.projectMatches(action.Path, action.CommonDir) {
+			return result, fmt.Errorf("repository changed; pi not opened")
+		}
+		client.OpenAgentAt(content, action.Path, "pi")
+	case ContextOpenClaude:
+		if !e.projectMatches(action.Path, action.CommonDir) {
+			return result, fmt.Errorf("repository changed; Claude not opened")
+		}
+		client.OpenAgentAt(content, action.Path, "claude")
 	case ContextMaterializeBranch:
 		identity, err := e.catalog().Resolve(action.RepoRoot)
 		if err != nil || identity.CommonDir != action.CommonDir {

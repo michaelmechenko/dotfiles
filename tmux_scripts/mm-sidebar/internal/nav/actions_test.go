@@ -76,6 +76,27 @@ func TestProjectWorktreeOpenRejectsChangedCommonDir(t *testing.T) {
 	}
 }
 
+func TestProjectToolsRejectChangedCommonDirBeforeTmux(t *testing.T) {
+	catalog := catalogForActions(t, map[string]projectcatalog.Identity{
+		"/repo/worktree": {Root: "/repo/worktree", CommonDir: "/replacement/.git"},
+	})
+	executor := ContextExecutor{Catalog: catalog}
+	for _, kind := range []ContextActionKind{ContextNewWindow, ContextOpenLazygit, ContextOpenPi, ContextOpenClaude} {
+		_, err := executor.Execute(nil, ContextAction{Kind: kind, Path: "/repo/worktree", CommonDir: "/repo/.git"}, tmuxContent())
+		if err == nil || !strings.HasPrefix(err.Error(), "repository changed;") {
+			t.Fatalf("kind %d changed common dir error = %v", kind, err)
+		}
+	}
+}
+
+func TestLocalProjectEffectRejectsChangedCommonDir(t *testing.T) {
+	root := initProjectRepo(t)
+	action := ContextAction{Local: LocalEffectSource, RepoRoot: root, CommonDir: "/replacement/.git"}
+	if err := ValidateProjectAction(action); err == nil || err.Error() != "repository changed; action cancelled" {
+		t.Fatalf("local changed common dir error = %v", err)
+	}
+}
+
 func TestProjectWorktreeEnterRejectsChangedCommonDir(t *testing.T) {
 	root := initProjectRepo(t)
 	err := Act(nil, Row{Kind: ActionOpenDir, Path: root, CommonDir: "/replacement/.git"}, tmuxContent())

@@ -268,6 +268,11 @@ type contextActionMsg struct {
 	err    error
 }
 
+type localContextActionMsg struct {
+	action nav.ContextAction
+	err    error
+}
+
 // ---- lifecycle ------------------------------------------------------------
 
 func (m *model) Init() tea.Cmd {
@@ -382,6 +387,14 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.previewLines = previewLines(msg.body)
 		m.panePreview = true
 		return m, nil
+
+	case localContextActionMsg:
+		if msg.err != nil {
+			m.client.ShowMessage(msg.err.Error())
+			return m, nil
+		}
+		cmd, _ := m.applyContextEffect(msg.action)
+		return m, cmd
 
 	case contextActionMsg:
 		if msg.err != nil {
@@ -740,6 +753,11 @@ func (m *model) selectedActions() []nav.ContextAction {
 }
 
 func (m *model) runContextAction(action nav.ContextAction) tea.Cmd {
+	if action.Local != nav.LocalEffectNone {
+		return func() tea.Msg {
+			return localContextActionMsg{action: action, err: nav.ValidateProjectAction(action)}
+		}
+	}
 	if action.Kind == nav.ContextPreviewPane {
 		return func() tea.Msg {
 			body, err := m.client.CapturePane(action.Pane)
@@ -751,6 +769,58 @@ func (m *model) runContextAction(action nav.ContextAction) tea.Cmd {
 		result, err := nav.ExecuteContextAction(m.client, action, content)
 		return contextActionMsg{result: result, err: err}
 	}
+}
+
+// applyContextEffect owns context actions that affect only this TUI. Their
+// descriptors name an optional source or an editor path, so this lifecycle code
+// stays generic rather than branching on the Projects/Filetree/Scratch types.
+func (m *model) applyContextEffect(action nav.ContextAction) (tea.Cmd, bool) {
+	switch action.Local {
+	case nav.LocalEffectSource:
+		idx := nav.SourceByID(action.SourceID)
+		if idx < 0 || idx >= len(nav.Sources) || nav.Sources[idx].ID() != action.SourceID {
+			return nil, true
+		}
+		control := action.SourceControl
+		if control.SetRoot {
+			m.sourceRoot, m.sourceRootPane = control.Root, control.RootPane
+		}
+		if control.SetRootPinned {
+			m.rootPinned = control.RootPinned
+		}
+		if control.SetShowHidden {
+			m.showHidden = control.ShowHidden
+		}
+		if idx != m.srcIdx {
+			return m.setSource(idx), true
+		}
+		if control.Refresh {
+			m.sourceGeneration++
+			m.sel, m.selectionID = 0, ""
+			m.queryActive, m.query = false, ""
+			m.rows = nil
+			m.lastFetchErr = ""
+			m.syncSourceWatch()
+			return m.refreshState(false), true
+		}
+		return nil, true
+	case nav.LocalEffectEditFile:
+		return m.editFile(action.Path), true
+	default:
+		return nil, false
+	}
+}
+
+func (m *model) editFile(path string) tea.Cmd {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return func() tea.Msg {
+			m.client.ShowMessage(err.Error())
+			return nil
+		}
+	}
+	return tea.ExecProcess(exec.Command("nvim", "--", path), func(error) tea.Msg {
+		return editDoneMsg{}
+	})
 }
 
 // handleQueryKey keeps printable input (including Bubble Tea's bracketed-paste
@@ -1542,9 +1612,7 @@ func (m *model) act() tea.Cmd {
 	}
 	row := rows[m.sel]
 	if row.Kind == nav.ActionEditFile {
-		return tea.ExecProcess(exec.Command("nvim", "--", row.Path), func(error) tea.Msg {
-			return editDoneMsg{}
-		})
+		return m.editFile(row.Path)
 	}
 	content := m.contentRef
 	return func() tea.Msg {

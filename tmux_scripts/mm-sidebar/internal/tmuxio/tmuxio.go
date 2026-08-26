@@ -8,7 +8,9 @@ package tmuxio
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -365,22 +367,51 @@ func (c *Client) OpenFileAt(ref PaneRef, script, path string) {
 	c.paneGuard(ref, "run-shell "+commandQuote(shell))
 }
 
-// NewWindowAt opens a new window rooted at path. It deliberately targets the
-// sidebar's immutable pane so the new window joins the correct session.
+// NewWindowAt opens a new window rooted at path only while the content pane
+// still belongs to its rendered session/window. It deliberately targets that
+// immutable ref rather than the sidebar, which could have moved meanwhile.
+func (c *Client) NewWindowAt(ref PaneRef, path string) {
+	action := "new-window -c " + commandQuote(path) + " -t " + ref.PaneID
+	c.paneGuard(ref, action)
+}
+
+// OpenAgentAt opens one fixed, approved interactive command in a new window.
+// Keeping the allowlist here prevents a row payload from becoming a shell
+// command channel while exec lets tmux track the agent as the window process.
+func (c *Client) OpenAgentAt(ref PaneRef, dir, agent string) {
+	if agent != "pi" && agent != "claude" {
+		return
+	}
+	action := "new-window -c " + commandQuote(dir) + " -t " + ref.PaneID + " " + commandQuote("exec "+agent)
+	c.paneGuard(ref, action)
+}
+
+// OpenLazygitAt launches the established popup with the rendered cwd and the
+// originating client supplied as argv. The helper retains its no-argument
+// behavior for its existing root binding; this path avoids either value being
+// re-resolved from another client's active pane.
+func (c *Client) OpenLazygitAt(ref PaneRef, dir string) {
+	shell := commandQuote(lazygitScriptPath()) + " " + commandQuote(dir)
+	if c.originClient != "" {
+		shell += " " + commandQuote(c.originClient)
+	}
+	c.paneGuard(ref, "run-shell "+commandQuote(shell))
+}
+
+func lazygitScriptPath() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		home = os.Getenv("HOME")
+	}
+	return filepath.Join(home, ".config", "tmux_scripts", "tmux-lazygit-popup")
+}
+
 // RunScriptAtPane starts an existing dispatcher only if the selected pane still
 // has its rendered identity. The pane ID is also passed explicitly so the script
 // never falls back to an attached client's active pane.
 func (c *Client) RunScriptAtPane(ref PaneRef, script string) {
 	shell := commandQuote(script) + " " + commandQuote(ref.PaneID)
 	c.paneGuard(ref, "run-shell "+commandQuote(shell))
-}
-
-func (c *Client) NewWindowAt(path string) {
-	args := []string{"new-window", "-c", path}
-	if c.paneID != "" {
-		args = append(args, "-t", c.paneID)
-	}
-	c.RunQuiet(args...)
 }
 
 // paneGuard runs action only while the exact rendered pane is still in the

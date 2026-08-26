@@ -36,6 +36,16 @@ func TestProjectsFetchKeyDependsOnlyOnContentPaneCwds(t *testing.T) {
 	}
 }
 
+func TestProjectsFetchKeyCanonicalizesEquivalentPanePaths(t *testing.T) {
+	world := tmuxio.NewWorld(tmuxio.Snapshot{}, nil, []tmuxio.PaneRow{
+		{PaneID: "%1", CurrentPath: "/repo/feature/.."},
+		{PaneID: "%2", CurrentPath: "/repo"},
+	})
+	if got := (Projects{}).FetchKey(Ctx{World: world}); got != "/repo" {
+		t.Fatalf("canonical project fetch key = %q, want /repo", got)
+	}
+}
+
 func TestProjectsExcludeEverySidebarFromObserveAndLiveWorktreeMatching(t *testing.T) {
 	catalog := projectCatalogWithIdentities(t, map[string]projectcatalog.Identity{
 		"/repo":           {Root: "/repo", CommonDir: "/repo/.git"},
@@ -77,6 +87,54 @@ func TestCatalogInventoryNormalizesAndSortsWorktreesBeforeBranches(t *testing.T)
 	status := statusFromWorktrunk(*repos[0].Worktrees[1].WorktrunkItem)
 	if status.Ahead == nil || *status.Ahead != 2 || !status.WouldConflict {
 		t.Fatalf("branch status = %#v", status)
+	}
+}
+
+func TestProjectActionsAreOrderedAndUseCanonicalPaths(t *testing.T) {
+	world := tmuxio.NewWorld(tmuxio.Snapshot{PaneID: "%sidebar"}, nil, []tmuxio.PaneRow{{
+		PaneID: "%work", SessionID: "$1", WindowID: "@2", WindowIndex: 3, Target: "$1:3.0", CurrentPath: "/repo/feature",
+	}})
+	row := projectRow(Ctx{Theme: theme.Theme{}, World: world}, worktree{Path: "/repo/feature/../feature", CommonDir: "/repo/.git", Branch: "main"})
+	want := []string{"focus", "shell-split", "shell-window", "filetree", "lazygit", "scratch", "pi", "claude", "copy-path", "reveal"}
+	if len(row.Actions) != len(want) {
+		t.Fatalf("project actions = %#v", row.Actions)
+	}
+	for i, id := range want {
+		if row.Actions[i].ID != id {
+			t.Fatalf("action %d = %q, want %q: %#v", i, row.Actions[i].ID, id, row.Actions)
+		}
+	}
+	if row.Path != "/repo/feature" || row.ID != "worktree:/repo/feature" {
+		t.Fatalf("project row path was not cleaned: %#v", row)
+	}
+	for _, index := range []int{1, 2, 4, 6, 7, 8, 9} {
+		if got := row.Actions[index].Path; got != "/repo/feature" {
+			t.Fatalf("action %q path = %q, want canonical worktree", row.Actions[index].ID, got)
+		}
+	}
+	for _, index := range []int{1, 2, 3, 4, 5, 6, 7} {
+		if got := row.Actions[index].CommonDir; got != "/repo/.git" {
+			t.Fatalf("action %q common dir = %q, want guarded identity", row.Actions[index].ID, got)
+		}
+	}
+	if row.Actions[0].Pane != (tmuxio.PaneRef{PaneID: "%work", SessionID: "$1", WindowID: "@2", WindowIndex: 3}) {
+		t.Fatalf("focus action lost immutable pane ref: %#v", row.Actions[0])
+	}
+	if got := row.Actions[3]; got.Local != LocalEffectSource || got.SourceID != "filetree" || !got.SourceControl.RootPinned || got.SourceControl.Root != "/repo/feature" {
+		t.Fatalf("filetree effect = %#v", got)
+	}
+	if got := row.Actions[5]; got.Local != LocalEffectEditFile || !strings.HasSuffix(got.Path, "/tmux_scratch/-repo-feature.md") {
+		t.Fatalf("scratch effect = %#v", got)
+	}
+}
+
+func TestProjectActionsOmitFocusWithoutLivePane(t *testing.T) {
+	actions := projectActions("/repo/./feature", "/repo/.git", nil)
+	if len(actions) != 9 || actions[0].ID != "shell-split" || actions[len(actions)-1].ID != "reveal" {
+		t.Fatalf("no-pane project actions = %#v", actions)
+	}
+	if actions[0].Path != "/repo/feature" {
+		t.Fatalf("shell split path = %q, want cleaned worktree", actions[0].Path)
 	}
 }
 

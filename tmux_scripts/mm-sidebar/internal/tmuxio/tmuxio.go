@@ -335,6 +335,22 @@ func (c *Client) FocusPaneRef(ref PaneRef) {
 	c.paneGuard(ref, action)
 }
 
+// PaneMatches checks the rendered identity before an external action starts.
+// The action itself must still use paneGuard to close the validation/action race.
+func (c *Client) PaneMatches(ref PaneRef) bool {
+	if ref.PaneID == "" || ref.SessionID == "" || ref.WindowIndex < 0 {
+		return false
+	}
+	out, err := c.command("display-message", "-p", "-t", ref.PaneID, panePredicate(ref))
+	return err == nil && strings.TrimSpace(out) == "1"
+}
+
+// ShowMessage reports a concise asynchronous action result to the attached
+// client without taking over the sidebar TUI.
+func (c *Client) ShowMessage(message string) {
+	c.RunQuiet("display-message", "-d", "3000", message)
+}
+
 // SplitAt opens beside the rendered content pane only while it remains in the
 // same session/window. The path is quoted as one tmux command argument.
 func (c *Client) SplitAt(ref PaneRef, dir string) {

@@ -1,11 +1,13 @@
 package nav
 
 import (
+	"fmt"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"mm-sidebar/internal/tmuxio"
+	wtapi "mm-sidebar/internal/worktrunk"
 )
 
 // ContextAction is a row-owned command exposed through the generic action
@@ -24,6 +26,8 @@ type ContextAction struct {
 	Path        string
 	Agent       string
 	Text        string
+	RepoRoot    string
+	Branch      string
 }
 
 type ContextActionKind uint8
@@ -46,6 +50,7 @@ const (
 	ContextAgentPlan
 	ContextCopyText
 	ContextPreviewPane
+	ContextMaterializeBranch
 )
 
 func paneActions(p tmuxio.PaneRow) []ContextAction {
@@ -89,11 +94,21 @@ func dirActions(path string) []ContextAction {
 	}
 }
 
-// ExecuteContextAction is the sole dispatcher for descriptors. Targeted tmux
-// operations call tmuxio's guarded methods; model.go never needs to know which
-// source produced a row or whether an action targets a pane, session, file, or
-// directory.
-func ExecuteContextAction(client *tmuxio.Client, action ContextAction, content tmuxio.PaneRef) {
+// ContextExecutor is the sole dispatcher for descriptors. Its Worktrunk client
+// is injectable for tests; the zero value uses the bounded wt adapter.
+type ContextExecutor struct {
+	Worktrunk wtapi.Client
+}
+
+// ExecuteContextAction uses the default executor for production callers.
+func ExecuteContextAction(client *tmuxio.Client, action ContextAction, content tmuxio.PaneRef) error {
+	return (ContextExecutor{}).Execute(client, action, content)
+}
+
+// Execute dispatches one row-owned action. Targeted tmux operations call
+// tmuxio's guarded methods; model.go never recognizes the source that produced
+// the descriptor.
+func (e ContextExecutor) Execute(client *tmuxio.Client, action ContextAction, content tmuxio.PaneRef) error {
 	switch action.Kind {
 	case ContextFocusPane:
 		if action.Pane.SessionID != "" {
@@ -135,7 +150,17 @@ func ExecuteContextAction(client *tmuxio.Client, action ContextAction, content t
 		client.RunScriptAtPane(action.Pane, scriptPath("tmux-M-P-dispatch"))
 	case ContextCopyText:
 		copyText(action.Text)
+	case ContextMaterializeBranch:
+		if !client.PaneMatches(content) {
+			return fmt.Errorf("content pane moved; worktree not created")
+		}
+		result, err := e.Worktrunk.Switch(action.RepoRoot, action.Branch)
+		if err != nil {
+			return err
+		}
+		client.SplitAt(content, result.Path)
 	}
+	return nil
 }
 
 func copyPath(path string) { copyText(path) }

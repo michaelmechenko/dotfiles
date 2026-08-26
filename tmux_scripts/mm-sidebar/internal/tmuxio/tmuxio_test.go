@@ -388,6 +388,45 @@ func TestMalformedTransportReturnsErrorsInsteadOfShifting(t *testing.T) {
 	}
 }
 
+func TestPaneMatchesUsesFullRenderedIdentity(t *testing.T) {
+	ref := PaneRef{PaneID: "%7", SessionID: "$2", WindowID: "@4", WindowIndex: 3}
+	var got []string
+	client := &Client{run: func(args ...string) (string, error) {
+		got = append([]string(nil), args...)
+		return "1", nil
+	}}
+	if !client.PaneMatches(ref) {
+		t.Fatal("matching pane rejected")
+	}
+	want := []string{"display-message", "-p", "-t", "%7", panePredicate(ref)}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("args = %#v, want %#v", got, want)
+	}
+}
+
+func TestPaneMatchesRejectsMovedOrIncompletePane(t *testing.T) {
+	client := &Client{run: func(...string) (string, error) { return "0", nil }}
+	if client.PaneMatches(PaneRef{PaneID: "%7", SessionID: "$2", WindowID: "@4", WindowIndex: 3}) {
+		t.Fatal("moved pane accepted")
+	}
+	if client.PaneMatches(PaneRef{PaneID: "%7"}) {
+		t.Fatal("incomplete pane accepted")
+	}
+}
+
+func TestShowMessagePassesTextAsOneArgument(t *testing.T) {
+	var got []string
+	client := &Client{run: func(args ...string) (string, error) {
+		got = append([]string(nil), args...)
+		return "", nil
+	}}
+	client.ShowMessage("approval required; don't bypass")
+	want := []string{"display-message", "-d", "3000", "approval required; don't bypass"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("args = %#v, want %#v", got, want)
+	}
+}
+
 func hasTarget(args []string, target string) bool {
 	for i := 0; i+1 < len(args); i++ {
 		if args[i] == "-t" && args[i+1] == target {

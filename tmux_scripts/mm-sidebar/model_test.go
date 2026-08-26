@@ -20,6 +20,29 @@ import (
 	"mm-sidebar/internal/tmuxio"
 )
 
+func TestProjectsStyleRowsClipAtEverySidebarWidth(t *testing.T) {
+	for _, width := range []int{30, 36, 44} {
+		m := &model{
+			width:       width,
+			focusRegion: focusNavigator,
+			theme:       theme.Theme{Accent: lipgloss.NewStyle()},
+			rows: []nav.Row{{Lines: []string{
+				"config-feature-long-name · feat/worktrunk conflict +!? ↑12 ↓3 4 panes",
+				"  ~/.worktrees/config/feat-worktrunk",
+			}}},
+		}
+		lines := m.navLines(2)
+		if len(lines) != 2 {
+			t.Fatalf("width %d rendered %d lines", width, len(lines))
+		}
+		for _, line := range lines {
+			if got := lipgloss.Width(line); got > width {
+				t.Fatalf("width %d rendered %d cells: %q", width, got, line)
+			}
+		}
+	}
+}
+
 func TestNewModelSeedsSidebarPaneForImmediateQuit(t *testing.T) {
 	m := newModel(tmuxio.NewClient("%sidebar", "/dev/ttys001"))
 	if m.selfPane != "%sidebar" {

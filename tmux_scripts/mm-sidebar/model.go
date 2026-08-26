@@ -730,7 +730,9 @@ func (m *model) runContextAction(action nav.ContextAction) tea.Cmd {
 	}
 	content := m.contentRef
 	return func() tea.Msg {
-		nav.ExecuteContextAction(m.client, action, content)
+		if err := nav.ExecuteContextAction(m.client, action, content); err != nil {
+			m.client.ShowMessage(err.Error())
+		}
 		return nil
 	}
 }

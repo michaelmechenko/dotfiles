@@ -87,6 +87,7 @@ matching `#{pane_height}` each time.
 | `internal/agents` | The Claude + pi pane join. |
 | `internal/nav` | The navigator tabs (`Source` registry), optional source controls/help actions, and their `Enter` actions. |
 | `internal/blocks` | The `Block` interface, the `Factories` registry, and the docked blocks. |
+| `internal/worktrunk` | Optional bounded Worktrunk schema-2 list/switch adapter; Git remains discovery authority. |
 | `internal/trace` | `MMS_TRACE=1` per-phase timing, shared by every package. |
 
 Within `internal/nav`: `source.go` is the contract plus the `Sources` registry,
@@ -159,8 +160,8 @@ and one global pane list. Sessions, panes, and agents share that observation.
 A length-framed in-process fingerprint covers every rendered session/pane field.
 The active source fetches only when its source/content/cwd/root/options/invalidation
 key changes; monotonic refresh sequencing and agent World fingerprints reject late
-completions. `r` forces a fetch. On projects it is the deliberate Git metadata
-refresh, because recurring Git polling is forbidden. Filetree changes arrive via
+completions. `r` forces a fetch. On projects it is the deliberate Git/Worktrunk
+metadata refresh, because recurring external polling is forbidden. Filetree changes arrive via
 its scoped two-level fsnotify watcher. Pane liveness/cwd and content retargeting
 come from `World.PaneSet`, with no per-pane query path.
 
@@ -625,7 +626,7 @@ id is state.
 | --- | --- | --- | --- |
 | sessions | shared `tmuxio.World` sessions + panes | guarded focus of the session's active content pane | — |
 | panes (id `windows`) | shared `tmuxio.World` panes | identity-guarded pane focus | — |
-| projects | on-demand `git rev-parse` + `git worktree list --porcelain -z` for live pane cwds | focus an existing worktree pane, else guarded split at its root | no recurring Git polling |
+| projects | Git common-dir discovery from live pane cwds; optional bounded Worktrunk schema-2 `wt list --branches`, with per-repository Git porcelain fallback | focus/open an existing worktree; branch-only row palette materializes it with `wt switch --no-cd`, then guarded split | no recurring Git/Worktrunk polling; no merge/remove/new branch/approval bypass |
 | filetree | `os.ReadDir`, 2 levels, over the content pane's cwd | dir → `split-window -h -c <dir>` in the content pane; file → `tmux-open-target` | `h` hidden, `p` pin, `R` reset/unpin, `Backspace` up (all via optional source controls) |
 | scratch | `~/.config/tmux_scratch/{global,<slug>}.md` | `tea.ExecProcess(nvim)` | — |
 
@@ -690,11 +691,30 @@ by their target, so a symlinked directory (this repo has several) still expands.
 ### projects
 
 The projects tab discovers repository roots from the **already-collected** live
-pane cwd set only when the tab's gated `Fetch` runs. For each unique root it asks
-Git for its worktrees and shows branch plus root path. It never adds Git work to
-the 2-second World poll, and it does not alter the float-first/creation ordering
-used by the sessions source. A row focuses a live pane already under that
-worktree when one exists; otherwise it opens a split rooted there.
+pane cwd set only when the tab's gated `Fetch` runs. Git common-dir resolution
+remains authoritative across repositories. For each root, the optional
+`internal/worktrunk` adapter runs a bounded local-only
+`wt list --branches --format=json` with schema 2 and renders worktree changes,
+ahead/behind, conflict, operation, lock/prunable, integration, and branch-only
+facts. Missing, timed-out, approval-blocked, malformed, or unsupported Worktrunk
+output falls back for that repository to stable NUL-delimited
+`git worktree list --porcelain -z`.
+
+Neither Worktrunk nor Git runs on unchanged 2-second World ticks; the existing
+cwd-only `FetchKey` is unchanged, and `r` is the explicit metadata refresh. Rows
+are deterministic: repositories by common dir, materialized worktrees before
+branch-only rows, main worktree first, then branch and path. Live worktrees show
+pane counts and focus the shallowest matching pane; absent worktrees open a
+guarded split rooted there.
+
+A branch-only row is inert on ordinary Enter and exposes one `a`/`:` action:
+`create worktree and open split`. It first validates the immutable content-pane
+identity, then calls `wt switch <branch> --no-cd --format=json` without
+`--create`, `--yes`, or `--no-hooks`; on success it opens the returned path
+through the same pane guard. This materializes existing local branches only.
+Worktrunk errors are shown as concise tmux messages. The sidebar never creates a
+new branch, merges, removes a worktree/branch, approves hooks, or reaches
+network-backed `--full` list data.
 
 ### scratch
 
@@ -903,7 +923,7 @@ track — both are background-weight surfaces, not text, so neither could reuse
 | `Enter` | Act on the focused navigator row or actionable block row |
 | `/` | Enter the inline filter; typed Unicode and bracketed paste query source-provided `Row.SearchText` without reordering rows |
 | `Backspace` | Delete one query rune while filtering; otherwise invoke the active source's optional control (filetree: up one level) |
-| `r` | Force refetch; projects deliberately re-reads Git worktree metadata once |
+| `r` | Force refetch; projects deliberately re-reads Git/Worktrunk metadata once |
 | `w` | Cycle this window's sidebar width: compact 30 → normal 36 → wide 44 |
 | `a` / `:` | Open selected navigator or actionable-block row's context action palette; `j`/`k`, Enter, Esc. Destructive actions require in-TUI `y`/Enter confirmation and revalidate their stable tmux identity immediately before execution. |
 | `h` / `p` / `R` | Filetree only: toggle hidden entries / pin root / reset root to content cwd (optional source controls) |

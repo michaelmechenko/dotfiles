@@ -76,12 +76,12 @@ func TestBlockIDsAreUnique(t *testing.T) {
 	}
 }
 
-// TestEveryBlockDeclaresAnInterval guards against a zero Interval, which would
-// make tea.Tick reschedule in a tight loop.
-func TestEveryBlockDeclaresAnInterval(t *testing.T) {
+// TestBlockIntervalsAreSafe permits passive blocks (Interval <= 0), which the
+// model deliberately does not schedule. Positive intervals remain timer-driven.
+func TestBlockIntervalsAreSafe(t *testing.T) {
 	for _, b := range newTestBlocks() {
-		if b.Interval() <= 0 {
-			t.Errorf("%s.Interval() is %v; a non-positive tick spins", b.ID(), b.Interval())
+		if b.Interval() < 0 {
+			t.Errorf("%s.Interval() is %v; passive blocks must use exactly zero", b.ID(), b.Interval())
 		}
 	}
 }
@@ -215,11 +215,24 @@ func TestAgentsGlanceExposesRegistryOwnedContextActions(t *testing.T) {
 		PaneID: "%1", Target: "sess:1", SessionID: "stable-session", Agent: agents.AgentPi,
 	}}})
 	actions := b.Actions(0)
-	if len(actions) != 4 || actions[0].ID != "focus" || actions[1].ID != "response" || actions[2].ID != "plan" || actions[3].Text != "stable-session" {
+	if len(actions) != 4 || actions[0].ID != "focus" || actions[1].ID != "response" || actions[2].ID != "plan" || actions[3].Text != "stable-session" || actions[1].AgentSessionID != "stable-session" || actions[2].AgentSessionID != "stable-session" {
 		t.Fatalf("agent actions = %#v", actions)
 	}
 	if got := b.Actions(1); got != nil {
 		t.Fatalf("hidden agent actions = %#v, want nil", got)
+	}
+}
+
+func TestAgentsGlanceSelectionRejectsSamePaneSessionReplacement(t *testing.T) {
+	b := NewAgentsGlance(theme.Theme{}, make(chan struct{}, 1))
+	old := agents.Row{Agent: agents.AgentClaude, SessionID: "old", PaneID: "%1", TmuxSessionID: "$1", WindowID: "@1", WindowIndex: 1}
+	b.Update(AgentRowsMsg{Rows: []agents.Row{old}})
+	id := b.NavigationID(0)
+	replacement := old
+	replacement.SessionID = "new"
+	b.Update(AgentRowsMsg{Rows: []agents.Row{replacement}})
+	if b.NavigationIndexByID(id) != -1 {
+		t.Fatal("selection still resolved to same-pane replacement")
 	}
 }
 

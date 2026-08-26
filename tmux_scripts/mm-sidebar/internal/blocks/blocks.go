@@ -22,6 +22,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"mm-sidebar/internal/nav"
+	"mm-sidebar/internal/tmuxio"
 )
 
 // Block is a docked region of the sidebar.
@@ -68,6 +69,26 @@ type Block interface {
 // satisfy it -- reintroducing the same "your message goes nowhere" failure one
 // package over. A test in package main caught exactly that.
 type BlockMsg interface{ IsBlockMsg() }
+
+// WorldMsg is an accepted, freshness-checked tmux observation. The model emits
+// it only after it has won refresh sequencing, so passive blocks can safely
+// derive transitions without running a second tmux query.
+type WorldMsg struct{ World tmuxio.World }
+
+func (WorldMsg) IsBlockMsg() {}
+
+// RefreshMsg is the user's explicit refresh request. It is deliberately not a
+// timer signal: passive blocks may use it for bounded on-demand work.
+type RefreshMsg struct{}
+
+func (RefreshMsg) IsBlockMsg() {}
+
+// Reactive optionally turns an accepted block event into asynchronous work.
+// The model invokes it generically after broadcasting the event; implementations
+// must coalesce their own requests and return quickly.
+type Reactive interface {
+	React(tea.Msg) tea.Cmd
+}
 
 // VisibilityAware is the optional lifecycle half of Block. The model calls it
 // whenever layout degradation adds or removes a block from the rendered frame.
@@ -155,6 +176,14 @@ type SelectionIdentifiable interface {
 // of model-specific type switches.
 type Actionable interface {
 	Actions(index int) []nav.ContextAction
+}
+
+// AgentActionValidator verifies that an agent-specific action still names a
+// fact from the latest accepted agent snapshot. Historical activity rows keep
+// immutable tmux pane identity, but a pane may host a different agent session
+// by the time its action is selected.
+type AgentActionValidator interface {
+	IsCurrentAgentAction(nav.ContextAction) bool
 }
 
 // label renders a block's title row in the same "▸ name" idiom the header's

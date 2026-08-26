@@ -222,14 +222,14 @@ func (b *AgentsGlance) SetNavigationIndex(index int) {
 	b.focus = index
 }
 
-// NavigationID and NavigationIndexByID implement SelectionIdentifiable. PaneID
-// is stable across agent status refreshes, unlike urgency order, so a selected
-// agent cannot silently become another agent after a resort.
+// NavigationID and NavigationIndexByID implement SelectionIdentifiable. Agent
+// session plus full pane identity survives urgency sorting but not an in-place
+// session replacement, so a retained selection cannot target the replacement.
 func (b *AgentsGlance) NavigationID(index int) string {
 	if index < 0 || index >= b.NavigationCount() {
 		return ""
 	}
-	return b.rows[index].PaneID
+	return b.rows[index].IdentityKey()
 }
 
 func (b *AgentsGlance) NavigationIndexByID(id string) int {
@@ -237,7 +237,7 @@ func (b *AgentsGlance) NavigationIndexByID(id string) int {
 		return -1
 	}
 	for i := 0; i < b.NavigationCount(); i++ {
-		if b.rows[i].PaneID == id {
+		if b.rows[i].IdentityKey() == id {
 			return i
 		}
 	}
@@ -280,9 +280,9 @@ func (b *AgentsGlance) Actions(index int) []nav.ContextAction {
 		WindowID: r.WindowID, WindowIndex: r.WindowIndex,
 	}
 	return []nav.ContextAction{
-		{ID: "focus", Label: "focus agent", Kind: nav.ContextFocusPane, Pane: ref, PaneID: r.PaneID, Target: r.Target},
-		{ID: "response", Label: "open last response", Kind: nav.ContextAgentResponse, Pane: ref, Agent: r.Agent},
-		{ID: "plan", Label: "open plan / last response", Kind: nav.ContextAgentPlan, Pane: ref, Agent: r.Agent},
+		{ID: "focus", Label: "focus agent", Kind: nav.ContextFocusPane, Pane: ref, PaneID: r.PaneID, Target: r.Target, Agent: r.Agent, AgentSessionID: r.SessionID},
+		{ID: "response", Label: "open last response", Kind: nav.ContextAgentResponse, Pane: ref, Agent: r.Agent, AgentSessionID: r.SessionID},
+		{ID: "plan", Label: "open plan / last response", Kind: nav.ContextAgentPlan, Pane: ref, Agent: r.Agent, AgentSessionID: r.SessionID},
 		{ID: "copy-session", Label: "copy session ID", Kind: nav.ContextCopyText, Text: r.SessionID},
 	}
 }

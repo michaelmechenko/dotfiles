@@ -3,6 +3,7 @@ package nav
 import (
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -17,20 +18,21 @@ import (
 // presents and dispatches them, so adding a source never adds a source-name
 // branch to the input loop.
 type ContextAction struct {
-	ID          string
-	Label       string
-	Destructive bool
-	Kind        ContextActionKind
-	Pane        tmuxio.PaneRef
-	SessionID   string
-	PaneID      string
-	Target      string
-	Path        string
-	Agent       string
-	Text        string
-	RepoRoot    string
-	Branch      string
-	CommonDir   string
+	ID             string
+	Label          string
+	Destructive    bool
+	Kind           ContextActionKind
+	Pane           tmuxio.PaneRef
+	SessionID      string
+	PaneID         string
+	Target         string
+	Path           string
+	Agent          string
+	AgentSessionID string // expected live Claude/pi session, not tmux session
+	Text           string
+	RepoRoot       string
+	Branch         string
+	CommonDir      string
 
 	// Local is applied by the sidebar after asynchronous repository validation.
 	// SourceID and SourceControl are meaningful only for LocalEffectSource.
@@ -239,15 +241,32 @@ func (e ContextExecutor) Execute(client *tmuxio.Client, action ContextAction, co
 		if !e.projectMatches(action.Path, action.CommonDir) {
 			return result, fmt.Errorf("repository changed; worktree not opened")
 		}
-		client.SplitAt(content, action.Path)
+		if info, err := os.Stat(action.Path); err != nil || !info.IsDir() {
+			return result, errors.New("path no longer exists")
+		}
+		if action.Pane.SessionID != "" {
+			client.SplitAt(action.Pane, action.Path)
+		} else {
+			client.SplitAt(content, action.Path)
+		}
 	case ContextNewWindow:
 		if !e.projectMatches(action.Path, action.CommonDir) {
 			return result, fmt.Errorf("repository changed; worktree not opened")
 		}
-		client.NewWindowAt(content, action.Path)
+		if info, err := os.Stat(action.Path); err != nil || !info.IsDir() {
+			return result, errors.New("path no longer exists")
+		}
+		if action.Pane.SessionID != "" {
+			client.NewWindowAt(action.Pane, action.Path)
+		} else {
+			client.NewWindowAt(content, action.Path)
+		}
 	case ContextCopyPath:
 		copyPath(action.Path)
 	case ContextRevealPath:
+		if _, err := os.Stat(action.Path); err != nil {
+			return result, errors.New("path no longer exists")
+		}
 		_ = exec.Command("open", "-R", action.Path).Run()
 	case ContextOpenParent:
 		client.SplitAt(content, filepath.Dir(action.Path))
@@ -256,9 +275,9 @@ func (e ContextExecutor) Execute(client *tmuxio.Client, action ContextAction, co
 		if action.Agent == "claude" {
 			name = "tmux-claude-last-response"
 		}
-		client.RunScriptAtPane(action.Pane, scriptPath(name))
+		client.RunAgentScriptAtPane(action.Pane, scriptPath(name), action.Agent, action.AgentSessionID)
 	case ContextAgentPlan:
-		client.RunScriptAtPane(action.Pane, scriptPath("tmux-M-P-dispatch"))
+		client.RunAgentScriptAtPane(action.Pane, scriptPath("tmux-M-P-dispatch"), action.Agent, action.AgentSessionID)
 	case ContextCopyText:
 		copyText(action.Text)
 	case ContextOpenLazygit:

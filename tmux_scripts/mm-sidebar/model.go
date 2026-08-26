@@ -289,12 +289,17 @@ func (m *model) Init() tea.Cmd {
 	// is unknown. syncBlockVisibility samples newly visible blocks after the
 	// first state/size update instead.
 	for _, b := range m.docked {
-		cmds = append(cmds, tickFor(b))
+		if b.Interval() > 0 {
+			cmds = append(cmds, tickFor(b))
+		}
 	}
 	return tea.Batch(cmds...)
 }
 
 func tickFor(b blocks.Block) tea.Cmd {
+	if b.Interval() <= 0 {
+		return nil // passive blocks react only to accepted events
+	}
 	id := b.ID()
 	return tea.Tick(b.Interval(), func(time.Time) tea.Msg { return tickMsg{blockID: id} })
 }
@@ -322,8 +327,13 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.applyState(msg)
-		if msg.stateErr == nil && m.feed != nil {
-			m.feed.setWorld(msg.world)
+		if msg.stateErr == nil {
+			worldMsg := blocks.WorldMsg{World: msg.world}
+			m.broadcast(worldMsg)
+			if m.feed != nil {
+				m.feed.setWorld(msg.world)
+			}
+			return m, tea.Batch(m.react(worldMsg), m.syncBlockVisibility())
 		}
 		return m, m.syncBlockVisibility()
 
@@ -350,7 +360,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tickMsg:
 		for _, b := range m.docked {
 			if b.ID() == msg.blockID {
-				cmds := []tea.Cmd{tickFor(b)}
+				cmds := []tea.Cmd{}
+				if b.Interval() > 0 {
+					cmds = append(cmds, tickFor(b))
+				}
 				if m.shouldFetchBlock(b) {
 					cmds = append(cmds, b.Fetch())
 				}
@@ -365,18 +378,20 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// something a block knows about.
 	case blocks.AgentRowsMsg:
 		// A resolver sweep may finish after a newer World was accepted. Re-arm
-		// the feed either way, but never publish rows for stale pane identities.
+		// the feed either way, but never publish or react to stale pane identities.
+		cmds := []tea.Cmd{m.feed.wait(), m.syncBlockVisibility()}
 		if msg.WorldFingerprint == "" || msg.WorldFingerprint == m.worldFingerprint {
 			m.broadcast(msg)
+			cmds = append(cmds, m.react(msg))
 		}
-		return m, tea.Batch(m.feed.wait(), m.syncBlockVisibility())
+		return m, tea.Batch(cmds...)
 
 	// Every other block message, including ones added later. Blocks ignore
 	// messages they don't own, so a broadcast is cheaper than a registry lookup
 	// and keeps model.go out of the "add a block" recipe entirely.
 	case blocks.BlockMsg:
 		m.broadcast(msg)
-		return m, m.syncBlockVisibility()
+		return m, tea.Batch(m.react(msg), m.syncBlockVisibility())
 
 	case sidebarWidthMsg:
 		m.sidebarWidth = int(msg)
@@ -427,6 +442,21 @@ func (m *model) broadcast(msg tea.Msg) {
 	// Re-resolve identity-backed selections immediately, before a following
 	// Enter can act on a stale row index. View repeats this after layout.
 	m.syncFocus(m.currentArrangement())
+}
+
+// react is the generic asynchronous seam for passive blocks. It intentionally
+// follows broadcast so a block first records the accepted input, then decides
+// whether a coalesced request is warranted.
+func (m *model) react(msg tea.Msg) tea.Cmd {
+	cmds := make([]tea.Cmd, 0, len(m.docked))
+	for _, b := range m.docked {
+		if r, ok := b.(blocks.Reactive); ok {
+			if cmd := r.React(msg); cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+		}
+	}
+	return tea.Batch(cmds...)
 }
 
 // ---- state refresh --------------------------------------------------------
@@ -651,7 +681,9 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "G", "end":
 		m.focusLast()
 	case "r":
-		return m, tea.Batch(m.refreshState(true), m.fetchAllBlocks())
+		refresh := blocks.RefreshMsg{}
+		m.broadcast(refresh)
+		return m, tea.Batch(m.refreshState(true), m.fetchAllBlocks(), m.react(refresh))
 	case "w":
 		return m, m.cycleSidebarWidth()
 	case "?":
@@ -753,6 +785,12 @@ func (m *model) selectedActions() []nav.ContextAction {
 }
 
 func (m *model) runContextAction(action nav.ContextAction) tea.Cmd {
+	if !m.currentAgentFocus(action) {
+		return func() tea.Msg {
+			m.client.DisplayMessage("sidebar: stale agent")
+			return nil
+		}
+	}
 	if action.Local != nav.LocalEffectNone {
 		return func() tea.Msg {
 			return localContextActionMsg{action: action, err: nav.ValidateProjectAction(action)}
@@ -809,6 +847,20 @@ func (m *model) applyContextEffect(action nav.ContextAction) (tea.Cmd, bool) {
 	default:
 		return nil, false
 	}
+}
+
+// currentAgentFocus rejects historical activity focus actions when the pane now
+// hosts a different agent session. Script actions also validate at execution.
+func (m *model) currentAgentFocus(action nav.ContextAction) bool {
+	if action.Kind != nav.ContextFocusPane || action.AgentSessionID == "" {
+		return true
+	}
+	for _, b := range m.docked {
+		if validator, ok := b.(blocks.AgentActionValidator); ok {
+			return validator.IsCurrentAgentAction(action)
+		}
+	}
+	return false
 }
 
 func (m *model) editFile(path string) tea.Cmd {

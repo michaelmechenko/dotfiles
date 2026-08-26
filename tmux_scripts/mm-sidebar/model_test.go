@@ -110,6 +110,40 @@ func TestUpdateRoutesUnknownBlockMsg(t *testing.T) {
 
 // TestBroadcastReachesEveryBlock: blocks ignore messages they don't own, so a
 // broadcast must be safe to send to all of them, not just the intended one.
+type reactiveStub struct {
+	stubBlock
+	worlds    int
+	refreshes int
+}
+
+func (b *reactiveStub) Update(msg tea.Msg) {
+	if _, ok := msg.(blocks.WorldMsg); ok {
+		b.worlds++
+	}
+	if _, ok := msg.(blocks.RefreshMsg); ok {
+		b.refreshes++
+	}
+	b.stubBlock.Update(msg)
+}
+func (*reactiveStub) React(tea.Msg) tea.Cmd { return nil }
+
+func TestAcceptedWorldAndRefreshBroadcastToPassiveBlocks(t *testing.T) {
+	b := &reactiveStub{}
+	m := &model{docked: []blocks.Block{b}, blockVisible: map[string]bool{}}
+	world := tmuxio.NewWorld(tmuxio.Snapshot{}, nil, nil)
+	m.Update(stateMsg{stateSeq: 1, world: world, srcIdx: 0})
+	if b.worlds != 1 {
+		t.Fatalf("accepted World broadcasts = %d, want 1", b.worlds)
+	}
+	m.broadcast(blocks.RefreshMsg{})
+	if b.refreshes != 1 {
+		t.Fatalf("refresh broadcasts = %d, want 1", b.refreshes)
+	}
+	if tickFor(blocks.NewActivity(theme.Theme{}, nil)) != nil {
+		t.Fatal("passive activity block scheduled a timer")
+	}
+}
+
 func TestBroadcastReachesEveryBlock(t *testing.T) {
 	a, b := &stubBlock{}, &stubBlock{}
 	m := &model{docked: []blocks.Block{a, b}}
@@ -260,7 +294,8 @@ func TestStaleAgentWorldResultIsDiscarded(t *testing.T) {
 	m.Update(blocks.AgentRowsMsg{
 		Rows: []agents.Row{{PaneID: "%old", SessionName: "old"}}, WorldFingerprint: "world-old",
 	})
-	if got := block.NavigationID(0); got != "%new" {
+	want := (agents.Row{PaneID: "%new", SessionName: "new"}).IdentityKey()
+	if got := block.NavigationID(0); got != want {
 		t.Fatalf("stale agent result replaced current world rows: %q", got)
 	}
 }
@@ -280,6 +315,38 @@ func TestTypedFetchErrorRetainsOnlySameContextRows(t *testing.T) {
 	})
 	if len(m.rows) != 0 || m.fetchKey != "" {
 		t.Fatalf("changed-context fetch error retained actionable rows or retry key: rows=%#v key=%q", m.rows, m.fetchKey)
+	}
+}
+
+func TestHistoricalAgentFocusRequiresCurrentAcceptedFacts(t *testing.T) {
+	activity := blocks.NewActivity(theme.Theme{}, nil)
+	old := agents.Row{Agent: agents.AgentClaude, SessionID: "old", PaneID: "%1", TmuxSessionID: "$1", WindowID: "@1", WindowIndex: 1}
+	activity.Update(blocks.AgentRowsMsg{Rows: []agents.Row{old}})
+	replacement := old
+	replacement.SessionID = "new"
+	activity.Update(blocks.AgentRowsMsg{Rows: []agents.Row{replacement}})
+
+	var historical nav.ContextAction
+	for i := 0; i < activity.NavigationCount(); i++ {
+		actions := activity.Actions(i)
+		if len(actions) > 0 && actions[0].AgentSessionID == old.SessionID {
+			historical = actions[0]
+			break
+		}
+	}
+	if historical.AgentSessionID == "" {
+		t.Fatal("could not locate historical agent focus action")
+	}
+	m := &model{docked: []blocks.Block{activity}}
+	if m.currentAgentFocus(historical) {
+		t.Fatal("historical focus action accepted a same-pane replacement agent")
+	}
+	for _, kind := range []nav.ContextActionKind{nav.ContextAgentResponse, nav.ContextAgentPlan} {
+		action := historical
+		action.Kind = kind
+		if !m.currentAgentFocus(action) {
+			t.Fatalf("agent script action %v lost its expected-session validation path", kind)
+		}
 	}
 }
 
@@ -696,8 +763,9 @@ func TestAgentSelectionSurvivesUrgencyResort(t *testing.T) {
 	if m.focusBlock != 0 || m.focusRow != 0 {
 		t.Fatalf("selected agent moved to row %d, want its new row 0", m.focusRow)
 	}
-	if got := b.NavigationID(m.focusRow); got != "%a" {
-		t.Fatalf("selected agent changed to %q, want %%a", got)
+	want := (agents.Row{PaneID: "%a", Target: "m:1.0", SessionName: "m", State: agents.StateWaiting}).IdentityKey()
+	if got := b.NavigationID(m.focusRow); got != want {
+		t.Fatalf("selected agent changed to %q, want %q", got, want)
 	}
 }
 

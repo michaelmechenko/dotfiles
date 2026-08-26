@@ -452,6 +452,42 @@ func TestPaneMatchesRejectsMovedOrIncompletePane(t *testing.T) {
 	}
 }
 
+func TestAgentScriptActionCarriesExpectedSessionBehindPaneGuard(t *testing.T) {
+	var calls [][]string
+	client := &Client{originClient: "/dev/ttys007", run: func(args ...string) (string, error) {
+		calls = append(calls, append([]string(nil), args...))
+		return "", nil
+	}}
+	ref := PaneRef{PaneID: "%7", SessionID: "$4", WindowID: "@9", WindowIndex: 2}
+	client.RunAgentScriptAtPane(ref, "/tmp/agent action", "claude", "session-replacement-safe")
+	if len(calls) != 1 {
+		t.Fatalf("agent action calls = %#v", calls)
+	}
+	joined := strings.Join(calls[0], " ")
+	for _, want := range []string{"if-shell -F -t %7", "#{==:#{session_id},$4}", "#{==:#{window_id},@9}", "'claude'", "'session-replacement-safe'"} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("agent action lacks %q: %#v", want, calls)
+		}
+	}
+	client.RunAgentScriptAtPane(ref, "/tmp/agent action", "", "session")
+	if len(calls) != 1 {
+		t.Fatalf("incomplete agent identity issued an action: %#v", calls)
+	}
+}
+
+func TestDisplayMessagePlacesAllOptionsBeforeMessage(t *testing.T) {
+	var call []string
+	client := &Client{originClient: "/dev/ttys007", run: func(args ...string) (string, error) {
+		call = append([]string(nil), args...)
+		return "", nil
+	}}
+	client.DisplayMessage("sidebar: pane changed")
+	want := []string{"display-message", "-d", "1500", "-c", "/dev/ttys007", "sidebar: pane changed"}
+	if !reflect.DeepEqual(call, want) {
+		t.Fatalf("display-message argv = %#v, want %#v", call, want)
+	}
+}
+
 func TestShowMessagePassesTextAsOneArgument(t *testing.T) {
 	var got []string
 	client := &Client{run: func(args ...string) (string, error) {

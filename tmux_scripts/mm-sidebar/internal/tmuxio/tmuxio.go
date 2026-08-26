@@ -69,6 +69,25 @@ func (c *Client) command(args ...string) (string, error) {
 // RunQuiet executes a best-effort tmux command.
 func (c *Client) RunQuiet(args ...string) { _, _ = c.command(args...) }
 
+// DisplayMessage reports a concise rejected safe action to the originating
+// client without changing focus. It is used only after a local precondition
+// (such as a vanished worktree) fails; pane-changing actions retain paneGuard.
+func (c *Client) DisplayMessage(message string) {
+	args := []string{"display-message", "-d", "1500"}
+	if c.originClient != "" {
+		args = append(args, "-c", c.originClient)
+	}
+	c.RunQuiet(append(args, message)...)
+}
+
+func (c *Client) displayMessageCommand(message string) string {
+	args := []string{"display-message", "-d", "1500"}
+	if c.originClient != "" {
+		args = append(args, "-c", commandQuote(c.originClient))
+	}
+	return strings.Join(append(args, commandQuote(message)), " ")
+}
+
 // decodeArgument reverses tmux 3.7's q/a format modifier. q/a deliberately
 // emits a command argument, not a fixed envelope: values may be bare, single-
 // quoted, or double-quoted. Every form can contain tmux's backslash escapes:
@@ -414,6 +433,16 @@ func (c *Client) RunScriptAtPane(ref PaneRef, script string) {
 	c.paneGuard(ref, "run-shell "+commandQuote(shell))
 }
 
+// RunAgentScriptAtPane binds a response/plan action to both the rendered tmux
+// pane and the live Claude/pi session. The script rejects same-pane replacement.
+func (c *Client) RunAgentScriptAtPane(ref PaneRef, script, agent, sessionID string) {
+	if agent == "" || sessionID == "" {
+		return
+	}
+	shell := strings.Join([]string{commandQuote(script), commandQuote(ref.PaneID), commandQuote(agent), commandQuote(sessionID)}, " ")
+	c.paneGuard(ref, "run-shell "+commandQuote(shell))
+}
+
 // paneGuard runs action only while the exact rendered pane is still in the
 // recorded session/window. if-shell evaluates its predicate and command in one
 // tmux server queue turn, closing the validation/action race for destructive
@@ -434,7 +463,7 @@ func (c *Client) paneGuard(ref PaneRef, action string) {
 	if ref.PaneID == "" || ref.SessionID == "" || ref.WindowIndex < 0 {
 		return
 	}
-	c.RunQuiet("if-shell", "-F", "-t", ref.PaneID, panePredicate(ref), action, "")
+	c.RunQuiet("if-shell", "-F", "-t", ref.PaneID, panePredicate(ref), action, c.displayMessageCommand("sidebar: pane changed"))
 }
 
 func (c *Client) commandPrompt(prompt, template string) {

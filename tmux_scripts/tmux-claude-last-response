@@ -4,8 +4,25 @@
 
 LS="$HOME/.config/tmux_scripts/tmux-claude-ls"
 cur=${1:-$(tmux display -p '#{pane_id}')}
+expected_agent=${2:-}
+expected_session=${3:-}
+# A direct legacy caller can still pass only <pane> <session>; sidebar actions
+# pass <pane> <agent> <session> so a pi replacement is rejected too.
+if [ -z "$expected_session" ] && [ -n "$expected_agent" ] && [ "$expected_agent" != "claude" ]; then
+  expected_session=$expected_agent
+  expected_agent=claude
+fi
+[ -z "$expected_agent" ] || [ "$expected_agent" = "claude" ] || {
+  tmux display-message "agent session changed"
+  exit 0
+}
 row=$("$LS" | awk -F'\t' -v p="$cur" '$2==p{print; exit}')
 [ -n "$row" ] || { tmux display-message "no claude session in this pane"; exit 0; }
+session_id=$(printf '%s' "$row" | cut -f1)
+[ -z "$expected_session" ] || [ "$session_id" = "$expected_session" ] || {
+  tmux display-message "agent session changed"
+  exit 0
+}
 
 transcript=$(printf '%s' "$row" | cut -f7)
 [ -f "$transcript" ] || { tmux display-message "no transcript for this session"; exit 0; }

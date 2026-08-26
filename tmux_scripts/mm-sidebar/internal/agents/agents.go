@@ -116,6 +116,19 @@ func StateRank(state string) int {
 	}
 }
 
+// IdentityKey distinguishes a live agent fact from another agent that happens
+// to occupy the same tmux pane. Agent session identity and the complete,
+// immutable pane identity are both required: a replacement in-place must be an
+// exit plus a start, never a state transition for the prior session.
+func (r Row) IdentityKey() string {
+	parts := []string{r.Agent, r.SessionID, r.PaneID, r.TmuxSessionID, r.WindowID, strconv.Itoa(r.WindowIndex)}
+	var b strings.Builder
+	for _, part := range parts {
+		fmt.Fprintf(&b, "%d:%s|", len(part), part)
+	}
+	return b.String()
+}
+
 // TSV renders the row in the 11-field schema, substituting "-" for any empty
 // field (see the Row doc comment for why empty fields are forbidden).
 func (r Row) TSV() string {
@@ -377,6 +390,11 @@ func (r *Resolver) readClaudeSessions() []claudeSession {
 func (r *Resolver) claudeRows(sessions []claudeSession, byPanePID map[int]tmuxio.PaneRow) []Row {
 	var rows []Row
 	for _, s := range sessions {
+		// A row without the authoritative Claude session ID cannot participate
+		// in replacement detection or action revalidation safely.
+		if s.SessionID == "" {
+			continue
+		}
 		ppid, ok := r.ppidByPID[s.PID]
 		if !ok {
 			continue // process gone since the last table refresh

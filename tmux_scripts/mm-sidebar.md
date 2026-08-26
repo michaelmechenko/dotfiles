@@ -10,8 +10,8 @@
 A leftmost, full-window-height tmux pane toggled by `M-Tab`, running a compiled
 Go/Bubble Tea TUI. Renders a stack of vertical blocks: a 2-line header, a
 flexible tab-switchable **navigator** (sessions / panes / projects / filetree / scratch),
-and fixed-height **docked blocks** below it (`agents_glance`, `system_stats`)
-that stay visible regardless of which navigator tab is active.
+and fixed-height **docked blocks** below it (`agents_glance`, `activity`,
+`system_stats`) that stay visible regardless of which navigator tab is active.
 
 Inspired by [neo-tree.nvim](https://github.com/nvim-neo-tree/neo-tree.nvim)
 (in-tmux, not in-nvim), the agent-multiplexer overview of
@@ -42,6 +42,10 @@ window-list with appended widgets rather than switchable sources.
 │   ~~ conf · float                  │
 │      nvim · m*                     │
 │   +1 more                          │
+│ ────────────────────────────────── │
+│ ▸ activity                         │  passive transition feed
+│   !W now waiting · build · m*       │
+│   G! 2m worktree dirty · ~/.config  │
 │ ────────────────────────────────── │
 │ ▸ system                           │  docked block — read-only glance
 │ cpu  ▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░ 58%      │
@@ -401,6 +405,12 @@ to package `blocks`, so a block living in a sibling `internal/<name>/` package
 could never satisfy it — reintroducing the same silent failure one package over.
 A test in package `main` caught exactly that.
 
+The model broadcasts only accepted, freshness-checked `blocks.WorldMsg` snapshots
+and explicit `blocks.RefreshMsg` requests. A passive block (`Interval() <= 0`)
+implements optional `Reactive` to return coalesced asynchronous work after those
+messages; it gets no timer or periodic `Fetch`, and model.go needs no block-ID
+branch.
+
 Two hard rules: `View(width)` must emit **exactly `Height()` lines**, and
 `Height()` must be computed from already-cached state (never fetch in it, since the
 layout calls it several times per frame). Both are enforced by a property test
@@ -459,7 +469,7 @@ visible.
 ```go
 type Block interface {
     ID() string
-    Interval() time.Duration   // its own cadence, not a shared dirty flag
+    Interval() time.Duration   // <= 0 is passive: no timer or periodic Fetch
     Fetch() tea.Cmd            // expensive; runs off the input path
     Update(tea.Msg)            // absorbs its own message type
     Height() int               // from cached state; never fetches
@@ -571,6 +581,35 @@ the reasoning still holds at 36):
 
 Colors are the same three roles `tmux-claude-menu --colorize` uses, so the `M-b`
 menu and this glance encode state identically.
+
+### Docked block: `activity`
+
+`activity` is a passive, process-local, newest-first transition feed between
+`agents_glance` and `system_stats`. It uses otherwise-empty vertical space via
+`Expandable`, caps retained history at 50 (evicting oldest nonurgent resolved
+items first), and has no persistent event store. The initial agent snapshot and
+the first event-triggered or explicit-`r` Git snapshot establish silent baselines;
+accepted World updates only collect candidate roots and never launch Git. Hidden
+activity blocks retain coalesced requests until visible. It records agent starts,
+exits, permission requests,
+waiting, and completed responses; current permission/wait and Git-conflict facts
+remain distinct from resolved history.
+
+Agent rows retain immutable pane/session/window identity and offer the same safe
+focus, response/plan, and session-ID copy actions as `agents_glance`. Worktree
+transitions retain canonical absolute paths: Enter focuses the shallowest live
+matching pane, otherwise opens a guarded split at that exact path. Their palette
+also offers guarded new-window, copy-path, and Finder-reveal actions. Stale or
+recycled panes and missing paths report concisely and never redirect. `(none yet)`
+and `+N more` remain inert; visible rows are navigable, clickable, hoverable, and
+retain selection by stable event ID.
+
+Git runs only after an agent wait, response completion, or exit, plus explicit
+`r` for currently live roots/cwds. Timeout-bounded identity and
+`status --porcelain=v2 --branch -z` probes coalesce equivalent work and reject
+late results superseded by a newer token. Git never runs on a timer, in `View`,
+per rendered row, or recursively across repositories. It detects dirty/clean,
+conflict/operation appearance or clearing, and branch changes per worktree.
 
 ### Docked block: `system_stats`
 
@@ -1094,11 +1133,14 @@ tmux, so they run anywhere:
   type `model.go` has never heard of must still reach that block's `Update`. Plus
   exact-height checks for compact help and cached diagnostics, and the action
   registry check that combines global `d` with filetree's optional local keys.
+- `internal/blocks/activity_test.go` — silent baselines, every required agent/Git transition, bounded retention, stale-token rejection, visible trigger-only Git work, interactions, clipping, and inert empty/more rows.
+- `tmux-agent-action-protocol-test.sh` — no-argument, legacy two-argument, and expected-agent/session dispatch compatibility plus stale-session rejection.
 - `internal/blocks/blocks_test.go` — a **property test over `blocks.Factories`**
   asserting `View(width)` emits exactly `Height()` lines across a grid of widths;
   `Height()` stability without an intervening `Update`; unique block IDs (the
-  tick router matches by ID, so a duplicate would starve its twin); non-zero
-  `Interval()` (a zero would spin `tea.Tick`); the `sync.Once` machine-constant
+  tick router matches by ID, so a duplicate would starve its twin); safe timer
+  intervals (zero is an intentional passive block and schedules no `tea.Tick`);
+  the `sync.Once` machine-constant
   cache; and `gauge()` against out-of-range percentages, since `sampleCPU` can
   briefly exceed 100 and `strings.Repeat` panics on a negative count.
 

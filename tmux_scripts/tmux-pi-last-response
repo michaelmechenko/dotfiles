@@ -8,6 +8,18 @@
 # explicitly to its legacy cwd -> newest-transcript fallback.
 
 origin=${1:-$(tmux display -p '#{pane_id}')}
+expected_agent=${2:-}
+expected_session=${3:-}
+# Keep the optional <pane> <session> form for direct callers while sidebar
+# actions pass <pane> <agent> <session>.
+if [ -z "$expected_session" ] && [ -n "$expected_agent" ] && [ "$expected_agent" != "pi" ]; then
+  expected_session=$expected_agent
+  expected_agent=pi
+fi
+[ -z "$expected_agent" ] || [ "$expected_agent" = "pi" ] || {
+  tmux display-message "agent session changed"
+  exit 0
+}
 pane_pid=$(tmux display -p -t "$origin" '#{pane_pid}')
 
 info=$($HOME/.config/tmux_scripts/tmux-pi-session "$pane_pid" 2>/dev/null) || {
@@ -15,7 +27,17 @@ info=$($HOME/.config/tmux_scripts/tmux-pi-session "$pane_pid" 2>/dev/null) || {
   exit 0
 }
 
+pid=$(printf '%s' "$info" | awk -F '\t' '{print $1}')
 transcript=$(printf '%s' "$info" | awk -F '\t' '{print $3}')
+session_id=$(printf '%s' "$info" | awk -F '\t' '{print $4}')
+case "$expected_session" in
+  pi:*) actual_session="pi:$pid" ;; # legacy resolver identity
+  *) actual_session="$session_id" ;;
+esac
+[ -z "$expected_session" ] || [ "$actual_session" = "$expected_session" ] || {
+  tmux display-message "agent session changed"
+  exit 0
+}
 
 out="$(mktemp -t pi-resp).md"
 jq -c 'select(.type=="message" and .message.role=="assistant")' "$transcript" 2>/dev/null | tail -1 \

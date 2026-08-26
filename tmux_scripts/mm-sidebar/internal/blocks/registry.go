@@ -33,6 +33,7 @@ type Factory func(Deps) Block
 // system_stats doesn't), so they aren't assignable to Factory directly.
 var Factories = []Factory{
 	func(d Deps) Block { return NewAgentsGlanceWithClient(d.Theme, d.Client, d.Agents) },
+	func(d Deps) Block { return NewActivity(d.Theme, d.Client) },
 	func(d Deps) Block { return NewSystemStats(d.Theme) },
 }
 

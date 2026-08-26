@@ -413,7 +413,7 @@ In-nnn plugin keys (`;` prefix — nnn requires it for plugins):
 > `tmux_scripts/mm-sidebar.md`. This section is the keybind summary;
 > the plugin doc has the full architecture, state, and gotchas.
 
-A leftmost, full-window-height pane toggled by `M-Tab` (normal width 36; `w` cycles window-local 30/36/44 presets). Runs a compiled Go/Bubble Tea TUI (`tmux_scripts/mm-sidebar`, built on demand by `tmux-sidebar-build`) inside the pane — not fzf, not nnn. Renders a stack of blocks: a 2-line header, a flexible 5-tab **navigator** (sessions / panes / projects / filetree / scratch), and fixed-height **docked blocks** below it (`agents_glance`, `system_stats`) that stay visible regardless of which navigator tab is active — inspired by [agent-manager](https://github.com/YoanWai/agent-manager)'s session-tree-plus-persistent-gauges layout. Window-scoped state (`@sidebar_pane_id` / `@sidebar_content_pane` / `@sidebar_source`) so each window remembers its own tab.
+A leftmost, full-window-height pane toggled by `M-Tab` (normal width 36; `w` cycles window-local 30/36/44 presets). Runs a compiled Go/Bubble Tea TUI (`tmux_scripts/mm-sidebar`, built on demand by `tmux-sidebar-build`) inside the pane — not fzf, not nnn. Renders a stack of blocks: a 2-line header, a flexible 5-tab **navigator** (sessions / panes / projects / filetree / scratch), and fixed-height **docked blocks** below it (`agents_glance`, `activity`, `system_stats`) that stay visible regardless of which navigator tab is active — inspired by [agent-manager](https://github.com/YoanWai/agent-manager)'s session-tree-plus-persistent-gauges layout. Window-scoped state (`@sidebar_pane_id` / `@sidebar_content_pane` / `@sidebar_source`) so each window remembers its own tab.
 
 **Persistent mode + focus switch.** `M-Tab` toggles the global desired state
 `@sidebar_persistent`: enabling opens the current window without moving focus,
@@ -445,7 +445,7 @@ differ once focus has bounced between content panes.
 sidebar. `tmux-sidebar-toggle --close` remains the local, unbound failure/script
 cleanup path.
 
-**Inside the sidebar pane** (pane must be focused; docked blocks have no *keys* of their own — glances, not pickers — though they can accept a mouse click):
+**Inside the sidebar pane** (pane must be focused; visible actionable docked blocks participate in the shared focus-region keys and can accept a mouse click):
 
 | Key | Action |
 | --- | --- |
@@ -460,7 +460,7 @@ cleanup path.
 | `/` | Enter the inline filter; typing and bracketed paste search the active tab without reordering its rows |
 | `Backspace` | Delete one query character while filtering; otherwise invoke the active source's optional control (filetree: up one level) |
 | `h` / `p` / `R` | Filetree only: toggle hidden entries / pin its root / reset and unpin root to the content cwd |
-| `r` | Force refetch + re-render; on projects, manually re-read Git worktree metadata (never polled between changes) |
+| `r` | Force refetch + re-render; projects manually re-read Git worktree metadata, while activity probes currently live roots/cwds only (never polled) |
 | `w` | Cycle this window's sidebar width: compact 30 → normal 36 → wide 44 |
 | `a` / `:` | Open the selected navigator or actionable-block row's action palette; destructive actions require `y`/Enter confirmation |
 | `?` | Toggle compact action-derived help overlay |
@@ -470,9 +470,11 @@ cleanup path.
 | click (navigator) | Select the clicked navigator row |
 | click (agents row) | **Switch to that agent's pane**, across sessions included. The `▸ agents` label, the `+N more` counter and `(none)` are inert |
 | `a` / `:` on selected agent | Focus, open its existing response/plan view, or copy its stable session ID |
+| click / `Enter` on activity | Focus its guarded agent/worktree target; worktrees use the shallowest matching live pane or a guarded split |
+| `a` / `:` on selected activity | Agent: focus/response/plan/copy session ID. Worktree: focus/split/new window/copy path/reveal |
 | wheel | Scroll the navigator viewport, **clamped** (no wrap) and only while the pointer is **over the navigator** — a wheel event over the docked blocks or the header does nothing |
 
-Focus regions are the navigator and every visible non-empty `Navigable` block. Region rotation preserves each region's selected row and skips informational or degraded-away blocks. `system_stats`, labels, `(none)`, and `+N more` remain non-focusable. `M-b` remains the full agent picker.
+Focus regions are the navigator and every visible non-empty `Navigable` block. Region rotation preserves each region's selected row and skips informational or degraded-away blocks. `system_stats`, labels, `(none)`, `(none yet)`, and `+N more` remain non-focusable. `M-b` remains the full agent picker.
 
 Ghostty transports Ctrl-Tab/Ctrl-Shift-Tab as F13/F14; only mm-sidebar interprets those names, so Ctrl-Tab retains its Pi/zsh behavior elsewhere. Pane rows put `@pane-label` first (`label · index:window`) and include it in filtering. Session/pane alert badges are informational: `!` bell, `~` silence, `*` activity; they ride the existing World snapshot and never focus a row. Agent-glance state tags: `!P` awaiting permission, `!W` waiting, `~~` thinking, blank = idle (color also encodes state). Hovering an actionable agent row underlines its location only; hover neither changes keyboard focus nor activates it.
 
@@ -488,4 +490,4 @@ Ghostty transports Ctrl-Tab/Ctrl-Shift-Tab as F13/F14; only mm-sidebar interpret
 
 The `a`/`:` palette is descriptor-driven by the selected row: panes offer focus, label, rename window, zoom, on-demand preview, and confirmed kill; sessions offer focus, rename, and confirmed kill; project headings offer pin/unpin and confirmed forget only when not live; files/directories offer open, parent/split or new window, copy path, and Finder reveal. Preview captures only after selection, sanitizes captured ANSI/control bytes, and renders an exact-height 36-column-safe modal; it is never polled. Confirmed destructive tmux actions revalidate pane/session identity immediately before execution.
 
-`agents` is not a navigator tab — it's the `agents_glance` docked block instead (always visible below the navigator, regardless of tab). Its visible rows are keyboard- and mouse-actionable, colorized by state (rose `#d8647e` for awaiting-permission/waiting, dusty_pink `#bb9dbd` for thinking, inactive `#656a80` for idle — same roles as the `M-b` menu), capped/urgency-sorted with a `+N more` row when clipped, and hover-underlined at their location only. Its selected-row palette reuses the existing response/plan dispatchers and can copy the stable session ID; it does not duplicate the agent join or automatic approval. Bulk actions stay on the `M-b` menu. The `system_stats` docked block shows a cpu/mem/disk glance, refreshed on its own ~5s timer (battery was dropped in revision 5 — it is already on the macOS menu bar and in SketchyBar).
+`agents` is not a navigator tab — it's the `agents_glance` docked block instead (always visible below the navigator, regardless of tab). Its visible rows are keyboard- and mouse-actionable, colorized by state (rose `#d8647e` for awaiting-permission/waiting, dusty_pink `#bb9dbd` for thinking, inactive `#656a80` for idle — same roles as the `M-b` menu), capped/urgency-sorted with a `+N more` row when clipped, and hover-underlined at their location only. Its selected-row palette reuses the existing response/plan dispatchers and can copy the stable session ID; it does not duplicate the agent join or automatic approval. Bulk actions stay on the `M-b` menu. `activity` is a process-local, passive 50-item transition feed: it shows agent starts/exits, permission/wait/completion, and event-triggered Git dirty/conflict/branch transitions. Its Git probes are timeout-bounded and run only after relevant transitions or explicit `r`, never on a timer. The `system_stats` docked block shows a cpu/mem/disk glance, refreshed on its own ~5s timer (battery was dropped in revision 5 — it is already on the macOS menu bar and in SketchyBar).

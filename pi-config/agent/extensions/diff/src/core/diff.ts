@@ -279,6 +279,25 @@ export interface HunkBlock {
 	additions: DiffLine[];
 }
 
+/** A single display pair from one consecutive delete/add change block. */
+export interface ChangePair<T> {
+	deletion?: T;
+	addition?: T;
+}
+
+/**
+ * Pair replacement rows by their ordinal position. This keeps old and new
+ * counterparts adjacent in unified output while retaining unmatched rows.
+ */
+export function pairChangeBlock<T>(deletions: readonly T[], additions: readonly T[]): ChangePair<T>[] {
+	const pairs: ChangePair<T>[] = [];
+	const count = Math.max(deletions.length, additions.length);
+	for (let index = 0; index < count; index++) {
+		pairs.push({ deletion: deletions[index], addition: additions[index] });
+	}
+	return pairs;
+}
+
 /**
  * Walk a ParsedDiff and extract hunk blocks.
  * Each block is a group of consecutive deletes followed by consecutive adds.

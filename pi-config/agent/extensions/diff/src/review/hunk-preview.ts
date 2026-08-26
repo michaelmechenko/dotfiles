@@ -4,7 +4,7 @@ import { extname } from "node:path";
 import { codeToANSI } from "@shikijs/cli";
 import * as Diff from "diff";
 import { configIndicatorStyle } from "../core/config.js";
-import { getSepStyle, type ParsedDiff, sepLabelSplit, sepLabelUnified } from "../core/diff.js";
+import { getSepStyle, pairChangeBlock, type ParsedDiff, sepLabelSplit, sepLabelUnified } from "../core/diff.js";
 import type { ReviewHunk } from "./git.js";
 import { areToolOutputsWrapped } from "../../../tool-display/state.js";
 
@@ -900,29 +900,34 @@ export async function renderUnified(
 			index += 1;
 		}
 
-		const isPaired = deletions.length === 1 && additions.length === 1;
-		const wordDiff = isPaired ? wordDiffAnalysis(deletions[0].line.content, additions[0].line.content) : null;
-		const wordDiffBalanced = wordDiff && wordDiff.oldRanges.length > 0 && wordDiff.newRanges.length > 0;
-		if (isPaired && wordDiffBalanced && wordDiff.similarity >= WORD_DIFF_MIN_SIM && canHighlight) {
-			const deletionBody = injectBg(deletions[0].hl, wordDiff.oldRanges, BG_DEL, BG_DEL_W);
-			const additionBody = injectBg(additions[0].hl, wordDiff.newRanges, BG_ADD, BG_ADD_W);
-			emitRow(deletions[0].line.oldNum, "-", BG_GUTTER_DEL, colors.fgDel, deletionBody, BG_DEL);
-			emitRow(additions[0].line.newNum, "+", BG_GUTTER_ADD, colors.fgAdd, additionBody, BG_ADD);
-			continue;
-		}
-		if (isPaired && wordDiffBalanced && wordDiff.similarity >= WORD_DIFF_MIN_SIM && !canHighlight) {
-			const plain = plainWordDiff(deletions[0].line.content, additions[0].line.content);
-			emitRow(deletions[0].line.oldNum, "-", BG_GUTTER_DEL, colors.fgDel, `${BG_DEL}${plain.old}`, BG_DEL);
-			emitRow(additions[0].line.newNum, "+", BG_GUTTER_ADD, colors.fgAdd, `${BG_ADD}${plain.new}`, BG_ADD);
-			continue;
-		}
-		for (const deletion of deletions) {
-			const body = canHighlight ? injectBg(deletion.hl, [], BG_DEL, BG_DEL) : `${BG_DEL}${deletion.line.content}`;
-			emitRow(deletion.line.oldNum, "-", BG_GUTTER_DEL, colors.fgDel, body, BG_DEL);
-		}
-		for (const addition of additions) {
-			const body = canHighlight ? injectBg(addition.hl, [], BG_ADD, BG_ADD) : `${BG_ADD}${addition.line.content}`;
-			emitRow(addition.line.newNum, "+", BG_GUTTER_ADD, colors.fgAdd, body, BG_ADD);
+		for (const { deletion, addition } of pairChangeBlock(deletions, additions)) {
+			const wordDiff = deletion && addition ? wordDiffAnalysis(deletion.line.content, addition.line.content) : null;
+			if (
+				deletion &&
+				addition &&
+				wordDiff &&
+				wordDiff.oldRanges.length > 0 &&
+				wordDiff.newRanges.length > 0 &&
+				wordDiff.similarity >= WORD_DIFF_MIN_SIM
+			) {
+				const deletionBody = canHighlight
+					? injectBg(deletion.hl, wordDiff.oldRanges, BG_DEL, BG_DEL_W)
+					: `${BG_DEL}${plainWordDiff(deletion.line.content, addition.line.content).old}`;
+				const additionBody = canHighlight
+					? injectBg(addition.hl, wordDiff.newRanges, BG_ADD, BG_ADD_W)
+					: `${BG_ADD}${plainWordDiff(deletion.line.content, addition.line.content).new}`;
+				emitRow(deletion.line.oldNum, "-", BG_GUTTER_DEL, colors.fgDel, deletionBody, BG_DEL);
+				emitRow(addition.line.newNum, "+", BG_GUTTER_ADD, colors.fgAdd, additionBody, BG_ADD);
+				continue;
+			}
+			if (deletion) {
+				const body = canHighlight ? injectBg(deletion.hl, [], BG_DEL, BG_DEL) : `${BG_DEL}${deletion.line.content}`;
+				emitRow(deletion.line.oldNum, "-", BG_GUTTER_DEL, colors.fgDel, body, BG_DEL);
+			}
+			if (addition) {
+				const body = canHighlight ? injectBg(addition.hl, [], BG_ADD, BG_ADD) : `${BG_ADD}${addition.line.content}`;
+				emitRow(addition.line.newNum, "+", BG_GUTTER_ADD, colors.fgAdd, body, BG_ADD);
+			}
 		}
 	}
 

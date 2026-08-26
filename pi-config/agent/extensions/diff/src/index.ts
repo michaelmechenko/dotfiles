@@ -31,6 +31,7 @@ import { type ApplyPatchChange, executeApplyPatch, formatApplyPatchResult } from
 import { configIndicatorStyle, loadPiDiffConfig, type PiDiffToolName } from "./core/config.js";
 import {
 	computeHunkBlocks,
+	pairChangeBlock,
 	type DiffLine,
 	getSepStyle,
 	type ParsedDiff,
@@ -1144,38 +1145,34 @@ async function renderUnified(
 			idx++;
 		}
 
-		// 1:1 paired → word diff emphasis
-		const isPaired = dels.length === 1 && adds.length === 1;
-		const wd = isPaired ? wordDiffAnalysis(dels[0].l.content, adds[0].l.content) : null;
-
-		// Word-diff emphasis — only use when BOTH sides have ranges.
-		// When diffWords treats trailing punctuation as "common" while removing
-		// adjacent chars, only one side gets word highlights, creating a confusing
-		// visual ("off by 1" perception). Skip word-level in that case.
-		const wdBalanced = wd && wd.oldRanges.length > 0 && wd.newRanges.length > 0;
-
-		if (isPaired && wdBalanced && wd.similarity >= WORD_DIFF_MIN_SIM && canHL) {
-			const delBody = injectBg(dels[0].hl, wd.oldRanges, BG_DEL, BG_DEL_W);
-			const addBody = injectBg(adds[0].hl, wd.newRanges, BG_ADD, BG_ADD_W);
-			emitRow(dels[0].l.oldNum, "-", BG_GUTTER_DEL, dc.fgDel, delBody, BG_DEL);
-			emitRow(adds[0].l.newNum, "+", BG_GUTTER_ADD, dc.fgAdd, addBody, BG_ADD);
-			continue;
-		}
-		if (isPaired && wdBalanced && wd.similarity >= WORD_DIFF_MIN_SIM && !canHL) {
-			const pwd = plainWordDiff(dels[0].l.content, adds[0].l.content);
-			emitRow(dels[0].l.oldNum, "-", BG_GUTTER_DEL, dc.fgDel, `${BG_DEL}${pwd.old}`, BG_DEL);
-			emitRow(adds[0].l.newNum, "+", BG_GUTTER_ADD, dc.fgAdd, `${BG_ADD}${pwd.new}`, BG_ADD);
-			continue;
-		}
-
-		// Multi-line blocks — syntax highlighted with diff bg
-		for (const d of dels) {
-			const body = canHL ? injectBg(d.hl, [], BG_DEL, BG_DEL) : `${BG_DEL}${d.l.content}`;
-			emitRow(d.l.oldNum, "-", BG_GUTTER_DEL, dc.fgDel, body, BG_DEL);
-		}
-		for (const a of adds) {
-			const body = canHL ? injectBg(a.hl, [], BG_ADD, BG_ADD) : `${BG_ADD}${a.l.content}`;
-			emitRow(a.l.newNum, "+", BG_GUTTER_ADD, dc.fgAdd, body, BG_ADD);
+		for (const { deletion, addition } of pairChangeBlock(dels, adds)) {
+			const wordDiff = deletion && addition ? wordDiffAnalysis(deletion.l.content, addition.l.content) : null;
+			if (
+				deletion &&
+				addition &&
+				wordDiff &&
+				wordDiff.oldRanges.length > 0 &&
+				wordDiff.newRanges.length > 0 &&
+				wordDiff.similarity >= WORD_DIFF_MIN_SIM
+			) {
+				const deletionBody = canHL
+					? injectBg(deletion.hl, wordDiff.oldRanges, BG_DEL, BG_DEL_W)
+					: `${BG_DEL}${plainWordDiff(deletion.l.content, addition.l.content).old}`;
+				const additionBody = canHL
+					? injectBg(addition.hl, wordDiff.newRanges, BG_ADD, BG_ADD_W)
+					: `${BG_ADD}${plainWordDiff(deletion.l.content, addition.l.content).new}`;
+				emitRow(deletion.l.oldNum, "-", BG_GUTTER_DEL, dc.fgDel, deletionBody, BG_DEL);
+				emitRow(addition.l.newNum, "+", BG_GUTTER_ADD, dc.fgAdd, additionBody, BG_ADD);
+				continue;
+			}
+			if (deletion) {
+				const body = canHL ? injectBg(deletion.hl, [], BG_DEL, BG_DEL) : `${BG_DEL}${deletion.l.content}`;
+				emitRow(deletion.l.oldNum, "-", BG_GUTTER_DEL, dc.fgDel, body, BG_DEL);
+			}
+			if (addition) {
+				const body = canHL ? injectBg(addition.hl, [], BG_ADD, BG_ADD) : `${BG_ADD}${addition.l.content}`;
+				emitRow(addition.l.newNum, "+", BG_GUTTER_ADD, dc.fgAdd, body, BG_ADD);
+			}
 		}
 	}
 

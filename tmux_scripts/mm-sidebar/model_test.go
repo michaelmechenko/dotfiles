@@ -340,6 +340,41 @@ func TestContextPaletteIsSourceAgnostic(t *testing.T) {
 	}
 }
 
+func TestProjectFilterChildMatchKeepsOnlyItsHeading(t *testing.T) {
+	m := &model{query: "feature", rows: []nav.Row{
+		{ID: "repo", GroupID: "repo", GroupHeading: true, SearchText: "repository", Lines: []string{"repo"}},
+		{ID: "main", GroupID: "repo", SearchText: "main", Lines: []string{"main"}},
+		{ID: "feature", GroupID: "repo", SearchText: "feature", Lines: []string{"feature"}},
+		{ID: "other", GroupID: "other", GroupHeading: true, SearchText: "other", Lines: []string{"other"}},
+	}}
+	rows := m.navigatorRows()
+	if len(rows) != 2 || !rows[0].GroupHeading || rows[1].ID != "feature" {
+		t.Fatalf("child grouped filter = %#v", rows)
+	}
+}
+
+func TestProjectFilterHeadingMatchKeepsAllChildren(t *testing.T) {
+	m := &model{query: "repo", rows: []nav.Row{
+		{ID: "repo", GroupID: "repo", GroupHeading: true, SearchText: "repository /repos/main", Lines: []string{"repo"}},
+		{ID: "main", GroupID: "repo", SearchText: "main", Lines: []string{"main"}},
+		{ID: "feature", GroupID: "repo", SearchText: "feature", Lines: []string{"feature"}},
+		{ID: "other", GroupID: "other", GroupHeading: true, SearchText: "other", Lines: []string{"other"}},
+		{ID: "other-child", GroupID: "other", SearchText: "unrelated", Lines: []string{"unrelated"}},
+	}}
+	rows := m.navigatorRows()
+	if len(rows) != 3 || rows[0].ID != "repo" || rows[1].ID != "main" || rows[2].ID != "feature" {
+		t.Fatalf("heading grouped filter = %#v", rows)
+	}
+}
+
+func TestGenericActionCompletionForcesRefresh(t *testing.T) {
+	m := newModel(tmuxio.NewClient("", ""))
+	defer m.Close()
+	if _, cmd := m.Update(contextActionMsg{result: nav.ActionResult{Refresh: true}}); cmd == nil {
+		t.Fatal("refreshing action completion returned no refresh command")
+	}
+}
+
 func TestSetSourceAdvancesGeneration(t *testing.T) {
 	m := &model{srcIdx: 0}
 	m.setSource(1)

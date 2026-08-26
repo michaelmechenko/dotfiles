@@ -10,45 +10,73 @@ import (
 	"strings"
 	"testing"
 
+	"mm-sidebar/internal/projectcatalog"
 	"mm-sidebar/internal/theme"
 	"mm-sidebar/internal/tmuxio"
 	wtapi "mm-sidebar/internal/worktrunk"
 )
 
-func TestParseWorktreesPreservesGitOrderBranchesAndVerbatimPaths(t *testing.T) {
-	rows := parseWorktreesZ([]byte("worktree /repo with\nnewline\x00HEAD abc\x00branch refs/heads/main\x00\x00worktree /repo-feature\x00HEAD def\x00detached\x00\x00"))
-	if len(rows) != 2 {
-		t.Fatalf("worktrees = %#v", rows)
+func TestRepositoryHeadingIsInertAndOnlyForgettableWhenNotLive(t *testing.T) {
+	offline := repositoryHeading(Ctx{Theme: theme.Theme{}}, projectcatalog.Entry{Root: "/repo", CommonDir: "/repo/.git"})
+	if offline.Kind != ActionNone || !offline.GroupHeading || len(offline.Lines) != 2 || len(offline.Actions) != 2 || !offline.Actions[1].Destructive {
+		t.Fatalf("offline heading = %#v", offline)
 	}
-	if rows[0] != (worktree{Path: "/repo with\nnewline", Branch: "main"}) || rows[1] != (worktree{Path: "/repo-feature", Branch: "(detached)"}) {
-		t.Fatalf("parsed worktrees = %#v", rows)
+	live := repositoryHeading(Ctx{Theme: theme.Theme{}}, projectcatalog.Entry{Root: "/repo", CommonDir: "/repo/.git", Live: true})
+	if len(live.Actions) != 1 || live.Actions[0].ID != "pin" {
+		t.Fatalf("live heading exposes forget: %#v", live.Actions)
 	}
 }
 
-func TestProjectsFetchKeyDependsOnlyOnPaneCwds(t *testing.T) {
+func TestProjectsFetchKeyDependsOnlyOnContentPaneCwds(t *testing.T) {
 	p := Projects{}
-	one := tmuxio.NewWorld(tmuxio.Snapshot{}, []tmuxio.Session{{ID: "$1", Activity: false}}, []tmuxio.PaneRow{{PaneID: "%1", CurrentPath: "/b"}, {PaneID: "%2", CurrentPath: "/a"}})
-	two := tmuxio.NewWorld(tmuxio.Snapshot{}, []tmuxio.Session{{ID: "$1", Activity: true}}, []tmuxio.PaneRow{{PaneID: "%2", CurrentPath: "/a", Bell: true}, {PaneID: "%1", CurrentPath: "/b"}})
+	one := tmuxio.NewWorld(tmuxio.Snapshot{}, []tmuxio.Session{{ID: "$1", Activity: false}}, []tmuxio.PaneRow{{PaneID: "%1", CurrentPath: "/b"}, {PaneID: "%2", CurrentPath: "/a"}, {PaneID: "%sidebar-a", CurrentPath: "/sidebar-a", Sidebar: true}, {PaneID: "%sidebar-b", CurrentPath: "/sidebar-b", Sidebar: true}})
+	two := tmuxio.NewWorld(tmuxio.Snapshot{}, []tmuxio.Session{{ID: "$1", Activity: true}}, []tmuxio.PaneRow{{PaneID: "%2", CurrentPath: "/a", Bell: true}, {PaneID: "%1", CurrentPath: "/b"}, {PaneID: "%sidebar-c", CurrentPath: "/another-sidebar", Sidebar: true}})
 	if got, want := p.FetchKey(Ctx{World: one}), p.FetchKey(Ctx{World: two}); got != want || got != "/a\x1f/b" {
 		t.Fatalf("project keys = %q / %q", got, want)
 	}
 }
 
-func TestWorktrunkRowsNormalizeAndSortWorktreesBeforeBranches(t *testing.T) {
+func TestProjectsExcludeEverySidebarFromObserveAndLiveWorktreeMatching(t *testing.T) {
+	catalog := projectCatalogWithIdentities(t, map[string]projectcatalog.Identity{
+		"/repo":           {Root: "/repo", CommonDir: "/repo/.git"},
+		"/sidebar-a/repo": {Root: "/sidebar-a/repo", CommonDir: "/sidebar-a/repo/.git"},
+		"/sidebar-b/repo": {Root: "/sidebar-b/repo", CommonDir: "/sidebar-b/repo/.git"},
+	})
+	world := tmuxio.NewWorld(tmuxio.Snapshot{}, nil, []tmuxio.PaneRow{
+		{PaneID: "%content", CurrentPath: "/repo"},
+		{PaneID: "%sidebar-a", CurrentPath: "/sidebar-a/repo", Sidebar: true},
+		{PaneID: "%sidebar-b", CurrentPath: "/sidebar-b/repo", Sidebar: true},
+	})
+	rows, err := (Projects{Catalog: catalog, Worktrunk: wtapi.Client{Run: func(context.Context, string, ...string) ([]byte, error) {
+		return nil, errors.New("unavailable")
+	}}}).Fetch(Ctx{Theme: theme.Theme{}, World: world})
+	if err != nil || len(rows) != 1 || rows[0].ID != "repo:/repo/.git" {
+		t.Fatalf("sidebar cwd entered catalog: rows=%#v err=%v", rows, err)
+	}
+	if _, count := panesForWorktree(world, "/sidebar-a/repo"); count != 0 {
+		t.Fatalf("sidebar pane was treated as a live worktree: %d", count)
+	}
+}
+
+func TestCatalogInventoryNormalizesAndSortsWorktreesBeforeBranches(t *testing.T) {
 	main, feature := "main", "feat/x"
 	ahead, behind, conflict := 2, 1, true
 	state := "diverged"
-	list := wtapi.List{Schema: 2, Items: []wtapi.Item{
+	payload, err := json.Marshal(wtapi.List{Schema: 2, Items: []wtapi.Item{
 		{Branch: &feature, DefaultBranch: &wtapi.DefaultBranch{Ahead: &ahead, Behind: &behind, MergeConflicts: &conflict}, Display: wtapi.Display{State: &state}},
 		{Branch: &main, Worktree: &wtapi.Worktree{Path: "/repo", Main: true, Changes: &wtapi.Changes{Modified: true}}},
-	}}
-	rows := worktrunkRows(repository{Root: "/repo", CommonDir: "/repo/.git"}, list)
-	sortWorktrees(rows)
-	if len(rows) != 2 || rows[0].Path != "/repo" || !rows[1].BranchOnly {
-		t.Fatalf("rows = %#v", rows)
+	}})
+	if err != nil {
+		t.Fatal(err)
 	}
-	if rows[1].Status.Ahead == nil || *rows[1].Status.Ahead != 2 || !rows[1].Status.WouldConflict {
-		t.Fatalf("branch status = %#v", rows[1].Status)
+	catalog := testProjectCatalog(t)
+	repos := catalog.Inventory([]projectcatalog.Entry{{Root: "/repo", CommonDir: "/repo/.git", Available: true}}, wtapi.Client{Run: func(context.Context, string, ...string) ([]byte, error) { return payload, nil }})
+	if len(repos) != 1 || len(repos[0].Worktrees) != 2 || repos[0].Worktrees[0].Path != "/repo" || !repos[0].Worktrees[1].BranchOnly {
+		t.Fatalf("inventory = %#v", repos)
+	}
+	status := statusFromWorktrunk(*repos[0].Worktrees[1].WorktrunkItem)
+	if status.Ahead == nil || *status.Ahead != 2 || !status.WouldConflict {
+		t.Fatalf("branch status = %#v", status)
 	}
 }
 
@@ -74,13 +102,13 @@ func TestBranchOnlyRowExposesMaterializeActionAndStatus(t *testing.T) {
 func TestProjectsFallsBackToGitWhenWorktrunkFails(t *testing.T) {
 	root := initProjectRepo(t)
 	calls := 0
-	projects := Projects{Worktrunk: wtapi.Client{Run: func(context.Context, string, ...string) ([]byte, error) {
+	projects := Projects{Catalog: testProjectCatalog(t), Worktrunk: wtapi.Client{Run: func(context.Context, string, ...string) ([]byte, error) {
 		calls++
 		return nil, errors.New("missing")
 	}}}
 	world := tmuxio.NewWorld(tmuxio.Snapshot{PaneID: "%sidebar"}, nil, []tmuxio.PaneRow{{PaneID: "%work", CurrentPath: root}})
 	rows, err := projects.Fetch(Ctx{Theme: theme.Theme{}, World: world})
-	if err != nil || calls != 1 || len(rows) != 1 || rows[0].Path == "" || rows[0].SearchText == "" {
+	if err != nil || calls != 1 || len(rows) != 2 || !rows[0].GroupHeading || rows[1].Path == "" || rows[1].SearchText == "" {
 		t.Fatalf("fallback rows=%#v calls=%d err=%v", rows, calls, err)
 	}
 }
@@ -93,7 +121,7 @@ func TestProjectsUsesSchemaTwoWithoutChangingFetchKey(t *testing.T) {
 		t.Fatal(err)
 	}
 	calls := 0
-	projects := Projects{Worktrunk: wtapi.Client{Run: func(context.Context, string, ...string) ([]byte, error) {
+	projects := Projects{Catalog: testProjectCatalog(t), Worktrunk: wtapi.Client{Run: func(context.Context, string, ...string) ([]byte, error) {
 		calls++
 		return payload, nil
 	}}}
@@ -101,9 +129,28 @@ func TestProjectsUsesSchemaTwoWithoutChangingFetchKey(t *testing.T) {
 	keyBefore := projects.FetchKey(Ctx{World: world})
 	rows, err := projects.Fetch(Ctx{Theme: theme.Theme{}, World: world})
 	keyAfter := projects.FetchKey(Ctx{World: world})
-	if err != nil || calls != 1 || len(rows) != 1 || keyBefore != keyAfter {
+	if err != nil || calls != 1 || len(rows) != 2 || !rows[0].GroupHeading || keyBefore != keyAfter {
 		t.Fatalf("rows=%#v calls=%d keys=%q/%q err=%v", rows, calls, keyBefore, keyAfter, err)
 	}
+}
+
+func testProjectCatalog(t *testing.T) *projectcatalog.Catalog {
+	t.Helper()
+	return projectcatalog.New(projectcatalog.Config{Path: filepath.Join(t.TempDir(), "projects.json")})
+}
+
+func projectCatalogWithIdentities(t *testing.T, identities map[string]projectcatalog.Identity) *projectcatalog.Catalog {
+	t.Helper()
+	return projectcatalog.New(projectcatalog.Config{
+		Path: filepath.Join(t.TempDir(), "projects.json"),
+		Resolve: func(path string) (projectcatalog.Identity, error) {
+			identity, ok := identities[path]
+			if !ok {
+				return projectcatalog.Identity{}, errors.New("not a repository")
+			}
+			return identity, nil
+		},
+	})
 }
 
 func initProjectRepo(t *testing.T) string {
@@ -134,10 +181,10 @@ func initProjectRepo(t *testing.T) string {
 func TestProjectRowReusesLiveWorktreePane(t *testing.T) {
 	world := tmuxio.NewWorld(
 		tmuxio.Snapshot{PaneID: "%sidebar"}, nil,
-		[]tmuxio.PaneRow{{PaneID: "%sidebar", CurrentPath: "/repo"}, {PaneID: "%work", Target: "$1:2.0", CurrentPath: "/repo/feature"}},
+		[]tmuxio.PaneRow{{PaneID: "%sidebar", CurrentPath: "/repo", Sidebar: true}, {PaneID: "%work", Target: "$1:2.0", CurrentPath: "/repo/feature"}},
 	)
-	row := projectRow(Ctx{Theme: theme.Theme{}, World: world}, worktree{Path: "/repo", Branch: "main"})
-	if row.Kind != ActionFocusPane || row.PaneID != "%work" || len(row.Actions) == 0 || row.Actions[0].ID != "focus" {
+	row := projectRow(Ctx{Theme: theme.Theme{}, World: world}, worktree{Path: "/repo", Branch: "main", CommonDir: "/repo/.git"})
+	if row.Kind != ActionFocusPane || row.PaneID != "%work" || row.CommonDir != "/repo/.git" || len(row.Actions) < 2 || row.Actions[0].ID != "focus" || row.Actions[1].CommonDir != "/repo/.git" {
 		t.Fatalf("project row did not reuse live pane: %#v", row)
 	}
 	if !strings.Contains(row.SearchText, "main") {

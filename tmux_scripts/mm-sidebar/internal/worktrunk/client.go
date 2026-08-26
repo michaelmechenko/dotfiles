@@ -59,8 +59,14 @@ func (c Client) runner() CommandRunner {
 // List returns local worktrees and local branch-only rows. It never requests
 // --full, so CI and LLM summary collection remain disabled.
 func (c Client) List(root string) (List, error) {
+	return c.ListContext(context.Background(), root)
+}
+
+// ListContext lets a catalog-wide deadline bound several repository probes.
+// The client's own timeout remains an upper bound when the parent is longer.
+func (c Client) ListContext(parent context.Context, root string) (List, error) {
 	timeout := c.timeout()
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(parent, timeout)
 	defer cancel()
 
 	millis := strconv.FormatInt(timeout.Milliseconds(), 10)

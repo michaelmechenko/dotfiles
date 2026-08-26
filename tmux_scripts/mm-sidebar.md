@@ -87,6 +87,7 @@ matching `#{pane_height}` each time.
 | `internal/agents` | The Claude + pi pane join. |
 | `internal/nav` | The navigator tabs (`Source` registry), optional source controls/help actions, and their `Enter` actions. |
 | `internal/blocks` | The `Block` interface, the `Factories` registry, and the docked blocks. |
+| `internal/projectcatalog` | Persistent XDG-backed repository identity/inventory: canonical common dirs, pinned/recent retention, validated roots, flocked schema-v1 state. |
 | `internal/worktrunk` | Optional bounded Worktrunk schema-2 list/switch adapter; Git remains discovery authority. |
 | `internal/trace` | `MMS_TRACE=1` per-phase timing, shared by every package. |
 
@@ -626,7 +627,7 @@ id is state.
 | --- | --- | --- | --- |
 | sessions | shared `tmuxio.World` sessions + panes | guarded focus of the session's active content pane | — |
 | panes (id `windows`) | shared `tmuxio.World` panes | identity-guarded pane focus | — |
-| projects | Git common-dir discovery from live pane cwds; optional bounded Worktrunk schema-2 `wt list --branches`, with per-repository Git porcelain fallback | focus/open an existing worktree; branch-only row palette materializes it with `wt switch --no-cd`, then guarded split | no recurring Git/Worktrunk polling; no merge/remove/new branch/approval bypass |
+| projects | Persistent catalog observed from live pane cwds; optional bounded Worktrunk schema-2 `wt list --branches`, with per-repository Git porcelain fallback | focus/open an existing worktree; branch-only row palette materializes it with `wt switch --no-cd`, then guarded split | pin/unpin; confirmed forget only when non-live; no recurring Git/Worktrunk polling |
 | filetree | `os.ReadDir`, 2 levels, over the content pane's cwd | dir → `split-window -h -c <dir>` in the content pane; file → `tmux-open-target` | `h` hidden, `p` pin, `R` reset/unpin, `Backspace` up (all via optional source controls) |
 | scratch | `~/.config/tmux_scratch/{global,<slug>}.md` | `tea.ExecProcess(nvim)` | — |
 
@@ -690,31 +691,47 @@ by their target, so a symlinked directory (this repo has several) still expands.
 
 ### projects
 
-The projects tab discovers repository roots from the **already-collected** live
-pane cwd set only when the tab's gated `Fetch` runs. Git common-dir resolution
-remains authoritative across repositories. For each root, the optional
-`internal/worktrunk` adapter runs a bounded local-only
-`wt list --branches --format=json` with schema 2 and renders worktree changes,
-ahead/behind, conflict, operation, lock/prunable, integration, and branch-only
-facts. Missing, timed-out, approval-blocked, malformed, or unsupported Worktrunk
-output falls back for that repository to stable NUL-delimited
-`git worktree list --porcelain -z`.
+The projects tab observes the **already-collected** live pane cwd set only when
+the tab's gated `Fetch` runs. `internal/projectcatalog` identifies each repository
+by its absolute, symlink-resolved Git common directory and records one
+representative root, pin state, and UTC `last_seen`. Its state is private machine
+state at `$XDG_STATE_HOME/mm-sidebar/projects.json` (or
+`~/.local/state/mm-sidebar/projects.json`): schema v1, a narrow legacy-array
+migration, a sibling `projects.json.lock` flock, and a 0600 same-directory
+fsync/atomic-rename/directory-sync write. Future-version or corrupt files are
+preserved untouched. It retains every pinned repository plus the 20 most-recent
+unpinned records.
 
-Neither Worktrunk nor Git runs on unchanged 2-second World ticks; the existing
-cwd-only `FetchKey` is unchanged, and `r` is the explicit metadata refresh. Rows
-are deterministic: repositories by common dir, materialized worktrees before
-branch-only rows, main worktree first, then branch and path. Live worktrees show
+Each persisted root is re-resolved before rendering. Missing, non-Git, or
+reused paths render an unavailable two-line repository heading with no child
+worktrees; they remain safely forgettable. Available repositories render an inert
+two-line heading followed by indented materialized worktrees and branch-only
+children. Headings support `a`/`:` pin/unpin and confirmed forget; forget is not
+offered while a matching live pane exists. Filtering retains a matching child's
+heading so group context is never lost. Catalog ordering is pinned first, then
+recent `last_seen`, with deterministic name/path/common-dir ties; child ordering
+remains materialized before branch-only, main first, then branch/path.
+
+For each available repository, the optional `internal/worktrunk` adapter runs a
+local-only `wt list --branches --format=json` with schema 2 and renders worktree
+changes, ahead/behind, conflict, operation, lock/prunable, integration, and
+branch-only facts. One four-worker pool and shared 3-second deadline bound total
+Worktrunk latency across the retained catalog; missing, timed-out,
+approval-blocked, malformed, or unsupported output falls back per repository to
+bounded NUL-delimited `git worktree list --porcelain -z`. Neither Worktrunk nor Git runs on unchanged
+2-second World ticks; `r` is the explicit metadata refresh. Live worktrees show
 pane counts and focus the shallowest matching pane; absent worktrees open a
 guarded split rooted there.
 
-A branch-only row is inert on ordinary Enter and exposes one `a`/`:` action:
-`create worktree and open split`. It first validates the immutable content-pane
-identity, then calls `wt switch <branch> --no-cd --format=json` without
-`--create`, `--yes`, or `--no-hooks`; on success it opens the returned path
-through the same pane guard. This materializes existing local branches only.
-Worktrunk errors are shown as concise tmux messages. The sidebar never creates a
-new branch, merges, removes a worktree/branch, approves hooks, or reaches
-network-backed `--full` list data.
+A branch-only row is inert on ordinary Enter and exposes `create worktree and
+open split`. It re-resolves its root and requires the rendered canonical common
+dir immediately before `wt switch <branch> --no-cd --format=json`, as well as
+validating the immutable content-pane identity. It never uses `--create`,
+`--yes`, or `--no-hooks`; success opens the returned path through the same pane
+guard. This materializes existing local branches only. Worktrunk errors are
+shown as concise tmux messages. The sidebar never creates a new branch, merges,
+removes a worktree/branch, approves hooks, or reaches network-backed `--full`
+list data.
 
 ### scratch
 

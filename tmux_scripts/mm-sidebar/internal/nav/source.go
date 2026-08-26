@@ -194,6 +194,13 @@ type Row struct {
 	Target     string         // ActionFocusPane
 	Pane       tmuxio.PaneRef // stable target for focus actions
 	Path       string         // ActionOpenDir / ActionOpenFile / ActionEditFile
+	// CommonDir carries a project worktree's expected canonical Git identity.
+	// Empty preserves generic filetree and scratch directory behavior.
+	CommonDir string
+	// GroupID joins an inert heading and its child rows. Filtering retains a
+	// matching child's heading so grouped sources never lose their context.
+	GroupID      string
+	GroupHeading bool
 	// Actions are source-owned descriptors for the generic a/: palette.
 	Actions []ContextAction
 }

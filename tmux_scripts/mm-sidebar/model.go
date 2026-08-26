@@ -260,6 +260,14 @@ type panePreviewMsg struct {
 	err   error
 }
 
+// contextActionMsg is the generic completion channel for source-owned palette
+// actions. A successful action can request a fresh source snapshot without
+// teaching the model which source produced it.
+type contextActionMsg struct {
+	result nav.ActionResult
+	err    error
+}
+
 // ---- lifecycle ------------------------------------------------------------
 
 func (m *model) Init() tea.Cmd {
@@ -373,6 +381,16 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.previewTitle, m.previewErr = msg.title, msg.err
 		m.previewLines = previewLines(msg.body)
 		m.panePreview = true
+		return m, nil
+
+	case contextActionMsg:
+		if msg.err != nil {
+			m.client.ShowMessage(msg.err.Error())
+			return m, nil
+		}
+		if msg.result.Refresh {
+			return m, m.refreshState(true)
+		}
 		return m, nil
 
 	case editDoneMsg:
@@ -730,10 +748,8 @@ func (m *model) runContextAction(action nav.ContextAction) tea.Cmd {
 	}
 	content := m.contentRef
 	return func() tea.Msg {
-		if err := nav.ExecuteContextAction(m.client, action, content); err != nil {
-			m.client.ShowMessage(err.Error())
-		}
-		return nil
+		result, err := nav.ExecuteContextAction(m.client, action, content)
+		return contextActionMsg{result: result, err: err}
 	}
 }
 
@@ -1244,9 +1260,24 @@ func (m *model) navigatorRows() []nav.Row {
 		return m.rows
 	}
 	needle := strings.ToLower(m.query)
+	matchingHeading := make(map[string]bool)
+	matchingChild := make(map[string]bool)
+	for _, row := range m.rows {
+		if row.GroupID == "" || !strings.Contains(strings.ToLower(row.SearchText), needle) {
+			continue
+		}
+		if row.GroupHeading {
+			matchingHeading[row.GroupID] = true
+		} else {
+			matchingChild[row.GroupID] = true
+		}
+	}
 	out := make([]nav.Row, 0, len(m.rows))
 	for _, row := range m.rows {
-		if strings.Contains(strings.ToLower(row.SearchText), needle) {
+		matched := strings.Contains(strings.ToLower(row.SearchText), needle)
+		// A matching child retains only its inert parent heading. A matching
+		// heading/root retains the complete group so its worktrees stay visible.
+		if matched || (row.GroupHeading && matchingChild[row.GroupID]) || (!row.GroupHeading && matchingHeading[row.GroupID]) {
 			out = append(out, row)
 		}
 	}
@@ -1517,7 +1548,9 @@ func (m *model) act() tea.Cmd {
 	}
 	content := m.contentRef
 	return func() tea.Msg {
-		nav.Act(m.client, row, content)
+		if err := nav.Act(m.client, row, content); err != nil {
+			return contextActionMsg{err: err}
+		}
 		return nil
 	}
 }

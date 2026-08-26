@@ -2,13 +2,13 @@ package nav
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 
 	"mm-sidebar/internal/display"
+	"mm-sidebar/internal/projectcatalog"
 	"mm-sidebar/internal/tmuxio"
 	wtapi "mm-sidebar/internal/worktrunk"
 )
@@ -18,6 +18,14 @@ import (
 // while another tab is active, nor when the shared tmux fingerprint is stable.
 type Projects struct {
 	Worktrunk wtapi.Client
+	Catalog   *projectcatalog.Catalog
+}
+
+func (p Projects) catalog() *projectcatalog.Catalog {
+	if p.Catalog != nil {
+		return p.Catalog
+	}
+	return projectcatalog.New(projectcatalog.Config{})
 }
 
 func (Projects) ID() string    { return "projects" }
@@ -28,40 +36,49 @@ func (Projects) Title() string { return "projects" }
 // activity/bell/session metadata from World's broad fingerprint, so an open
 // projects tab does not poll Git every time unrelated tmux state changes.
 func (Projects) FetchKey(c Ctx) string {
-	cwds := make([]string, 0, len(c.World.Panes()))
-	seen := make(map[string]bool)
-	for _, pane := range c.World.Panes() {
-		if pane.CurrentPath != "" && !seen[pane.CurrentPath] {
-			seen[pane.CurrentPath] = true
-			cwds = append(cwds, pane.CurrentPath)
-		}
-	}
+	cwds := projectCwds(c.World.Panes())
 	sort.Strings(cwds)
 	return strings.Join(cwds, "\x1f")
 }
 
 func (p Projects) Fetch(c Ctx) ([]Row, error) {
-	repos := repositories(c.World.Panes())
-	projects := make([]worktree, 0, len(repos))
-	for _, repo := range repos {
-		items, err := p.Worktrunk.List(repo.Root)
-		if err == nil {
-			projects = append(projects, worktrunkRows(repo, items)...)
-			continue
-		}
-		// Worktrunk is optional. Preserve Git's stable, NUL-safe discovery per
-		// repository when wt is absent, slow, blocked on approval, or malformed.
-		for _, wt := range listWorktrees(repo.Root) {
-			wt.RepoRoot, wt.CommonDir = repo.Root, repo.CommonDir
-			projects = append(projects, wt)
-		}
+	cwds := projectCwds(c.World.Panes())
+	catalog := p.catalog()
+	entries, err := catalog.Observe(cwds)
+	if err != nil {
+		return nil, FetchFailure(p, err)
 	}
-	sortWorktrees(projects)
-	rows := make([]Row, 0, len(projects))
-	for _, wt := range projects {
-		rows = append(rows, projectRow(c, wt))
+	repositories := catalog.Inventory(entries, p.Worktrunk)
+	rows := make([]Row, 0, len(entries)*2)
+	for _, repo := range repositories {
+		rows = append(rows, repositoryHeading(c, repo.Entry))
+		for _, item := range repo.Worktrees {
+			wt := worktree{Path: item.Path, Branch: item.Branch, RepoRoot: item.RepoRoot, CommonDir: item.CommonDir, BranchOnly: item.BranchOnly, Main: item.Main}
+			if item.WorktrunkItem != nil {
+				wt.Status = statusFromWorktrunk(*item.WorktrunkItem)
+			}
+			row := projectRow(c, wt)
+			row.GroupID = repo.CommonDir
+			row.Lines = indentLines(row.Lines)
+			rows = append(rows, row)
+		}
 	}
 	return rows, nil
+}
+
+// projectCwds excludes all sidebar lifecycle panes, which can otherwise make a
+// project appear live merely because another window owns a sidebar there.
+func projectCwds(panes []tmuxio.PaneRow) []string {
+	cwds := make([]string, 0, len(panes))
+	seen := make(map[string]bool)
+	for _, pane := range panes {
+		if pane.Sidebar || pane.CurrentPath == "" || seen[pane.CurrentPath] {
+			continue
+		}
+		seen[pane.CurrentPath] = true
+		cwds = append(cwds, pane.CurrentPath)
+	}
+	return cwds
 }
 
 type worktree struct {
@@ -83,113 +100,50 @@ type projectStatus struct {
 	State                       string
 }
 
-// repositories resolves each distinct pane cwd on demand and deduplicates
-// worktrees by Git common-dir, so one repository pays for one worktree-list
-// command even when several of its worktrees have live panes.
-type repository struct {
-	CommonDir string
-	Root      string
+func repositoryHeading(c Ctx, entry projectcatalog.Entry) Row {
+	home, _ := os.UserHomeDir()
+	name := display.Sanitize(filepath.Base(entry.Root))
+	status := ""
+	if entry.Pinned {
+		status = " pinned"
+	}
+	if !entry.Available {
+		status += " unavailable"
+	}
+	first := "▾ " + name + status
+	second := "  " + truncLeft(compactPath(entry.Root, home), cwdCol)
+	row := Row{
+		ID:           "repo:" + entry.CommonDir,
+		GroupID:      entry.CommonDir,
+		GroupHeading: true,
+		SearchText:   strings.TrimSpace(name + " " + entry.Root + " " + entry.CommonDir + status),
+		Lines:        []string{c.Theme.Accent.Render(first), c.Theme.Muted.Render(second)},
+		Kind:         ActionNone,
+		Actions: []ContextAction{{
+			ID:        "pin",
+			Label:     "pin repository",
+			Kind:      ContextPinRepository,
+			CommonDir: entry.CommonDir,
+		}},
+	}
+	if entry.Pinned {
+		row.Actions[0] = ContextAction{ID: "unpin", Label: "unpin repository", Kind: ContextUnpinRepository, CommonDir: entry.CommonDir}
+	}
+	if !entry.Live {
+		row.Actions = append(row.Actions, ContextAction{
+			ID: "forget", Label: "forget repository", Destructive: true,
+			Kind: ContextForgetRepository, CommonDir: entry.CommonDir,
+		})
+	}
+	return row
 }
 
-func repositories(panes []tmuxio.PaneRow) []repository {
-	cwds := make(map[string]bool)
-	for _, pane := range panes {
-		if pane.CurrentPath != "" {
-			cwds[pane.CurrentPath] = true
-		}
-	}
-	// One root probe per distinct cwd, then one common-dir probe per distinct
-	// worktree root. Removing exactly one output newline preserves a newline that
-	// is part of a valid filesystem path.
-	roots := make(map[string]bool)
-	for cwd := range cwds {
-		if root := gitPathOutput("-C", cwd, "rev-parse", "--show-toplevel"); root != "" {
-			roots[filepath.Clean(root)] = true
-		}
-	}
-	byCommon := make(map[string]repository)
-	for root := range roots {
-		common := gitPathOutput("-C", root, "rev-parse", "--path-format=absolute", "--git-common-dir")
-		if common == "" {
-			continue
-		}
-		common = filepath.Clean(common)
-		if current, ok := byCommon[common]; !ok || root < current.Root {
-			byCommon[common] = repository{CommonDir: common, Root: root}
-		}
-	}
-	keys := make([]string, 0, len(byCommon))
-	for common := range byCommon {
-		keys = append(keys, common)
-	}
-	sort.Strings(keys)
-	out := make([]repository, 0, len(keys))
-	for _, common := range keys {
-		out = append(out, byCommon[common])
+func indentLines(lines []string) []string {
+	out := make([]string, len(lines))
+	for i, line := range lines {
+		out[i] = "  " + line
 	}
 	return out
-}
-
-func gitOutput(args ...string) string {
-	out, err := exec.Command("git", args...).Output()
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(out))
-}
-
-func gitPathOutput(args ...string) string {
-	out, err := exec.Command("git", args...).Output()
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSuffix(strings.TrimSuffix(string(out), "\n"), "\r")
-}
-
-func listWorktrees(root string) []worktree {
-	out, err := exec.Command("git", "-C", root, "worktree", "list", "--porcelain", "-z").Output()
-	if err != nil || len(out) == 0 {
-		return nil
-	}
-	return parseWorktreesZ(out)
-}
-
-func worktrunkRows(repo repository, list wtapi.List) []worktree {
-	rows := make([]worktree, 0, len(list.Items))
-	seen := make(map[string]bool)
-	for _, item := range list.Items {
-		branch := "(detached)"
-		if item.Branch != nil && *item.Branch != "" {
-			branch = *item.Branch
-		}
-		row := worktree{
-			Branch:    branch,
-			RepoRoot:  repo.Root,
-			CommonDir: repo.CommonDir,
-			Status:    statusFromWorktrunk(item),
-		}
-		if item.Worktree == nil {
-			if item.Branch == nil || *item.Branch == "" {
-				continue
-			}
-			row.BranchOnly = true
-		} else {
-			if item.Worktree.Path == "" {
-				continue
-			}
-			row.Path, row.Main = item.Worktree.Path, item.Worktree.Main
-		}
-		key := row.Path
-		if row.BranchOnly {
-			key = "branch\x00" + row.Branch
-		}
-		if seen[key] {
-			continue
-		}
-		seen[key] = true
-		rows = append(rows, row)
-	}
-	return rows
 }
 
 func statusFromWorktrunk(item wtapi.Item) projectStatus {
@@ -213,67 +167,6 @@ func statusFromWorktrunk(item wtapi.Item) projectStatus {
 		status.State = *item.Display.State
 	}
 	return status
-}
-
-func sortWorktrees(rows []worktree) {
-	sort.SliceStable(rows, func(i, j int) bool {
-		a, b := rows[i], rows[j]
-		if a.CommonDir != b.CommonDir {
-			return a.CommonDir < b.CommonDir
-		}
-		if a.BranchOnly != b.BranchOnly {
-			return !a.BranchOnly
-		}
-		if a.Main != b.Main {
-			return a.Main
-		}
-		if a.Branch != b.Branch {
-			return a.Branch < b.Branch
-		}
-		return a.Path < b.Path
-	})
-}
-
-// parseWorktreesZ reads Git's NUL-delimited porcelain. Unlike line mode, -z
-// emits paths verbatim, including spaces, quotes, tabs, and newlines.
-func parseWorktreesZ(out []byte) []worktree {
-	var rows []worktree
-	var current *worktree
-	flush := func() {
-		if current != nil && current.Path != "" {
-			if current.Branch == "" {
-				current.Branch = "(detached)"
-			}
-			rows = append(rows, *current)
-		}
-		current = nil
-	}
-	for _, raw := range strings.Split(string(out), "\x00") {
-		line := raw
-		if line == "" {
-			flush()
-			continue
-		}
-		key, value, ok := strings.Cut(line, " ")
-		if !ok {
-			continue
-		}
-		switch key {
-		case "worktree":
-			flush()
-			current = &worktree{Path: value}
-		case "branch":
-			if current != nil {
-				current.Branch = strings.TrimPrefix(value, "refs/heads/")
-			}
-		case "detached":
-			if current != nil {
-				current.Branch = "(detached)"
-			}
-		}
-	}
-	flush()
-	return rows
 }
 
 func projectRow(c Ctx, wt worktree) Row {
@@ -304,17 +197,19 @@ func projectRow(c Ctx, wt worktree) Row {
 		Lines:      lines,
 		Kind:       ActionOpenDir,
 		Path:       path,
-		Actions:    dirActions(path),
+		CommonDir:  wt.CommonDir,
+		Actions:    projectDirActions(path, wt.CommonDir),
 	}
 	if wt.BranchOnly {
 		row.ID = "branch:" + wt.CommonDir + ":" + wt.Branch
 		row.Kind = ActionNone
 		row.Actions = []ContextAction{{
-			ID:       "materialize",
-			Label:    "create worktree and open split",
-			Kind:     ContextMaterializeBranch,
-			RepoRoot: wt.RepoRoot,
-			Branch:   wt.Branch,
+			ID:        "materialize",
+			Label:     "create worktree and open split",
+			Kind:      ContextMaterializeBranch,
+			RepoRoot:  wt.RepoRoot,
+			Branch:    wt.Branch,
+			CommonDir: wt.CommonDir,
 		}}
 		return row
 	}
@@ -393,7 +288,7 @@ func panesForWorktree(world tmuxio.World, root string) (tmuxio.PaneRow, int) {
 	var best tmuxio.PaneRow
 	bestLen, count := -1, 0
 	for _, pane := range world.Panes() {
-		if pane.PaneID == world.Snapshot.PaneID || !pathContains(root, pane.CurrentPath) {
+		if pane.Sidebar || !pathContains(root, pane.CurrentPath) {
 			continue
 		}
 		count++

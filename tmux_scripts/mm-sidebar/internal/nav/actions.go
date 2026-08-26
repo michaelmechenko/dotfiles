@@ -1,11 +1,13 @@
 package nav
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
+	"mm-sidebar/internal/projectcatalog"
 	"mm-sidebar/internal/tmuxio"
 	wtapi "mm-sidebar/internal/worktrunk"
 )
@@ -28,6 +30,7 @@ type ContextAction struct {
 	Text        string
 	RepoRoot    string
 	Branch      string
+	CommonDir   string
 }
 
 type ContextActionKind uint8
@@ -51,6 +54,9 @@ const (
 	ContextCopyText
 	ContextPreviewPane
 	ContextMaterializeBranch
+	ContextPinRepository
+	ContextUnpinRepository
+	ContextForgetRepository
 )
 
 func paneActions(p tmuxio.PaneRow) []ContextAction {
@@ -86,9 +92,15 @@ func fileActions(path string) []ContextAction {
 }
 
 func dirActions(path string) []ContextAction {
+	return projectDirActions(path, "")
+}
+
+// projectDirActions attaches a canonical Git identity only for project rows;
+// all other directory rows keep the ordinary generic actions unchanged.
+func projectDirActions(path, commonDir string) []ContextAction {
 	return []ContextAction{
-		{ID: "open", Label: "open split here", Kind: ContextOpenDir, Path: path},
-		{ID: "new-window", Label: "new window here", Kind: ContextNewWindow, Path: path},
+		{ID: "open", Label: "open split here", Kind: ContextOpenDir, Path: path, CommonDir: commonDir},
+		{ID: "new-window", Label: "new window here", Kind: ContextNewWindow, Path: path, CommonDir: commonDir},
 		{ID: "copy-path", Label: "copy path", Kind: ContextCopyPath, Path: path},
 		{ID: "reveal", Label: "reveal in Finder", Kind: ContextRevealPath, Path: path},
 	}
@@ -98,17 +110,50 @@ func dirActions(path string) []ContextAction {
 // is injectable for tests; the zero value uses the bounded wt adapter.
 type ContextExecutor struct {
 	Worktrunk wtapi.Client
+	Catalog   *projectcatalog.Catalog
+	// ListPanes exists so action-time liveness can be tested without a tmux
+	// server. Production uses the one explicit global query below.
+	ListPanes func() ([]tmuxio.PaneRow, error)
+}
+
+// ActionResult is source-neutral completion data. Model code only understands
+// its refresh request, so new source actions need no source-name branch.
+type ActionResult struct {
+	Refresh bool
+}
+
+func (e ContextExecutor) catalog() *projectcatalog.Catalog {
+	if e.Catalog != nil {
+		return e.Catalog
+	}
+	return projectcatalog.New(projectcatalog.Config{})
+}
+
+func (e ContextExecutor) listPanes(client *tmuxio.Client) ([]tmuxio.PaneRow, error) {
+	if e.ListPanes != nil {
+		return e.ListPanes()
+	}
+	return client.ListPanes()
+}
+
+func (e ContextExecutor) projectMatches(path, commonDir string) bool {
+	if commonDir == "" {
+		return true
+	}
+	identity, err := e.catalog().Resolve(path)
+	return err == nil && identity.CommonDir == commonDir
 }
 
 // ExecuteContextAction uses the default executor for production callers.
-func ExecuteContextAction(client *tmuxio.Client, action ContextAction, content tmuxio.PaneRef) error {
+func ExecuteContextAction(client *tmuxio.Client, action ContextAction, content tmuxio.PaneRef) (ActionResult, error) {
 	return (ContextExecutor{}).Execute(client, action, content)
 }
 
 // Execute dispatches one row-owned action. Targeted tmux operations call
 // tmuxio's guarded methods; model.go never recognizes the source that produced
 // the descriptor.
-func (e ContextExecutor) Execute(client *tmuxio.Client, action ContextAction, content tmuxio.PaneRef) error {
+func (e ContextExecutor) Execute(client *tmuxio.Client, action ContextAction, content tmuxio.PaneRef) (ActionResult, error) {
+	result := ActionResult{}
 	switch action.Kind {
 	case ContextFocusPane:
 		if action.Pane.SessionID != "" {
@@ -131,8 +176,14 @@ func (e ContextExecutor) Execute(client *tmuxio.Client, action ContextAction, co
 	case ContextOpenFile:
 		client.OpenFileAt(content, openTargetPath(), action.Path)
 	case ContextOpenDir:
+		if !e.projectMatches(action.Path, action.CommonDir) {
+			return result, fmt.Errorf("repository changed; worktree not opened")
+		}
 		client.SplitAt(content, action.Path)
 	case ContextNewWindow:
+		if !e.projectMatches(action.Path, action.CommonDir) {
+			return result, fmt.Errorf("repository changed; worktree not opened")
+		}
 		client.NewWindowAt(action.Path)
 	case ContextCopyPath:
 		copyPath(action.Path)
@@ -151,16 +202,53 @@ func (e ContextExecutor) Execute(client *tmuxio.Client, action ContextAction, co
 	case ContextCopyText:
 		copyText(action.Text)
 	case ContextMaterializeBranch:
+		identity, err := e.catalog().Resolve(action.RepoRoot)
+		if err != nil || identity.CommonDir != action.CommonDir {
+			return result, fmt.Errorf("repository changed; worktree not created")
+		}
 		if !client.PaneMatches(content) {
-			return fmt.Errorf("content pane moved; worktree not created")
+			return result, fmt.Errorf("content pane moved; worktree not created")
 		}
-		result, err := e.Worktrunk.Switch(action.RepoRoot, action.Branch)
+		worktree, err := e.Worktrunk.Switch(action.RepoRoot, action.Branch)
 		if err != nil {
-			return err
+			return result, err
 		}
-		client.SplitAt(content, result.Path)
+		identity, err = e.catalog().Resolve(worktree.Path)
+		if err != nil || identity.CommonDir != action.CommonDir {
+			return result, fmt.Errorf("repository changed; worktree not opened")
+		}
+		client.SplitAt(content, worktree.Path)
+		result.Refresh = true
+	case ContextPinRepository:
+		if err := e.catalog().SetPinned(action.CommonDir, true); err != nil {
+			return result, err
+		}
+		result.Refresh = true
+	case ContextUnpinRepository:
+		if err := e.catalog().SetPinned(action.CommonDir, false); err != nil {
+			return result, err
+		}
+		result.Refresh = true
+	case ContextForgetRepository:
+		panes, err := e.listPanes(client)
+		if err != nil {
+			return result, err
+		}
+		for _, pane := range panes {
+			if pane.Sidebar || pane.CurrentPath == "" {
+				continue
+			}
+			identity, err := e.catalog().Resolve(pane.CurrentPath)
+			if err == nil && identity.CommonDir == action.CommonDir {
+				return result, errors.New("project is live; cannot forget")
+			}
+		}
+		if err := e.catalog().Forget(action.CommonDir); err != nil {
+			return result, err
+		}
+		result.Refresh = true
 	}
-	return nil
+	return result, nil
 }
 
 func copyPath(path string) { copyText(path) }

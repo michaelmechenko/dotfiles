@@ -628,7 +628,9 @@ menu and this glance encode state identically.
 items first), and has no persistent event store. The initial agent snapshot and
 the first event-triggered or explicit-`r` Git snapshot establish silent baselines;
 accepted World updates only collect candidate roots and never launch Git. Hidden
-activity blocks retain coalesced requests until visible. It records agent starts,
+activity blocks retain coalesced requests until visible, and probes are serialized
+across cwd aliases so snapshots for one canonical worktree cannot arrive out of
+order. It records agent starts,
 exits, permission requests,
 waiting, and completed responses; current permission/wait and Git-conflict facts
 remain distinct from resolved history.

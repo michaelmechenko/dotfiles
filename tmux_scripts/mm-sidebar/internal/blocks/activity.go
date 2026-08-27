@@ -62,6 +62,7 @@ type Activity struct {
 	hover        int
 	seq          uint64
 	gitSeq       uint64
+	gitInFlight  bool
 	pending      map[string]uint64 // cwd -> queued token, coalescing equivalent work
 	latest       map[string]uint64 // cwd -> most recently issued token
 	gitSeen      map[string]gitSnapshot
@@ -101,6 +102,7 @@ func (b *Activity) Update(msg tea.Msg) {
 	case AgentRowsMsg:
 		b.updateAgents(m.Rows)
 	case gitResultMsg:
+		b.gitInFlight = false
 		b.updateGit(m)
 	}
 }
@@ -271,21 +273,26 @@ func (b *Activity) React(msg tea.Msg) tea.Cmd {
 }
 
 func (b *Activity) reactPending() tea.Cmd {
-	if !b.visible || len(b.pending) == 0 {
+	if !b.visible || b.gitInFlight || len(b.pending) == 0 {
 		return nil
 	}
-	pending := b.pending
-	b.pending = map[string]uint64{}
-	cmds := make([]tea.Cmd, 0, len(pending))
-	for cwd, token := range pending {
-		b.latest[cwd] = token
-		cwd, token := cwd, token
-		cmds = append(cmds, func() tea.Msg {
-			snap, err := probeGit(b.git, cwd)
-			return gitResultMsg{Cwd: cwd, Token: token, Snap: snap, Err: err}
-		})
+	// Serialize probes across cwd aliases. Two pane cwds can resolve to the same
+	// worktree; allowing them to complete out of order can invent dirty/clean or
+	// branch transitions in the identity-keyed history.
+	var cwd string
+	var token uint64
+	for candidate, queued := range b.pending {
+		if token == 0 || queued < token || (queued == token && candidate < cwd) {
+			cwd, token = candidate, queued
+		}
 	}
-	return tea.Batch(cmds...)
+	delete(b.pending, cwd)
+	b.latest[cwd] = token
+	b.gitInFlight = true
+	return func() tea.Msg {
+		snap, err := probeGit(b.git, cwd)
+		return gitResultMsg{Cwd: cwd, Token: token, Snap: snap, Err: err}
+	}
 }
 
 func (b *Activity) updateGit(m gitResultMsg) {

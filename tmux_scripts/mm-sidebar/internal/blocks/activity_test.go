@@ -418,8 +418,33 @@ func TestActivityWorldDoesNotProbeAndHiddenRefreshDefers(t *testing.T) {
 		t.Fatalf("hidden refresh was not deferred: cmd=%T pending=%#v latest=%#v", cmd, b.pending, b.latest)
 	}
 	b.SetVisible(true)
-	if cmd := b.Fetch(); cmd == nil || len(b.latest) != 2 {
-		t.Fatalf("visible fetch did not release deferred probes: cmd=%T latest=%#v", cmd, b.latest)
+	if cmd := b.Fetch(); cmd == nil || len(b.latest) != 1 || len(b.pending) != 1 || !b.gitInFlight {
+		t.Fatalf("visible fetch did not release one serialized probe: cmd=%T pending=%#v latest=%#v inFlight=%t", cmd, b.pending, b.latest, b.gitInFlight)
+	}
+}
+
+func TestActivitySerializesCwdAliasesBeforeIdentityUpdates(t *testing.T) {
+	b := NewActivity(theme.Theme{}, nil)
+	b.SetVisible(true)
+	b.queueRoot("/repo/sub-a")
+	b.queueRoot("/repo/sub-b")
+	first := b.React(WorldMsg{})
+	if first == nil || !b.gitInFlight || len(b.pending) != 1 {
+		t.Fatalf("first serialized probe: cmd=%T pending=%#v inFlight=%t", first, b.pending, b.gitInFlight)
+	}
+	if second := b.React(WorldMsg{}); second != nil {
+		t.Fatal("second cwd probe started while the first was in flight")
+	}
+	var issuedCwd string
+	for cwd := range b.latest {
+		issuedCwd = cwd
+	}
+	b.Update(gitResultMsg{Cwd: issuedCwd, Token: b.latest[issuedCwd], Err: errors.New("baseline only")})
+	if b.gitInFlight {
+		t.Fatal("completed probe retained in-flight state")
+	}
+	if next := b.React(gitResultMsg{}); next == nil || !b.gitInFlight || len(b.pending) != 0 {
+		t.Fatalf("queued alias did not start after completion: cmd=%T pending=%#v inFlight=%t", next, b.pending, b.gitInFlight)
 	}
 }
 

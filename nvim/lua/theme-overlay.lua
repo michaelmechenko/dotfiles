@@ -6,6 +6,11 @@ function M.apply()
   local p = require("palette")
   local function c(role) return p[role] end
   local function set(name, value) vim.api.nvim_set_hl(0, name, value) end
+  local function set_bg(name, bg)
+    local value = vim.api.nvim_get_hl(0, { name = name, link = false })
+    value.bg = bg
+    set(name, value)
+  end
 
   set("@markup.heading.markdown", { fg = c("accent-tertiary"), bg = "NONE" })
   set("@markup.heading.1.markdown", { fg = c("accent-tertiary"), bg = "NONE" })
@@ -26,6 +31,16 @@ function M.apply()
   set("DiffDelete", { bg = c("surface-tint-rose") })
   set("CursorLine", { bg = c("surface-highlight") })
   set("FoldColumn", { fg = c("accent-info") })
+
+  if vim.g.colors_name == "oh-lucy" or vim.g.colors_name == "oh-lucy-evening" then
+    for _, name in ipairs({ "LineNr", "LineNrAbove", "LineNrBelow", "SignColumn", "FoldColumn" }) do
+      set_bg(name, nil)
+    end
+    for _, name in ipairs({ "CursorLineNr", "CursorLineSign", "CursorLineFold" }) do
+      set_bg(name, c("surface-highlight"))
+    end
+  end
+
   set("FloatBorder", { fg = c("text-muted") })
   set("BlinkCmpGhostText", { fg = c("copy-mode-indicator") })
   set("LspInlayHint", { fg = c("copy-mode-indicator"), italic = true })

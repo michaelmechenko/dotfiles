@@ -9,7 +9,7 @@
   },
   "roles": {
     "canvas": "#1B1D26",
-    "surface-active": "#272932",
+    "surface-active": "#21232C",
     "surface-chrome": "#14161D",
     "surface-highlight": "#272932",
     "surface-extend": "@accent-primary",
@@ -67,7 +67,12 @@
     "cursor-text": "@canvas"
   },
   "native": {
-    "nvim": "oh-lucy",
+    "nvim": {
+      "name": "oh-lucy",
+      "globals": {
+        "oh_lucy_transparent_background": true
+      }
+    },
     "zed": null
   },
   "opacity": {

@@ -2,6 +2,6 @@
 return {
   name = "oh-lucy",
   globals = {
-
+    ["oh_lucy_transparent_background"] = true,
   },
 }

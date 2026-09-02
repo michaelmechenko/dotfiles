@@ -3,7 +3,7 @@
 	"name": "oh-lucy",
 	"vars": {
 		"canvas": "#1B1D26",
-		"surfaceActive": "#272932",
+		"surfaceActive": "#21232C",
 		"surfaceChrome": "#14161D",
 		"surfaceHighlight": "#272932",
 		"surfaceTintRose": "#28232e",

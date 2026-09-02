@@ -3,7 +3,7 @@
 	"name": "oh-lucy-evening",
 	"vars": {
 		"canvas": "#1E1D23",
-		"surfaceActive": "#29292E",
+		"surfaceActive": "#242329",
 		"surfaceChrome": "#1A191E",
 		"surfaceHighlight": "#29292E",
 		"surfaceTintRose": "#2c232b",

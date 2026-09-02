@@ -19,7 +19,7 @@ return {
   ["selection-bg"] = "#CFD0D7",
   ["selection-fg"] = "#1A1B1F",
   ["split-divider"] = "#2E2930",
-  ["surface-active"] = "#29292E",
+  ["surface-active"] = "#242329",
   ["surface-chrome"] = "#1A191E",
   ["surface-extend"] = "#FF7DA3",
   ["surface-fold"] = "#8BB8D0",

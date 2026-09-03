@@ -49,7 +49,7 @@ func TestLatestTranscriptTextSkipsMalformedPartialAndToolOnlyRecords(t *testing.
 	}
 }
 
-func TestCollectUsesExplicitPromptAndResponseFallbacks(t *testing.T) {
+func TestCollectPreservesMissingPromptAndResponse(t *testing.T) {
 	dir := t.TempDir()
 	config := dir + "/config"
 	transcript := transcriptPath(config, agents.AgentPi, "empty.jsonl")
@@ -58,7 +58,7 @@ func TestCollectUsesExplicitPromptAndResponseFallbacks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Prompt != "(no recent user prompt)" || got.Response != "(no recent assistant text)" {
+	if got.Prompt != "" || got.Response != "" {
 		t.Fatalf("fallback data = %#v", got)
 	}
 }
@@ -75,7 +75,7 @@ func TestCollectRetainsRepositoryContextWhenTranscriptIsUnavailable(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Prompt != "(no recent user prompt)" || got.Response != "(no recent assistant text)" ||
+	if got.Prompt != "" || got.Response != "" ||
 		got.Cwd != "/worktrees/sidebar/subdir" || got.Worktree != "/worktrees/sidebar" || got.Git != "main ?1" {
 		t.Fatalf("unavailable transcript context = %#v", got)
 	}

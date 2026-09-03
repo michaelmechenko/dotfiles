@@ -27,7 +27,7 @@ Single source of truth for colors used across tmux, Ghostty, and zsh (via ohmypo
 | `surface-heading-h2` | `#33333a` | nvim render-md H2 heading bg + underline fg. Faint lavender tint at ~20% on canvas. Uses `accent-secondary` hue. |
 | `surface-heading-h3` | `#40362a` | nvim render-md H3 heading bg + underline fg. Faint amber tint at ~20% on canvas. Uses `accent-amber` hue. |
 | `copy-mode-indicator` | `#606079` | tmux `copy-mode-position-style` block bg (top-right time/scroll box shown in copy mode); indicator text is `text-default` `#a9b1d6`. Also Ghostty ANSI 14 override (`ghostty/config`) — deliberately dims Claude Code's hardcoded session-rename label, which has no theme token (see Claude Code integration notes). |
-| `divider-subtle` | `#383848` | nvim `SnacksIndent` + `NeoTreeIndentMarker` fg (indent guides); Claude statusline ` * ` separators; tmux second status row separator; mm-sidebar docked-block dividers + unfilled gauge track. **Exposed as the tmux user option `@color-divider`** so mm-sidebar can read it at runtime. |
+| `divider-subtle` | `#383848` | nvim `SnacksIndent` + `NeoTreeIndentMarker` fg (indent guides); Claude statusline ` * ` separators; tmux second status row separator; mm-sidebar integrated attention heading + explicit system-view gauge track. **Exposed as the tmux user option `@color-divider`** so mm-sidebar can read it at runtime. |
 
 ### Text
 
@@ -168,12 +168,12 @@ styles:
 | `Text` | `@color-accent-highlight` | accent-highlight | ordinary row text, gauge percent values |
 | `Urgent` | `@color-accent-primary` | accent-primary | `!P` awaiting-permission, `!W` waiting, gauge fill when hot (cpu/mem/disk ≥ 85%, battery ≤ 20%) |
 | `Busy` | `@color-accent-tertiary` | accent-tertiary | `~~` thinking |
-| `Divider` | `@color-divider` | divider-subtle | the `─` rule above each docked block, unfilled gauge track |
+| `Divider` | `@color-divider` | divider-subtle | integrated `─ attention ─` heading, explicit system-view gauge track |
 | (chip fg) | `@color-canvas` | canvas | active-tab chip **fg** |
 
 `Divider` covers the sidebar's two background-weight surfaces. Neither could
-reuse `text-muted`: a full-width rule and a 20-cell gauge track at text weight
-compete with the content in front of them instead of receding behind it.
+reuse `text-muted`: the compact attention rule and a 20-cell gauge track at text
+weight compete with the content in front of them instead of receding behind it.
 
 Two rules to preserve when touching it:
 

@@ -58,6 +58,7 @@ type Activity struct {
 	seeded       bool
 	world        tmuxio.World
 	extra        int
+	viewport     int // explicit-view height; zero means unconstrained
 	focus        int
 	hover        int
 	seq          uint64
@@ -371,9 +372,22 @@ func (b *Activity) shown() (int, int) {
 	if n > len(b.entries) {
 		n = len(b.entries)
 	}
+	if b.viewport > 0 {
+		available := b.viewport - 1 // label
+		if len(b.entries) > available && available > 0 {
+			available-- // +N more
+		}
+		if available < 0 {
+			available = 0
+		}
+		if n > available {
+			n = available
+		}
+	}
 	return n, len(b.entries) - n
 }
-func (b *Activity) SetExtra(n int) { b.extra = n }
+func (b *Activity) SetViewportHeight(height int) { b.viewport = height }
+func (b *Activity) SetExtra(n int)               { b.extra = n }
 func (b *Activity) Expand(n int) int {
 	_, more := b.shown()
 	if n <= 0 || more == 0 {

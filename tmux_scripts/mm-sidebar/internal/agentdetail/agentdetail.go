@@ -146,27 +146,16 @@ func (c *Collector) collect(row agents.Row, fresh bool) (Data, error) {
 		Plan:     clean(plan),
 		Cwd:      clean(row.Cwd),
 	}
-	if data.Prompt == "" {
-		data.Prompt = "(no recent user prompt)"
+	if data.Cwd == "-" {
+		data.Cwd = ""
 	}
-	if data.Response == "" {
-		data.Response = "(no recent assistant text)"
-	}
-	if data.Cwd == "" || data.Cwd == "-" {
-		data.Cwd = "(cwd unavailable)"
-	} else {
+	if data.Cwd != "" {
 		if out, gitErr := c.gitRootWithTimeout(row.Cwd); gitErr == nil {
 			data.Worktree = clean(strings.TrimSpace(string(out)))
 		}
 		if out, gitErr := c.gitStatusWithTimeout(row.Cwd); gitErr == nil {
 			data.Git = clean(parseGitStatus(out))
 		}
-	}
-	if data.Worktree == "" {
-		data.Worktree = "(worktree unavailable)"
-	}
-	if data.Git == "" {
-		data.Git = "(Git unavailable)"
 	}
 	c.mu.Lock()
 	c.cache[key] = cacheEntry{at: now, data: data}

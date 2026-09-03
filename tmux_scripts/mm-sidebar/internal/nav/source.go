@@ -1,6 +1,5 @@
-// Package nav is the sidebar's navigator: the flexible, tab-switchable top
-// region that owns the cursor and the Enter action. The docked blocks below it
-// are read-only glances and live in package blocks.
+// Package nav is the sidebar's tab-switchable main navigator. Blocker attention
+// and the explicit agents/activity/system views live in package blocks.
 //
 // A tab is a Source in the Sources registry. Everything tab-shaped derives from
 // that one slice -- the tab strip, the 1..N number keys, Tab/S-Tab cycling, and

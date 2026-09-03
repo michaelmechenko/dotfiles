@@ -36,9 +36,24 @@ const (
 	navTickInterval = 2 * time.Second
 )
 
+type surface uint8
+
+const (
+	surfaceMain surface = iota
+	surfaceViews
+	surfaceAgents
+	surfaceActivity
+	surfaceSystem
+	surfaceInspector
+)
+
 type model struct {
 	client *tmuxio.Client
 	theme  theme.Theme
+
+	surface     surface
+	viewSel     int
+	returnFocus focusTarget
 
 	// Lifetime is owned by runSidebar. Every watcher and background resolver
 	// selects on ctx.Done so a Bubble Tea quit or HUP cannot leave work behind.
@@ -68,8 +83,9 @@ type model struct {
 	// rows always preserves the source's display order. Filtering is a view over
 	// this slice rather than a replacement, so source order and refresh payloads
 	// remain authoritative.
-	rows []nav.Row
-	sel  int // index into navigatorRows(), never the unfiltered source slice
+	rows          []nav.Row
+	sourceLoading bool
+	sel           int // index into navigatorRows(), never the unfiltered source slice
 	// selectionID keeps the navigator cursor attached to its source-local Row.ID
 	// when a refresh reorders rows or a query narrows and widens the view.
 	selectionID string
@@ -117,10 +133,6 @@ type model struct {
 	focusRow          int            // selected row in the active block
 	blockSelections   map[int]int    // retained selection for each Navigable block
 	blockSelectionIDs map[int]string // stable IDs for blocks whose rows reorder
-	// selectionRefreshPending is set only by optional SelectionChangeAware
-	// blocks. It lets model.go run one generic on-demand Refresh without turning
-	// recurring block messages into detail polling.
-	selectionRefreshPending bool
 
 	// fetchKey identifies the inputs `rows` was last fetched for: source id,
 	// content pane, filetree root and the tmux fingerprint. refreshState skips
@@ -190,17 +202,23 @@ func newModelWithContext(parent context.Context, client *tmuxio.Client) *model {
 	ctx, cancel := context.WithCancel(parent)
 	th := theme.Load(client)
 	feed := newAgentFeed(ctx, client)
-	return &model{
-		client:       client,
-		theme:        th,
-		ctx:          ctx,
-		cancel:       cancel,
-		selfPane:     client.PaneID(),
-		docked:       blocks.Build(blocks.Deps{Theme: th, Client: client, Agents: feed.request}),
-		blockVisible: make(map[string]bool),
-		feed:         feed,
-		fileWatch:    newFiletreeWatch(ctx),
+	m := &model{
+		client:        client,
+		theme:         th,
+		ctx:           ctx,
+		cancel:        cancel,
+		selfPane:      client.PaneID(),
+		docked:        blocks.Build(blocks.Deps{Theme: th, Client: client, Agents: feed.request}),
+		blockVisible:  make(map[string]bool),
+		feed:          feed,
+		fileWatch:     newFiletreeWatch(ctx),
+		sourceLoading: true,
+		focusBlock:    -1,
 	}
+	if agentsView := m.agentsBlock(); agentsView != nil {
+		agentsView.SetAttentionOnly(true)
+	}
+	return m
 }
 
 // Close stops all process-lifetime work. It is idempotent because HUP, q, and
@@ -293,7 +311,7 @@ func (m *model) Init() tea.Cmd {
 	// is unknown. syncBlockVisibility samples newly visible blocks after the
 	// first state/size update instead.
 	for _, b := range m.docked {
-		if b.Interval() > 0 {
+		if b.Interval() > 0 && b.ID() != "system_stats" {
 			cmds = append(cmds, tickFor(b))
 		}
 	}
@@ -364,6 +382,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tickMsg:
 		for _, b := range m.docked {
 			if b.ID() == msg.blockID {
+				if b.ID() == "system_stats" && m.surface != surfaceSystem {
+					return m, nil
+				}
 				cmds := []tea.Cmd{}
 				if b.Interval() > 0 {
 					cmds = append(cmds, tickFor(b))
@@ -380,13 +401,16 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// (Go takes the first matching case). It is listed separately only because of
 	// the feed re-arm, which is model-owned resolver plumbing rather than
 	// something a block knows about.
+	case blocks.OpenViewMsg:
+		return m, m.openSurfaceByID(msg.ID)
+
 	case blocks.AgentRowsMsg:
 		// A resolver sweep may finish after a newer World was accepted. Re-arm
 		// the feed either way, but never publish or react to stale pane identities.
 		cmds := []tea.Cmd{m.feed.wait(), m.syncBlockVisibility()}
 		if msg.WorldFingerprint == "" || msg.WorldFingerprint == m.worldFingerprint {
 			m.broadcast(msg)
-			cmds = append(cmds, m.react(msg), m.refreshFocusedBlock())
+			cmds = append(cmds, m.react(msg))
 		}
 		return m, tea.Batch(cmds...)
 
@@ -395,7 +419,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// and keeps model.go out of the "add a block" recipe entirely.
 	case blocks.BlockMsg:
 		m.broadcast(msg)
-		return m, tea.Batch(m.react(msg), m.syncBlockVisibility(), m.refreshFocusedBlock())
+		return m, tea.Batch(m.react(msg), m.syncBlockVisibility())
 
 	case sidebarWidthMsg:
 		m.sidebarWidth = int(msg)
@@ -559,6 +583,9 @@ func (m *model) applyState(msg stateMsg) {
 	}
 	if msg.stateErr != nil {
 		m.lastStateErr = msg.stateErr.Error()
+		m.sourceLoading = false
+		m.rows = nil
+		m.fetchKey = ""
 		return
 	}
 	m.lastStateErr = ""
@@ -576,6 +603,9 @@ func (m *model) applyState(msg stateMsg) {
 	m.sourceRootPane = msg.rootPane
 	m.srcIdx = msg.srcIdx
 	m.syncSourceWatch()
+	if msg.sourceFetched {
+		m.sourceLoading = false
+	}
 	if msg.fetchKey != "" {
 		if msg.fetchErr == nil {
 			m.lastFetchErr = ""
@@ -650,6 +680,9 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.actionPalette {
 		return m.handleActionKey(msg)
 	}
+	if m.surface != surfaceMain {
+		return m.handleSurfaceKey(msg)
+	}
 	if m.queryActive {
 		return m.handleQueryKey(msg)
 	}
@@ -671,31 +704,34 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// explicit so a long navigator list cannot accidentally enter an agent row.
 	case "j", "down":
 		m.moveWithinRegion(1)
-		return m, m.refreshFocusedBlock()
+		return m, nil
 	case "k", "up":
 		m.moveWithinRegion(-1)
-		return m, m.refreshFocusedBlock()
+		return m, nil
 	// Ghostty transports Ctrl-Tab/Ctrl-Shift-Tab as unmodified F13/F14 so tmux
 	// forwards them into this pane without root bindings. Keep those aliases
 	// local to the sidebar: F13 remains Ctrl-Tab for zsh and pi elsewhere.
 	case "J", "f13":
 		m.cycleFocusRegion(1)
-		return m, m.refreshFocusedBlock()
+		return m, nil
 	case "K", "f14":
 		m.cycleFocusRegion(-1)
-		return m, m.refreshFocusedBlock()
+		return m, nil
 	case "g", "home":
 		m.focusFirst()
-		return m, m.refreshFocusedBlock()
+		return m, nil
 	case "G", "end":
 		m.focusLast()
-		return m, m.refreshFocusedBlock()
+		return m, nil
 	case "r":
 		refresh := blocks.RefreshMsg{}
 		m.broadcast(refresh)
-		return m, tea.Batch(m.refreshState(true), m.fetchAllBlocks(), m.react(refresh), m.forceRefreshFocusedBlock())
+		return m, tea.Batch(m.refreshState(true), m.fetchAllBlocks(), m.react(refresh))
 	case "w":
 		return m, m.cycleSidebarWidth()
+	case "v":
+		m.surface, m.viewSel = surfaceViews, 0
+		return m, m.syncBlockVisibility()
 	case "?":
 		m.showHelp = !m.showHelp
 		return m, m.syncBlockVisibility()
@@ -721,6 +757,131 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, nil
+}
+
+var progressiveViews = []struct {
+	id      string
+	label   string
+	surface surface
+}{
+	{"agents", "agents", surfaceAgents},
+	{"activity", "activity history", surfaceActivity},
+	{"system", "system health", surfaceSystem},
+}
+
+func (m *model) handleSurfaceKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	key := msg.String()
+	if m.surface == surfaceViews {
+		switch key {
+		case "esc", "q", "v":
+			return m, m.openSurface(surfaceMain)
+		case "j", "down":
+			m.viewSel = (m.viewSel + 1) % len(progressiveViews)
+		case "k", "up":
+			m.viewSel = (m.viewSel - 1 + len(progressiveViews)) % len(progressiveViews)
+		case "enter":
+			return m, m.openSurface(progressiveViews[m.viewSel].surface)
+		}
+		return m, nil
+	}
+	if m.surface == surfaceInspector {
+		switch key {
+		case "esc", "q":
+			return m, m.openSurface(surfaceAgents)
+		case "r":
+			if block := m.agentsBlock(); block != nil {
+				return m, block.RefreshInspector(true)
+			}
+		}
+		return m, nil
+	}
+	switch key {
+	case "esc", "q":
+		return m, m.openSurface(surfaceMain)
+	case "v":
+		m.surface, m.viewSel = surfaceViews, 0
+		return m, m.syncBlockVisibility()
+	case "j", "down":
+		m.moveWithinRegion(1)
+	case "k", "up":
+		m.moveWithinRegion(-1)
+	case "g", "home":
+		m.focusFirst()
+	case "G", "end":
+		m.focusLast()
+	case "enter":
+		return m, m.act()
+	case "a", ":":
+		m.openActionPalette()
+	case "r":
+		if block, _ := m.surfaceBlock(); block != nil {
+			refresh := blocks.RefreshMsg{}
+			block.Update(refresh)
+			return m, tea.Batch(block.Fetch(), m.reactOne(block, refresh))
+		}
+	}
+	return m, nil
+}
+
+func (m *model) reactOne(block blocks.Block, msg tea.Msg) tea.Cmd {
+	if reactive, ok := block.(blocks.Reactive); ok {
+		return reactive.React(msg)
+	}
+	return nil
+}
+
+func (m *model) openSurfaceByID(id string) tea.Cmd {
+	for _, view := range progressiveViews {
+		if view.id == id {
+			return m.openSurface(view.surface)
+		}
+	}
+	return nil
+}
+
+func (m *model) openSurface(next surface) tea.Cmd {
+	if next == surfaceMain {
+		m.surface = surfaceMain
+		if block := m.agentsBlock(); block != nil {
+			block.SetAttentionOnly(true)
+		}
+		m.focusRegion, m.focusBlock, m.focusRow = focusNavigator, -1, -1
+		return m.syncBlockVisibility()
+	}
+	m.surface = next
+	if next == surfaceAgents {
+		if block := m.agentsBlock(); block != nil {
+			block.SetAttentionOnly(false)
+		}
+	}
+	if block, index := m.surfaceBlock(); block != nil {
+		m.focusRegion, m.focusBlock, m.focusRow = focusBlock, index, 0
+		if navigable, ok := block.(blocks.Navigable); ok && navigable.NavigationCount() > 0 {
+			m.setBlockFocus(index, 0)
+		}
+		cmds := []tea.Cmd{m.syncBlockVisibility()}
+		if next == surfaceActivity {
+			cmds = append(cmds, block.Fetch())
+		}
+		if next == surfaceSystem {
+			cmds = append(cmds, block.Fetch(), tickFor(block))
+		}
+		return tea.Batch(cmds...)
+	}
+	return m.syncBlockVisibility()
+}
+
+func (m *model) surfaceBlock() (blocks.Block, int) {
+	id := ""
+	switch m.surface {
+	case surfaceAgents:
+		id = "agents_glance"
+	case surfaceActivity:
+		id = "activity"
+	case surfaceSystem:
+		id = "system_stats"
+	}
+	return m.blockByID(id)
 }
 
 // handleActionKey owns the in-TUI confirmation boundary. A destructive action
@@ -803,7 +964,11 @@ func (m *model) runContextAction(action nav.ContextAction) tea.Cmd {
 	}
 	if action.Local != nav.LocalEffectNone {
 		return func() tea.Msg {
-			return localContextActionMsg{action: action, err: nav.ValidateProjectAction(action)}
+			var err error
+			if action.Local != nav.LocalEffectInspectAgent {
+				err = nav.ValidateProjectAction(action)
+			}
+			return localContextActionMsg{action: action, err: err}
 		}
 	}
 	if action.Kind == nav.ContextPreviewPane {
@@ -847,6 +1012,7 @@ func (m *model) applyContextEffect(action nav.ContextAction) (tea.Cmd, bool) {
 			m.sel, m.selectionID = 0, ""
 			m.queryActive, m.query = false, ""
 			m.rows = nil
+			m.sourceLoading = true
 			m.lastFetchErr = ""
 			m.syncSourceWatch()
 			return m.refreshState(false), true
@@ -854,6 +1020,18 @@ func (m *model) applyContextEffect(action nav.ContextAction) (tea.Cmd, bool) {
 		return nil, true
 	case nav.LocalEffectEditFile:
 		return m.editFile(action.Path), true
+	case nav.LocalEffectInspectAgent:
+		block := m.agentsBlock()
+		if block == nil {
+			return nil, true
+		}
+		cmd, ok := block.BeginInspection(action.AgentSessionID, false)
+		if !ok {
+			m.client.ShowMessage("sidebar: stale agent")
+			return nil, true
+		}
+		m.surface = surfaceInspector
+		return cmd, true
 	default:
 		return nil, false
 	}
@@ -862,7 +1040,7 @@ func (m *model) applyContextEffect(action nav.ContextAction) (tea.Cmd, bool) {
 // currentAgentFocus rejects historical activity focus actions when the pane now
 // hosts a different agent session. Script actions also validate at execution.
 func (m *model) currentAgentFocus(action nav.ContextAction) bool {
-	if action.Kind != nav.ContextFocusPane || action.AgentSessionID == "" {
+	if action.Local != nav.LocalEffectNone || action.Kind != nav.ContextFocusPane || action.AgentSessionID == "" {
 		return true
 	}
 	for _, b := range m.docked {
@@ -928,7 +1106,6 @@ func (m *model) beginQuery() {
 	// waiting for the next layout pass; otherwise an agent inspector can keep
 	// stale detail allocation while the filter owns input.
 	if m.focusRegion == focusBlock {
-		m.clearBlockSelection(m.focusBlock)
 		if navigable, ok := m.dockedBlockNav(m.focusBlock); ok {
 			navigable.SetNavigationIndex(-1)
 		}
@@ -1013,7 +1190,7 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 						m.setBlockFocus(blockIndex(m.docked, hit.block), row)
 					}
 				}
-				return m, tea.Batch(m.refreshFocusedBlock(), c.OnClick(hit.local))
+				return m, c.OnClick(hit.local)
 			}
 		}
 	}
@@ -1045,6 +1222,9 @@ func (m *model) hoverAt(y int) {
 }
 
 func (m *model) navFirstLine() int {
+	if m.surface != surfaceMain {
+		return 0
+	}
 	line := headerLines
 	if m.showHelp {
 		line += m.helpLineCount()
@@ -1157,17 +1337,36 @@ func (m *model) visibleNavigableBlocks() []int {
 }
 
 func (m *model) currentArrangement() arrangement {
-	usable := m.height - headerLines
-	if m.showHelp {
+	usable := m.height
+	if m.surface == surfaceMain {
+		usable -= headerLines
+	}
+	if m.surface == surfaceMain && m.showHelp {
 		usable -= m.helpLineCount()
 	}
-	if m.queryActive {
+	if m.surface == surfaceMain && m.queryActive {
 		usable -= queryLineCount
+
 	}
 	if usable < 1 {
 		usable = 1
 	}
 	return m.layout(usable)
+}
+
+func (m *model) blockByID(id string) (blocks.Block, int) {
+	for i, block := range m.docked {
+		if block.ID() == id {
+			return block, i
+		}
+	}
+	return nil, -1
+}
+
+func (m *model) agentsBlock() *blocks.AgentsGlance {
+	block, _ := m.blockByID("agents_glance")
+	agentsView, _ := block.(*blocks.AgentsGlance)
+	return agentsView
 }
 
 func blockIndex(all []blocks.Block, target blocks.Block) int {
@@ -1191,14 +1390,10 @@ func (m *model) setBlockFocus(index, row int) {
 	if !ok || row < 0 || row >= n.NavigationCount() {
 		return
 	}
-	if m.focusRegion == focusBlock && m.focusBlock != index {
-		m.clearBlockSelection(m.focusBlock)
-	}
 	m.rememberBlockSelection(index, row)
 	m.focusRegion = focusBlock
 	m.focusBlock = index
 	m.focusRow = row
-	m.noteBlockSelection(index, row)
 }
 
 func (m *model) rememberBlockSelection(index, row int) {
@@ -1295,9 +1490,6 @@ func (m *model) setFocusTarget(target focusTarget) bool {
 		if len(m.navigatorRows()) == 0 {
 			return false
 		}
-		if m.focusRegion == focusBlock {
-			m.clearBlockSelection(m.focusBlock)
-		}
 		m.focusRegion = focusNavigator
 		m.clampSel()
 		return true
@@ -1306,80 +1498,12 @@ func (m *model) setFocusTarget(target focusTarget) bool {
 	if !ok || n.NavigationCount() == 0 {
 		return false
 	}
-	if m.focusRegion == focusBlock && m.focusBlock != target.block {
-		m.clearBlockSelection(m.focusBlock)
-	}
 	row := m.blockSelection(target.block, n.NavigationCount())
 	m.rememberBlockSelection(target.block, row)
 	m.focusRegion = focusBlock
 	m.focusBlock = target.block
 	m.focusRow = row
-	m.noteBlockSelection(target.block, row)
 	return true
-}
-
-// noteBlockSelection projects the generic navigation identity into optional
-// selection-scoped blocks. Returning refresh work through Refreshable keeps the
-// model independent of what the selected block happens to inspect.
-func (m *model) noteBlockSelection(index, row int) {
-	if index < 0 || index >= len(m.docked) {
-		return
-	}
-	aware, ok := m.docked[index].(blocks.SelectionChangeAware)
-	if !ok {
-		return
-	}
-	id := ""
-	if identifiable, ok := m.docked[index].(blocks.SelectionIdentifiable); ok {
-		id = identifiable.NavigationID(row)
-	}
-	if aware.SelectionChanged(id) {
-		m.selectionRefreshPending = true
-	}
-}
-
-func (m *model) clearBlockSelection(index int) {
-	if index < 0 || index >= len(m.docked) {
-		return
-	}
-	if m.focusRegion == focusBlock && m.focusBlock == index {
-		// A pending command belongs to this selection only. If the region loses
-		// focus before the input path can schedule it, do not carry it into a
-		// different Refreshable block later.
-		m.selectionRefreshPending = false
-	}
-	if aware, ok := m.docked[index].(blocks.SelectionChangeAware); ok {
-		aware.SelectionChanged("")
-	}
-}
-
-// refreshFocusedBlock consumes one selection-change request. It is called from
-// the input/message paths, never View, so an inspector cannot become polling.
-func (m *model) refreshFocusedBlock() tea.Cmd {
-	if !m.selectionRefreshPending {
-		return nil
-	}
-	m.selectionRefreshPending = false
-	if m.focusRegion != focusBlock || m.focusBlock < 0 || m.focusBlock >= len(m.docked) {
-		return nil
-	}
-	if refreshable, ok := m.docked[m.focusBlock].(blocks.Refreshable); ok {
-		return refreshable.Refresh()
-	}
-	return nil
-}
-
-func (m *model) forceRefreshFocusedBlock() tea.Cmd {
-	if m.focusRegion != focusBlock || m.focusBlock < 0 || m.focusBlock >= len(m.docked) {
-		return nil
-	}
-	if refreshable, ok := m.docked[m.focusBlock].(blocks.ForceRefreshable); ok {
-		return refreshable.RefreshFresh()
-	}
-	if refreshable, ok := m.docked[m.focusBlock].(blocks.Refreshable); ok {
-		return refreshable.Refresh()
-	}
-	return nil
 }
 
 // moveWithinRegion wraps inside the active focus region only. Moving from the
@@ -1562,10 +1686,8 @@ func (m *model) syncFocus(arr arrangement) {
 		if n, ok := b.(blocks.Navigable); ok {
 			if i == m.focusBlock && m.focusRegion == focusBlock && m.activeFocusRegion(regions) >= 0 {
 				n.SetNavigationIndex(m.focusRow)
-				m.noteBlockSelection(i, m.focusRow)
 			} else {
 				n.SetNavigationIndex(-1)
-				m.clearBlockSelection(i)
 			}
 		}
 	}
@@ -1589,6 +1711,7 @@ func (m *model) setSource(idx int) tea.Cmd {
 	m.selectionID = ""
 	m.queryActive, m.query = false, ""
 	m.rows = nil
+	m.sourceLoading = true
 	m.lastFetchErr = ""
 	m.syncSourceWatch()
 	// Persist the tab OFF the input path. This used to call SetWinOpt inline --
@@ -1692,17 +1815,7 @@ func (m *model) syncBlockVisibility() tea.Cmd {
 	if m.blockVisible == nil {
 		m.blockVisible = make(map[string]bool)
 	}
-	usable := m.height - headerLines
-	if m.showHelp {
-		usable -= m.helpLineCount()
-	}
-	if m.queryActive {
-		usable -= queryLineCount
-	}
-	if usable < 1 {
-		usable = 1
-	}
-	arr := m.layout(usable)
+	arr := m.currentArrangement()
 	visible := make(map[string]bool, len(arr.blocks))
 	for _, b := range arr.blocks {
 		visible[b.ID()] = true
@@ -1853,6 +1966,18 @@ func (m *model) View() string {
 	if m.actionPalette {
 		return m.actionPaletteView()
 	}
+	if m.surface == surfaceViews {
+		return m.viewsPaletteView()
+	}
+	if m.surface == surfaceInspector {
+		if block := m.agentsBlock(); block != nil {
+			m.lineRow, m.blockLines = m.lineRow[:0], m.blockLines[:0]
+			return block.InspectorView(m.width, m.height)
+		}
+	}
+	if m.surface == surfaceAgents || m.surface == surfaceActivity || m.surface == surfaceSystem {
+		return m.explicitBlockView()
+	}
 	lines := make([]string, 0, m.height)
 	lines = append(lines, m.headerLines()...)
 	if m.showHelp {
@@ -1887,8 +2012,6 @@ func (m *model) View() string {
 	// resolved without recomputing the arrangement (see blockLines' doc comment).
 	m.blockLines = m.blockLines[:0]
 	for _, b := range arr.blocks {
-		lines = append(lines, m.dividerLine())
-		m.blockLines = append(m.blockLines, blockHit{}) // the divider is inert
 		body := splitLines(b.View(m.width), b.Height())
 		for i := range body {
 			lines = append(lines, body[i])
@@ -1901,6 +2024,47 @@ func (m *model) View() string {
 		lines = append(lines, "")
 	}
 	return joinLines(lines[:m.height])
+}
+
+func (m *model) viewsPaletteView() string {
+	m.lineRow, m.blockLines = m.lineRow[:0], m.blockLines[:0]
+	lines := []string{clipLine(m.theme.Accent.Render("▸ views"), m.width)}
+	for i, view := range progressiveViews {
+		prefix := "  "
+		style := m.theme.Text
+		if i == m.viewSel {
+			prefix, style = "▶ ", m.theme.Accent
+		}
+		lines = append(lines, clipLine(style.Render(prefix+view.label), m.width))
+	}
+	lines = append(lines, clipLine(m.theme.Muted.Render("Enter open  Esc back"), m.width))
+	for len(lines) < m.height {
+		lines = append(lines, "")
+	}
+	return strings.Join(lines[:m.height], "\n")
+}
+
+func (m *model) explicitBlockView() string {
+	m.lineRow, m.blockLines = m.lineRow[:0], m.blockLines[:0]
+	arr := m.currentArrangement()
+	if len(arr.blocks) == 0 {
+		return strings.Repeat("\n", m.height-1)
+	}
+	block := arr.blocks[0]
+	body := splitLines(block.View(m.width), block.Height())
+	if len(body) > m.height {
+		body = body[:m.height]
+	}
+	lines := append([]string(nil), body...)
+	for i := range body {
+		m.blockLines = append(m.blockLines, blockHit{block: block, local: i})
+	}
+	for len(lines) < m.height {
+		lines = append(lines, "")
+		m.blockLines = append(m.blockLines, blockHit{})
+	}
+	m.syncFocus(arr)
+	return strings.Join(lines[:m.height], "\n")
 }
 
 func (m *model) headerLines() []string {
@@ -2106,6 +2270,7 @@ var globalKeyActions = []nav.KeyAction{
 	{Key: "g/G / Enter", Summary: "first/last/act"},
 	{Key: "/ / a/:", Summary: "filter / actions"},
 	{Key: "r / w", Summary: "refresh / width"},
+	{Key: "v", Summary: "explicit views"},
 	{Key: "d", Summary: "diagnostics"},
 	{Key: "? / q / Esc", Summary: "help / close"},
 }
@@ -2178,7 +2343,12 @@ func (m *model) navLines(avail int) []string {
 	if len(rows) == 0 {
 		m.vpStart = 0
 		label := "(empty)"
-		if m.query != "" && len(m.rows) > 0 {
+		switch {
+		case m.sourceLoading:
+			label = "loading " + nav.Sources[m.srcIdx].Title() + "…"
+		case m.lastStateErr != "" || m.lastFetchErr != "":
+			label = nav.Sources[m.srcIdx].Title() + " unavailable · r retry"
+		case m.query != "" && len(m.rows) > 0:
 			label = "(no matches)"
 		}
 		out = append(out, clipLine(m.theme.Muted.Render(label), m.width))

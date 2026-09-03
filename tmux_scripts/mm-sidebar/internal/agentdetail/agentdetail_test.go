@@ -97,7 +97,7 @@ func TestCollectParsesPiTailOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Prompt != "pi prompt" || got.Response != "pi final" || got.Plan != "" || got.Git != "(Git unavailable)" {
+	if got.Prompt != "pi prompt" || got.Response != "pi final" || got.Plan != "" || got.Git != "" {
 		t.Fatalf("data = %#v", got)
 	}
 }

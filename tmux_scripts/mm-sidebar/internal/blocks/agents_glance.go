@@ -1,6 +1,7 @@
 package blocks
 
 import (
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -16,10 +17,12 @@ import (
 	"mm-sidebar/internal/tmuxio"
 )
 
-// AgentsGlanceMax is the default cap on visible agent rows before the rest
-// collapse into a "+N more" line. The layout can raise it via Expand when the
-// pane has space going spare.
+// AgentsGlanceMax is the default cap in the explicit full agents view.
 const AgentsGlanceMax = 6
+
+// AgentsAttentionMax caps the main-surface blocker summary. Its overflow row
+// opens the full agents view; hidden agents are never directly actionable.
+const AgentsAttentionMax = 4
 
 // AgentRowsMsg carries a fresh agent sweep into the model. It is produced by the
 // model's long-lived resolver goroutine, not by AgentsGlance.Fetch: the resolver
@@ -62,18 +65,20 @@ type stateObservation struct {
 	since time.Time
 }
 
-// AgentsGlance is a condensed agent status block: always visible regardless of
-// the active navigator tab, capped, and sorted by urgency so the rows that most
-// need attention are the ones that survive truncation.
+// AgentsGlance owns the complete agent roster. In attention mode it projects
+// only permission/wait blockers onto the main surface; in full mode it powers
+// the explicit agents view. Both projections are urgency-sorted and capped.
 type AgentsGlance struct {
 	theme  theme.Theme
 	client *tmuxio.Client
 	// rows holds every agent from the last sweep, urgency-sorted. Truncation is a
 	// render-time decision (see limit), not something baked in on receipt, so the
 	// layout can grant more room without waiting for another sweep.
-	rows  []agents.Row
-	extra int // additional rows granted by the layout beyond AgentsGlanceMax
-	focus int // selected visible row; -1 when keyboard focus is elsewhere
+	rows          []agents.Row
+	extra         int // additional rows granted in the explicit full agents view
+	attentionOnly bool
+	viewport      int // explicit-view height; zero means unconstrained
+	focus         int // selected visible row; -1 when keyboard focus is elsewhere
 	// observedStates is keyed by the stable agent/session identity, not a screen
 	// index or urgency rank. It survives resorting and carries the timestamp at
 	// which the current state first appeared; absent sessions are pruned on each
@@ -96,7 +101,6 @@ type AgentsGlance struct {
 	detailGeneration uint64
 	detailData       agentdetail.Data
 	detailErr        error
-	detailExtra      int // layout-granted rows after every visible agent row
 }
 
 // AgentsGlanceOption configures the on-demand inspector. The clock is injected
@@ -173,7 +177,17 @@ func (b *AgentsGlance) Update(msg tea.Msg) {
 		// rows in sessions-dir order, then pi rows) is preserved so rows don't
 		// shuffle between sweeps.
 		sort.SliceStable(rows, func(i, j int) bool {
-			return agents.StateRank(rows[i].State) < agents.StateRank(rows[j].State)
+			priority := func(state string) int {
+				switch state {
+				case agents.StateAwaitingPermission:
+					return 0
+				case agents.StateWaiting:
+					return 1
+				default:
+					return agents.StateRank(state) + 1
+				}
+			}
+			return priority(rows[i].State) < priority(rows[j].State)
 		})
 		b.rows = rows
 		if len(rows) == 0 {
@@ -185,11 +199,16 @@ func (b *AgentsGlance) Update(msg tea.Msg) {
 		// State is intentionally excluded from detailIdentity: it is live glance
 		// data, not an inspector input. Keep the selected row current so its state
 		// age changes without restarting a transcript/Git inspection.
+		detailCurrent := b.detailIdentity == ""
 		for _, row := range rows {
-			if navigationIdentity(row) == navigationIdentity(b.detailRow) && detailIdentity(row) == b.detailIdentity {
+			if detailIdentity(row) == b.detailIdentity {
 				b.detailRow = row
+				detailCurrent = true
 				break
 			}
+		}
+		if !detailCurrent {
+			b.clearDetail()
 		}
 		// The pointer may still be over the same screen line after a refresh, but
 		// that line can now belong to another urgency-sorted agent. The model clears
@@ -208,86 +227,109 @@ func (b *AgentsGlance) Update(msg tea.Msg) {
 	}
 }
 
-// shown is how many rows render at the current allowance, and how many are left
-// over for the "+N more" line.
-func (b *AgentsGlance) shown() (n, more int) {
-	n = AgentsGlanceMax + b.extra
-	if n > len(b.rows) {
-		n = len(b.rows)
+// SetAttentionOnly switches between the main-surface blocker summary and the
+// explicit full agents view. It never changes the collected roster.
+func (b *AgentsGlance) SetAttentionOnly(attention bool) {
+	b.attentionOnly = attention
+	b.extra, b.focus, b.hover = 0, -1, -1
+}
+
+func (b *AgentsGlance) AttentionOnly() bool { return b.attentionOnly }
+
+func (b *AgentsGlance) SetViewportHeight(height int) { b.viewport = height }
+
+func (b *AgentsGlance) visibleRows() []agents.Row {
+	if !b.attentionOnly {
+		return b.rows
 	}
-	return n, len(b.rows) - n
+	rows := make([]agents.Row, 0, len(b.rows))
+	for _, row := range b.rows {
+		if row.State == agents.StateAwaitingPermission || row.State == agents.StateWaiting {
+			rows = append(rows, row)
+		}
+	}
+	return rows
 }
 
-// SetExtra resets the layout's row allowance. Detail rows are never reserved:
-// they use only slack left after the complete agent list has been revealed.
+func (b *AgentsGlance) shown() (n, more int) {
+	rows := b.visibleRows()
+	limit := AgentsGlanceMax + b.extra
+	if b.attentionOnly {
+		limit = AgentsAttentionMax
+	}
+	if limit > len(rows) {
+		limit = len(rows)
+	}
+	if !b.attentionOnly && b.viewport > 0 {
+		available := b.viewport - 1 // label
+		if len(rows) > available && available > 0 {
+			available-- // +N more
+		}
+		if available < 0 {
+			available = 0
+		}
+		if limit > available {
+			limit = available
+		}
+	}
+	return limit, len(rows) - limit
+}
+
 func (b *AgentsGlance) SetExtra(n int) {
-	b.extra, b.detailExtra = n, 0
+	if b.attentionOnly {
+		b.extra = 0
+		return
+	}
+	b.extra = n
 }
 
-// Expand takes up to n spare lines. It first reveals hidden agents, then grants
-// the selected-agent inspector only the remaining post-list slack. The detail
-// therefore cannot squeeze a visible agent row or retain blank height on a
-// short pane.
+// Expand is used only by the explicit full agents view. The main attention
+// summary stays capped so it cannot take over the navigator.
 func (b *AgentsGlance) Expand(n int) int {
-	if n <= 0 {
+	if b.attentionOnly || n <= 0 {
 		return 0
 	}
 	before := b.Height()
-	if _, more := b.shown(); more > 0 {
-		take := n
-		if take > more {
-			take = more
-		}
-		b.extra += take
-	}
-	used := b.Height() - before
 	_, more := b.shown()
-	if used < n && more == 0 && b.detailState != detailInactive {
-		take := n - used
-		remain := len(b.detailLines()) - b.detailExtra
-		if remain > detailMaxLines-b.detailExtra {
-			remain = detailMaxLines - b.detailExtra
-		}
-		if take > remain {
-			take = remain
-		}
-		b.detailExtra += take
-		used = b.Height() - before
+	if n > more {
+		n = more
 	}
-	return used
+	b.extra += n
+	return b.Height() - before
 }
 
-// Height: label + visible rows (+ the "+N more" line) + only layout-granted
-// detail rows. Minimum 2 so an empty list still shows "▸ agents / (none)".
 func (b *AgentsGlance) Height() int {
 	n, more := b.shown()
+	if b.attentionOnly && n == 0 {
+		return 0
+	}
 	h := 1 + n
 	if more > 0 {
 		h++
 	}
-	if h < 2 {
-		h = 2
-	}
-	if len(b.rows) > 0 && more == 0 {
-		rows := b.detailLines()
-		if len(rows) < b.detailExtra {
-			h += len(rows)
-		} else {
-			h += b.detailExtra
-		}
+	if !b.attentionOnly && h < 2 {
+		return 2
 	}
 	return h
 }
 
 func (b *AgentsGlance) View(width int) string {
+	if b.Height() == 0 {
+		return ""
+	}
+	rows := b.visibleRows()
 	lines := make([]string, 0, b.Height())
-	lines = append(lines, label(b.theme.Accent, "agents"))
-	if len(b.rows) == 0 {
+	if b.attentionOnly {
+		lines = append(lines, attentionLabel(b.theme, width))
+	} else {
+		lines = append(lines, label(b.theme.Accent, "agents"))
+	}
+	if len(rows) == 0 {
 		lines = append(lines, b.theme.Muted.Render("(none)"))
 		return join(lines, width)
 	}
 	n, more := b.shown()
-	for i, r := range b.rows[:n] {
+	for i, r := range rows[:n] {
 		prefix := "  "
 		if i == b.focus {
 			prefix = b.theme.Accent.Render("▶") + " "
@@ -295,39 +337,46 @@ func (b *AgentsGlance) View(width int) string {
 		lines = append(lines, prefix+b.renderRow(i, r))
 	}
 	if more > 0 {
-		lines = append(lines, b.theme.Muted.Render("  +"+strconv.Itoa(more)+" more"))
-	} else {
-		for i, line := range b.detailLines() {
-			if i >= b.detailExtra {
-				break
-			}
-			lines = append(lines, b.theme.Muted.Render("  "+line))
+		prefix := "  "
+		if b.attentionOnly && b.focus == n {
+			prefix = b.theme.Accent.Render("▶") + " "
 		}
+		lines = append(lines, prefix+b.theme.Muted.Render("+"+strconv.Itoa(more)+" more · v agents"))
 	}
 	return join(lines, width)
 }
 
-// SelectionChanged implements blocks.SelectionChangeAware. Detail identity
-// includes every row field the inspector consumes, while navigation stays keyed
-// to tmux's stable pane ID so a cwd refresh never resets keyboard selection.
-func (b *AgentsGlance) SelectionChanged(id string) bool {
-	row, ok := b.rowByNavigationID(id)
-	identity := ""
-	if ok {
-		identity = detailIdentity(row)
+func attentionLabel(th theme.Theme, width int) string {
+	text := " attention "
+	remain := width - len(text) - 1
+	if remain < 0 {
+		remain = 0
 	}
-	if identity == b.detailIdentity {
-		return false
+	return th.Divider.Render("─") + th.Accent.Render(text) + th.Divider.Render(strings.Repeat("─", remain))
+}
+
+// BeginInspection is the only entry into the inspector. Merely selecting or
+// focusing an agent never starts transcript or Git work.
+func (b *AgentsGlance) BeginInspection(sessionID string, fresh bool) (tea.Cmd, bool) {
+	var row agents.Row
+	found := false
+	for _, candidate := range b.rows {
+		if candidate.SessionID == sessionID {
+			row, found = candidate, true
+			break
+		}
 	}
-	if identity == "" {
-		b.clearDetail()
-		return false
+	if !found {
+		return nil, false
 	}
-	b.detailGeneration++
-	b.detailIdentity, b.detailRow = identity, row
-	b.detailData, b.detailErr = agentdetail.Data{}, nil
+	identity := detailIdentity(row)
+	if identity != b.detailIdentity {
+		b.detailGeneration++
+		b.detailIdentity, b.detailRow = identity, row
+		b.detailData, b.detailErr = agentdetail.Data{}, nil
+	}
 	b.detailState = detailLoading
-	return true
+	return b.refreshDetail(fresh), true
 }
 
 func (b *AgentsGlance) clearDetail() {
@@ -336,21 +385,9 @@ func (b *AgentsGlance) clearDetail() {
 	b.detailIdentity = ""
 	b.detailRow = agents.Row{}
 	b.detailData, b.detailErr = agentdetail.Data{}, nil
-	b.detailExtra = 0
 }
 
-// Refresh implements blocks.Refreshable. It is invoked only after a focused
-// selection changes; normal agent sweeps never inspect a transcript, plan, or
-// repository.
-func (b *AgentsGlance) Refresh() tea.Cmd {
-	return b.refreshDetail(false)
-}
-
-// RefreshFresh implements blocks.ForceRefreshable for an explicit r command.
-// It bypasses the collector's short TTL cache without changing normal refreshes.
-func (b *AgentsGlance) RefreshFresh() tea.Cmd {
-	return b.refreshDetail(true)
-}
+func (b *AgentsGlance) RefreshInspector(fresh bool) tea.Cmd { return b.refreshDetail(fresh) }
 
 func (b *AgentsGlance) refreshDetail(fresh bool) tea.Cmd {
 	if b.detailIdentity == "" || b.detailState == detailInactive || b.details == nil {
@@ -448,8 +485,6 @@ func (b *AgentsGlance) detailLines() []string {
 	if b.detailState == detailInactive {
 		return nil
 	}
-	// State age is live glance metadata, not transcript data: it leads every
-	// inspector state and remains accurate while a detail command is loading.
 	lines := []string{"state: " + display.Sanitize(b.detailRow.State) + " · " + humanAge(b.stateAge(b.detailRow))}
 	switch b.detailState {
 	case detailLoading:
@@ -457,27 +492,41 @@ func (b *AgentsGlance) detailLines() []string {
 	case detailUnavailable:
 		lines = append(lines, "inspector unavailable")
 	case detailReady:
-		// Collector data is already sanitized, but keep the rendering boundary
-		// defensive for test/custom collectors too. The ordering makes current
-		// conversation context visible before optional plan and repository detail.
-		lines = append(lines,
-			"prompt: "+display.Sanitize(b.detailData.Prompt),
-			"response: "+display.Sanitize(b.detailData.Response),
-		)
-		if b.detailData.Plan != "" {
-			lines = append(lines, "plan: "+display.Sanitize(b.detailData.Plan))
+		for _, field := range []struct{ label, value string }{
+			{"prompt", b.detailData.Prompt}, {"response", b.detailData.Response},
+			{"plan", b.detailData.Plan}, {"cwd", b.detailData.Cwd},
+		} {
+			if field.value != "" && field.value != "-" {
+				lines = append(lines, field.label+": "+display.Sanitize(field.value))
+			}
 		}
-		lines = append(lines,
-			"cwd: "+display.Sanitize(b.detailData.Cwd),
-			"worktree: "+display.Sanitize(b.detailData.Worktree),
-			"git: "+display.Sanitize(b.detailData.Git),
-		)
+		if b.detailData.Worktree != "" && b.detailData.Worktree != "-" && filepath.Clean(b.detailData.Worktree) != filepath.Clean(b.detailData.Cwd) {
+			lines = append(lines, "worktree: "+display.Sanitize(b.detailData.Worktree))
+		}
+		if b.detailData.Git != "" && b.detailData.Git != "-" {
+			lines = append(lines, "git: "+display.Sanitize(b.detailData.Git))
+		}
 	}
 	if len(lines) > detailMaxLines {
 		return lines[:detailMaxLines]
 	}
 	return lines
 }
+
+func (b *AgentsGlance) InspectorView(width, height int) string {
+	lines := []string{label(b.theme.Accent, "agent inspector")}
+	lines = append(lines, b.detailLines()...)
+	lines = append(lines, b.theme.Muted.Render("r refresh  Esc back"))
+	for len(lines) < height {
+		lines = append(lines, "")
+	}
+	if len(lines) > height {
+		lines = lines[:height]
+	}
+	return join(lines, width)
+}
+
+func (b *AgentsGlance) InspectorActive() bool { return b.detailState != detailInactive }
 
 // OnClick implements Clickable: a click on an agent row switches to that agent's
 // pane. Line 0 is the "▸ agents" label and the trailing "+N more" counter is
@@ -503,7 +552,10 @@ func (b *AgentsGlance) OnClick(line int) tea.Cmd {
 // "+N more" are intentionally not keyboard reachable until the layout expands
 // the block, keeping keyboard focus consistent with what is rendered.
 func (b *AgentsGlance) NavigationCount() int {
-	n, _ := b.shown()
+	n, more := b.shown()
+	if b.attentionOnly && more > 0 {
+		return n + 1
+	}
 	return n
 }
 
@@ -534,15 +586,28 @@ func (b *AgentsGlance) NavigationID(index int) string {
 	if index < 0 || index >= b.NavigationCount() {
 		return ""
 	}
-	return b.rows[index].IdentityKey()
+	rows := b.visibleRows()
+	shown, _ := b.shown()
+	if index >= shown {
+		return "view:agents"
+	}
+	return rows[index].IdentityKey()
 }
 
 func (b *AgentsGlance) NavigationIndexByID(id string) int {
 	if id == "" {
 		return -1
 	}
+	rows := b.visibleRows()
+	shown, _ := b.shown()
 	for i := 0; i < b.NavigationCount(); i++ {
-		if b.rows[i].IdentityKey() == id {
+		if i >= shown {
+			if id == "view:agents" {
+				return i
+			}
+			continue
+		}
+		if rows[i].IdentityKey() == id {
 			return i
 		}
 	}
@@ -561,7 +626,12 @@ func (b *AgentsGlance) ActivateNavigation(index int) tea.Cmd {
 	if index < 0 || index >= b.NavigationCount() {
 		return nil
 	}
-	row := b.rows[index]
+	rows := b.visibleRows()
+	shown, _ := b.shown()
+	if index >= shown {
+		return func() tea.Msg { return OpenViewMsg{ID: "agents"} }
+	}
+	row := rows[index]
 	ref := tmuxio.PaneRef{
 		PaneID: row.PaneID, SessionID: row.TmuxSessionID,
 		WindowID: row.WindowID, WindowIndex: row.WindowIndex,
@@ -579,12 +649,18 @@ func (b *AgentsGlance) Actions(index int) []nav.ContextAction {
 	if index < 0 || index >= b.NavigationCount() {
 		return nil
 	}
-	r := b.rows[index]
+	rows := b.visibleRows()
+	shown, _ := b.shown()
+	if index >= shown {
+		return nil
+	}
+	r := rows[index]
 	ref := tmuxio.PaneRef{
 		PaneID: r.PaneID, SessionID: r.TmuxSessionID,
 		WindowID: r.WindowID, WindowIndex: r.WindowIndex,
 	}
 	return []nav.ContextAction{
+		{ID: "inspect", Label: "inspect agent", Local: nav.LocalEffectInspectAgent, Agent: r.Agent, AgentSessionID: r.SessionID},
 		{ID: "focus", Label: "focus agent", Kind: nav.ContextFocusPane, Pane: ref, PaneID: r.PaneID, Target: r.Target, Agent: r.Agent, AgentSessionID: r.SessionID},
 		{ID: "response", Label: "open last response", Kind: nav.ContextAgentResponse, Pane: ref, Agent: r.Agent, AgentSessionID: r.SessionID},
 		{ID: "plan", Label: "open plan / last response", Kind: nav.ContextAgentPlan, Pane: ref, Agent: r.Agent, AgentSessionID: r.SessionID},

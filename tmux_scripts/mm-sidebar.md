@@ -8,64 +8,53 @@
 > Renamed from `mega-michael-sidebar` in revision 3.
 
 A leftmost, full-window-height tmux pane toggled by `M-Tab`, running a compiled
-Go/Bubble Tea TUI. Renders a stack of vertical blocks: a 2-line header, a
-flexible tab-switchable **navigator** (sessions / panes / projects / filetree / scratch),
-and fixed-height **docked blocks** below it (`agents_glance`, `activity`,
-`system_stats`) that stay visible regardless of which navigator tab is active.
+Go/Bubble Tea TUI. Its normal surface is intentionally sparse: a 2-line header,
+a tab-switchable navigator (sessions / panes / projects / filetree / scratch),
+and a compact attention section only when an agent is awaiting permission or
+waiting for input. Thinking/idle agents, activity history, system gauges, and
+agent detail live behind the explicit `v` views palette.
 
-Inspired by [neo-tree.nvim](https://github.com/nvim-neo-tree/neo-tree.nvim)
-(in-tmux, not in-nvim), the agent-multiplexer overview of
-[herdr](https://github.com/herdrdev/herdr), and the stacked
-tree-plus-persistent-gauges layout of
-[agent-manager](https://github.com/YoanWai/agent-manager) — its session tree
-sits above a fixed "computer" gauge block that never scrolls out of view, the
-direct inspiration for the docked-blocks layout here. Not built on
-[tabby](https://github.com/brendandebeasi/tabby), whose sidebar is a fixed
-window-list with appended widgets rather than switchable sources.
+The design is progressive disclosure, not density maximization. Blank space at
+the bottom is preferable to persistent panels that repeat SketchyBar/macOS or
+render placeholders. Dedicated tools remain available (`M-s`, `M-w`, `M-b`,
+`M-d`); the sidebar keeps broad capabilities without showing all of them at once.
 
 ## Layout
 
+Normal, no blocker:
+
 ```
-┌────────────────────────────────────┐
-│ 1sess 2pane 3proj 4tree 5scr       │  header: tab strip (active chip = canvas on lavender)
-│ ▸ sessions                         │  header: active-tab subtitle
-│ ▶ float          2w   ●            │  navigator — flexible, owns the cursor and Enter
-│     ~/.config                      │  two-line rows: identity, then cwd
-│   m*             6w                │
-│     ~/_main/product-enablement      │
-│   misc           1w                │
-│     ~/_main/tulip                  │
-│ ────────────────────────────────── │  divider (divider-subtle)
-│ ▸ agents                           │  docked actionable/hoverable glance
-│   !P r-notes · m*                  │
-│   !W n8n-salesforce · m*           │
-│   ~~ conf · float                  │
-│      nvim · m*                     │
-│   +1 more                          │
-│ ────────────────────────────────── │
-│ ▸ activity                         │  passive transition feed
-│   !W now waiting · build · m*       │
-│   G! 2m worktree dirty · ~/.config  │
-│ ────────────────────────────────── │
-│ ▸ system                           │  docked block — read-only glance
-│ cpu  ▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░ 58%      │
-│ mem  ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░ 83%      │
-│ disk ▓▓▓▓▓▓▓▓▓░░░░░░░░░░░ 48%      │
-│                                    │  unused space collects at the BOTTOM
-│                                    │
-└────────────────────────────────────┘
+1sess 2pane 3proj 4tree 5scr
+▸ panes
+▶ 1:node         node
+    ~/.config
+
+                    blank by design
 ```
 
-The pane defaults to **36 columns** (`TMUX_SIDEBAR_WIDTH` fallback), with a
-window-scoped `@sidebar_width` preference. `w` cycles compact **30**, normal
-**36**, and wide **44** columns live; `tmux-sidebar-toggle` and
-`tmux-sidebar-repin` both read that same option, so a resize or reopen preserves
-that window's choice. It was 28 through revision 3; the density pass widened it.
+Normal, blockers present:
 
-`View()` emits **exactly `pane_height` lines**, every frame, at every size.
-Verified live at four heights (all blocks fit / `system_stats` dropped / both
-dropped / two-line rows clipped to a viewport) with `capture-pane | wc -l`
-matching `#{pane_height}` each time.
+```
+1sess 2pane 3proj 4tree 5scr
+▸ panes
+▶ 1:node         node
+    ~/.config
+─ attention ───────────────────────
+  !P build · m*
+  !W review · m*
+```
+
+Attention is permission-first, waiting-second, capped at four agent rows. A
+`+N more · v agents` row opens the full roster; hidden agents are not direct
+action targets. `v` opens full agents, activity-history, and system-health views.
+`Esc`/`q` returns from those views to normal; on normal it retains the existing
+global sidebar dismissal.
+
+The pane defaults to **36 columns** with window-local 30/36/44 presets. Every
+surface emits exactly `pane_height` lines and derives mouse hit maps from that
+same frame. Navigator loading, successful-empty, no-match, and error states are
+distinct; projects therefore shows `loading projects…` during its bounded cold
+inventory rather than temporarily claiming `(empty)`.
 
 ## Components
 
@@ -91,7 +80,7 @@ matching `#{pane_height}` each time.
 | `internal/agents` | The Claude + pi pane join. |
 | `internal/agentdetail` | Bounded local selected-agent prompt/response, plan, cwd/worktree, and Git inspector. |
 | `internal/nav` | The navigator tabs (`Source` registry), optional source controls/help actions, and their `Enter` actions. |
-| `internal/blocks` | The `Block` interface, the `Factories` registry, and the docked blocks. |
+| `internal/blocks` | Agent roster/attention, activity history, system sampling, and explicit-view interaction. |
 | `internal/projectcatalog` | Persistent XDG-backed repository identity/inventory: canonical common dirs, pinned/recent retention, validated roots, flocked schema-v1 state. |
 | `internal/worktrunk` | Optional bounded Worktrunk schema-2 list/switch adapter; Git remains discovery authority. |
 | `internal/trace` | `MMS_TRACE=1` per-phase timing, shared by every package. |
@@ -340,355 +329,61 @@ or a monitor attach drifts the 36-col sidebar. Measured: shrinking a window from
 > (`show-hooks -g window-layout-changed`) to see both indices. The hook does
 > fire — verified by instrumenting it with a `run-shell` that touched a file.
 
-## Extending (start here to add a tab, a block, or a click action)
+## Progressive-disclosure architecture
 
-Everything extensible is a registry entry. The three recipes below are the whole
-contract; none of them require touching `model.go`.
+The model has six explicit surfaces: `main`, `views`, `agents`, `activity`,
+`system`, and `inspector`. This is intentionally a small closed state model, not
+a generic proposal/mode allocator.
+
+- `main` renders the header, active navigator, and blocker-only agent attention.
+- `views` is the `v` palette.
+- `agents` renders the complete all-state roster and its guarded actions.
+- `activity` renders the existing bounded process-local transition history.
+- `system` samples cpu/mem/disk only while open; a pending tick stops rearming
+  after leaving the view.
+- `inspector` starts only from an explicit agent action. It preserves bounded
+  transcript/plan reads, Git timeouts, stable identity/generation rejection, and
+  the short cache, while omitting missing fields and duplicate cwd/worktree.
+
+Collection and presentation are separate. `tmuxio.World`, the serialized agent
+resolver, activity transition state, and source fetches keep their existing
+owners. Presentation-hidden does not mean absent data: agents and activity still
+consume accepted messages. System telemetry is the deliberate exception—there
+is no hidden `ps`/`vm_stat`/`df` sampler.
+
+### Navigator source contract
+
+A tab remains one `nav.Source` in `nav.Sources`; registry order controls the tab
+strip and `1`..`N` keys, and `ID()` is persisted in `@sidebar_source`. Keep the
+panes source ID as `windows`. Optional `RootSynchronizer`, `SourceController`,
+`Watchable`, `FetchKeyer`, and `ActionProvider` keep source-specific behavior out
+of the model. A source fetch must return stable row IDs and real action payloads;
+display strings are never scraped back into paths or tmux identities.
+
+### Explicit view/block contract
+
+`internal/blocks` still owns the agent roster, activity history, and system
+sampler. Messages implement `BlockMsg` so accepted updates broadcast without a
+concrete-type arm. `Navigable`, `Clickable`, `Hoverable`, `SelectionIdentifiable`,
+and `Actionable` retain guarded row interaction. The removed
+`SelectionChangeAware`/`Refreshable` path must not return: selection is not an
+I/O trigger. Inspector work is explicit through `inspect agent`.
+
+The main layout never expands content merely to consume height. Agent attention
+has an integrated one-line heading and a fixed four-row cap. Full agents and
+activity views may expand their already-cached lists to the available height.
+Unused lines are padded at the bottom.
 
 ### Add a navigator tab
 
-1. New file in `internal/nav/`, one type implementing `Source`:
+1. Implement `nav.Source` in `internal/nav/`.
+2. Add it to `nav.Sources`.
+3. Add source controls through the optional interfaces, not source-ID branches.
+4. Add loading/empty/error, filtering, action, and exact-height tests.
 
-```go
-type Bookmarks struct{}
-
-func (Bookmarks) ID() string    { return "bookmarks" } // persisted @sidebar_source
-func (Bookmarks) Short() string { return "bkmk" }      // tab chip, 3-4 cells
-func (Bookmarks) Title() string { return "bookmarks" } // "▸ bookmarks" subtitle
-
-func (Bookmarks) Fetch(c nav.Ctx) ([]nav.Row, error) { /* build rows */ }
-```
-
-2. Add it to `nav.Sources`. That slice's order is the tab-strip order **and** the
-   number-key order.
-
-That's it: the strip, the `1`..`N` keys, `Tab`/`S-Tab` cycling, and
-`@sidebar_source` persistence all derive from the registry.
-
-- Style rows with `c.Theme` (never a hex literal — see Colors) and return them
-  pre-styled; the model only clips to width.
-- A `Row` may be **multi-line** (`Lines []string`); the viewport handles variable
-  heights. Give its ordinary Enter behavior via `Kind` + payload, and its `a`/`:`
-  palette behavior through row-owned `Actions []ContextAction`. `model.go` only
-  presents descriptors; `nav/actions.go` dispatches them, so it never switches on
-  a concrete source.
-- Need root lifecycle or source-local keys? Implement optional
-  `RootSynchronizer`, `SourceController`, and/or `Watchable`. Filetree uses them
-  for Backspace ascent plus `h` hidden, `p` pin, and `R` reset; model.go applies
-  only `SourceControl` descriptors and never checks a source ID.
-- Need some state `Ctx` doesn't carry? Add a field to `Ctx` and populate it in
-  `refreshState`, rather than querying tmux from the source — the shared poll
-  already owns its bounded tmux collection.
-
-### Add a docked block
-
-1. New file in `internal/blocks/`, one type implementing `Block` (see below).
-2. Add a `Factory` entry to `blocks.Factories`.
-3. **Implement `blocks.BlockMsg` on every message type the block carries** —
-   a one-line `func (YourMsg) IsBlockMsg() {}`.
-
-Its position in that slice is both render order and **degradation priority** — a
-short pane drops blocks from the END first, so put a more important block earlier.
-Constructors take whatever they need from `blocks.Deps`; add a field there if a new
-block needs a shared resource.
-
-Step 3 is not optional and used to be missing. `model.Update` type-switched on
-each block message **by name**, so a third block's message fell through the
-default arm and its `Update` was never called: it fetched, published, and
-rendered nothing, with no error anywhere. There is now one generic
-`case blocks.BlockMsg:` arm that broadcasts to every block, which is what makes
-"one type plus one entry" true. `AgentRowsMsg` keeps a case of its own **above**
-the generic one (Go takes the first matching case) purely for its feed re-arm,
-which is model-owned resolver plumbing.
-
-`IsBlockMsg` is **exported on purpose.** An unexported marker seals the interface
-to package `blocks`, so a block living in a sibling `internal/<name>/` package
-could never satisfy it — reintroducing the same silent failure one package over.
-A test in package `main` caught exactly that.
-
-The model broadcasts only accepted, freshness-checked `blocks.WorldMsg` snapshots
-and explicit `blocks.RefreshMsg` requests. A passive block (`Interval() <= 0`)
-implements optional `Reactive` to return coalesced asynchronous work after those
-messages; it gets no timer or periodic `Fetch`, and model.go needs no block-ID
-branch.
-
-Two hard rules: `View(width)` must emit **exactly `Height()` lines**, and
-`Height()` must be computed from already-cached state (never fetch in it, since the
-layout calls it several times per frame). Both are enforced by a property test
-that iterates `blocks.Factories`, so a new block is covered automatically.
-
-### Make something clickable
-
-Implement `Clickable` on the block. It receives the click's line offset **within
-that block** (0 = its label row) and returns a `tea.Cmd`, so the block hit-tests
-itself and keeps its ordering and truncation private. Return `nil` for lines that
-aren't actionable. Put any tmux calls inside the returned `Cmd` — they fork and
-block, and the input path must stay clear.
-
-### Make a block keyboard-actionable
-
-Implement `Navigable` when the block has visible rows that should participate in
-sidebar keyboard focus. The block owns its visible-row count, maps block-local
-rendered lines to actionable rows, renders the selected-row cursor, and performs
-activation. `SetNavigationIndex(-1)` clears its selection; informational blocks
-should not implement the interface. The model treats the navigator and each
-visible non-empty `Navigable` block as a focus region, so adding one does not
-require a concrete block branch in `model.go`. Lowercase `j/k` stay within the
-active region; `J/K` rotate regions while retaining every region's cursor. Use
-the same action path for `Clickable` and `ActivateNavigation` so mouse and
-keyboard cannot drift. If rows can reorder on refresh, also implement
-`SelectionIdentifiable`; the model retains the selected stable ID rather than
-silently activating whatever moved into its old index. A block with
-selection-scoped, on-demand work can additionally implement
-`SelectionChangeAware` and `Refreshable`: the model passes the stable selected
-ID (or empty on focus loss) through the former, then runs the latter exactly once
-on a changed focused selection or explicit `r`. This is generic block plumbing,
-not a concrete-type branch, and it must not be used as a polling hook.
-
-### Give a block context actions
-
-Implement optional `blocks.Actionable`. It returns `[]nav.ContextAction` for its
-selected `Navigable` row, and the model presents the same `a`/`:` palette it uses
-for navigator rows. `agents_glance` uses this for focus, response/plan dispatch,
-and stable session-ID copy without a block-specific model branch.
-
-### Make a block hoverable
-
-Implement `Hoverable` when rendered actionable rows need pointer feedback.
-`SetHoverLine(blockLocalLine)` must return true only for an actionable line; it
-receives `-1` when the pointer leaves. The model routes all-motion mouse events
-through the line map recorded by `View`, but the block keeps hit-testing,
-truncation, and styling private. Hover is independent from keyboard focus and
-click activation.
-
-## Blocks architecture
-
-The pane renders top to bottom: **header** (2 lines) → optional **help overlay**
-(action-registry height, `?`) → optional **inline filter** (1 line, `/`) → **navigator**
-(flexible) → **docked blocks** (fixed height, in order). `a`/`:` temporarily
-replaces that frame with an exact-height action palette; its mouse map is inert
-until `Esc` returns to the navigator. The filter uses each
-source row's unstyled `SearchText`, preserves that source's order, and retains
-selection by `Row.ID` across a refresh or query change whenever the row remains
-visible.
-
-```go
-type Block interface {
-    ID() string
-    Interval() time.Duration   // <= 0 is passive: no timer or periodic Fetch
-    Fetch() tea.Cmd            // expensive; runs off the input path
-    Update(tea.Msg)            // absorbs its own message type
-    Height() int               // from cached state; never fetches
-    View(width int) string     // exactly Height() lines
-}
-```
-
-Blocks are listed in one ordered slice, `blocks.Factories`. **Adding a block is
-one type plus one slice entry** — no layout code changes and no `model.go` edit.
-(The bash version needed a hand-written case statement in three separate dispatch
-functions, because macOS's `/bin/bash` 3.2 has neither associative arrays nor
-namerefs to look up `fetch_$id`. An interface makes that workaround moot.)
-
-A block that is holding data it isn't showing can additionally implement
-`Expandable` (`SetExtra`/`Expand`), which lets the layout hand it leftover pane
-space instead of leaving it blank. `Expand` returns its **`Height` delta, not the
-row count** — showing the last hidden row also retires the `+N more` line, so a
-1-row grant that clears the backlog is a net-zero height change. A block that
-always shows everything simply doesn't implement it.
-
-Each block carries a full-width `─` divider row above it (`divider-subtle`) plus
-the header's `▸ <name>` subtitle idiom as its own label row. The label alone was
-doing the divider's job through revision 3, which made header / navigator /
-agents / system read as one undifferentiated column.
-
-### Layout + degradation
-
-The navigator is sized to its **actual content**; blocks float up directly
-beneath it; unused space collects at the **bottom** of the pane.
-
-1. `usable = pane_height - header_lines` (2, plus the action-derived help
-   height when open and one more while the inline filter is active).
-2. Drop the **last** block in the slice — lowest degradation priority,
-   `system_stats` before `agents_glance` — while the blocks' total
-   (`Height() + 1` each, the `+1` being the divider row) exceeds
-   `usable - navMinHeight` (3).
-3. The navigator gets exactly the lines its rows need (a *sum*, since rows are
-   variable-height), clamped to what's left after the blocks. A longer list is
-   viewport-clipped around the cursor.
-4. Any slack left over is offered to blocks implementing `Expandable`, which show
-   more of what they already hold (`agents_glance` drops its `+N more`, lists
-   everything, then may show selected-agent detail). Whatever nothing claims
-   stays blank at the bottom.
-
-> **Two earlier versions of this failed the same way from opposite directions,
-> so don't reintroduce either.** Giving the navigator *all* leftover space (rev
-> 3), and giving it a fixed 60% share, both left a ~33-row void in the **middle**
-> of a 55-row pane, between the last session row and `▸ agents`. There is no
-> *share* of a 55-row pane that three sessions fill — a real pane is far taller
-> than the content, so the only fix is to stop reserving space the navigator
-> cannot use. Step 4 exists for the same reason at block scale: a `+1 more` line
-> sitting above 30 blank rows is the identical failure in miniature.
-
-Rows are **variable-height** (sessions/windows are two lines, filetree/scratch
-one), so the viewport scrolls in whole-row units while being measured in lines,
-and `navLines` records a rendered-line → row-index table (`m.lineRow`) for the
-mouse handler. The map starts below any help and active query lines, so clicks
-and wheel events remain aligned while filtering. Deriving the row from the
-click's `Y` offset arithmetically only worked while every row was exactly one
-line tall.
-
-### Docked block: `agents_glance`
-
-Always visible. Capped to 6 rows by default — it implements `Expandable`, so the
-layout raises that cap when the pane has room to spare and the `+N more` line
-disappears entirely once everything fits. Truncation is a render-time decision, not
-baked in when a sweep arrives, so a grant takes effect immediately rather than on
-the next sweep. **Sorted by urgency** (stable, so rows don't shuffle between
-sweeps) with a trailing `+N more` when clipped.
-
-**Clicking a row switches to that agent's pane**, including across sessions — it
-implements `Clickable`, and `agents.Row` already carries `PaneID` (`%161`) and
-`Target` (`sess:2.1`) in exactly the forms `tmuxio.FocusPane` wants, so no extra
-plumbing was needed. The label row, the `+N more` counter and the `(none)`
-placeholder are inert.
-
-`agents_glance` implements `Navigable` and `Hoverable`. Its visible rows are a
-focus region; `j/k` and arrows wrap within it, while `J/K` rotate between it and
-the navigator without acting. `Enter` switches to the selected agent. `g/G`
-address the first/last actionable row across the whole sidebar. Hovering an
-actionable row underlines its location only; it neither moves the keyboard cursor
-nor activates the row. Hidden rows behind `+N more`, labels, counters, and
-empty-state text remain inert. Its optional `a`/`:` action provider offers focus,
-existing response/plan dispatchers, and stable session-ID copy; it adds neither an
-agent join nor an approval action. `M-b` remains the full cross-session picker for
-preview and bulk actions.
-
-When this block has keyboard focus, its selected row starts an **on-demand inline
-inspector**. It consumes only slack *after every agent row is visible*; it never
-shrinks the navigator, hides an agent, or reserves height while inactive. Its
-bounded priority order is current `state` plus elapsed age, latest `prompt`,
-latest `response`, optional Claude `plan`, then `cwd`, Git `worktree`, and Git
-branch/change `summary` (at most seven detail rows). `inspecting…` and
-`inspector unavailable` retain the leading state-age row. Selection uses the full
-agent/pane/session/transcript identity plus a generation, so an urgency resort,
-pane reuse, or late command result cannot publish underneath a different agent.
-Leaving the focus region clears the inspector; returning selects and loads again.
-`r` explicitly refreshes the selected inspector alongside the ordinary forced
-sidebar refresh.
-
-The glance records each state observation in memory by stable agent/session ID
-with the injected clock: unchanged observations retain their first-seen time, a
-state transition resets it, and an absent session is pruned. This is what makes
-the inspector's compact `now`/`2m`/`1h`/`Nd` age describe the current state,
-rather than the sidebar process lifetime.
-
-Collection is local and bounded: it parses only the final 64 KiB of the known
-Claude or pi JSONL transcript and accepts only their user/assistant text records;
-malformed, partial, and tool-only JSONL records are ignored. Claude plan
-references must match the fixed `claude/plans/<safe-name>.md` grammar under
-`~/.config`, reject symlinks, and read at most 12 KiB. Git resolves the worktree
-with `rev-parse --show-toplevel` and reads `status --porcelain=v2 --branch` in
-the agent cwd, each under a 350 ms timeout. A missing or partial transcript
-uses explicit prompt/response fallbacks but still shows the local cwd/worktree/Git
-context. Results are control-sanitized and cache-keyed by stable agent identity
-plus transcript/plan file metadata and cwd for two seconds. There is no network,
-watcher, or recurring detail poll.
-
-Row format: `<2-char state tag> <pane label · window · session>`. A missing pane
-label preserves `<window · session>`; a missing window is omitted. ANSI-aware
-normal clipping keeps that left-to-right identity order at 36 columns.
-
-| Tag | State | Color role |
-| --- | --- | --- |
-| `!P` | awaiting-permission | `accent-primary` rose |
-| `!W` | waiting | `accent-primary` rose |
-| `~~` | thinking | `accent-tertiary` dusty pink |
-| (blank) | idle | `text-muted` |
-
-Two deliberate choices, both forced by the narrow column budget (28 at the time;
-the reasoning still holds at 36):
-
-- **The tag column is fixed width.** The words it replaced (`!perm`, `!wait`,
-  `…`, a bare space) were 5, 5, 1 and 1 cells wide, so no two rows started their
-  location in the same column and the block was unscannable.
-- **There is no `[claude]`/`[pi]` suffix.** It cost 8 of 28 columns and was the
-  least actionable field — and it spent them on the urgent rows, where the
-  *location* (the thing you act on) got truncated instead. A pi pane's window is
-  already auto-named `node`, which reads as pi in practice. State stays
-  double-encoded as color, not tag alone.
-
-Colors are the same three roles `tmux-claude-menu --colorize` uses, so the `M-b`
-menu and this glance encode state identically.
-
-### Docked block: `activity`
-
-`activity` is a passive, process-local, newest-first transition feed between
-`agents_glance` and `system_stats`. It uses otherwise-empty vertical space via
-`Expandable`, caps retained history at 50 (evicting oldest nonurgent resolved
-items first), and has no persistent event store. The initial agent snapshot and
-the first event-triggered or explicit-`r` Git snapshot establish silent baselines;
-accepted World updates only collect candidate roots and never launch Git. Hidden
-activity blocks retain coalesced requests until visible, and probes are serialized
-across cwd aliases so snapshots for one canonical worktree cannot arrive out of
-order. It records agent starts,
-exits, permission requests,
-waiting, and completed responses; current permission/wait and Git-conflict facts
-remain distinct from resolved history.
-
-Agent rows retain immutable pane/session/window identity and offer the same safe
-focus, response/plan, and session-ID copy actions as `agents_glance`. Worktree
-transitions retain canonical absolute paths: Enter focuses the shallowest live
-matching pane, otherwise opens a guarded split at that exact path. Their palette
-also offers guarded new-window, copy-path, and Finder-reveal actions. Stale or
-recycled panes and missing paths report concisely and never redirect. `(none yet)`
-and `+N more` remain inert; visible rows are navigable, clickable, hoverable, and
-retain selection by stable event ID.
-
-Git runs only after an agent wait, response completion, or exit, plus explicit
-`r` for currently live roots/cwds. Timeout-bounded identity and
-`status --porcelain=v2 --branch -z` probes coalesce equivalent work and reject
-late results superseded by a newer token. Git never runs on a timer, in `View`,
-per rendered row, or recursively across repositories. It detects dirty/clean,
-conflict/operation appearance or clearing, and branch changes per worktree.
-
-### Docked block: `system_stats`
-
-Read-only cpu/mem/disk, on its own 5s cadence (machine load doesn't need
-per-keystroke freshness, and the `ps -eo pcpu` sample is the priciest recurring
-call). Reuses commands already trusted in this repo rather than inventing a
-measurement approach: core-count-normalized `ps -eo pcpu` per
-`sketchybar/plugins/cpu.sh`, plus `vm_stat`/`hw.memsize` for memory (approximate
-by design).
-
-**Battery was removed in revision 5.** Charge is already on the macOS menu bar
-and in SketchyBar, so the row spent a gauge line — and a `pmset -g batt` fork
-per sample — restating something always visible in two other places. `Height()`
-is now the constant **4**, which also removes the one place a block's height
-depended on its sampled *values* rather than on cached state.
-
-**`cpuThreads()` and `memTotal()` are cached behind `sync.Once`.** They read
-`sysctl -n machdep.cpu.thread_count` and `hw.memsize`, which are machine
-constants — they were being re-forked on every 5s sample, forever, for values
-that cannot change while the process lives. A `regexp.MustCompile` for the
-`vm_stat` page size was also being recompiled inside `sampleMem` each sample
-(its sibling `vmStatPages` was already hoisted correctly); it is now
-`vmStatPageSize` at package level. **6 forks per 5s → 4.**
-
-**Disk measures `/System/Volumes/Data`, not `/`.** On a modern macOS install `/`
-is the sealed read-only system volume, so `df /` is not a "disk full" gauge —
-measured on this machine `/` reports **5%** while the data volume reports
-**48%**. The bash version used `df -H /` and therefore showed 5%, which is not a
-rounding difference from the truth. Falls back to `/` if the path is absent.
-
-Each metric renders as a **20-cell block bar** — `▓` fill in `accent-secondary`
-(or `accent-primary` rose when hot: cpu/mem/disk ≥ 85%), `░` track
-in `divider-subtle`, then the numeric percent. This is the gauge half of
-agent-manager's "computer" panel that revision 3 rendered as bare text. Bar width
-is a fixed constant rather than width-reactive; `clip` handles a narrower pane.
-
-**A nonzero reading floors at one filled cell.** At 20 cells anything under 5%
-divides to an all-track bar indistinguishable from 0% — and it would also drop
-the hot color entirely.
+Adding a new progressive view is a deliberate product change: add its surface,
+`v` entry, collection policy, key routing, and branch-specific render tests.
+Do not turn ordinary information into another always-visible main panel.
 
 ## Navigator tabs
 
@@ -1022,65 +717,33 @@ track — both are background-weight surfaces, not text, so neither could reuse
 
 ## Keymap (sidebar pane focused)
 
+### Main
+
 | Key | Action |
 | --- | --- |
-| `1`–`5` | Switch to sessions / panes / projects / filetree / scratch (`1`..`N` over `nav.Sources`) |
-| `Tab` / `S-Tab` | Cycle tabs forward / back |
-| `j` `k` / `↓` `↑` | Move within the active focus region; wraps inside that region |
-| `J` / `K` | Rotate focus regions forward / back without acting |
-| `Ctrl-Tab` (`F13`) / `Ctrl-Shift-Tab` (`F14`) | Same forward / back region rotation; Ghostty transports the keys as F13/F14 |
-| `g` / `G` | First / last actionable row across the sidebar |
-| `Enter` | Act on the focused navigator row or actionable block row |
-| `/` | Enter the inline filter; typed Unicode and bracketed paste query source-provided `Row.SearchText` without reordering rows |
-| `Backspace` | Delete one query rune while filtering; otherwise invoke the active source's optional control (filetree: up one level) |
-| `r` | Force refetch; projects deliberately re-reads Git/Worktrunk metadata once |
-| `w` | Cycle this window's sidebar width: compact 30 → normal 36 → wide 44 |
-| `a` / `:` | Open selected navigator or actionable-block row's context action palette; `j`/`k`, Enter, Esc. Destructive actions require in-TUI `y`/Enter confirmation and revalidate their stable tmux identity immediately before execution. |
-| `h` / `p` / `R` | Filetree only: toggle hidden entries / pin root / reset root to content cwd (optional source controls) |
-| `?` | Toggle compact action-derived help overlay |
-| `d` | Open cached diagnostics/help (no extra tmux/Git/filesystem/process work) |
-| `q` | Close the sidebar outside the filter; type `q` into the query while filtering |
-| `Esc` | Clear and exit the filter first; close the sidebar only when no filter is active |
-| click (navigator) | Select the clicked row |
-| click (agents row) | Switch to that agent's pane |
-| `a` / `:` on an agent | Focus, open its existing response/plan view, or copy its stable session ID |
-| wheel | Scroll the navigator viewport — clamped, and only over the navigator |
+| `1`–`5`, `Tab` / `S-Tab` | Select/cycle sessions, panes, projects, filetree, scratch |
+| `j/k`, arrows | Move within navigator or attention |
+| `J/K`, F13/F14 | Rotate navigator ↔ attention without acting |
+| `g/G`, Enter | First / last / activate |
+| `/`, Backspace | Filter; filetree parent when not filtering |
+| `h/p/R` | Filetree hidden / pin / reset |
+| `a` / `:` | Selected-row actions |
+| `v` | Explicit views palette |
+| `r` | Force source refresh |
+| `w` | 30/36/44 width |
+| `?`, `d` | Help / cached diagnostics |
+| `q`, Esc | Dismiss all sidebars; Esc clears filter first |
 
-Pane rows render a pane label first when present (`label · index:window`), and
-labels participate in filtering. Their context palette includes an on-demand pane
-preview. It captures only after selection, sanitizes captured ANSI/control bytes
-instead of interpreting them, and renders an exact-height modal at the current
-sidebar width (including the normal 36-column width); it never joins the recurring
-poll. Session and pane rows append tmux alert badges:
-`!` bell, `~` silence, `*` activity. They are informational only and ride the
-existing shared World snapshot; they never steal focus or add another poll.
+### Explicit views
 
-Docked blocks are glances by default. Informational blocks have no keyboard
-focus; actionable blocks may implement `Navigable`, `Clickable`, and `Hoverable`
-(see Extending). Focus regions include only the navigator and visible non-empty
-Navigable blocks, preserving each region's selection and skipping informational
-or degraded-away blocks. The current `agents_glance` rows are keyboard- and
-mouse-actionable; `system_stats` remains non-focusable.
+`v` lists agents, activity history, and system health. `j/k`, `g/G`, Enter,
+`a`/`:`, and `r` operate on the selected view. `Esc`/`q` returns to main. Agents
+shows all states; activity preserves guarded agent/worktree actions; system
+samples on open and only rearms its 5-second cadence while still open.
 
-**The wheel is a clamped, position-scoped viewport scroll, not a cursor move.**
-Through revision 4 it called the same wrapping `move()` that `j`/`k` use, from
-anywhere in the pane — so a flick past the last row teleported the cursor to the
-top, and scrolling over the `system` gauges (which hold no cursor at all) moved the
-navigator's. It now adjusts `vpStart`, drags the cursor along only when it would
-leave the visible window, and ignores any wheel event whose `Y` is outside the
-navigator's own lines. `j`/`k` keep wrapping — that's a keyboard convenience; a
-wheel that wraps just reads as a glitch. The visible row span comes from
-`m.lineRow`, for the same reason clicks do: rows are variable-height, so it can't
-be derived from a line count.
-
-Mouse works because tmux already has `mouse on` and Bubble Tea enables all SGR
-motion tracking (`WithMouseAllMotion`). Clicks and hover resolve through two
-tables `View` records as it renders: `lineRow` for the navigator, then
-`blockLines` for the region below it. Both are recorded rather than recomputed,
-so they cannot disagree with the frame — and `Height()` read after the fact would
-reflect the previous frame's `Expandable` grant anyway. Only an actionable
-Hoverable block line accepts hover; header, navigator, divider, padding, labels,
-counters, and empty states clear it. Verified by injecting raw SGR sequences.
+The agent action palette starts with `inspect agent`. The inspector is a full
+surface; selection alone never reads transcript, plan, or Git. `r` forces a
+fresh inspection; Esc/q returns to agents.
 
 ## Relationship to `M-d` and `M-b`
 
@@ -1089,11 +752,10 @@ counters, and empty states clear it. Verified by injecting raw SGR sequences.
   preview/moor/fzf/fzrg. They coexist; don't collapse them. The filetree reuses
   `tmux-open-target` for file opens, so the only real difference is the browsing
   UI.
-- The **`agents_glance`** block is the quick-glance variant of agent status —
-  always visible, with direct row focus/switching but no preview or bulk actions.
-  `M-b` (`tmux-claude-menu`) remains the full
-  interactive picker (focus, preview, accept-all). Don't fold `agents_glance`
-  into a picker.
+- Main-surface **attention** is the blocker-only quick glance; `v` → agents is
+  the complete sidebar roster with focus/actions/explicit inspection. `M-b`
+  remains the richer cross-session picker with transcript preview and bulk
+  actions. These are progressive layers, not competing always-visible panels.
 
 ## Retired by the rewrite
 

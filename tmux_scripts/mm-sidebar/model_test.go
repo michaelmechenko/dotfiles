@@ -5,7 +5,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -284,28 +283,15 @@ func TestRefreshSequenceRejectsLateRowsAndSkippedWorld(t *testing.T) {
 	}
 }
 
-func TestLayoutShowsSelectedAgentDetailOnlyAfterAllAgentRows(t *testing.T) {
+func TestMainLayoutDoesNotInspectThinkingAgent(t *testing.T) {
 	b := blocks.NewAgentsGlance(theme.Theme{}, make(chan struct{}, 1))
-	rows := make([]agents.Row, blocks.AgentsGlanceMax+2)
-	for i := range rows {
-		rows[i] = agents.Row{
-			Agent: agents.AgentPi, SessionID: "session-" + itoa(i), PaneID: "%" + itoa(i),
-			State: agents.StateIdle, Transcript: "-",
-		}
-	}
-	b.Update(blocks.AgentRowsMsg{Rows: rows})
-	if !b.SelectionChanged(b.NavigationID(0)) {
-		t.Fatal("selected agent did not start inspector")
-	}
-	b.Update(b.Refresh()())
-
-	m := &model{rows: testRows(3), docked: []blocks.Block{b}}
-	m.layout(21) // nav (3) + baseline block/divider (9) + post-list slack (9)
-	if shown := b.NavigationCount(); shown != len(rows) {
-		t.Fatalf("detail consumed row space: shown=%d want=%d", shown, len(rows))
-	}
-	if view := b.View(80); !strings.Contains(view, "state: idle") || !strings.Contains(view, "response:") {
-		t.Fatalf("post-list slack did not reach selected inspector: %q", view)
+	b.SetAttentionOnly(true)
+	b.Update(blocks.AgentRowsMsg{Rows: []agents.Row{{Agent: agents.AgentPi, SessionID: "thinking", PaneID: "%1", State: agents.StateThinking}}})
+	b.SetNavigationIndex(0)
+	m := &model{surface: surfaceMain, rows: testRows(3), docked: []blocks.Block{b}}
+	arr := m.layout(21)
+	if len(arr.blocks) != 0 || b.InspectorActive() {
+		t.Fatalf("thinking agent entered main frame or inspector: blocks=%d inspector=%t", len(arr.blocks), b.InspectorActive())
 	}
 }
 
@@ -562,104 +548,46 @@ func testRows(n int) []nav.Row {
 }
 
 func TestWithinRegionMovementWrapsWithoutChangingRegion(t *testing.T) {
-	b := &navigableStub{count: 2, focus: -1}
-	m := &model{height: 20, width: 36, rows: testRows(2), docked: []blocks.Block{b}}
-
+	b := blocks.NewAgentsGlance(theme.Theme{}, make(chan struct{}, 1))
+	b.SetAttentionOnly(true)
+	b.Update(blocks.AgentRowsMsg{Rows: []agents.Row{
+		{State: agents.StateWaiting, PaneID: "%1", SessionID: "one"},
+		{State: agents.StateWaiting, PaneID: "%2", SessionID: "two"},
+	}})
+	m := &model{surface: surfaceMain, height: 20, width: 36, rows: testRows(2), docked: []blocks.Block{b}, focusBlock: -1}
 	m.moveWithinRegion(1)
-	if m.focusRegion != focusNavigator || m.sel != 1 {
-		t.Fatalf("navigator move = row %d, want row 1", m.sel)
-	}
 	m.moveWithinRegion(1)
 	if m.focusRegion != focusNavigator || m.sel != 0 {
-		t.Fatalf("navigator boundary left its region: region=%d row=%d", m.focusRegion, m.sel)
+		t.Fatalf("navigator movement left its region: region=%d row=%d", m.focusRegion, m.sel)
 	}
-
 	m.cycleFocusRegion(1)
 	m.moveWithinRegion(1)
 	m.moveWithinRegion(1)
 	if m.focusRegion != focusBlock || m.focusRow != 0 {
-		t.Fatalf("block movement did not wrap in place: region=%d row=%d", m.focusRegion, m.focusRow)
+		t.Fatalf("attention movement did not wrap in place: region=%d row=%d", m.focusRegion, m.focusRow)
 	}
 }
 
-func TestRegionCyclingPreservesSelectionsAndKeyAliases(t *testing.T) {
-	first := &navigableStub{id: "first", count: 2, focus: -1}
-	second := &navigableStub{id: "second", count: 2, focus: -1}
-	m := &model{height: 30, width: 36, rows: testRows(2), sel: 1, docked: []blocks.Block{first, second}}
-
-	m.handleKey(tea.KeyMsg{Type: tea.KeyF13}) // Ctrl-Tab transport
+func TestRegionCyclingPreservesAttentionSelectionAndKeyAliases(t *testing.T) {
+	b := blocks.NewAgentsGlance(theme.Theme{}, make(chan struct{}, 1))
+	b.SetAttentionOnly(true)
+	b.Update(blocks.AgentRowsMsg{Rows: []agents.Row{
+		{State: agents.StateWaiting, PaneID: "%1", SessionID: "one"},
+		{State: agents.StateWaiting, PaneID: "%2", SessionID: "two"},
+	}})
+	m := &model{surface: surfaceMain, height: 30, width: 36, rows: testRows(2), sel: 1, docked: []blocks.Block{b}, focusBlock: -1}
+	m.handleKey(tea.KeyMsg{Type: tea.KeyF13})
 	if m.focusRegion != focusBlock || m.focusBlock != 0 || m.focusRow != 0 {
-		t.Fatalf("F13 region = block %d row %d, want first block row 0", m.focusBlock, m.focusRow)
+		t.Fatalf("F13 region = block %d row %d", m.focusBlock, m.focusRow)
 	}
 	m.moveWithinRegion(1)
-	m.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'J'}})
-	if m.focusBlock != 1 || m.focusRow != 0 {
-		t.Fatalf("J region = block %d row %d, want second block row 0", m.focusBlock, m.focusRow)
-	}
-	m.moveWithinRegion(1)
-	m.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'J'}})
+	m.handleKey(tea.KeyMsg{Type: tea.KeyF14})
 	if m.focusRegion != focusNavigator || m.sel != 1 {
-		t.Fatalf("navigator selection was not preserved: region=%d row=%d", m.focusRegion, m.sel)
+		t.Fatalf("F14 did not restore navigator selection: region=%d row=%d", m.focusRegion, m.sel)
 	}
-	m.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'J'}})
+	m.handleKey(tea.KeyMsg{Type: tea.KeyF13})
 	if m.focusBlock != 0 || m.focusRow != 1 {
-		t.Fatalf("first block selection was not preserved: block=%d row=%d", m.focusBlock, m.focusRow)
-	}
-	m.handleKey(tea.KeyMsg{Type: tea.KeyF14}) // Ctrl-Shift-Tab transport
-	if m.focusRegion != focusNavigator || m.sel != 1 {
-		t.Fatalf("F14 region = navigator row %d, want preserved row 1", m.sel)
-	}
-}
-
-func TestIntegratedBlockOrderAndDegradation(t *testing.T) {
-	docked := blocks.Build(blocks.Deps{Theme: theme.Theme{}, Client: tmuxio.NewClient("", ""), Agents: make(chan<- struct{}, 1)})
-	if got := blockIDs(docked); !reflect.DeepEqual(got, []string{"agents_glance", "activity", "system_stats"}) {
-		t.Fatalf("block order = %v", got)
-	}
-	m := &model{rows: testRows(1), docked: docked}
-	for usable, want := range map[int][]string{
-		6:  {"agents_glance"},
-		9:  {"agents_glance", "activity"},
-		14: {"agents_glance", "activity", "system_stats"},
-	} {
-		if got := blockIDs(m.layout(usable).blocks); !reflect.DeepEqual(got, want) {
-			t.Fatalf("usable %d blocks = %v, want %v", usable, got, want)
-		}
-	}
-}
-
-func TestRegionCyclingSkipsInformationalAndDegradedBlocks(t *testing.T) {
-	first := &navigableStub{id: "first", count: 1, focus: -1}
-	info := &stubBlock{}
-	degraded := &navigableStub{id: "degraded", count: 1, focus: -1}
-	m := &model{height: 8, width: 36, rows: testRows(3), docked: []blocks.Block{first, info, degraded}}
-
-	regions := m.focusRegions()
-	if len(regions) != 2 || regions[0].block != navigatorTarget || regions[1].block != 0 {
-		t.Fatalf("visible focus regions = %#v, want navigator then first block", regions)
-	}
-	m.cycleFocusRegion(1)
-	if m.focusBlock != 0 {
-		t.Fatalf("cycle entered block %d, want first visible actionable block", m.focusBlock)
-	}
-	m.cycleFocusRegion(1)
-	if m.focusRegion != focusNavigator {
-		t.Fatal("cycle did not skip informational and degraded blocks")
-	}
-}
-
-func TestInformationalBlocksAreSkipped(t *testing.T) {
-	info := &stubBlock{}
-	action := &navigableStub{count: 1, focus: -1}
-	m := &model{height: 20, width: 36, rows: testRows(1), docked: []blocks.Block{info, action}}
-
-	got := m.visibleNavigableBlocks()
-	if len(got) != 1 || got[0] != 1 {
-		t.Fatalf("visible navigable blocks = %v, want [1]", got)
-	}
-	m.cycleFocusRegion(1)
-	if m.focusBlock != 1 || m.focusRow != 0 {
-		t.Fatalf("focus landed on block %d row %d, want informational block skipped", m.focusBlock, m.focusRow)
+		t.Fatalf("attention selection was not retained: block=%d row=%d", m.focusBlock, m.focusRow)
 	}
 }
 
@@ -705,74 +633,22 @@ func (b *selectionRefreshStub) React(tea.Msg) tea.Cmd {
 	return nil
 }
 
-func TestBeginQueryClearsFocusedAgentInspector(t *testing.T) {
+func TestBeginQueryReturnsFocusWithoutStartingInspector(t *testing.T) {
 	b := blocks.NewAgentsGlance(theme.Theme{}, make(chan struct{}, 1))
-	b.Update(blocks.AgentRowsMsg{Rows: []agents.Row{{
-		Agent: agents.AgentPi, PaneID: "%1", SessionID: "agent", State: agents.StateIdle,
-		Transcript: "/tmp/pi.jsonl", Cwd: "/worktrees/sidebar",
-	}}})
-	if !b.SelectionChanged(b.NavigationID(0)) {
-		t.Fatal("selection did not start inspector")
-	}
-	b.Expand(7)
-	if b.Height() <= 2 {
-		t.Fatalf("inspector did not receive detail allocation: height=%d", b.Height())
-	}
+	b.Update(blocks.AgentRowsMsg{Rows: []agents.Row{{Agent: agents.AgentPi, PaneID: "%1", SessionID: "agent", State: agents.StateWaiting}}})
+	b.SetAttentionOnly(true)
 	b.SetNavigationIndex(0)
-
-	m := &model{
-		rows:                    testRows(1),
-		docked:                  []blocks.Block{b},
-		focusRegion:             focusBlock,
-		focusBlock:              0,
-		focusRow:                0,
-		selectionRefreshPending: true,
-	}
+	m := &model{surface: surfaceMain, rows: testRows(1), docked: []blocks.Block{b}, focusRegion: focusBlock, focusBlock: 0, focusRow: 0}
 	m.beginQuery()
-
 	if !m.queryActive || m.focusRegion != focusNavigator || m.focusBlock != -1 || m.focusRow != -1 {
 		t.Fatalf("query did not take navigator focus: active=%t region=%d block=%d row=%d", m.queryActive, m.focusRegion, m.focusBlock, m.focusRow)
 	}
-	if m.selectionRefreshPending {
-		t.Fatal("query retained focused-block refresh work")
+	if b.InspectorActive() {
+		t.Fatal("selection or query transition started inspector")
 	}
 	view := b.View(80)
 	if b.Height() != 2 || strings.Contains(view, "state:") || strings.Contains(view, "▶") {
 		t.Fatalf("query retained agent inspector or focus: height=%d view=%q", b.Height(), view)
-	}
-}
-
-func TestSelectionChangeRefreshUsesGenericBlockInterfaces(t *testing.T) {
-	b := &selectionRefreshStub{navigableStub: navigableStub{count: 2, focus: -1}}
-	m := &model{height: 20, width: 36, rows: testRows(1), docked: []blocks.Block{b}}
-	m.setBlockFocus(0, 0)
-	if !m.selectionRefreshPending {
-		t.Fatal("selection-aware block did not request refresh")
-	}
-	if cmd := m.refreshFocusedBlock(); cmd == nil || b.refreshes != 1 {
-		t.Fatalf("generic refresh did not run once: cmd=%v refreshes=%d", cmd, b.refreshes)
-	}
-	if cmd := m.refreshFocusedBlock(); cmd != nil || b.refreshes != 1 {
-		t.Fatalf("unchanged selection refreshed again: cmd=%v refreshes=%d", cmd, b.refreshes)
-	}
-	if cmd := m.forceRefreshFocusedBlock(); cmd == nil || b.freshRefreshes != 1 || b.refreshes != 1 {
-		t.Fatalf("explicit refresh did not use fresh interface: cmd=%v fresh=%d normal=%d", cmd, b.freshRefreshes, b.refreshes)
-	}
-	m.setFocusTarget(focusTarget{block: navigatorTarget})
-	if b.selected != "" {
-		t.Fatalf("leaving block did not clear selection: %q", b.selected)
-	}
-}
-
-func TestBlockMessageComposesReactiveAndSelectionRefresh(t *testing.T) {
-	b := &selectionRefreshStub{navigableStub: navigableStub{count: 1, focus: -1}}
-	m := &model{height: 20, width: 36, rows: testRows(1), docked: []blocks.Block{b}}
-	m.setBlockFocus(0, 0)
-	if _, cmd := m.Update(stubMsg{payload: "combined"}); cmd == nil {
-		t.Fatal("combined reactive/selection update returned no command")
-	}
-	if b.reacts != 1 || b.refreshes != 1 {
-		t.Fatalf("combined update reactions=%d refreshes=%d, want 1/1", b.reacts, b.refreshes)
 	}
 }
 
@@ -784,16 +660,6 @@ func TestBlockEnterUsesBlockActivation(t *testing.T) {
 	}
 	if b.acted != 1 {
 		t.Fatalf("activated row %d, want 1", b.acted)
-	}
-}
-
-func TestLayoutDropsLowPriorityTailBlock(t *testing.T) {
-	info := &stubBlock{}
-	action := &navigableStub{count: 1, focus: -1}
-	m := &model{height: 8, width: 36, rows: testRows(3), docked: []blocks.Block{info, action}}
-	arr := m.layout(6) // header already removed; nav minimum is 3
-	if len(arr.blocks) != 1 || arr.blocks[0].ID() != info.ID() {
-		t.Fatalf("short layout kept blocks %v, want only the first block", blockIDs(arr.blocks))
 	}
 }
 
@@ -829,29 +695,6 @@ func runCmd(cmd tea.Cmd) {
 		for _, nested := range batch {
 			runCmd(nested)
 		}
-	}
-}
-
-func TestHiddenBlockSkipsFetchUntilVisible(t *testing.T) {
-	shown := &visibilityStub{id: "shown"}
-	hidden := &visibilityStub{id: "hidden"}
-	m := &model{
-		width: 36, height: 7, rows: testRows(1), docked: []blocks.Block{shown, hidden},
-		blockVisible: make(map[string]bool),
-	}
-	m.syncBlockVisibility()
-	runCmd(shown.Fetch())
-	if !shown.visible || hidden.visible || shown.fetches != 1 || hidden.fetches != 0 {
-		t.Fatalf("short layout visibility/fetches = shown(%t,%d) hidden(%t,%d)", shown.visible, shown.fetches, hidden.visible, hidden.fetches)
-	}
-	if m.shouldFetchBlock(hidden) {
-		t.Fatal("hidden block opting out of background fetch was scheduled")
-	}
-
-	m.height = 10
-	m.syncBlockVisibility()
-	if !hidden.visible {
-		t.Fatal("visible transition did not notify block")
 	}
 }
 
@@ -1103,66 +946,6 @@ func TestInlineFilterMovesMouseMapsBelowQueryAndHelp(t *testing.T) {
 	m.handleMouse(tea.MouseMsg{Button: tea.MouseButtonLeft, Action: tea.MouseActionPress, Y: m.navFirstLine() + 1})
 	if m.sel != 1 || m.selectionID != "b" {
 		t.Fatalf("query-aware mouse map selected row %d id %q, want b", m.sel, m.selectionID)
-	}
-}
-
-func TestQueryLineChangesDegradationAndKeepsExactHeight(t *testing.T) {
-	first, second := &stubBlock{}, &stubBlock{}
-	m := &model{theme: theme.Theme{}, width: 36, height: 9, rows: testRows(1), docked: []blocks.Block{first, second}}
-	if arr := m.currentArrangement(); len(arr.blocks) != 2 {
-		t.Fatalf("baseline layout blocks = %d, want 2", len(arr.blocks))
-	}
-	m.beginQuery()
-	if arr := m.currentArrangement(); len(arr.blocks) != 1 {
-		t.Fatalf("query line did not consume one layout row: blocks = %d, want 1", len(arr.blocks))
-	}
-	m.showHelp = true
-	if arr := m.currentArrangement(); len(arr.blocks) != 0 {
-		t.Fatalf("help + query layout did not degrade docked blocks: %d remain", len(arr.blocks))
-	}
-	for _, height := range []int{1, 2, 9, 20} {
-		m.height = height
-		if got := strings.Count(m.View(), "\n") + 1; got != height {
-			t.Fatalf("height %d: View emitted %d lines", height, got)
-		}
-	}
-}
-
-func TestInlineFilterSynchronizesBlockVisibility(t *testing.T) {
-	first := &visibilityStub{id: "first"}
-	second := &visibilityStub{id: "second"}
-	m := &model{
-		width: 36, height: 9, rows: testRows(1), docked: []blocks.Block{first, second},
-		blockVisible: make(map[string]bool),
-	}
-	runCmd(m.syncBlockVisibility())
-	if !first.visible || !second.visible || first.fetches != 1 || second.fetches != 1 {
-		t.Fatalf("initial visibility = first(%t,%d) second(%t,%d), want both visible and fetched", first.visible, first.fetches, second.visible, second.fetches)
-	}
-	_, cmd := m.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
-	runCmd(cmd)
-	if !first.visible || second.visible || second.fetches != 1 {
-		t.Fatalf("query entry did not publish degradation: first(%t,%d) second(%t,%d)", first.visible, first.fetches, second.visible, second.fetches)
-	}
-	_, cmd = m.handleKey(tea.KeyMsg{Type: tea.KeyEsc})
-	runCmd(cmd)
-	if !second.visible || second.fetches != 2 {
-		t.Fatalf("clearing query did not reveal and fetch block: second(%t,%d)", second.visible, second.fetches)
-	}
-}
-
-func TestInlineFilterRetainsF13F14RegionCycling(t *testing.T) {
-	block := &navigableStub{count: 1, focus: -1}
-	m := &model{height: 20, width: 36, rows: []nav.Row{{ID: "a", SearchText: "alpha", Lines: []string{"a"}}}, docked: []blocks.Block{block}}
-	m.beginQuery()
-	m.appendQuery("alpha")
-	m.handleKey(tea.KeyMsg{Type: tea.KeyF13})
-	if m.focusRegion != focusBlock || m.focusBlock != 0 {
-		t.Fatalf("F13 stopped cycling regions while filtering: region=%d block=%d", m.focusRegion, m.focusBlock)
-	}
-	m.handleKey(tea.KeyMsg{Type: tea.KeyF14})
-	if m.focusRegion != focusNavigator {
-		t.Fatalf("F14 stopped cycling back to navigator while filtering: region=%d", m.focusRegion)
 	}
 }
 

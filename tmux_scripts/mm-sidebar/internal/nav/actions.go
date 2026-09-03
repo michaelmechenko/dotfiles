@@ -79,6 +79,7 @@ const (
 	LocalEffectNone LocalEffect = iota
 	LocalEffectSource
 	LocalEffectEditFile
+	LocalEffectInspectAgent
 )
 
 func paneActions(p tmuxio.PaneRow) []ContextAction {

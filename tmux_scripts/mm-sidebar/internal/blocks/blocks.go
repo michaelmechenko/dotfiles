@@ -1,18 +1,7 @@
-// Package blocks holds the sidebar's docked blocks: fixed-height, read-only
-// glances rendered below the flexible navigator and visible regardless of which
-// navigator tab is active.
-//
-// The layout is a stack: header -> navigator -> blocks, in Order. That array is
-// the whole "which blocks, in what order" configuration, and it doubles as the
-// degradation priority -- on a short pane the model drops blocks from the END
-// of the list first, protecting the primary navigator instead of squeezing
-// everything unusably thin.
-//
-// Adding a block is one type implementing Block plus one entry in the model's
-// block slice. (The bash version needed a hand-written case statement in three
-// separate dispatch functions, because macOS's /bin/bash 3.2 has neither
-// associative arrays nor namerefs to look up "fetch_$id". An interface makes
-// that whole workaround moot.)
+// Package blocks owns the sidebar's collected agent roster, activity history,
+// and system metrics plus their explicit-view interaction. The main surface
+// renders only blocker attention from the agent roster; activity and system are
+// reached through the model-owned views palette.
 package blocks
 
 import (
@@ -70,6 +59,13 @@ type Block interface {
 // package over. A test in package main caught exactly that.
 type BlockMsg interface{ IsBlockMsg() }
 
+// OpenViewMsg asks the model to open one explicit progressive-disclosure view.
+// Blocks use it for affordances such as the attention overflow row without
+// learning about model-owned surface state.
+type OpenViewMsg struct{ ID string }
+
+func (OpenViewMsg) IsBlockMsg() {}
+
 // WorldMsg is an accepted, freshness-checked tmux observation. The model emits
 // it only after it has won refresh sequencing, so passive blocks can safely
 // derive transitions without running a second tmux query.
@@ -112,6 +108,12 @@ type BackgroundFetcher interface {
 // content. Rather than pad the gap with nothing, the layout offers it to blocks
 // that are truncating -- agents_glance replacing "+N more" with the actual rows.
 // A block that always shows everything simply doesn't implement this.
+// ViewportSized lets an explicit list view constrain its actionable rows to the
+// rendered pane height. Hidden rows must never remain keyboard-actionable.
+type ViewportSized interface {
+	SetViewportHeight(int)
+}
+
 type Expandable interface {
 	// SetExtra resets the granted allowance. The layout calls this every frame
 	// before measuring, so a grant never accumulates across renders.
@@ -168,30 +170,6 @@ type Navigable interface {
 type SelectionIdentifiable interface {
 	NavigationID(index int) string
 	NavigationIndexByID(id string) int
-}
-
-// SelectionChangeAware receives the stable identity of the row that currently
-// has keyboard focus, or an empty string when the block loses it. The model
-// calls this only through the generic Navigable/SelectionIdentifiable seam, so
-// a block may start selection-scoped work without model.go learning its type.
-type SelectionChangeAware interface {
-	// SelectionChanged reports whether the stable selection actually changed.
-	// The model uses that result to schedule one on-demand Refresh.
-	SelectionChanged(id string) bool
-}
-
-// Refreshable is optional on-demand work for the selected row. Unlike Fetch,
-// which belongs to a block's normal cadence, Refresh runs only after an explicit
-// selection change or the user's `r` request. This keeps expensive detail views
-// out of background polling.
-type Refreshable interface {
-	Refresh() tea.Cmd
-}
-
-// ForceRefreshable is the explicit-user-refresh variant. It bypasses a block's
-// normal cache without making recurring selection work expensive.
-type ForceRefreshable interface {
-	RefreshFresh() tea.Cmd
 }
 
 // Actionable is the optional context-action half of a Navigable block. The

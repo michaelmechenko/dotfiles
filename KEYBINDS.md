@@ -410,84 +410,59 @@ In-nnn plugin keys (`;` prefix — nnn requires it for plugins):
 ## tmux — sidebar (`tmux-sidebar-toggle` / `mm-sidebar`)
 
 > Internal plugin name: **mm-sidebar**. Canonical reference:
-> `tmux_scripts/mm-sidebar.md`. This section is the keybind summary;
-> the plugin doc has the full architecture, state, and gotchas.
+> `tmux_scripts/mm-sidebar.md`.
 
-A leftmost, full-window-height pane toggled by `M-Tab` (normal width 36; `w` cycles window-local 30/36/44 presets). Runs a compiled Go/Bubble Tea TUI (`tmux_scripts/mm-sidebar`, built on demand by `tmux-sidebar-build`) inside the pane — not fzf, not nnn. Renders a stack of blocks: a 2-line header, a flexible 5-tab **navigator** (sessions / panes / projects / filetree / scratch), and fixed-height **docked blocks** below it (`agents_glance`, `activity`, `system_stats`) that stay visible regardless of which navigator tab is active — inspired by [agent-manager](https://github.com/YoanWai/agent-manager)'s session-tree-plus-persistent-gauges layout. Window-scoped state (`@sidebar_pane_id` / `@sidebar_content_pane` / `@sidebar_source`) so each window remembers its own tab.
+A leftmost, full-window-height Bubble Tea pane. `M-Tab` toggles synchronized
+persistent sidebars; `M-BTab` focuses or leaves the current window's sidebar.
+Window-local `@sidebar_source` and `@sidebar_width` preserve the active tab and
+30/36/44-column width.
 
-**Persistent mode + focus switch.** `M-Tab` toggles the global desired state
-`@sidebar_persistent`: enabling opens the current window without moving focus,
-then selected windows/sessions get their own synchronized sidebar; disabling
-closes every owner transactionally. `M-BTab` remains a window-local focus switch:
-
-| Key | State | Result |
-| --- | --- | --- |
-| `M-Tab` | persistence off | enable it and ensure the current window's sidebar (`split-window -h -f -b -d -l 36`) — **focus does not move** |
-| `M-Tab` | persistence on | disable it and close every sidebar, restoring each owner's geometry/zoom |
-| `M-BTab` | no sidebar in this window | open it **and** focus it (local, even with persistent mode off) |
-| `M-BTab` | open, sidebar not active | focus the sidebar and retarget it at the pane you came from |
-| `M-BTab` | open, sidebar active | focus the window's **last active pane** — **sidebar stays open** |
-
-Each sidebar is a separate window-owned pane; none is moved between windows.
-`M-BTab` remains the cheap local peek/return gesture.
-
-The return target is tmux's own last-pane, not the sidebar's content pane; those
-differ once focus has bounced between content panes.
+The normal surface is deliberately sparse: the 5-tab navigator (sessions /
+panes / projects / filetree / scratch) plus a compact **attention** section only
+when an agent is awaiting permission or waiting for input. Thinking/idle agents,
+activity history, system gauges, and inspector detail never fill the main frame.
+`v` opens explicit agents/activity/system views. Blank space stays blank.
 
 | Key | Scope | Action |
 | --- | --- | --- |
-| `M-Tab` | root | Toggle persistent mode: enable+ensure selected window, or disable+close all. Guarded like `M-j`/`M-q`: forwards raw inside any popup or the `nnn` session |
-| `M-BTab` | root | Focus switch (three states above), pane stays alive. Same popup/nnn guard |
-| `prefix Tab` | prefix | Identical persistent-mode toggle, reachable from **any** terminal. The `M-` forms only arrive via Ghostty's `alt+tab=csi:9;3u` / `alt+shift+tab=csi:9;4u` mappings, so the prefix table is the fallback over SSH / other emulators |
-| `prefix BTab` | prefix | Identical focus switch, same fallback rationale |
+| `M-Tab` / `prefix Tab` | root / prefix | Enable+ensure persistent mode, or disable+close all owners with geometry restore |
+| `M-BTab` / `prefix BTab` | root / prefix | Open/focus the local sidebar, or return to tmux's last active pane without closing it |
 
-`q`/`Esc` outside a sidebar modal/filter disable persistent mode and close every
-sidebar. `tmux-sidebar-toggle --close` remains the local, unbound failure/script
-cleanup path.
-
-**Inside the sidebar pane** (pane must be focused; visible actionable docked blocks participate in the shared focus-region keys and can accept a mouse click):
+**Main surface keys**
 
 | Key | Action |
 | --- | --- |
-| `1` … `5` | Switch to sessions / panes / projects / filetree / scratch tab (`1`..`N` over the `nav.Sources` registry) |
-| `Tab` / `S-Tab` | Cycle tabs forward / back |
-| `j` / `↓` | Move down within the active focus region; wraps inside that region |
-| `k` / `↑` | Move up within the active focus region; wraps inside that region |
-| `J` / `ctrl-tab` (`F13`) | Rotate forward through visible non-empty focus regions without acting |
-| `K` / `ctrl-shift-tab` (`F14`) | Rotate backward through visible non-empty focus regions without acting |
-| `g` / `G` | Jump to the first / last actionable row across the sidebar |
-| `Enter` | Act on the focused navigator row or actionable block row (tab/block-specific) |
-| `/` | Enter the inline filter; typing and bracketed paste search the active tab without reordering its rows |
-| `Backspace` | Delete one query character while filtering; otherwise invoke the active source's optional control (filetree: up one level) |
-| `h` / `p` / `R` | Filetree only: toggle hidden entries / pin its root / reset and unpin root to the content cwd |
-| `r` | Force refetch + re-render; projects re-read catalog/Git/Worktrunk metadata, activity probes currently live roots/cwds, and a focused agent refreshes its inline inspector (never polled) |
-| `w` | Cycle this window's sidebar width: compact 30 → normal 36 → wide 44 |
-| `a` / `:` | Open the selected navigator or actionable-block row's action palette; destructive actions require `y`/Enter confirmation |
-| `?` | Toggle compact action-derived help overlay |
-| `d` | Open cached diagnostics/help: World/fingerprint, source/root/filter/watch/visibility, refresh/error counters, IDs; no extra fork |
-| `q` | Outside the filter, disable persistent mode and close every sidebar; type `q` into the query while filtering |
-| `Esc` | Clear and exit the filter first; otherwise perform the same global dismissal as `q` |
-| click (navigator) | Select the clicked navigator row |
-| click (agents row) | **Switch to that agent's pane**, across sessions included. The `▸ agents` label, the `+N more` counter and `(none)` are inert |
-| `a` / `:` on selected agent | Focus, open its existing response/plan view, or copy its stable session ID |
-| click / `Enter` on activity | Focus its guarded agent/worktree target; worktrees use the shallowest matching live pane or a guarded split |
-| `a` / `:` on selected activity | Agent: focus/response/plan/copy session ID. Worktree: focus/split/new window/copy path/reveal |
-| wheel | Scroll the navigator viewport, **clamped** (no wrap) and only while the pointer is **over the navigator** — a wheel event over the docked blocks or the header does nothing |
+| `1` … `5` / `Tab` / `S-Tab` | Select or cycle sessions / panes / projects / filetree / scratch |
+| `j` `k` / arrows | Move within the navigator or attention focus region |
+| `J` `K` / F13 F14 | Rotate between navigator and attention without acting |
+| `g` / `G` / `Enter` | First / last / activate |
+| `/` / `Backspace` | Filter; Backspace is filetree parent when not filtering |
+| `h` / `p` / `R` | Filetree: hidden / pin root / reset root |
+| `a` / `:` | Selected row actions; destructive actions require confirmation |
+| `v` | Open the explicit views palette |
+| `r` | Force the active navigator refresh; projects re-run bounded Git/Worktrunk inventory |
+| `w` | Cycle 30 / 36 / 44 columns |
+| `?` / `d` | Compact help / cached diagnostics |
+| `q` / `Esc` | Dismiss all sidebars; Esc clears a filter first |
 
-Focus regions are the navigator and every visible non-empty `Navigable` block. Region rotation preserves each region's selected row and skips informational or degraded-away blocks. `system_stats`, labels, `(none)`, `(none yet)`, and `+N more` remain non-focusable. `M-b` remains the full agent picker.
+The attention section shows at most four `!P`/`!W` rows, permission before
+waiting. Its overflow row opens the full agents view; hidden rows are not direct
+action targets.
 
-Ghostty transports Ctrl-Tab/Ctrl-Shift-Tab as F13/F14; only mm-sidebar interprets those names, so Ctrl-Tab retains its Pi/zsh behavior elsewhere. Pane rows put `@pane-label` first (`label · index:window`) and include it in filtering. Session/pane alert badges are informational: `!` bell, `~` silence, `*` activity; they ride the existing World snapshot and never focus a row. Agent-glance state tags: `!P` awaiting permission, `!W` waiting, `~~` thinking, blank = idle (color also encodes state). Hovering an actionable agent row underlines its location only; hover neither changes keyboard focus nor activates it.
+**Explicit views (`v`)**
 
-**Per-tab `Enter` actions + extra keys:**
+| View | Behavior |
+| --- | --- |
+| agents | All permission/waiting/thinking/idle agents; Enter focuses; `a`/`:` includes explicit inspect, focus, response, plan, and copy-session actions |
+| activity | Process-local transition history with guarded agent/worktree actions; no timer or persistent event store |
+| system | cpu/mem/disk gauges; sampling starts on open, continues only while this view is open, and stops after leaving |
 
-| Tab | Source | `Enter` action | Extra keys |
-| --- | --- | --- | --- |
-| sessions | `tmux-fzf-nav --list-sessions` | `switch-client` + `select-pane` to that session's active pane | — |
-| windows | `tmux-fzf-nav --list-windows` | `switch-client` + `select-pane` to that pane (current session only) | — |
-| projects | persistent pinned/recent Git catalog observed from live pane cwds | focus a live worktree pane, else split at its root | `a`/`:` heading: pin/unpin/confirmed forget; worktree: focus, shell split/window, pinned filetree, lazygit, project scratch, pi/Claude windows, copy/reveal; no recurring Git polling |
-| filetree | `find`-based 2-level tree over the content pane's cwd | dir → `split-window -h -c <dir>` in the content pane; file → `tmux-open-target` (nvim split) | `h` hidden, `p` pin, `R` reset/unpin, `Backspace` up |
-| scratch | `~/.config/tmux_scratch/{global,<slug>}.md` | `exec nvim <file>`; `:wq` returns to the dispatcher loop | — |
+`j`/`k`, `g`/`G`, Enter, `a`/`:`, and `r` apply inside an explicit view.
+`Esc`/`q` returns to the main surface rather than closing the sidebar. The agent
+inspector starts only from **inspect agent**; selection alone does no transcript,
+plan, or Git work. Its absent fields and duplicate cwd/worktree line are omitted;
+`r` bypasses its short cache.
 
-The `a`/`:` palette is descriptor-driven by the selected row: panes offer focus, label, rename window, zoom, on-demand preview, and confirmed kill; sessions offer focus, rename, and confirmed kill; project headings offer pin/unpin and confirmed forget only when not live; files/directories offer open, parent/split or new window, copy path, and Finder reveal. Preview captures only after selection, sanitizes captured ANSI/control bytes, and renders an exact-height 36-column-safe modal; it is never polled. Confirmed destructive tmux actions revalidate pane/session identity immediately before execution.
-
-`agents` is not a navigator tab — it's the `agents_glance` docked block instead (always visible below the navigator, regardless of tab). Its visible rows are keyboard- and mouse-actionable, colorized by state (rose `#d8647e` for awaiting-permission/waiting, dusty_pink `#bb9dbd` for thinking, inactive `#656a80` for idle — same roles as the `M-b` menu), capped/urgency-sorted with a `+N more` row when clipped, and hover-underlined at their location only. When its focus region is active, the selected row loads an inline inspector below the fully expanded agent list, using otherwise-empty slack only: state age, bounded latest prompt/response, optional Claude plan, cwd/worktree, and Git summary. It never polls transcripts, plans, or Git; `r` explicitly refreshes it. Its selected-row palette reuses the existing response/plan dispatchers and can copy the stable session ID; it does not duplicate the agent join or automatic approval. Bulk actions stay on `M-b`. `activity` is a process-local, passive 50-item transition feed: it shows agent starts/exits, permission/wait/completion, and event-triggered Git dirty/conflict/branch transitions. Its Git probes are timeout-bounded, visibility-gated, and run only after relevant transitions or explicit `r`, never on a timer. `system_stats` shows cpu/mem/disk on its own ~5s timer.
+Navigator loading, successful-empty, no-match, and fetch-error states are
+separate. In particular, projects shows `loading projects…` during its bounded
+cold fetch instead of temporarily claiming the catalog is empty.

@@ -274,7 +274,7 @@ Type a query; every matching substring in the popup's visible content rows gets 
 | Key | Scope | Action |
 | --- | --- | --- |
 | `M-V` | root | `even-vertical` layout |
-| `M-H` | root | Cycle previous preset layout (`previous-layout`; 7 presets, wraps) |
+| `M-H` | root | With exactly 2 ordinary panes: `even-horizontal`; with 3+ panes or a managed sidebar: previous preset layout |
 | `M-v` | root | `tiled` layout |
 
 ### Session / float / popup
@@ -313,6 +313,7 @@ Type a query; every matching substring in the popup's visible content rows gets 
 ### Mouse
 | Key | Scope | Action |
 | --- | --- | --- |
+| `MouseDown1Status` | root | Switch to the clicked status-bar window (native window range; attached-client verified) |
 | `MouseDown1StatusRight` | root | Session chooser on status-right click (`tmux-status-session-ls`; backgrounded — tmux 3.7 segfault workaround) |
 | `MouseDown3StatusRight` | root | Pane chooser on status-right right-click (`tmux-status-pane-ls`; backgrounded) |
 | `MouseDown3Pane` | root | Pane context menu (open-in-finder, history top/bottom, paste, copy word/line/link, splits, swap, kill, respawn, mark, zoom) |
@@ -437,8 +438,9 @@ activity history, system gauges, and inspector detail never fill the main frame.
 | `J` `K` / F13 F14 | Rotate between navigator and attention without acting |
 | `g` / `G` / `Enter` | First / last / activate |
 | `/` / `Backspace` | Filter; Backspace is filetree parent when not filtering |
+| `Space` | Explicit bounded preview of the selected filetree path; close an open preview |
 | `h` / `p` / `R` | Filetree: hidden / pin root / reset root |
-| `a` / `:` | Selected row actions; destructive actions require confirmation |
+| `a` / `:` | Selected row actions; long palettes scroll with selection; destructive actions require confirmation |
 | `v` | Open the explicit views palette |
 | `r` | Force the active navigator refresh; projects re-run bounded Git/Worktrunk inventory |
 | `w` | Cycle 30 / 36 / 44 columns |
@@ -462,6 +464,10 @@ action targets.
 inspector starts only from **inspect agent**; selection alone does no transcript,
 plan, or Git work. Its absent fields and duplicate cwd/worktree line are omitted;
 `r` bypasses its short cache.
+
+Sessions render as an actionable cached session→pane outline. Project repository
+headings show worktree/branch counts and start collapsed; Enter toggles them
+locally, while filtering temporarily reveals matching children.
 
 Navigator loading, successful-empty, no-match, and fetch-error states are
 separate. In particular, projects shows `loading projects…` during its bounded

@@ -25,8 +25,11 @@ func TestPaneLabelsBadgesAndActionsComeFromWorldRows(t *testing.T) {
 		t.Fatalf("pane actions = %#v", rows[0].Actions)
 	}
 	sessions, err := (Sessions{}).Fetch(Ctx{Theme: theme.Theme{}, World: world})
-	if err != nil || len(sessions) != 1 || !world.Sessions()[0].Bell || !sessions[0].Actions[len(sessions[0].Actions)-1].Destructive {
-		t.Fatalf("session badges/actions = %#v %#v, %v", world.Sessions(), sessions, err)
+	if err != nil || len(sessions) != 2 || !world.Sessions()[0].Bell || !sessions[0].GroupHeading || !sessions[0].Actions[len(sessions[0].Actions)-1].Destructive {
+		t.Fatalf("session outline badges/actions = %#v %#v, %v", world.Sessions(), sessions, err)
+	}
+	if sessions[1].PaneID != "%1" || sessions[1].GroupHeading || sessions[1].GroupID != "$work" || !strings.Contains(sessions[1].SearchText, "/repo") {
+		t.Fatalf("session pane child = %#v", sessions[1])
 	}
 }
 
@@ -47,8 +50,13 @@ func TestSidebarPanesAreNeverNavigationTargets(t *testing.T) {
 		t.Fatalf("window targets = %#v, %v", windows, err)
 	}
 	sessions, err := (Sessions{}).Fetch(ctx)
-	if err != nil || len(sessions) != 2 || sessions[0].PaneID == "%self-sidebar" || sessions[1].PaneID == "%other-sidebar" {
-		t.Fatalf("session targets = %#v, %v", sessions, err)
+	if err != nil || len(sessions) != 4 {
+		t.Fatalf("session outline = %#v, %v", sessions, err)
+	}
+	for _, row := range sessions {
+		if row.PaneID == "%self-sidebar" || row.PaneID == "%other-sidebar" {
+			t.Fatalf("sidebar entered session outline: %#v", sessions)
+		}
 	}
 }
 
@@ -64,11 +72,17 @@ func TestWorldFedSourcesShareFloatFirstOrdering(t *testing.T) {
 	)
 	ctx := Ctx{Theme: theme.Theme{}, World: world}
 	sessions, err := (Sessions{}).Fetch(ctx)
-	if err != nil || len(sessions) != 2 {
+	if err != nil || len(sessions) != 5 {
 		t.Fatalf("sessions = %#v, %v", sessions, err)
 	}
-	if sessions[0].ID != "session:$float" || sessions[1].ID != "session:$work" {
-		t.Fatalf("session rows lost world order: %#v", sessions)
+	wantSessionIDs := []string{"session:$float", "session-pane:%float", "session:$work", "session-pane:%first", "session-pane:%later"}
+	for i, want := range wantSessionIDs {
+		if sessions[i].ID != want {
+			t.Fatalf("session outline row %d = %q, want %q: %#v", i, sessions[i].ID, want, sessions)
+		}
+	}
+	if len(sessions[0].Lines) != 1 || len(sessions[1].Lines) != 1 || !strings.Contains(sessions[4].SearchText, "/later") {
+		t.Fatalf("session outline is not compact/searchable: %#v", sessions)
 	}
 	windows, err := (Windows{}).Fetch(ctx)
 	if err != nil || len(windows) != 2 {

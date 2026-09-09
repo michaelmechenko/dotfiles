@@ -564,6 +564,80 @@ def test_focus_switch(h: Harness) -> None:
     h.close(main)
 
 
+def invoke_config_binding(h: Harness, pane: str, key: str) -> None:
+    prefix = f"bind-key -n {key} "
+    line = next((line for line in (ROOT.parent / "tmux.conf").read_text().splitlines() if line.startswith(prefix)), "")
+    h.require(bool(line), f"missing {key} binding in tmux.conf")
+    command = shlex.split(line)[3:]
+    if command[:2] == ["if-shell", "-F"]:
+        condition = command[2]
+        groups: list[list[str]] = []
+        current: list[str] | None = None
+        for token in command[3:]:
+            if token == "{":
+                current = []
+            elif token == "}":
+                if current is not None:
+                    groups.append(current)
+                current = None
+            elif current is not None:
+                current.append(token)
+        h.require(len(groups) == 2, f"cannot parse {key} binding: {line}")
+        h.tmux("if-shell", "-F", "-t", pane, condition, " ".join(groups[0]), " ".join(groups[1]))
+        return
+    h.tmux(*command, "-t", pane)
+
+
+def test_m_h_two_pane_layout(h: Harness) -> None:
+    main = h.new_session("m-h-layout")
+    middle = h.split(main, "-h")
+    right = h.split(middle, "-h")
+    h.tmux("select-layout", "-t", main, "even-horizontal")
+    h.tmux("resize-pane", "-t", middle, "-x", "20")
+    h.tmux("kill-pane", "-t", right)
+    widths = [int(v) for v in h.tmux("list-panes", "-t", h.window(main), "-F", "#{pane_width}").splitlines()]
+    h.require(len(widths) == 2 and abs(widths[0] - widths[1]) > 1, f"setup did not leave uneven panes: {widths}")
+    invoke_config_binding(h, main, "M-H")
+    rows = [tuple(map(int, line.split())) for line in h.tmux("list-panes", "-t", h.window(main), "-F", "#{pane_top} #{pane_width}").splitlines()]
+    h.require(len(rows) == 2 and rows[0][0] == rows[1][0] and abs(rows[0][1] - rows[1][1]) <= 1, f"M-H did not equalize two panes: {rows}")
+
+    third = h.split(main, "-h")
+    before = h.layout(main)
+    invoke_config_binding(h, main, "M-H")
+    h.require(h.layout(main) != before, "M-H did not retain previous-layout for 3+ panes")
+    h.tmux("kill-pane", "-t", third)
+    h.tmux("select-layout", "-t", main, "even-horizontal")
+    h.tmux("resize-pane", "-t", main, "-x", "90")
+    h.tmux("set-option", "-w", "-t", h.window(main), "@sidebar_pane_id", middle)
+    invoke_config_binding(h, main, "M-S-H")
+    rows = [tuple(map(int, line.split())) for line in h.tmux("list-panes", "-t", h.window(main), "-F", "#{pane_top} #{pane_width}").splitlines()]
+    h.require(not (rows[0][0] == rows[1][0] and abs(rows[0][1] - rows[1][1]) <= 1), f"sidebar-owned window was equalized: {rows}")
+
+
+def test_status_window_click_regression(h: Harness) -> None:
+    configured = [line.strip() for line in (ROOT.parent / "tmux.conf").read_text().splitlines() if line.strip() and not line.lstrip().startswith("#")]
+    h.require(not any("status-format[0]" in line for line in configured), "tmux.conf replaced native status-format[0]")
+    h.require(not any(line.startswith("bind-key -n MouseDown1Status ") for line in configured), "tmux.conf replaced native MouseDown1Status")
+    main = h.new_session("status-click")
+    h.tmux("new-window", "-d", "-t", "status-click:", "-n", "second", "/bin/sh", "-i")
+    h.tmux("set-option", "-g", "mouse", "on")
+    h.tmux("set-option", "-g", "status", "on")
+    h.tmux("set-option", "-g", "status-position", "top")
+    h.tmux("set-option", "-g", "status-left", "")
+    h.tmux("set-option", "-g", "status-right", "")
+    h.tmux("set-option", "-g", "window-status-format", "#I")
+    h.tmux("set-option", "-g", "window-status-current-format", "#I")
+    h.tmux("set-option", "-g", "window-status-separator", " ")
+    status = h.tmux("display-message", "-p", "-t", main, "#{status-format[0]}")
+    h.require("range=window|" in status, f"status lost native window ranges: {status}")
+    binding = h.tmux("list-keys", "-T", "root", check=False)
+    h.require("switch-client -t =" in binding, f"status click binding changed: {binding}")
+    client = h.attach("status-click")
+    h.wait("status client starts on window 0", lambda: h.client_state(client)[1] == "0")
+    client.send(b"\x1b[<0;3;1M")
+    h.wait("status click switches window", lambda: h.client_state(client)[1] == "1")
+
+
 def test_layouts(h: Harness) -> None:
     for count in (1, 2, 3):
         main = h.new_session(f"layout-{count}")
@@ -1353,6 +1427,8 @@ def main() -> int:
         h.run("detached open/close", lambda: test_detached_open_close(h))
         h.run("--focus open and switch", lambda: test_focus_switch(h))
         h.run("one/two/three-pane layouts", lambda: test_layouts(h))
+        h.run("M-H two-pane equalization", lambda: test_m_h_two_pane_layout(h))
+        h.run("attached status window click", lambda: test_status_window_click_regression(h))
         h.run("stale saved layout", lambda: test_stale_layout(h))
         h.run("multiple windows and manual re-pin", lambda: test_multiple_windows_and_repin(h))
         h.run("real binary q/Esc startup stress", lambda: test_q_and_escape_startup_stress(h))

@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -395,9 +397,30 @@ func TestContextPalettePreservesExactHeight(t *testing.T) {
 	}
 }
 
+func TestContextPaletteViewportFollowsEverySelectedAction(t *testing.T) {
+	actions := make([]nav.ContextAction, 10)
+	for i := range actions {
+		actions[i] = nav.ContextAction{ID: fmt.Sprintf("action-%d", i), Label: fmt.Sprintf("action %d", i)}
+	}
+	m := &model{width: 20, height: 4, rows: []nav.Row{{ID: "project", Lines: []string{"project"}, Actions: actions}}}
+	m.openActionPalette()
+	for i := range actions {
+		if i > 0 {
+			m.handleActionKey(tea.KeyMsg{Type: tea.KeyDown})
+		}
+		view := m.View()
+		if !strings.Contains(view, "▶ action "+strconv.Itoa(i)) {
+			t.Fatalf("selected action %d is outside viewport start=%d: %q", i, m.actionStart, view)
+		}
+		if got := strings.Count(view, "\n") + 1; got != m.height {
+			t.Fatalf("action %d view height = %d, want %d", i, got, m.height)
+		}
+	}
+}
+
 func TestPanePreviewSanitizesCaptureAndPreservesExactHeight(t *testing.T) {
-	m := &model{width: 36, height: 4, theme: theme.Theme{}}
-	m.Update(panePreviewMsg{title: "preview pane", body: "plain\n\x1b[31mred\x1b[0m\t\x01"})
+	m := &model{width: 36, height: 4, theme: theme.Theme{}, previewGeneration: 1}
+	m.Update(previewMsg{generation: 1, title: "preview pane", body: "plain\n\x1b[31mred\x1b[0m\t\x01"})
 	view := m.View()
 	if got := strings.Count(view, "\n") + 1; got != m.height {
 		t.Fatalf("preview lines = %d, want %d: %q", got, m.height, view)
@@ -406,8 +429,31 @@ func TestPanePreviewSanitizesCaptureAndPreservesExactHeight(t *testing.T) {
 		t.Fatalf("preview leaked or lost captured controls: %q", view)
 	}
 	m.handleKey(tea.KeyMsg{Type: tea.KeyEsc})
-	if m.panePreview {
-		t.Fatal("Esc did not close pane preview")
+	if m.previewOpen {
+		t.Fatal("Esc did not close preview")
+	}
+}
+
+func TestSpacePreviewsOnlyFiletreePaths(t *testing.T) {
+	pane := &model{rows: []nav.Row{{ID: "pane", Lines: []string{"pane"}, Actions: []nav.ContextAction{{Kind: nav.ContextPreviewPane}}}}}
+	if _, cmd := pane.handleKey(tea.KeyMsg{Type: tea.KeySpace}); cmd != nil || pane.previewOpen {
+		t.Fatal("Space exposed pane capture outside the action palette")
+	}
+	path := &model{rows: []nav.Row{{ID: "file", Lines: []string{"file"}, Actions: []nav.ContextAction{{Kind: nav.ContextPreviewPath, Path: "/missing"}}}}}
+	if _, cmd := path.handleKey(tea.KeyMsg{Type: tea.KeySpace}); cmd == nil || !path.previewOpen {
+		t.Fatal("Space did not start an explicit path preview")
+	}
+}
+
+func TestPreviewRejectsStaleAsyncCompletion(t *testing.T) {
+	m := &model{width: 36, height: 4, theme: theme.Theme{}, previewGeneration: 2, previewOpen: true, previewTitle: "new"}
+	m.Update(previewMsg{generation: 1, title: "old", body: "stale"})
+	if m.previewTitle != "new" || len(m.previewLines) != 0 {
+		t.Fatalf("stale completion replaced active preview: %#v", m)
+	}
+	m.Update(previewMsg{generation: 2, title: "new", lines: []string{"fresh"}})
+	if len(m.previewLines) != 1 || m.previewLines[0] != "fresh" {
+		t.Fatalf("current preview was not applied: %#v", m.previewLines)
 	}
 }
 
@@ -429,6 +475,28 @@ func TestProjectFilterChildMatchKeepsOnlyItsHeading(t *testing.T) {
 	rows := m.navigatorRows()
 	if len(rows) != 2 || !rows[0].GroupHeading || rows[1].ID != "feature" {
 		t.Fatalf("child grouped filter = %#v", rows)
+	}
+}
+
+func TestCollapsedProjectGroupsToggleLocallyAndFilteringRevealsMatches(t *testing.T) {
+	m := &model{rows: []nav.Row{
+		{ID: "repo", GroupID: "repo", GroupHeading: true, Collapsible: true, SearchText: "repository", Lines: []string{"▸ repo"}, ExpandedLines: []string{"▾ repo"}},
+		{ID: "main", GroupID: "repo", SearchText: "main", Lines: []string{"main"}},
+		{ID: "feature", GroupID: "repo", SearchText: "feature", Lines: []string{"feature"}},
+	}}
+	if rows := m.navigatorRows(); len(rows) != 1 || rows[0].Lines[0] != "▸ repo" {
+		t.Fatalf("collapsed rows = %#v", rows)
+	}
+	if cmd := m.act(); cmd != nil {
+		t.Fatal("group toggle unexpectedly started I/O")
+	}
+	if rows := m.navigatorRows(); len(rows) != 3 || rows[0].Lines[0] != "▾ repo" {
+		t.Fatalf("expanded rows = %#v", rows)
+	}
+	m.act()
+	m.query = "feature"
+	if rows := m.navigatorRows(); len(rows) != 2 || rows[0].ID != "repo" || rows[1].ID != "feature" {
+		t.Fatalf("filtered collapsed rows = %#v", rows)
 	}
 }
 

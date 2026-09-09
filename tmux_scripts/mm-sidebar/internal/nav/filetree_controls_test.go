@@ -10,7 +10,7 @@ import (
 
 func TestFiletreeActionsAdvertiseEverySourceControl(t *testing.T) {
 	got := Filetree{}.KeyActions()
-	want := []string{"h", "p", "R", "Backspace"}
+	want := []string{"Space", "h", "p", "R", "Backspace"}
 	if len(got) != len(want) {
 		t.Fatalf("actions = %#v", got)
 	}
@@ -40,6 +40,9 @@ func TestFiletreeControlsOwnHiddenRootAndPinState(t *testing.T) {
 	rows, err = f.Fetch(ctx)
 	if err != nil || len(rows) != 1 {
 		t.Fatalf("hidden-enabled rows = %#v, %v", rows, err)
+	}
+	if len(rows[0].Actions) == 0 || rows[0].Actions[0].Kind != ContextPreviewPath {
+		t.Fatalf("filetree row does not lead with explicit preview: %#v", rows[0].Actions)
 	}
 	pin, ok := f.HandleSourceKey("p", ctx)
 	if !ok || !pin.SetRootPinned || !pin.RootPinned {

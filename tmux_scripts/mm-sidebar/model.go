@@ -21,6 +21,7 @@ import (
 	"mm-sidebar/internal/blocks"
 	"mm-sidebar/internal/display"
 	"mm-sidebar/internal/nav"
+	pathpreview "mm-sidebar/internal/preview"
 	"mm-sidebar/internal/theme"
 	"mm-sidebar/internal/tmuxio"
 	"mm-sidebar/internal/trace"
@@ -88,8 +89,9 @@ type model struct {
 	sel           int // index into navigatorRows(), never the unfiltered source slice
 	// selectionID keeps the navigator cursor attached to its source-local Row.ID
 	// when a refresh reorders rows or a query narrows and widens the view.
-	selectionID string
-	vpStart     int // first visible filtered row index
+	selectionID    string
+	vpStart        int             // first visible filtered row index
+	expandedGroups map[string]bool // process-local disclosure; absence means collapsed
 	// queryActive owns the inline filter focus. A query line is rendered while it
 	// is active; Esc clears it and returns to normal navigator keys before a
 	// later Esc can close the sidebar.
@@ -99,14 +101,19 @@ type model struct {
 	// descriptors. It deliberately stores no source type or tab name.
 	actionPalette  bool
 	actionSel      int
+	actionStart    int
 	paletteActions []nav.ContextAction
 	confirmAction  *nav.ContextAction
-	// panePreview is an explicit, on-demand modal from a pane row action. It
-	// never participates in the recurring World poll or source fetch key.
-	panePreview  bool
-	previewTitle string
-	previewLines []string
-	previewErr   error
+	// Preview is explicit and asynchronous. The generation rejects completions
+	// from a closed or superseded pane/path request.
+	previewOpen       bool
+	previewLoading    bool
+	previewGeneration uint64
+	previewTitle      string
+	previewLines      []string
+	previewEmpty      string
+	previewTruncated  bool
+	previewErr        error
 	// diagnostics is a cached modal: it reads model state collected by normal
 	// refreshes and never starts a tmux, Git, or filesystem command of its own.
 	diagnostics bool
@@ -276,10 +283,14 @@ type editDoneMsg struct{}
 
 type sidebarWidthMsg int
 
-type panePreviewMsg struct {
-	title string
-	body  string
-	err   error
+type previewMsg struct {
+	generation uint64
+	title      string
+	body       string
+	lines      []string
+	empty      string
+	truncated  bool
+	err        error
 }
 
 // contextActionMsg is the generic completion channel for source-owned palette
@@ -425,10 +436,16 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.sidebarWidth = int(msg)
 		return m, nil
 
-	case panePreviewMsg:
+	case previewMsg:
+		if msg.generation != m.previewGeneration {
+			return m, nil
+		}
 		m.previewTitle, m.previewErr = msg.title, msg.err
-		m.previewLines = previewLines(msg.body)
-		m.panePreview = true
+		m.previewLines, m.previewEmpty, m.previewTruncated = msg.lines, msg.empty, msg.truncated
+		if msg.body != "" {
+			m.previewLines = previewLines(msg.body)
+		}
+		m.previewLoading, m.previewOpen = false, true
 		return m, nil
 
 	case localContextActionMsg:
@@ -665,15 +682,15 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	key := msg.String()
 	if m.diagnostics {
 		switch key {
-		case "esc", "q", "d", "enter", "space":
+		case "esc", "q", "d", "enter", "space", " ":
 			m.diagnostics = false
 		}
 		return m, nil
 	}
-	if m.panePreview {
+	if m.previewOpen {
 		switch key {
-		case "esc", "q", "enter", "space":
-			m.panePreview, m.previewLines, m.previewErr = false, nil, nil
+		case "esc", "q", "enter", "space", " ":
+			m.closePreview()
 		}
 		return m, nil
 	}
@@ -699,6 +716,11 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.syncBlockVisibility()
 	case "a", ":":
 		m.openActionPalette()
+		return m, nil
+	case "space", " ":
+		if action, ok := m.selectedPreviewAction(); ok {
+			return m, m.runContextAction(action)
+		}
 		return m, nil
 	// Lowercase movement stays in the current focus region. Region rotation is
 	// explicit so a long navigator list cannot accidentally enter an agent row.
@@ -910,8 +932,10 @@ func (m *model) handleActionKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.closeActionPalette()
 	case "j", "down":
 		m.actionSel = (m.actionSel + 1) % len(actions)
+		m.ensureActionVisible()
 	case "k", "up":
 		m.actionSel = (m.actionSel - 1 + len(actions)) % len(actions)
+		m.ensureActionVisible()
 	case "enter":
 		action := actions[m.actionSel]
 		if action.Destructive {
@@ -930,12 +954,31 @@ func (m *model) openActionPalette() {
 		return
 	}
 	m.paletteActions = append(m.paletteActions[:0], actions...)
-	m.actionPalette, m.actionSel, m.confirmAction = true, 0, nil
+	m.actionPalette, m.actionSel, m.actionStart, m.confirmAction = true, 0, 0, nil
 }
 
 func (m *model) closeActionPalette() {
-	m.actionPalette, m.actionSel, m.confirmAction = false, 0, nil
+	m.actionPalette, m.actionSel, m.actionStart, m.confirmAction = false, 0, 0, nil
 	m.paletteActions = nil
+}
+
+func (m *model) ensureActionVisible() {
+	visible := m.height - 2 // title and footer
+	if visible < 1 {
+		visible = 1
+	}
+	if m.actionSel < m.actionStart {
+		m.actionStart = m.actionSel
+	} else if m.actionSel >= m.actionStart+visible {
+		m.actionStart = m.actionSel - visible + 1
+	}
+	maxStart := len(m.paletteActions) - visible
+	if maxStart < 0 {
+		maxStart = 0
+	}
+	if m.actionStart > maxStart {
+		m.actionStart = maxStart
+	}
 }
 
 func (m *model) selectedActions() []nav.ContextAction {
@@ -955,6 +998,30 @@ func (m *model) selectedActions() []nav.ContextAction {
 	return rows[m.sel].Actions
 }
 
+func (m *model) selectedPreviewAction() (nav.ContextAction, bool) {
+	for _, action := range m.selectedActions() {
+		if action.Kind == nav.ContextPreviewPath {
+			return action, true
+		}
+	}
+	return nav.ContextAction{}, false
+}
+
+func (m *model) beginPreview(title string) uint64 {
+	m.previewGeneration++
+	m.previewOpen, m.previewLoading = true, true
+	m.previewTitle, m.previewLines, m.previewEmpty, m.previewErr = title, nil, "", nil
+	m.previewTruncated = false
+	return m.previewGeneration
+}
+
+func (m *model) closePreview() {
+	m.previewGeneration++
+	m.previewOpen, m.previewLoading = false, false
+	m.previewLines, m.previewEmpty, m.previewErr = nil, "", nil
+	m.previewTruncated = false
+}
+
 func (m *model) runContextAction(action nav.ContextAction) tea.Cmd {
 	if !m.currentAgentFocus(action) {
 		return func() tea.Msg {
@@ -972,9 +1039,21 @@ func (m *model) runContextAction(action nav.ContextAction) tea.Cmd {
 		}
 	}
 	if action.Kind == nav.ContextPreviewPane {
+		generation := m.beginPreview(action.Label)
 		return func() tea.Msg {
 			body, err := m.client.CapturePane(action.Pane)
-			return panePreviewMsg{title: action.Label, body: body, err: err}
+			return previewMsg{generation: generation, title: action.Label, body: body, empty: "(empty pane)", err: err}
+		}
+	}
+	if action.Kind == nav.ContextPreviewPath {
+		generation := m.beginPreview(action.Label)
+		return func() tea.Msg {
+			result, err := pathpreview.Render(action.Path, pathpreview.Limits{})
+			title := result.Title
+			if title == "" {
+				title = action.Label
+			}
+			return previewMsg{generation: generation, title: title, lines: result.Lines, empty: result.Empty, truncated: result.Truncated, err: err}
 		}
 	}
 	content := m.contentRef
@@ -1598,6 +1677,28 @@ func (m *model) focusLast() {
 // source-provided, unstyled search surface; display Lines stay solely for
 // rendering and are never scraped back into application state.
 func (m *model) navigatorRows() []nav.Row {
+	filtered := m.filteredNavigatorRows()
+	out := make([]nav.Row, 0, len(filtered))
+	collapsible := make(map[string]bool)
+	for _, row := range filtered {
+		if row.GroupHeading && row.Collapsible {
+			collapsible[row.GroupID] = true
+			expanded := m.query != "" || m.expandedGroups[row.GroupID]
+			if expanded && len(row.ExpandedLines) > 0 {
+				row.Lines = row.ExpandedLines
+			}
+			out = append(out, row)
+			continue
+		}
+		if row.GroupID != "" && collapsible[row.GroupID] && m.query == "" && !m.expandedGroups[row.GroupID] {
+			continue
+		}
+		out = append(out, row)
+	}
+	return out
+}
+
+func (m *model) filteredNavigatorRows() []nav.Row {
 	if m.query == "" {
 		return m.rows
 	}
@@ -1617,8 +1718,6 @@ func (m *model) navigatorRows() []nav.Row {
 	out := make([]nav.Row, 0, len(m.rows))
 	for _, row := range m.rows {
 		matched := strings.Contains(strings.ToLower(row.SearchText), needle)
-		// A matching child retains only its inert parent heading. A matching
-		// heading/root retains the complete group so its worktrees stay visible.
 		if matched || (row.GroupHeading && matchingChild[row.GroupID]) || (!row.GroupHeading && matchingHeading[row.GroupID]) {
 			out = append(out, row)
 		}
@@ -1874,6 +1973,15 @@ func (m *model) act() tea.Cmd {
 		return nil
 	}
 	row := rows[m.sel]
+	if row.GroupHeading && row.Collapsible && row.GroupID != "" {
+		if m.expandedGroups == nil {
+			m.expandedGroups = make(map[string]bool)
+		}
+		m.expandedGroups[row.GroupID] = !m.expandedGroups[row.GroupID]
+		m.vpStart = 0
+		m.rememberNavigatorSelection()
+		return nil
+	}
 	if row.Kind == nav.ActionEditFile {
 		return m.editFile(row.Path)
 	}
@@ -1960,8 +2068,8 @@ func (m *model) View() string {
 	if m.diagnostics {
 		return m.diagnosticsView()
 	}
-	if m.panePreview {
-		return m.panePreviewView()
+	if m.previewOpen {
+		return m.previewView()
 	}
 	if m.actionPalette {
 		return m.actionPaletteView()
@@ -2179,20 +2287,33 @@ func valueOrDash(s string) string {
 // actionPaletteView owns a modal frame while preserving View's exact-height
 // contract. It clears the mouse hit maps because palette navigation is keyboard
 // only; the underlying variable-height navigator remains untouched.
-func (m *model) panePreviewView() string {
+func (m *model) previewView() string {
 	m.lineRow = m.lineRow[:0]
 	m.blockLines = m.blockLines[:0]
 	lines := []string{clipLine(m.theme.Accent.Render("▸ "+m.previewTitle), m.width)}
-	if m.previewErr != nil {
-		lines = append(lines, clipLine(m.theme.Urgent.Render("preview unavailable: "+m.previewErr.Error()), m.width))
+	if m.previewLoading {
+		lines = append(lines, clipLine(m.theme.Muted.Render("(loading)"), m.width))
+	} else if m.previewErr != nil {
+		lines = append(lines, clipLine(m.theme.Urgent.Render("preview unavailable: "+display.Sanitize(m.previewErr.Error())), m.width))
 	} else if len(m.previewLines) == 0 {
-		lines = append(lines, clipLine(m.theme.Muted.Render("(empty pane)"), m.width))
+		empty := m.previewEmpty
+		if empty == "" {
+			empty = "(empty)"
+		}
+		lines = append(lines, clipLine(m.theme.Muted.Render(empty), m.width))
 	} else {
+		contentLimit := m.height - 1
+		if m.previewTruncated {
+			contentLimit--
+		}
 		for _, line := range m.previewLines {
-			if len(lines) >= m.height-1 {
+			if len(lines) >= contentLimit {
 				break
 			}
 			lines = append(lines, clipLine(m.theme.Text.Render(line), m.width))
+		}
+		if m.previewTruncated && len(lines) < m.height {
+			lines = append(lines, clipLine(m.theme.Muted.Render("(truncated)"), m.width))
 		}
 	}
 	if len(lines) < m.height {
@@ -2227,7 +2348,17 @@ func (m *model) actionPaletteView() string {
 			clipLine(m.theme.Muted.Render("y/Enter confirm  n/Esc cancel"), m.width),
 		)
 	} else {
-		for i, action := range m.paletteActions {
+		m.ensureActionVisible()
+		visible := m.height - 2
+		if visible < 1 {
+			visible = 1
+		}
+		end := m.actionStart + visible
+		if end > len(m.paletteActions) {
+			end = len(m.paletteActions)
+		}
+		for i := m.actionStart; i < end; i++ {
+			action := m.paletteActions[i]
 			prefix := "  "
 			style := m.theme.Text
 			if i == m.actionSel {

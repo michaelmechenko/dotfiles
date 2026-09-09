@@ -83,12 +83,12 @@ inventory rather than temporarily claiming `(empty)`.
 | `internal/blocks` | Agent roster/attention, activity history, system sampling, and explicit-view interaction. |
 | `internal/projectcatalog` | Persistent XDG-backed repository identity/inventory: canonical common dirs, pinned/recent retention, validated roots, flocked schema-v1 state. |
 | `internal/worktrunk` | Optional bounded Worktrunk schema-2 list/switch adapter; Git remains discovery authority. |
+| `internal/preview` | Bounded native-Go regular-file/directory previews with binary and special-file rejection. |
 | `internal/trace` | `MMS_TRACE=1` per-phase timing, shared by every package. |
 
 Within `internal/nav`: `source.go` is the contract plus the `Sources` registry,
 one file per source (`sessions.go`, `windows.go`, `projects.go`, `filetree.go`, `scratch.go`),
-`fzfnav.go` is what sessions and windows share, `act.go` performs an ordinary
-Enter action, `actions.go` owns row context-action descriptors and dispatch, and
+`act.go` performs an ordinary Enter action, `actions.go` owns row context-action descriptors and dispatch, and
 `keys.go` defines the optional source key-action contract used by help.
 
 ## State (global desired state + window-local owners)
@@ -142,7 +142,7 @@ command; it is a view of state already collected by the normal refresh.
 The compact `?` overlay and the diagnostics action list both combine registered
 global actions with the active source's optional `ActionProvider` descriptors.
 A source that accepts local keys must advertise them there (filetree advertises
-`h`, `p`, `R`, and Backspace), so adding a source extension cannot leave help
+Space, `h`, `p`, `R`, and Backspace), so adding a source extension cannot leave help
 stale. `d`, `Esc`, `q`, Enter, or Space closes the diagnostics modal.
 
 ### The poll is gated (revision 5)
@@ -399,10 +399,10 @@ id is state.
 
 | Tab | Data source | `Enter` action | Extra keys |
 | --- | --- | --- | --- |
-| sessions | shared `tmuxio.World` sessions + panes | guarded focus of the session's active content pane | — |
+| sessions | shared `tmuxio.World` sessions + panes | heading focuses the session; child focuses its pane | — |
 | panes (id `windows`) | shared `tmuxio.World` panes | identity-guarded pane focus | — |
-| projects | Persistent catalog observed from live pane cwds; optional bounded Worktrunk schema-2 `wt list --branches`, with per-repository Git porcelain fallback | focus/open an existing worktree; branch-only row palette materializes it with `wt switch --no-cd`, then guarded split | pin/unpin; confirmed forget only when non-live; no recurring Git/Worktrunk polling |
-| filetree | `os.ReadDir`, 2 levels, over the content pane's cwd | dir → `split-window -h -c <dir>` in the content pane; file → `tmux-open-target` | `h` hidden, `p` pin, `R` reset/unpin, `Backspace` up (all via optional source controls) |
+| projects | Persistent catalog observed from live pane cwds; optional bounded Worktrunk schema-2 `wt list --branches`, with per-repository Git porcelain fallback | heading toggles local disclosure; child focuses/opens a worktree; branch-only palette materializes it with `wt switch --no-cd` | pin/unpin; confirmed forget only when non-live; no recurring Git/Worktrunk polling |
+| filetree | `os.ReadDir`, 2 levels, over the content pane's cwd | dir → `split-window -h -c <dir>` in the content pane; file → `tmux-open-target` | Space bounded preview; `h` hidden, `p` pin, `R` reset/unpin, `Backspace` up |
 | scratch | `~/.config/tmux_scratch/{global,<slug>}.md` | `tea.ExecProcess(nvim)` | — |
 
 ### sessions / panes
@@ -411,44 +411,12 @@ Both render directly from the immutable shared `tmuxio.World`. Sessions are
 stable-grouped **float first, then numeric creation ID**, preserving the same
 repo-wide order as the `M-w`/`M-s` pickers without launching their adapter.
 
-Rows render as **two lines**: identity on the first, cwd on the second.
-
-```
-▶ float          2w   ●        session name, window count, ● when attached;
-    ~/.config                  cwd below
-
-▶ 2:conf         nvim          window index:name, foreground command
-    ~/.config                  cwd below
-```
-
-Four columns never fit one narrow line. `tmux-fzf-nav`'s field-3 *display* column
-is space-padded to align columns in a wide fzf popup; through revision 3 the
-sidebar rendered it verbatim and got `float    2:conf          …` with the cwd
-truncated away entirely. `squeezeSpaces` fixed the *padding* but not the
-over-subscription — the cwd, which is what distinguishes two same-named sessions,
-was still the field that lost.
-
-So **`tmux-fzf-nav` now also emits the same data unpadded, as fields 4+**, and the
-sidebar formats its own rows from those:
-
-| Mode | Fields 4+ |
-| --- | --- |
-| `--list-sessions` | `sname`, `windows`, `attached`, `cwd`, `current` |
-| `--list-windows` | `win:name`, `cmd`, `cwd`, `active` |
-
-Fields 1–3 are unchanged, which is why the fzf pickers are unaffected: they show
-only field 3 (`--with-nth=3`) and `cut` fields 1–2. `squeezeSpaces` survives as
-the fallback for a script that predates the extra fields. The **ordering** — the
-part that must stay consistent across every surface in this repo — is untouched;
-that is still entirely the script's.
-
-> Watch the quoting when editing those awk programs: they are single-quoted shell
-> strings, so an apostrophe in an awk comment terminates the program and bash
-> reports a syntax error on a line you didn't touch.
-
-cwd lines **truncate from the left** (`…config/tmux_scripts/mm-sidebar`), keeping
-the tail. A path is most identifying at its end; right-truncation cuts off exactly
-the part that distinguishes it from its siblings.
+The sessions tab is a compact cached outline: one actionable session heading,
+then one actionable line per non-sidebar pane in window/pane order. Child rows
+include window identity, command, and compact cwd; their full cwd remains in
+`SearchText` for filtering. The panes tab remains the detailed two-line current-
+session view with left-truncated cwd. Both headings and children retain guarded
+pane/session actions, and neither source performs polling or per-row tmux calls.
 
 ### filetree
 
@@ -463,6 +431,13 @@ Directories before files at each level, second level indented 2 spaces,
 directories in the lavender accent with a trailing `/`. Symlinks are classified
 by their target, so a symlinked directory (this repo has several) still expands.
 
+Space or the row's first context action opens an exact-height in-sidebar preview.
+Only that explicit activation starts I/O. `internal/preview` follows symlinks,
+reads bounded bytes/lines or directory entries, rejects binary and special files,
+repairs invalid UTF-8, escapes terminal controls, and returns asynchronously with
+generation-based stale-result rejection. It launches no popup, pane, or external
+`bat`/`eza`/`file` process.
+
 ### projects
 
 The projects tab observes the **already-collected** live pane cwd set only when
@@ -476,13 +451,15 @@ fsync/atomic-rename/directory-sync write. Future-version or corrupt files are
 preserved untouched. It retains every pinned repository plus the 20 most-recent
 unpinned records.
 
-Each persisted root is re-resolved before rendering. Missing, non-Git, or
-reused paths render an unavailable two-line repository heading with no child
-worktrees; they remain safely forgettable. Available repositories render an inert
-two-line heading followed by indented materialized worktrees and branch-only
-children. Headings support `a`/`:` pin/unpin and confirmed forget; forget is not
-offered while a matching live pane exists. Filtering retains a matching child's
-heading so group context is never lost. Catalog ordering is pinned first, then
+Each persisted root is re-resolved before rendering. Repositories render as
+one-line headings with materialized-worktree and branch-only counts, collapsed by
+default. Enter toggles disclosure in process-local state only: it performs no Git,
+Worktrunk, tmux, or filesystem fetch. Expanded children are one line with status
+(conflict/operation/locked/stale/dirty/divergence/panes) before worktree/branch
+identity, so urgent facts survive clipping. Missing, non-Git, or reused roots
+remain safely forgettable. Headings support `a`/`:` pin/unpin and confirmed forget;
+forget is not offered while a matching live pane exists. Filtering temporarily
+reveals matching collapsed children with their heading. Catalog ordering is pinned first, then
 recent `last_seen`, with deterministic name/path/common-dir ties; child ordering
 remains materialized before branch-only, main first, then branch/path.
 
@@ -509,7 +486,10 @@ inside one `if-shell`; agent launches are limited to fixed `exec pi` /
 stale filter/selection/rows, and re-arms its scoped watcher; scratch uses the
 existing `tea.ExecProcess(nvim)` lifecycle and creates its parent directory. The
 lazygit launcher accepts cwd/client as argv while its no-argument `M-g` behavior
-and generated palette config remain unchanged.
+and generated palette config remain unchanged. The action modal maintains a
+selection-following viewport, so every 9–10 item project action is visible before
+execution even at short pane heights; confirmation and exact-height rendering are
+unchanged.
 
 A branch-only row is inert on ordinary Enter and exposes `create worktree and
 open split`. It re-resolves its root and requires the rendered canonical common
@@ -726,8 +706,9 @@ track — both are background-weight surfaces, not text, so neither could reuse
 | `J/K`, F13/F14 | Rotate navigator ↔ attention without acting |
 | `g/G`, Enter | First / last / activate |
 | `/`, Backspace | Filter; filetree parent when not filtering |
+| Space | Explicit preview for the selected filetree path |
 | `h/p/R` | Filetree hidden / pin / reset |
-| `a` / `:` | Selected-row actions |
+| `a` / `:` | Selected-row actions; long palettes follow the selection |
 | `v` | Explicit views palette |
 | `r` | Force source refresh |
 | `w` | 30/36/44 width |
@@ -747,11 +728,9 @@ fresh inspection; Esc/q returns to agents.
 
 ## Relationship to `M-d` and `M-b`
 
-- The sidebar **filetree** is the quick-nav variant — no preview, just open.
-  `M-d` (`tmux-nnn-explorer`) remains the full popup explorer with
-  preview/moor/fzf/fzrg. They coexist; don't collapse them. The filetree reuses
-  `tmux-open-target` for file opens, so the only real difference is the browsing
-  UI.
+- The sidebar **filetree** is the quick-nav variant with a bounded plain-text/
+  directory preview. `M-d` (`tmux-nnn-explorer`) remains the rich popup explorer
+  with syntax/media/paged preview plus fzf/fzrg. They coexist; don't collapse them.
 - Main-surface **attention** is the blocker-only quick glance; `v` → agents is
   the complete sidebar roster with focus/actions/explicit inspection. `M-b`
   remains the richer cross-session picker with transcript preview and bulk

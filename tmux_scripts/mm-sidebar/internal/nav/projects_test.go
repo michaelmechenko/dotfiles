@@ -16,12 +16,15 @@ import (
 	wtapi "mm-sidebar/internal/worktrunk"
 )
 
-func TestRepositoryHeadingIsInertAndOnlyForgettableWhenNotLive(t *testing.T) {
-	offline := repositoryHeading(Ctx{Theme: theme.Theme{}}, projectcatalog.Entry{Root: "/repo", CommonDir: "/repo/.git"})
-	if offline.Kind != ActionNone || !offline.GroupHeading || len(offline.Lines) != 2 || len(offline.Actions) != 2 || !offline.Actions[1].Destructive {
+func TestRepositoryHeadingIsCollapsedCompactAndOnlyForgettableWhenNotLive(t *testing.T) {
+	offline := repositoryHeading(Ctx{Theme: theme.Theme{}}, projectcatalog.Entry{Root: "/repo", CommonDir: "/repo/.git"}, 2, 3)
+	if offline.Kind != ActionNone || !offline.GroupHeading || !offline.Collapsible || len(offline.Lines) != 1 || len(offline.ExpandedLines) != 1 || len(offline.Actions) != 2 || !offline.Actions[1].Destructive {
 		t.Fatalf("offline heading = %#v", offline)
 	}
-	live := repositoryHeading(Ctx{Theme: theme.Theme{}}, projectcatalog.Entry{Root: "/repo", CommonDir: "/repo/.git", Live: true})
+	if !strings.Contains(offline.SearchText, "2 worktrees") || !strings.Contains(offline.SearchText, "3 branches") {
+		t.Fatalf("heading counts missing: %#v", offline)
+	}
+	live := repositoryHeading(Ctx{Theme: theme.Theme{}}, projectcatalog.Entry{Root: "/repo", CommonDir: "/repo/.git", Live: true}, 1, 0)
 	if len(live.Actions) != 1 || live.Actions[0].ID != "pin" {
 		t.Fatalf("live heading exposes forget: %#v", live.Actions)
 	}
@@ -149,6 +152,9 @@ func TestBranchOnlyRowExposesMaterializeActionAndStatus(t *testing.T) {
 	}
 	if row.Actions[0].RepoRoot != "/repo" || row.Actions[0].Branch != "feat/x" {
 		t.Fatalf("materialize target = %#v", row.Actions[0])
+	}
+	if len(row.Lines) != 1 || !strings.HasPrefix(row.SearchText, "branch ! ↑3 ↓1 ") {
+		t.Fatalf("branch status must lead compact identity: %#v", row)
 	}
 	for _, want := range []string{"branch", "!", "↑3", "↓1"} {
 		if !strings.Contains(row.SearchText, want) {

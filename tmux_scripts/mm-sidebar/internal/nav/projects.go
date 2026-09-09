@@ -1,7 +1,6 @@
 package nav
 
 import (
-	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -51,7 +50,15 @@ func (p Projects) Fetch(c Ctx) ([]Row, error) {
 	repositories := catalog.Inventory(entries, p.Worktrunk)
 	rows := make([]Row, 0, len(entries)*2)
 	for _, repo := range repositories {
-		rows = append(rows, repositoryHeading(c, repo.Entry))
+		worktrees, branches := 0, 0
+		for _, item := range repo.Worktrees {
+			if item.BranchOnly {
+				branches++
+			} else {
+				worktrees++
+			}
+		}
+		rows = append(rows, repositoryHeading(c, repo.Entry, worktrees, branches))
 		for _, item := range repo.Worktrees {
 			wt := worktree{Path: item.Path, Branch: item.Branch, RepoRoot: item.RepoRoot, CommonDir: item.CommonDir, BranchOnly: item.BranchOnly, Main: item.Main}
 			if item.WorktrunkItem != nil {
@@ -110,8 +117,7 @@ type projectStatus struct {
 	State                       string
 }
 
-func repositoryHeading(c Ctx, entry projectcatalog.Entry) Row {
-	home, _ := os.UserHomeDir()
+func repositoryHeading(c Ctx, entry projectcatalog.Entry, worktrees, branches int) Row {
 	name := display.Sanitize(filepath.Base(entry.Root))
 	status := ""
 	if entry.Pinned {
@@ -120,15 +126,24 @@ func repositoryHeading(c Ctx, entry projectcatalog.Entry) Row {
 	if !entry.Available {
 		status += " unavailable"
 	}
-	first := "▾ " + name + status
-	second := "  " + truncLeft(compactPath(entry.Root, home), cwdCol)
+	counts := strconv.Itoa(worktrees) + " worktree"
+	if worktrees != 1 {
+		counts += "s"
+	}
+	counts += " · " + strconv.Itoa(branches) + " branch"
+	if branches != 1 {
+		counts += "es"
+	}
+	label := name + status + " · " + counts
 	row := Row{
-		ID:           "repo:" + entry.CommonDir,
-		GroupID:      entry.CommonDir,
-		GroupHeading: true,
-		SearchText:   strings.TrimSpace(name + " " + entry.Root + " " + entry.CommonDir + status),
-		Lines:        []string{c.Theme.Accent.Render(first), c.Theme.Muted.Render(second)},
-		Kind:         ActionNone,
+		ID:            "repo:" + entry.CommonDir,
+		GroupID:       entry.CommonDir,
+		GroupHeading:  true,
+		Collapsible:   true,
+		SearchText:    strings.TrimSpace(name + " " + entry.Root + " " + entry.CommonDir + status + " " + counts),
+		Lines:         []string{c.Theme.Accent.Render("▸ " + label)},
+		ExpandedLines: []string{c.Theme.Accent.Render("▾ " + label)},
+		Kind:          ActionNone,
 		Actions: []ContextAction{{
 			ID:        "pin",
 			Label:     "pin repository",
@@ -180,7 +195,6 @@ func statusFromWorktrunk(item wtapi.Item) projectStatus {
 }
 
 func projectRow(c Ctx, wt worktree) Row {
-	home, _ := os.UserHomeDir()
 	path := cleanProjectPath(wt.Path)
 	wt.RepoRoot, wt.CommonDir = cleanProjectPath(wt.RepoRoot), cleanProjectPath(wt.CommonDir)
 	if wt.BranchOnly {
@@ -196,15 +210,12 @@ func projectRow(c Ctx, wt worktree) Row {
 	statusText, statusView := renderProjectStatus(c, wt, livePanes)
 	first := c.Theme.Text.Render(identity)
 	if statusView != "" {
-		first += " " + statusView
+		first = statusView + " " + first
 	}
-	lines := []string{
-		first,
-		"  " + c.Theme.Muted.Render(truncLeft(compactPath(path, home), cwdCol)),
-	}
+	lines := []string{first}
 	row := Row{
 		ID:         "worktree:" + path,
-		SearchText: strings.TrimSpace(identity + " " + display.Sanitize(path) + " " + statusText),
+		SearchText: strings.TrimSpace(statusText + " " + identity + " " + display.Sanitize(path)),
 		Lines:      lines,
 		Kind:       ActionOpenDir,
 		Path:       path,

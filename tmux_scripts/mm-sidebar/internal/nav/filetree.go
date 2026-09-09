@@ -66,6 +66,7 @@ func (Filetree) WatchRoot(c Ctx) string { return c.Root }
 // branch in the model.
 func (Filetree) KeyActions() []KeyAction {
 	return []KeyAction{
+		{Key: "Space", Summary: "preview path"},
 		{Key: "h", Summary: "toggle hidden"},
 		{Key: "p", Summary: "pin root"},
 		{Key: "R", Summary: "reset root"},

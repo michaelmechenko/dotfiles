@@ -61,6 +61,7 @@ const (
 	ContextAgentPlan
 	ContextCopyText
 	ContextPreviewPane
+	ContextPreviewPath
 	ContextMaterializeBranch
 	ContextPinRepository
 	ContextUnpinRepository
@@ -107,6 +108,7 @@ func sessionActions(s tmuxio.Session, p tmuxio.PaneRow, hasPane bool) []ContextA
 
 func fileActions(path string) []ContextAction {
 	return []ContextAction{
+		{ID: "preview", Label: "preview file", Kind: ContextPreviewPath, Path: path},
 		{ID: "open", Label: "open file", Kind: ContextOpenFile, Path: path},
 		{ID: "open-parent", Label: "open parent split", Kind: ContextOpenParent, Path: path},
 		{ID: "copy-path", Label: "copy path", Kind: ContextCopyPath, Path: path},
@@ -115,7 +117,7 @@ func fileActions(path string) []ContextAction {
 }
 
 func dirActions(path string) []ContextAction {
-	return projectDirActions(path, "")
+	return append([]ContextAction{{ID: "preview", Label: "preview directory", Kind: ContextPreviewPath, Path: path}}, projectDirActions(path, "")...)
 }
 
 // projectDirActions attaches a canonical Git identity only for project rows;

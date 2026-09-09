@@ -10,9 +10,8 @@
 // Data sources are deliberately reused rather than reimplemented, so the sidebar
 // can't drift from the pickers that share them:
 //
-//	sessions / windows -> tmux-fzf-nav --list-sessions / --list-windows
-//	                      (keeps the float-first, creation-ordered session
-//	                       sequence every other surface in this repo presents)
+//	sessions / windows -> immutable tmuxio.World (keeps float-first session and
+//	                      window/pane ordering without another tmux query)
 //	filetree           -> os.ReadDir, two levels
 //	scratch            -> ~/.config/tmux_scratch/{global,<slug>}.md
 //	file opens         -> tmux-open-target (same nvim-split placement as
@@ -174,13 +173,8 @@ const (
 // Row is one navigator entry: one or more pre-styled display lines plus its
 // action payload.
 //
-// Lines is a slice, not a single string, because sessions and windows render as
-// two lines (identity on the first, cwd on the second). Four columns of
-// tmux-fzf-nav's popup-width display simply do not fit a 36-column pane on one
-// line -- squeezing the padding fixed the alignment but not the
-// over-subscription, and the cwd (the most useful field for telling two
-// same-named sessions apart) was the thing that truncated away. Filetree and
-// scratch rows stay single-line; the render loop handles both uniformly.
+// Lines is a slice because sources may choose multi-line rows. Compact grouped
+// sources use one line per heading/child; windows retain a second cwd line.
 type Row struct {
 	// ID is a stable source-local identity for future selection retention.
 	// SearchText is the unstyled searchable representation for future filtering.
@@ -200,6 +194,10 @@ type Row struct {
 	// matching child's heading so grouped sources never lose their context.
 	GroupID      string
 	GroupHeading bool
+	// Collapsible headings start closed. ExpandedLines lets the generic model
+	// render local disclosure state without scraping or restyling ANSI output.
+	Collapsible   bool
+	ExpandedLines []string
 	// Actions are source-owned descriptors for the generic a/: palette.
 	Actions []ContextAction
 }

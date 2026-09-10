@@ -8,45 +8,51 @@
 > Renamed from `mega-michael-sidebar` in revision 3.
 
 A leftmost, full-window-height tmux pane toggled by `M-Tab`, running a compiled
-Go/Bubble Tea TUI. Its normal surface is intentionally sparse: a 2-line header,
-a tab-switchable navigator (sessions / panes / projects / filetree / scratch),
-and a compact attention section only when an agent is awaiting permission or
-waiting for input. Thinking/idle agents, activity history, system gauges, and
-agent detail live behind the explicit `v` views palette.
+Go/Bubble Tea TUI. Its normal surface is an adaptive hybrid workspace cockpit:
+a 2-line header, a tab-switchable navigator (sessions / panes / projects /
+filetree / scratch), urgent agent blockers, cached selected-item context, and—
+only when the full navigator fits—thinking agents plus recent activity. Idle
+agents, empty panels, system gauges, and inspector detail never fill main.
 
-The design is progressive disclosure, not density maximization. Blank space at
-the bottom is preferable to persistent panels that repeat SketchyBar/macOS or
-render placeholders. Dedicated tools remain available (`M-s`, `M-w`, `M-b`,
-`M-d`); the sidebar keeps broad capabilities without showing all of them at once.
+The design is progressive disclosure, not density maximization. Navigation and
+urgent blockers win at short heights; selected context appears next; passive
+cached agent/activity context uses only genuine slack. Blank space remains valid
+after meaningful cached content is exhausted. Dedicated tools remain available
+(`M-s`, `M-w`, `M-b`, `M-d`).
 
 ## Layout
 
-Normal, no blocker:
+Tall cockpit:
 
 ```
 1sess 2pane 3proj 4tree 5scr
-▸ panes
-▶ 1:node         node
-    ~/.config
-
-                    blank by design
+~/work/repo · 2 pinned
+  repo-a                 2 wt
+  repo-b                 1 branch
+─ selected project ────────────────
+  ~/work/repo-a
+  1 worktree · 1 branch
+  main · clean
+─ active agents ───────────────────
+  ~~ build · m*
+─ recent activity ─────────────────
+  build started thinking
 ```
 
-Normal, blockers present:
+Short cockpit with blockers:
 
 ```
 1sess 2pane 3proj 4tree 5scr
-▸ panes
-▶ 1:node         node
-    ~/.config
+~/work/repo
+  repo-a
 ─ attention ───────────────────────
   !P build · m*
-  !W review · m*
 ```
 
-Attention is permission-first, waiting-second, capped at four agent rows. A
-`+N more · v agents` row opens the full roster; hidden agents are not direct
-action targets. `v` opens full agents, activity-history, and system-health views.
+Attention is permission-first, waiting-second, capped at four agent rows when
+space permits and degraded to at least one blocker beside the minimum navigator.
+A `+N more · v agents` row opens the full roster when it fits. `v` opens full
+agents, activity-history, and system-health views.
 `Esc`/`q` returns from those views to normal; on normal it retains the existing
 global sidebar dismissal.
 
@@ -131,7 +137,7 @@ its root from the content cwd only when that pane changes and the root is not
 pinned; `p` pins it, `R` resets and unpins it, and Backspace ascent therefore survives later
 polls. The model does not name filetree for any of these controls.
 
-### Cached diagnostics and action-derived help (phase 10)
+### Cached diagnostics and dedicated help (phase 10+)
 
 `d` opens an exact-height diagnostics/help modal. It renders only the latest
 accepted `World`/fingerprint, source/root/filter/watch state, visible blocks,
@@ -139,11 +145,13 @@ refresh timing/counters, retained state/fetch errors, and sidebar/content/client
 window/session IDs. Opening it executes **no** tmux, Git, filesystem, or process
 command; it is a view of state already collected by the normal refresh.
 
-The compact `?` overlay and the diagnostics action list both combine registered
-global actions with the active source's optional `ActionProvider` descriptors.
+`?` opens a separate exact-height, one-column, scrollable help surface. It
+combines registered global actions with the active source's optional
+`ActionProvider` descriptors and clears navigator/block mouse maps while open.
 A source that accepts local keys must advertise them there (filetree advertises
-Space, `h`, `p`, `R`, and Backspace), so adding a source extension cannot leave help
-stale. `d`, `Esc`, `q`, Enter, or Space closes the diagnostics modal.
+Space, Left/Right, `h`, `p`, `R`, and Backspace), so adding a source extension
+cannot leave help stale. `Esc`/`q` closes help; `d`, Esc, `q`, Enter, or Space
+closes diagnostics.
 
 ### The poll is gated (revision 5)
 
@@ -331,11 +339,12 @@ or a monitor attach drifts the 36-col sidebar. Measured: shrinking a window from
 
 ## Progressive-disclosure architecture
 
-The model has six explicit surfaces: `main`, `views`, `agents`, `activity`,
-`system`, and `inspector`. This is intentionally a small closed state model, not
-a generic proposal/mode allocator.
+The model has seven explicit surfaces: `main`, `help`, `views`, `agents`,
+`activity`, `system`, and `inspector`. This is intentionally a small closed state
+model, not a generic proposal/mode allocator.
 
-- `main` renders the header, active navigator, and blocker-only agent attention.
+- `main` renders the adaptive navigator/context/attention cockpit.
+- `help` renders one action per line with its own local viewport.
 - `views` is the `v` palette.
 - `agents` renders the complete all-state roster and its guarded actions.
 - `activity` renders the existing bounded process-local transition history.
@@ -348,8 +357,9 @@ a generic proposal/mode allocator.
 Collection and presentation are separate. `tmuxio.World`, the serialized agent
 resolver, activity transition state, and source fetches keep their existing
 owners. Presentation-hidden does not mean absent data: agents and activity still
-consume accepted messages. System telemetry is the deliberate exception—there
-is no hidden `ps`/`vm_stat`/`df` sampler.
+consume accepted messages. Main reads their ambient projections without marking
+Activity visible or releasing queued Git probes. System telemetry is the
+deliberate exception—there is no hidden `ps`/`vm_stat`/`df` sampler.
 
 ### Navigator source contract
 
@@ -357,8 +367,11 @@ A tab remains one `nav.Source` in `nav.Sources`; registry order controls the tab
 strip and `1`..`N` keys, and `ID()` is persisted in `@sidebar_source`. Keep the
 panes source ID as `windows`. Optional `RootSynchronizer`, `SourceController`,
 `Watchable`, `FetchKeyer`, and `ActionProvider` keep source-specific behavior out
-of the model. A source fetch must return stable row IDs and real action payloads;
-display strings are never scraped back into paths or tmux identities.
+of the model. A source fetch must return stable row IDs, real action payloads, and semantic
+`Row.Presentation` data. `internal/navview` centrally owns clipping, hierarchy,
+full-row selection styling, selected detail, viewport starts, and hit maps;
+legacy pre-styled `Row.Lines` remain only as compatibility fallback. Display
+strings are never scraped back into paths or tmux identities.
 
 ### Explicit view/block contract
 
@@ -369,10 +382,11 @@ and `Actionable` retain guarded row interaction. The removed
 `SelectionChangeAware`/`Refreshable` path must not return: selection is not an
 I/O trigger. Inspector work is explicit through `inspect agent`.
 
-The main layout never expands content merely to consume height. Agent attention
-has an integrated one-line heading and a fixed four-row cap. Full agents and
-activity views may expand their already-cached lists to the available height.
-Unused lines are padded at the bottom.
+`internal/navview.Allocate` is a pure exact-height policy. At pane heights ≤7 it
+keeps header/navigation and urgent blockers only; at 8–15 it permits a compact
+selected dock; at 16+ it permits the full bounded dock. Ambient thinking agents
+and recent activity render only after the entire navigator fits. Full agents and
+activity views may expand their cached lists. Unused lines are padded at bottom.
 
 ### Add a navigator tab
 
@@ -402,7 +416,7 @@ id is state.
 | sessions | shared `tmuxio.World` sessions + panes | heading focuses the session; child focuses its pane | — |
 | panes (id `windows`) | shared `tmuxio.World` panes | identity-guarded pane focus | — |
 | projects | Persistent catalog observed from live pane cwds; optional bounded Worktrunk schema-2 `wt list --branches`, with per-repository Git porcelain fallback | heading toggles local disclosure; child focuses/opens a worktree; branch-only palette materializes it with `wt switch --no-cd` | pin/unpin; confirmed forget only when non-live; no recurring Git/Worktrunk polling |
-| filetree | `os.ReadDir`, 2 levels, over the content pane's cwd | dir → `split-window -h -c <dir>` in the content pane; file → `tmux-open-target` | Space bounded preview; `h` hidden, `p` pin, `R` reset/unpin, `Backspace` up |
+| filetree | cached `os.ReadDir`, 2 levels, over the content pane's cwd | dir → `split-window -h -c <dir>` in the content pane; file → `tmux-open-target` | Left/Right local disclosure; Space bounded preview; `h` hidden, `p` pin, `R` reset/unpin, `Backspace` up |
 | scratch | `~/.config/tmux_scratch/{global,<slug>}.md` | `tea.ExecProcess(nvim)` | — |
 
 ### sessions / panes
@@ -413,10 +427,10 @@ repo-wide order as the `M-w`/`M-s` pickers without launching their adapter.
 
 The sessions tab is a compact cached outline: one actionable session heading,
 then one actionable line per non-sidebar pane in window/pane order. Child rows
-include window identity, command, and compact cwd; their full cwd remains in
-`SearchText` for filtering. The panes tab remains the detailed two-line current-
-session view with left-truncated cwd. Both headings and children retain guarded
-pane/session actions, and neither source performs polling or per-row tmux calls.
+include window identity and command; full cwd remains in `SearchText` and moves
+to selected detail. The panes tab uses the same one-line semantic presentation,
+with cwd in selected detail. Both retain alert/active state and guarded actions;
+neither performs polling or per-row tmux calls.
 
 ### filetree
 
@@ -427,9 +441,11 @@ silently resolved every row to the tree root, so `Enter` on a nested directory
 opened a pane in the wrong place. Verified live after the rewrite: `Enter` on a
 nested row opens a pane at that exact path.
 
-Directories before files at each level, second level indented 2 spaces,
-directories in the lavender accent with a trailing `/`. Symlinks are classified
-by their target, so a symlinked directory (this repo has several) still expands.
+Directories precede files at each level and retain a trailing `/`. Top-level
+directories start collapsed; Right/Left expands/collapses only rows already in
+the cached two-level result and performs no filesystem read. Filtering
+transparently reveals matching children. Enter still opens the selected
+directory rather than changing disclosure. Symlinks are classified by target.
 
 Space or the row's first context action opens an exact-height in-sidebar preview.
 Only that explicit activation starts I/O. `internal/preview` follows symlinks,
@@ -702,17 +718,18 @@ track — both are background-weight surfaces, not text, so neither could reuse
 | Key | Action |
 | --- | --- |
 | `1`–`5`, `Tab` / `S-Tab` | Select/cycle sessions, panes, projects, filetree, scratch |
-| `j/k`, arrows | Move within navigator or attention |
+| `j/k`, arrows | Move within navigator, help, or attention |
 | `J/K`, F13/F14 | Rotate navigator ↔ attention without acting |
 | `g/G`, Enter | First / last / activate |
 | `/`, Backspace | Filter; filetree parent when not filtering |
+| Left/Right | Collapse/expand a cached top-level filetree directory |
 | Space | Explicit preview for the selected filetree path |
 | `h/p/R` | Filetree hidden / pin / reset |
 | `a` / `:` | Selected-row actions; long palettes follow the selection |
 | `v` | Explicit views palette |
 | `r` | Force source refresh |
 | `w` | 30/36/44 width |
-| `?`, `d` | Help / cached diagnostics |
+| `?`, `d` | Scrollable help / cached diagnostics |
 | `q`, Esc | Dismiss all sidebars; Esc clears filter first |
 
 ### Explicit views

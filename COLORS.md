@@ -155,7 +155,7 @@ Pi tool-card accent edges (`▌`, `tool-display/frame.ts`) introduce no new pale
 
 `tmux_scripts/mm-sidebar` (the `M-Tab` sidebar pane, Go/Bubble Tea) is the only
 surface here that reads the palette **at runtime from tmux itself** rather than
-duplicating hex in a theme file. `internal/theme/theme.go` resolves seven
+duplicating hex in a theme file. `internal/theme/theme.go` resolves nine
 `@color-*` user options once at startup — in **one** `display-message` fork via
 `tmuxio.GlobalOpts`, not one `show -gqv` each (measured 20ms per fork, so the
 per-role version cost 112ms of blank pane on every `M-Tab` open) — into `lipgloss`
@@ -163,12 +163,15 @@ styles:
 
 | Style | tmux option | Palette role | Used for |
 |---|---|---|---|
-| `Muted` | `@color-text-muted` | text-muted | inactive tabs, idle agent rows, help overlay, `(none)`/`(empty)`, gauge labels, cwd lines, window `cmd` |
-| `Accent` | `@color-accent-secondary` | accent-secondary | block labels (`▸ agents`), cursor `▶`, directory rows, active-tab chip **bg**, gauge fill, attached `●`, current session/active pane name |
+| `Muted` | `@color-text-muted` | text-muted | idle agent rows, secondary help/detail text, `(none)`/`(empty)`, gauge labels, command/status facts |
+| `Accent` | `@color-accent-secondary` | accent-secondary | block/detail labels, directory rows, active-tab chip **bg**, gauge fill, attached/current state |
 | `Text` | `@color-accent-highlight` | accent-highlight | ordinary row text, gauge percent values |
 | `Urgent` | `@color-accent-primary` | accent-primary | `!P` awaiting-permission, `!W` waiting, gauge fill when hot (cpu/mem/disk ≥ 85%, battery ≤ 20%) |
 | `Busy` | `@color-accent-tertiary` | accent-tertiary | `~~` thinking |
-| `Divider` | `@color-divider` | divider-subtle | integrated `─ attention ─` heading, explicit system-view gauge track |
+| `Divider` | `@color-divider` | divider-subtle | context/detail/attention rules and explicit system-view gauge track |
+| `Chrome` | `@color-text-ui` | text-ui | source context rail and inactive tab chrome |
+| `Selected` fg | `@color-text-ui` | text-ui | selected navigator row text |
+| `Selected` bg | `@color-surface-highlight` | surface-highlight | full-width selected navigator row fill |
 | (chip fg) | `@color-canvas` | canvas | active-tab chip **fg** |
 
 `Divider` covers the sidebar's two background-weight surfaces. Neither could

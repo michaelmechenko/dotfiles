@@ -418,11 +418,11 @@ persistent sidebars; `M-BTab` focuses or leaves the current window's sidebar.
 Window-local `@sidebar_source` and `@sidebar_width` preserve the active tab and
 30/36/44-column width.
 
-The normal surface is deliberately sparse: the 5-tab navigator (sessions /
-panes / projects / filetree / scratch) plus a compact **attention** section only
-when an agent is awaiting permission or waiting for input. Thinking/idle agents,
-activity history, system gauges, and inspector detail never fill the main frame.
-`v` opens explicit agents/activity/system views. Blank space stays blank.
+The normal surface is an adaptive hybrid cockpit: the 5-tab navigator, urgent
+permission/wait attention, cached selected-item context, then thinking agents and
+recent cached activity when the full navigator fits. Idle agents, empty sections,
+system gauges, and inspector detail never fill main. `v` opens full agents /
+activity / system views. Genuine unused space stays blank.
 
 | Key | Scope | Action |
 | --- | --- | --- |
@@ -434,22 +434,24 @@ activity history, system gauges, and inspector detail never fill the main frame.
 | Key | Action |
 | --- | --- |
 | `1` … `5` / `Tab` / `S-Tab` | Select or cycle sessions / panes / projects / filetree / scratch |
-| `j` `k` / arrows | Move within the navigator or attention focus region |
+| `j` `k` / arrows | Move within the navigator, help, or attention focus region |
 | `J` `K` / F13 F14 | Rotate between navigator and attention without acting |
 | `g` / `G` / `Enter` | First / last / activate |
 | `/` / `Backspace` | Filter; Backspace is filetree parent when not filtering |
+| Left / Right | Filetree: collapse / expand a cached top-level directory without I/O |
 | `Space` | Explicit bounded preview of the selected filetree path; close an open preview |
 | `h` / `p` / `R` | Filetree: hidden / pin root / reset root |
 | `a` / `:` | Selected row actions; long palettes scroll with selection; destructive actions require confirmation |
 | `v` | Open the explicit views palette |
 | `r` | Force the active navigator refresh; projects re-run bounded Git/Worktrunk inventory |
 | `w` | Cycle 30 / 36 / 44 columns |
-| `?` / `d` | Compact help / cached diagnostics |
+| `?` / `d` | Open one-column scrollable help / cached diagnostics |
 | `q` / `Esc` | Dismiss all sidebars; Esc clears a filter first |
 
-The attention section shows at most four `!P`/`!W` rows, permission before
-waiting. Its overflow row opens the full agents view; hidden rows are not direct
-action targets.
+The attention section shows up to four `!P`/`!W` rows, permission before waiting,
+and keeps at least one blocker visible in the shortest usable frame. Its overflow
+row opens the full agents view when it fits. While help is open, `j/k`, arrows,
+`g/G`, PageUp/PageDown scroll it and `q`/Esc returns to main.
 
 **Explicit views (`v`)**
 

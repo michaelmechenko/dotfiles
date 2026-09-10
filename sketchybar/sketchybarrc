@@ -25,10 +25,11 @@ bar=(
 
 sketchybar --bar "${bar[@]}"
 
+# Width is dynamic by default. Do not set width=dynamic here: SketchyBar 2.24.0 briefly
+# converts that assignment to a fixed content width, which the first item can inherit.
 default=(
   icon.font="CommitMono-m1v1:Regular:13"
   label.font="CommitMono-m1v1:Regular:13"
-  width=dynamic
   icon.color=$THEME_BAR_TEXT
   label.color=$THEME_BAR_TEXT
   icon.padding_left=6

@@ -1,10 +1,9 @@
 -- SketchyBar full/performance profile toggle, driven from Hammerspoon so the keybind lives
 -- with the rest of the cmd-ctrl-alt-* controls. `p` ONLY swaps the active sketchybarrc profile
 -- (copy, not symlink) + flips the perf flag — it does NOT reload. `o` does the reload, so the
--- two actions are decoupled (swap config, then apply when ready). In performance mode,
--- aerospace.toml suppresses focus callbacks but retains workspace-change refreshes for muted
--- app/workspace blocks. Reads the new mode from the toggle script's stdout and shows a
--- lowercase hs.alert.
+-- two actions are decoupled (swap config, then apply when ready). Performance mode keeps only
+-- date and battery, while aerospace.toml suppresses both workspace- and focus-change callbacks.
+-- Reads the new mode from the toggle script's stdout and shows a lowercase hs.alert.
 local M = {}
 
 local HOME = os.getenv("HOME") or ""

@@ -14,11 +14,11 @@ after-startup-command = [
 config-version = 2
 persistent-workspaces = ["1*", "2*", "3*", "1^", "2^"]
 
-# AeroSpace -> SketchyBar callbacks. Performance mode (toggled via cmd-ctrl-alt-p) still
-# refreshes the muted application/workspace blocks on workspace switches, but suppresses the
-# focus callback to avoid redraws and active-item highlighting between workspace changes.
+# AeroSpace -> SketchyBar callbacks. Flag-gated by /tmp/sketchybar_perf_mode (toggled via
+# cmd-ctrl-alt-p / sketchybar/toggle_mode.sh): performance mode has no AeroSpace-integrated
+# items, so workspace and focus changes incur zero SketchyBar IPC.
 exec-on-workspace-change = ['/bin/bash', '-c',
-  'sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE'
+  '[ -f /tmp/sketchybar_perf_mode ] || sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE'
 ]
 
 on-focus-changed = ['exec-and-forget [ -f /tmp/sketchybar_perf_mode ] || sketchybar --trigger aerospace_focus_change']

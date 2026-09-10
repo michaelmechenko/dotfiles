@@ -765,6 +765,8 @@ def _sidebar(p: dict) -> str:
     r = p["roles"]
     roles = {
         "@color-canvas": r["canvas"],
+        "@color-surface-highlight": r["surface-highlight"],
+        "@color-text-ui": r["text-ui"],
         "@color-text-muted": r["text-muted"],
         "@color-accent-secondary": r["accent-secondary"],
         "@color-accent-highlight": r["accent-highlight"],

@@ -412,6 +412,26 @@ func (b *Activity) Height() int {
 	return h
 }
 
+// AmbientLines returns recent cached transitions without changing visibility,
+// queuing Git work, or mutating the explicit view's viewport/focus state.
+func (b *Activity) AmbientLines(width, max int) []string {
+	if len(b.entries) == 0 || max < 2 {
+		return nil
+	}
+	lines := []string{label(b.theme.Accent, "recent activity")}
+	for _, e := range b.entries {
+		if len(lines) >= max {
+			break
+		}
+		style := b.theme.Text
+		if e.Urgent {
+			style = b.theme.Urgent
+		}
+		lines = append(lines, "  "+style.Render(padTag(e.Tag)+" "+relativeAge(b.now().Sub(e.At))+" "+e.Text))
+	}
+	return strings.Split(join(lines, width), "\n")
+}
+
 func (b *Activity) View(width int) string {
 	lines := []string{label(b.theme.Accent, "activity")}
 	if len(b.entries) == 0 {

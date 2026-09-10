@@ -159,19 +159,17 @@ func TestBroadcastReachesEveryBlock(t *testing.T) {
 
 // ---- Leak B: help must follow the action registries ----------------------
 
-// TestHelpOverlayHeightIsFixed guards the invariant navFirstLine depends on.
-// The overlay's line COUNT feeds the click -> row mapping, so action changes
-// cannot change its height without updating the geometry constant.
-func TestHelpOverlayHeightIsFixed(t *testing.T) {
-	if got, want := len(helpOverlay(globalKeyActions)), helpLineCount(globalKeyActions); got != want {
-		t.Fatalf("helpOverlay has %d lines but helpLineCount is %d; mouse mapping must derive from the same registry", got, want)
+func TestHelpEntriesAreOnePerLine(t *testing.T) {
+	m := &model{}
+	if got := len(m.helpEntries()); got != len(globalKeyActions) {
+		t.Fatalf("help entries=%d, want one per global action", got)
 	}
 }
 
 func TestRegisteredKeyActionsIncludeOptionalSourceActions(t *testing.T) {
 	m := &model{srcIdx: nav.SourceByID("filetree")}
 	actions := m.registeredKeyActions()
-	for _, want := range []string{"d", "h", "p", "R", "Backspace"} {
+	for _, want := range []string{"d", "Space", "h", "p", "R", "Backspace"} {
 		found := false
 		for _, action := range actions {
 			if action.Key == want {
@@ -183,8 +181,8 @@ func TestRegisteredKeyActionsIncludeOptionalSourceActions(t *testing.T) {
 			t.Fatalf("registered actions do not include %q: %#v", want, actions)
 		}
 	}
-	if got, want := len(helpOverlay(actions)), helpLineCount(actions); got != want {
-		t.Fatalf("source actions changed compact help height: got %d want %d", got, want)
+	if got, want := len(m.helpEntries()), len(actions); got != want {
+		t.Fatalf("dedicated help lost registered actions: got %d want %d", got, want)
 	}
 }
 
@@ -480,7 +478,7 @@ func TestProjectFilterChildMatchKeepsOnlyItsHeading(t *testing.T) {
 
 func TestCollapsedProjectGroupsToggleLocallyAndFilteringRevealsMatches(t *testing.T) {
 	m := &model{rows: []nav.Row{
-		{ID: "repo", GroupID: "repo", GroupHeading: true, Collapsible: true, SearchText: "repository", Lines: []string{"▸ repo"}, ExpandedLines: []string{"▾ repo"}},
+		{ID: "repo", GroupID: "repo", GroupHeading: true, Collapsible: true, ToggleOnEnter: true, SearchText: "repository", Lines: []string{"▸ repo"}, ExpandedLines: []string{"▾ repo"}},
 		{ID: "main", GroupID: "repo", SearchText: "main", Lines: []string{"main"}},
 		{ID: "feature", GroupID: "repo", SearchText: "feature", Lines: []string{"feature"}},
 	}}
@@ -992,9 +990,9 @@ func TestInlineFilterEmptyMatchesRendersPlaceholderWithoutNavigatorFocus(t *test
 	}
 }
 
-func TestInlineFilterMovesMouseMapsBelowQueryAndHelp(t *testing.T) {
+func TestInlineFilterMovesMouseMapsBelowQuery(t *testing.T) {
 	m := &model{
-		theme: theme.Theme{}, width: 36, height: 16, showHelp: true,
+		theme: theme.Theme{}, width: 36, height: 16,
 		rows: []nav.Row{
 			{ID: "a", SearchText: "match a", Lines: []string{"a"}},
 			{ID: "b", SearchText: "match b", Lines: []string{"b"}},
@@ -1002,12 +1000,12 @@ func TestInlineFilterMovesMouseMapsBelowQueryAndHelp(t *testing.T) {
 	}
 	m.beginQuery()
 	m.appendQuery("match")
-	m.View() // records maps for this exact header + help + query frame
-	if want := headerLines + m.helpLineCount() + queryLineCount; m.navFirstLine() != want {
-		t.Fatalf("navigator begins at %d, want %d with help and query", m.navFirstLine(), want)
+	m.View() // records maps for this exact header + query frame
+	if want := headerLines + queryLineCount; m.navFirstLine() != want {
+		t.Fatalf("navigator begins at %d, want %d with query", m.navFirstLine(), want)
 	}
-	// The old pre-query navigator Y is now a query/help line and must not select.
-	m.handleMouse(tea.MouseMsg{Button: tea.MouseButtonLeft, Action: tea.MouseActionPress, Y: headerLines + m.helpLineCount()})
+	// The old pre-query navigator Y is now the query line and must not select.
+	m.handleMouse(tea.MouseMsg{Button: tea.MouseButtonLeft, Action: tea.MouseActionPress, Y: headerLines})
 	if m.sel != 0 {
 		t.Fatalf("query line was treated as a navigator row: selected %d", m.sel)
 	}

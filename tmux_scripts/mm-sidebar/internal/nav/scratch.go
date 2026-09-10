@@ -16,6 +16,9 @@ type Scratch struct{}
 func (Scratch) ID() string    { return "scratch" }
 func (Scratch) Short() string { return "scr" }
 func (Scratch) Title() string { return "scratch" }
+func (Scratch) Context(c Ctx, rows []Row) string {
+	return strconv.Itoa(len(rows)) + " notes · " + display.Sanitize(c.Cwd)
+}
 
 // Fetch deliberately does NOT read SMAP-TODOS.md -- smap is Claude-only and pi
 // disregards it, so the scratch tab stays tool-agnostic.
@@ -40,8 +43,9 @@ func (s Scratch) Fetch(c Ctx) ([]Row, error) {
 			SearchText: label + " " + display.Sanitize(e.path),
 			Lines: []string{c.Theme.Accent.Render(label) + "  " +
 				c.Theme.Muted.Render(size)},
-			Kind: ActionEditFile,
-			Path: e.path,
+			Kind:         ActionEditFile,
+			Path:         e.path,
+			Presentation: Presentation{Label: label, Facts: []Fact{{Text: size, Tone: ToneMuted}}, Detail: Detail{Title: "selected scratch", Lines: []DetailLine{{Text: display.Sanitize(e.path), TruncateLeft: true}, {Text: size, Tone: ToneMuted}}, Hints: []KeyAction{{Key: "Enter", Summary: "edit note"}}}},
 		})
 	}
 	return rows, nil

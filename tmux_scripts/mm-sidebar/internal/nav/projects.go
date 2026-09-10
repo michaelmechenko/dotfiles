@@ -30,6 +30,19 @@ func (p Projects) catalog() *projectcatalog.Catalog {
 func (Projects) ID() string    { return "projects" }
 func (Projects) Short() string { return "proj" }
 func (Projects) Title() string { return "projects" }
+func (Projects) Context(_ Ctx, rows []Row) string {
+	count := 0
+	for _, row := range rows {
+		if row.GroupHeading {
+			count++
+		}
+	}
+	label := strconv.Itoa(count) + " repositories"
+	if count == 1 {
+		label = "1 repository"
+	}
+	return label + " · r refresh"
+}
 
 // FetchKey depends only on the live pane cwd set. This deliberately excludes
 // activity/bell/session metadata from World's broad fingerprint, so an open
@@ -58,7 +71,8 @@ func (p Projects) Fetch(c Ctx) ([]Row, error) {
 				worktrees++
 			}
 		}
-		rows = append(rows, repositoryHeading(c, repo.Entry, worktrees, branches))
+		heading := repositoryHeading(c, repo.Entry, worktrees, branches)
+		children := make([]Row, 0, len(repo.Worktrees))
 		for _, item := range repo.Worktrees {
 			wt := worktree{Path: item.Path, Branch: item.Branch, RepoRoot: item.RepoRoot, CommonDir: item.CommonDir, BranchOnly: item.BranchOnly, Main: item.Main}
 			if item.WorktrunkItem != nil {
@@ -67,8 +81,20 @@ func (p Projects) Fetch(c Ctx) ([]Row, error) {
 			row := projectRow(c, wt)
 			row.GroupID = repo.CommonDir
 			row.Lines = indentLines(row.Lines)
-			rows = append(rows, row)
+			row.Presentation.Depth = 1
+			children = append(children, row)
+			plain := row.Presentation.Label
+			if len(row.Presentation.Facts) > 0 {
+				facts := make([]string, 0, len(row.Presentation.Facts))
+				for _, fact := range row.Presentation.Facts {
+					facts = append(facts, fact.Text)
+				}
+				plain += " · " + strings.Join(facts, " ")
+			}
+			heading.Presentation.Detail.Lines = append(heading.Presentation.Detail.Lines, DetailLine{Text: plain, Tone: ToneMuted})
 		}
+		rows = append(rows, heading)
+		rows = append(rows, children...)
 	}
 	return rows, nil
 }
@@ -135,6 +161,23 @@ func repositoryHeading(c Ctx, entry projectcatalog.Entry, worktrees, branches in
 		counts += "es"
 	}
 	label := name + status + " · " + counts
+	detailLines := []DetailLine{
+		{Text: display.Sanitize(entry.Root), TruncateLeft: true},
+		{Text: counts, Tone: ToneMuted},
+	}
+	state := []string{}
+	if entry.Pinned {
+		state = append(state, "pinned")
+	}
+	if entry.Live {
+		state = append(state, "live")
+	}
+	if !entry.Available {
+		state = append(state, "unavailable")
+	}
+	if len(state) > 0 {
+		detailLines = append(detailLines, DetailLine{Text: strings.Join(state, " · "), Tone: ToneMuted})
+	}
 	row := Row{
 		ID:            "repo:" + entry.CommonDir,
 		GroupID:       entry.CommonDir,
@@ -144,6 +187,21 @@ func repositoryHeading(c Ctx, entry projectcatalog.Entry, worktrees, branches in
 		Lines:         []string{c.Theme.Accent.Render("▸ " + label)},
 		ExpandedLines: []string{c.Theme.Accent.Render("▾ " + label)},
 		Kind:          ActionNone,
+		ToggleOnEnter: true,
+		Presentation: Presentation{
+			Label: name,
+			Facts: func() []Fact {
+				facts := []Fact{}
+				if entry.Pinned {
+					facts = append(facts, Fact{Text: "pinned", Tone: ToneMuted})
+				}
+				if !entry.Available {
+					facts = append(facts, Fact{Text: "unavailable", Tone: ToneUrgent})
+				}
+				return facts
+			}(),
+			Detail: Detail{Title: "selected repository", Lines: detailLines, Hints: []KeyAction{{Key: "Enter", Summary: "show worktrees"}, {Key: "a", Summary: "actions"}}},
+		},
 		Actions: []ContextAction{{
 			ID:        "pin",
 			Label:     "pin repository",
@@ -213,6 +271,14 @@ func projectRow(c Ctx, wt worktree) Row {
 		first = statusView + " " + first
 	}
 	lines := []string{first}
+	detailLines := []DetailLine{{Text: display.Sanitize(path), TruncateLeft: true}}
+	if statusText != "" {
+		detailLines = append(detailLines, DetailLine{Text: statusText, Tone: ToneMuted})
+	}
+	detailTitle := "selected worktree"
+	if wt.BranchOnly {
+		detailTitle = "selected branch"
+	}
 	row := Row{
 		ID:         "worktree:" + path,
 		SearchText: strings.TrimSpace(statusText + " " + identity + " " + display.Sanitize(path)),
@@ -221,10 +287,16 @@ func projectRow(c Ctx, wt worktree) Row {
 		Path:       path,
 		CommonDir:  wt.CommonDir,
 		Actions:    projectActions(path, wt.CommonDir, nil),
+		Presentation: Presentation{
+			Label:  identity,
+			Facts:  statusFacts(statusText),
+			Detail: Detail{Title: detailTitle, Lines: detailLines, Hints: []KeyAction{{Key: "Enter", Summary: "open worktree"}, {Key: "a", Summary: "actions"}}},
+		},
 	}
 	if wt.BranchOnly {
 		row.ID = "branch:" + wt.CommonDir + ":" + wt.Branch
 		row.Kind = ActionNone
+		row.Presentation.Detail.Hints[0] = KeyAction{Key: "a", Summary: "create worktree"}
 		row.Actions = []ContextAction{{
 			ID:        "materialize",
 			Label:     "create worktree and open split",
@@ -238,8 +310,28 @@ func projectRow(c Ctx, wt worktree) Row {
 	if livePanes > 0 {
 		row.Kind, row.PaneID, row.Target, row.Pane = ActionFocusPane, pane.PaneID, pane.Target, pane.Ref()
 		row.Actions = projectActions(path, wt.CommonDir, &pane)
+		row.Presentation.Detail.Hints[0] = KeyAction{Key: "Enter", Summary: "focus pane"}
 	}
 	return row
+}
+
+func statusFacts(status string) []Fact {
+	if status == "" {
+		return nil
+	}
+	facts := make([]Fact, 0, len(strings.Fields(status)))
+	for _, text := range strings.Fields(status) {
+		tone := ToneMuted
+		if text == "conflict" || text == "stale" {
+			tone = ToneUrgent
+		} else if strings.ContainsAny(text, "+!?") {
+			tone = ToneBusy
+		} else if strings.HasPrefix(text, "↑") {
+			tone = ToneAccent
+		}
+		facts = append(facts, Fact{Text: text, Tone: tone})
+	}
+	return facts
 }
 
 func renderProjectStatus(c Ctx, wt worktree, livePanes int) (plain, styled string) {

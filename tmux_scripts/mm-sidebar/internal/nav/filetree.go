@@ -18,6 +18,24 @@ type Filetree struct{}
 func (Filetree) ID() string    { return "filetree" }
 func (Filetree) Short() string { return "tree" }
 func (Filetree) Title() string { return "filetree" }
+func (Filetree) Context(c Ctx, _ []Row) string {
+	root := c.Root
+	if root == "" {
+		root = c.Cwd
+	}
+	home, _ := os.UserHomeDir()
+	root = display.Sanitize(compactPath(root, home))
+	parts := []string{root}
+	if c.RootPinned {
+		parts = append(parts, "pinned")
+	}
+	if c.ShowHidden {
+		parts = append(parts, "hidden on")
+	} else {
+		parts = append(parts, "hidden off")
+	}
+	return strings.Join(parts, " · ")
+}
 
 // Fetch walks root two levels deep: directories before files at each level,
 // second level indented two spaces.
@@ -34,13 +52,19 @@ func (f Filetree) Fetch(c Ctx) ([]Row, error) {
 	dirs, files := readSplit(c.Root, c.ShowHidden)
 	rows := make([]Row, 0, len(dirs)+len(files))
 	for _, d := range dirs {
-		rows = append(rows, dirRow(c.Theme, d, 0))
+		heading := dirRow(c.Theme, d, 0)
+		heading.GroupID, heading.GroupHeading, heading.Collapsible = d, true, true
+		rows = append(rows, heading)
 		subDirs, subFiles := readSplit(d, c.ShowHidden)
 		for _, s := range subDirs {
-			rows = append(rows, dirRow(c.Theme, s, 1))
+			row := dirRow(c.Theme, s, 1)
+			row.GroupID = d
+			rows = append(rows, row)
 		}
 		for _, s := range subFiles {
-			rows = append(rows, fileRow(c.Theme, s, 1))
+			row := fileRow(c.Theme, s, 1)
+			row.GroupID = d
+			rows = append(rows, row)
 		}
 	}
 	for _, f := range files {
@@ -67,6 +91,7 @@ func (Filetree) WatchRoot(c Ctx) string { return c.Root }
 func (Filetree) KeyActions() []KeyAction {
 	return []KeyAction{
 		{Key: "Space", Summary: "preview path"},
+		{Key: "Left/Right", Summary: "collapse / expand"},
 		{Key: "h", Summary: "toggle hidden"},
 		{Key: "p", Summary: "pin root"},
 		{Key: "R", Summary: "reset root"},
@@ -116,6 +141,10 @@ func parentDir(path string) string {
 
 func dirRow(th theme.Theme, path string, depth int) Row {
 	name := display.Sanitize(filepath.Base(path))
+	hints := []KeyAction{{Key: "Enter", Summary: "open split"}, {Key: "Space", Summary: "preview"}, {Key: "a", Summary: "actions"}}
+	if depth == 0 {
+		hints = append([]KeyAction{{Key: "Right", Summary: "show children"}}, hints...)
+	}
 	return Row{
 		ID:         "dir:" + path,
 		SearchText: name + " " + display.Sanitize(path),
@@ -123,6 +152,10 @@ func dirRow(th theme.Theme, path string, depth int) Row {
 		Kind:       ActionOpenDir,
 		Path:       path,
 		Actions:    dirActions(path),
+		Presentation: Presentation{
+			Label: name + "/", Tone: ToneAccent, Depth: depth,
+			Detail: Detail{Title: "selected directory", Lines: []DetailLine{{Text: display.Sanitize(path), TruncateLeft: true}}, Hints: hints},
+		},
 	}
 }
 
@@ -135,6 +168,10 @@ func fileRow(th theme.Theme, path string, depth int) Row {
 		Kind:       ActionOpenFile,
 		Path:       path,
 		Actions:    fileActions(path),
+		Presentation: Presentation{
+			Label: name, Depth: depth,
+			Detail: Detail{Title: "selected file", Lines: []DetailLine{{Text: display.Sanitize(path), TruncateLeft: true}}, Hints: []KeyAction{{Key: "Enter", Summary: "open file"}, {Key: "Space", Summary: "preview"}, {Key: "a", Summary: "actions"}}},
+		},
 	}
 }
 

@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"mm-sidebar/internal/theme"
 	"mm-sidebar/internal/tmuxio"
@@ -61,6 +62,12 @@ type Source interface {
 	// Fetch builds the rows, in display order. Typed errors let the model retain
 	// last-good rows while the next gated poll retries transient failures.
 	Fetch(Ctx) ([]Row, error)
+}
+
+// ContextProvider supplies the second chrome line from already-collected source
+// state. It must be pure: View calls it on every frame.
+type ContextProvider interface {
+	Context(Ctx, []Row) string
 }
 
 // Ascender is the optional half of Source: a tab with a navigable hierarchy,
@@ -170,11 +177,66 @@ const (
 	ActionEditFile
 )
 
-// Row is one navigator entry: one or more pre-styled display lines plus its
-// action payload.
-//
-// Lines is a slice because sources may choose multi-line rows. Compact grouped
-// sources use one line per heading/child; windows retain a second cwd line.
+// Tone is a semantic presentation role resolved by the pure navview renderer.
+type Tone uint8
+
+const (
+	ToneText Tone = iota
+	ToneMuted
+	ToneAccent
+	ToneUrgent
+	ToneBusy
+)
+
+// Fact is one compact list-row fact. Sources order facts by importance; navview
+// keeps as many as fit without clipping the primary label.
+type Fact struct {
+	Text string
+	Tone Tone
+}
+
+// DetailLine is one selected-item fact. TruncateLeft preserves the identifying
+// tail of paths at narrow widths.
+type DetailLine struct {
+	Text         string
+	Tone         Tone
+	TruncateLeft bool
+}
+
+// Detail is source-owned selected-item context built during Fetch. Rendering it
+// never calls back into the source or performs I/O.
+type Detail struct {
+	Title string
+	Lines []DetailLine
+	Hints []KeyAction
+}
+
+// PlainText is used by source tests and filtering diagnostics without scraping
+// rendered ANSI.
+func (d Detail) PlainText() string {
+	parts := []string{d.Title}
+	for _, line := range d.Lines {
+		parts = append(parts, line.Text)
+	}
+	for _, hint := range d.Hints {
+		parts = append(parts, hint.Key+" "+hint.Summary)
+	}
+	return strings.TrimSpace(strings.Join(parts, "\n"))
+}
+
+// Presentation is the semantic half of a row. Legacy Lines remain temporarily
+// as a compatibility projection for tests and external consumers; production
+// rendering prefers Presentation whenever Label is nonempty.
+type Presentation struct {
+	Label  string
+	Depth  int
+	Marker string
+	Tone   Tone
+	Facts  []Fact
+	Detail Detail
+}
+
+// Row is one navigator entry plus its immutable action payload.
 type Row struct {
 	// ID is a stable source-local identity for future selection retention.
 	// SearchText is the unstyled searchable representation for future filtering.
@@ -198,6 +260,12 @@ type Row struct {
 	// render local disclosure state without scraping or restyling ANSI output.
 	Collapsible   bool
 	ExpandedLines []string
+	// ToggleOnEnter distinguishes project accordion headings from filetree
+	// disclosure, whose Enter action must keep opening a shell split.
+	ToggleOnEnter bool
+	// Expanded is a render-only copy set by model disclosure state.
+	Expanded     bool
+	Presentation Presentation
 	// Actions are source-owned descriptors for the generic a/: palette.
 	Actions []ContextAction
 }

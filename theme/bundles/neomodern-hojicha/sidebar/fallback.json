@@ -1,5 +1,7 @@
 {
   "@color-canvas": "#171614",
+  "@color-surface-highlight": "#8a7f76",
+  "@color-text-ui": "#ffeaea",
   "@color-text-muted": "#bdb7b2",
   "@color-accent-secondary": "#ab836c",
   "@color-accent-highlight": "#ffeaea",

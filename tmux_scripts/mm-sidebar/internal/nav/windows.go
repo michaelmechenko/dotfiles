@@ -19,6 +19,13 @@ type Windows struct{}
 func (Windows) ID() string    { return "windows" }
 func (Windows) Short() string { return "pane" }
 func (Windows) Title() string { return "panes" }
+func (Windows) Context(_ Ctx, rows []Row) string {
+	label := itoa(len(rows)) + " panes"
+	if len(rows) == 1 {
+		label = "1 pane"
+	}
+	return label + " · current session"
+}
 
 func (w Windows) Fetch(c Ctx) ([]Row, error) {
 	home, _ := os.UserHomeDir()
@@ -54,11 +61,18 @@ func (w Windows) Fetch(c Ctx) ([]Row, error) {
 			nameStyle = c.Theme.Accent
 		}
 		first := nameStyle.Render(padTo(identity, nameCol)) + " " + c.Theme.Muted.Render(cmd) + badge(c.Theme, pane.Activity, pane.Bell, pane.Silence)
+		facts := []Fact{{Text: cmd, Tone: ToneMuted}}
+		facts = append(facts, alertFacts(pane.Activity, pane.Bell, pane.Silence)...)
+		labelTone := ToneText
+		if pane.PaneActive {
+			labelTone = ToneAccent
+		}
 		rows = append(rows, Row{
 			ID: "pane:" + pane.PaneID, SearchText: identity + " " + cmd + " " + cwd,
 			Lines: []string{first, "  " + c.Theme.Muted.Render(truncLeft(cwd, cwdCol))},
 			Kind:  ActionFocusPane, PaneID: pane.PaneID, Target: pane.Target, Pane: pane.Ref(),
-			Actions: paneActions(pane),
+			Actions:      paneActions(pane),
+			Presentation: Presentation{Label: identity, Tone: labelTone, Facts: facts, Detail: Detail{Title: "selected pane", Lines: []DetailLine{{Text: identity}, {Text: cmd, Tone: ToneMuted}, {Text: pane.CurrentPath, TruncateLeft: true}}, Hints: []KeyAction{{Key: "Enter", Summary: "focus pane"}, {Key: "a", Summary: "actions"}}}},
 		})
 	}
 	return rows, nil

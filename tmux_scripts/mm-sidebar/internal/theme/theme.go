@@ -35,6 +35,10 @@ type Theme struct {
 	// Divider: divider-subtle (@color-divider) -- the horizontal rules between
 	// the navigator and each docked block, and the unfilled gauge track.
 	Divider lipgloss.Style
+	// Chrome: text-ui role -- source context rail and stronger inactive chrome.
+	Chrome lipgloss.Style
+	// Selected: selected row foreground on the canonical surface-highlight fill.
+	Selected lipgloss.Style
 	// ActiveTab: the selected tab chip -- dark canvas text on an accent fill.
 	//
 	// Deliberately NOT reverse video. Reverse would swap in whatever the terminal
@@ -53,13 +57,15 @@ type Theme struct {
 // (theme/active/sidebar/fallback.json) is also missing — i.e. before the first
 // `theme build`.
 var roles = map[string]string{
-	"@color-canvas":           "#100E11",
-	"@color-text-muted":       "#656a80",
-	"@color-accent-secondary": "#aeaed1",
-	"@color-accent-highlight": "#bebedb",
-	"@color-accent-primary":   "#d8647e",
-	"@color-accent-tertiary":  "#bb9dbd",
-	"@color-divider":          "#383848",
+	"@color-canvas":            "#100E11",
+	"@color-surface-highlight": "#2A2A35",
+	"@color-text-ui":           "#9094A0",
+	"@color-text-muted":        "#656a80",
+	"@color-accent-secondary":  "#aeaed1",
+	"@color-accent-highlight":  "#bebedb",
+	"@color-accent-primary":    "#d8647e",
+	"@color-accent-tertiary":   "#bb9dbd",
+	"@color-divider":           "#383848",
 }
 
 // loadFallback reads the generated active-palette fallback so the binary still
@@ -113,6 +119,8 @@ func Load(client *tmuxio.Client) Theme {
 	}
 
 	canvas := opt("@color-canvas")
+	selected := opt("@color-surface-highlight")
+	chrome := opt("@color-text-ui")
 	muted := opt("@color-text-muted")
 	accent := opt("@color-accent-secondary")
 	text := opt("@color-accent-highlight")
@@ -121,12 +129,14 @@ func Load(client *tmuxio.Client) Theme {
 	divider := opt("@color-divider")
 
 	return Theme{
-		Muted:   lipgloss.NewStyle().Foreground(lipgloss.Color(muted)),
-		Accent:  lipgloss.NewStyle().Foreground(lipgloss.Color(accent)),
-		Text:    lipgloss.NewStyle().Foreground(lipgloss.Color(text)),
-		Urgent:  lipgloss.NewStyle().Foreground(lipgloss.Color(rose)),
-		Busy:    lipgloss.NewStyle().Foreground(lipgloss.Color(pink)),
-		Divider: lipgloss.NewStyle().Foreground(lipgloss.Color(divider)),
+		Muted:    lipgloss.NewStyle().Foreground(lipgloss.Color(muted)),
+		Accent:   lipgloss.NewStyle().Foreground(lipgloss.Color(accent)),
+		Text:     lipgloss.NewStyle().Foreground(lipgloss.Color(text)),
+		Urgent:   lipgloss.NewStyle().Foreground(lipgloss.Color(rose)),
+		Busy:     lipgloss.NewStyle().Foreground(lipgloss.Color(pink)),
+		Divider:  lipgloss.NewStyle().Foreground(lipgloss.Color(divider)),
+		Chrome:   lipgloss.NewStyle().Foreground(lipgloss.Color(chrome)),
+		Selected: lipgloss.NewStyle().Foreground(lipgloss.Color(text)).Background(lipgloss.Color(selected)).Bold(true),
 		ActiveTab: lipgloss.NewStyle().
 			Foreground(lipgloss.Color(canvas)).
 			Background(lipgloss.Color(accent)).

@@ -21,6 +21,7 @@ import (
 	"mm-sidebar/internal/blocks"
 	"mm-sidebar/internal/display"
 	"mm-sidebar/internal/nav"
+	"mm-sidebar/internal/navview"
 	pathpreview "mm-sidebar/internal/preview"
 	"mm-sidebar/internal/theme"
 	"mm-sidebar/internal/tmuxio"
@@ -46,6 +47,7 @@ const (
 	surfaceActivity
 	surfaceSystem
 	surfaceInspector
+	surfaceHelp
 )
 
 type model struct {
@@ -127,7 +129,7 @@ type model struct {
 	// then cannot disagree with the frame, whereas recomputing it from layout()
 	// would read Height() values that layout resets and re-grants every frame.
 	blockLines []blockHit
-	showHelp   bool
+	helpStart  int
 	// Hover follows the rendered block-local line, independently of keyboard
 	// focus. Hoverable blocks decide whether that line is actionable.
 	hoverBlock blocks.Hoverable
@@ -730,6 +732,12 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "k", "up":
 		m.moveWithinRegion(-1)
 		return m, nil
+	case "right":
+		m.setDisclosure(true)
+		return m, nil
+	case "left":
+		m.setDisclosure(false)
+		return m, nil
 	// Ghostty transports Ctrl-Tab/Ctrl-Shift-Tab as unmodified F13/F14 so tmux
 	// forwards them into this pane without root bindings. Keep those aliases
 	// local to the sidebar: F13 remains Ctrl-Tab for zsh and pi elsewhere.
@@ -755,7 +763,9 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.surface, m.viewSel = surfaceViews, 0
 		return m, m.syncBlockVisibility()
 	case "?":
-		m.showHelp = !m.showHelp
+		m.surface, m.helpStart = surfaceHelp, 0
+		m.lineRow, m.blockLines = nil, nil
+		m.clearHover()
 		return m, m.syncBlockVisibility()
 	case "d":
 		m.diagnostics = true
@@ -793,6 +803,29 @@ var progressiveViews = []struct {
 
 func (m *model) handleSurfaceKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	key := msg.String()
+	if m.surface == surfaceHelp {
+		maxStart := len(m.helpEntries()) - max(1, m.height-2)
+		if maxStart < 0 {
+			maxStart = 0
+		}
+		switch key {
+		case "esc", "q", "?":
+			return m, m.openSurface(surfaceMain)
+		case "j", "down":
+			if m.helpStart < maxStart {
+				m.helpStart++
+			}
+		case "k", "up":
+			if m.helpStart > 0 {
+				m.helpStart--
+			}
+		case "g", "home":
+			m.helpStart = 0
+		case "G", "end":
+			m.helpStart = maxStart
+		}
+		return m, nil
+	}
 	if m.surface == surfaceViews {
 		switch key {
 		case "esc", "q", "v":
@@ -1231,6 +1264,15 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	if m.actionPalette {
 		return m, nil
 	}
+	if m.surface == surfaceHelp {
+		switch msg.Button {
+		case tea.MouseButtonWheelUp:
+			m.moveHelp(-3)
+		case tea.MouseButtonWheelDown:
+			m.moveHelp(3)
+		}
+		return m, nil
+	}
 	if !tea.MouseEvent(msg).IsWheel() {
 		m.hoverAt(msg.Y)
 	}
@@ -1305,9 +1347,6 @@ func (m *model) navFirstLine() int {
 		return 0
 	}
 	line := headerLines
-	if m.showHelp {
-		line += m.helpLineCount()
-	}
 	if m.queryActive {
 		line += queryLineCount
 	}
@@ -1363,7 +1402,8 @@ func (m *model) lastVisibleRow(start, avail int) int {
 	used := 0
 	last := start
 	for i := start; i < len(rows); i++ {
-		used += len(rows[i].Lines)
+		used += navigatorRowHeight(rows[i])
+
 		if used > avail && i > start {
 			break
 		}
@@ -1379,7 +1419,8 @@ func (m *model) maxScrollStart(avail int) int {
 	rows := m.navigatorRows()
 	used := 0
 	for i := len(rows) - 1; i >= 0; i-- {
-		used += len(rows[i].Lines)
+		used += navigatorRowHeight(rows[i])
+
 		if used > avail {
 			return i + 1
 		}
@@ -1419,9 +1460,6 @@ func (m *model) currentArrangement() arrangement {
 	usable := m.height
 	if m.surface == surfaceMain {
 		usable -= headerLines
-	}
-	if m.surface == surfaceMain && m.showHelp {
-		usable -= m.helpLineCount()
 	}
 	if m.surface == surfaceMain && m.queryActive {
 		usable -= queryLineCount
@@ -1684,6 +1722,7 @@ func (m *model) navigatorRows() []nav.Row {
 		if row.GroupHeading && row.Collapsible {
 			collapsible[row.GroupID] = true
 			expanded := m.query != "" || m.expandedGroups[row.GroupID]
+			row.Expanded = expanded
 			if expanded && len(row.ExpandedLines) > 0 {
 				row.Lines = row.ExpandedLines
 			}
@@ -1696,6 +1735,37 @@ func (m *model) navigatorRows() []nav.Row {
 		out = append(out, row)
 	}
 	return out
+}
+
+func (m *model) setDisclosure(expand bool) {
+	rows := m.navigatorRows()
+	if m.sel < 0 || m.sel >= len(rows) || m.query != "" {
+		return
+	}
+	row := rows[m.sel]
+	group := row.GroupID
+	if group == "" {
+		return
+	}
+	if row.GroupHeading && row.Collapsible {
+		if m.expandedGroups == nil {
+			m.expandedGroups = make(map[string]bool)
+		}
+		m.expandedGroups[group] = expand
+		m.rememberNavigatorSelection()
+		return
+	}
+	if !expand && m.expandedGroups[group] {
+		m.expandedGroups[group] = false
+		collapsed := m.navigatorRows()
+		for i, candidate := range collapsed {
+			if candidate.GroupHeading && candidate.GroupID == group {
+				m.sel = i
+				m.rememberNavigatorSelection()
+				break
+			}
+		}
+	}
 }
 
 func (m *model) filteredNavigatorRows() []nav.Row {
@@ -1973,7 +2043,7 @@ func (m *model) act() tea.Cmd {
 		return nil
 	}
 	row := rows[m.sel]
-	if row.GroupHeading && row.Collapsible && row.GroupID != "" {
+	if row.GroupHeading && row.Collapsible && row.ToggleOnEnter && row.GroupID != "" {
 		if m.expandedGroups == nil {
 			m.expandedGroups = make(map[string]bool)
 		}
@@ -2074,6 +2144,9 @@ func (m *model) View() string {
 	if m.actionPalette {
 		return m.actionPaletteView()
 	}
+	if m.surface == surfaceHelp {
+		return m.helpView()
+	}
 	if m.surface == surfaceViews {
 		return m.viewsPaletteView()
 	}
@@ -2088,9 +2161,6 @@ func (m *model) View() string {
 	}
 	lines := make([]string, 0, m.height)
 	lines = append(lines, m.headerLines()...)
-	if m.showHelp {
-		lines = append(lines, m.helpLines()...)
-	}
 	if m.queryActive {
 		lines = append(lines, m.queryLine())
 	}
@@ -2115,15 +2185,33 @@ func (m *model) View() string {
 		}
 	}
 	lines = append(lines, m.navLines(arr.navAvail)...)
+	// Every post-navigator line has a corresponding block hit. Detail and
+	// ambient lines are intentionally inert; urgent block rows retain ownership.
+	m.blockLines = m.blockLines[:0]
+	if arr.detailAvail > 0 {
+		rows := m.navigatorRows()
+		if m.sel >= 0 && m.sel < len(rows) {
+			detail := navview.RenderDetail(rows[m.sel].Presentation.Detail, m.width, arr.detailAvail, m.theme)
+			lines = append(lines, detail...)
+			for range detail {
+				m.blockLines = append(m.blockLines, blockHit{})
+			}
+		}
+	}
 
 	// Record which block owns each line as it is emitted, so a click can be
 	// resolved without recomputing the arrangement (see blockLines' doc comment).
-	m.blockLines = m.blockLines[:0]
 	for _, b := range arr.blocks {
 		body := splitLines(b.View(m.width), b.Height())
 		for i := range body {
 			lines = append(lines, body[i])
 			m.blockLines = append(m.blockLines, blockHit{block: b, local: i})
+		}
+	}
+	for _, ambient := range [][]string{arr.workingLines, arr.activityLines} {
+		for _, line := range ambient {
+			lines = append(lines, line)
+			m.blockLines = append(m.blockLines, blockHit{})
 		}
 	}
 
@@ -2185,12 +2273,18 @@ func (m *model) headerLines() []string {
 		if i == m.srcIdx {
 			strip += m.theme.ActiveTab.Render(chip)
 		} else {
-			strip += m.theme.Muted.Render(chip)
+			strip += m.theme.Chrome.Render(chip)
+		}
+	}
+	context := nav.Sources[m.srcIdx].Title()
+	if provider, ok := nav.Sources[m.srcIdx].(nav.ContextProvider); ok {
+		if value := provider.Context(m.navCtx(), m.rows); value != "" {
+			context = value
 		}
 	}
 	return []string{
 		clipLine(strip, m.width),
-		clipLine(m.theme.Accent.Render("▸ "+nav.Sources[m.srcIdx].Title()), m.width),
+		clipLine(m.theme.Chrome.Render(context), m.width),
 	}
 }
 
@@ -2338,6 +2432,74 @@ func previewLines(body string) []string {
 	return lines
 }
 
+func (m *model) moveHelp(delta int) {
+	m.helpStart += delta
+	if m.helpStart < 0 {
+		m.helpStart = 0
+	}
+	maxStart := len(m.helpEntries()) - max(1, m.height-2)
+	if maxStart < 0 {
+		maxStart = 0
+	}
+	if m.helpStart > maxStart {
+		m.helpStart = maxStart
+	}
+}
+
+func (m *model) helpEntries() []string {
+	entries := make([]string, 0, len(globalKeyActions)+8)
+	if m.srcIdx >= 0 && m.srcIdx < len(nav.Sources) {
+		if provider, ok := nav.Sources[m.srcIdx].(nav.ActionProvider); ok {
+			for _, action := range provider.KeyActions() {
+				entries = append(entries, action.Key+"  "+action.Summary)
+			}
+		}
+	}
+	for _, action := range globalKeyActions {
+		entries = append(entries, action.Key+"  "+action.Summary)
+	}
+	return entries
+}
+
+func (m *model) helpView() string {
+	m.lineRow, m.blockLines = m.lineRow[:0], m.blockLines[:0]
+	title := "help"
+	if m.srcIdx >= 0 && m.srcIdx < len(nav.Sources) {
+		title += " · " + nav.Sources[m.srcIdx].Title()
+	}
+	lines := []string{clipLine(m.theme.Accent.Render("▸ "+title), m.width)}
+	entries := m.helpEntries()
+	visible := m.height - 2
+	if visible < 0 {
+		visible = 0
+	}
+	maxStart := len(entries) - visible
+	if maxStart < 0 {
+		maxStart = 0
+	}
+	if m.helpStart > maxStart {
+		m.helpStart = maxStart
+	}
+	end := m.helpStart + visible
+	if end > len(entries) {
+		end = len(entries)
+	}
+	for _, entry := range entries[m.helpStart:end] {
+		lines = append(lines, clipLine(m.theme.Text.Render(entry), m.width))
+	}
+	footer := "j/k scroll · Esc back"
+	if maxStart == 0 {
+		footer = "Esc back"
+	}
+	for len(lines) < m.height-1 {
+		lines = append(lines, "")
+	}
+	if len(lines) < m.height {
+		lines = append(lines, clipLine(m.theme.Muted.Render(footer), m.width))
+	}
+	return joinLines(lines[:m.height])
+}
+
 func (m *model) actionPaletteView() string {
 	m.lineRow = m.lineRow[:0]
 	m.blockLines = m.blockLines[:0]
@@ -2378,15 +2540,6 @@ func (m *model) actionPaletteView() string {
 	return strings.Join(lines[:m.height], "\n")
 }
 
-// helpLineCount derives the '?' overlay's exact height from its action
-// registry. navFirstLine and View's line budget call the same method, so adding
-// an optional source action grows the frame and cannot offset mouse mapping.
-func helpLineCount(actions []nav.KeyAction) int {
-	return (len(actions) + 1) / 2
-}
-
-func (m *model) helpLineCount() int { return helpLineCount(m.registeredKeyActions()) }
-
 // queryLineCount stays explicit because navFirstLine and the vertical layout
 // both depend on it. The filter is a one-line inline control, never an overlay.
 const queryLineCount = 1
@@ -2407,8 +2560,8 @@ var globalKeyActions = []nav.KeyAction{
 }
 
 // registeredKeyActions combines global actions with the active source's
-// optional ActionProvider. Adding a tab-local key therefore updates both help
-// surfaces without teaching model.go that source's identity.
+// optional ActionProvider. Adding a tab-local key therefore updates the
+// dedicated help surface without teaching model.go that source's identity.
 func (m *model) registeredKeyActions() []nav.KeyAction {
 	actions := append([]nav.KeyAction(nil), globalKeyActions...)
 	if m.srcIdx >= 0 && m.srcIdx < len(nav.Sources) {
@@ -2419,32 +2572,8 @@ func (m *model) registeredKeyActions() []nav.KeyAction {
 	return actions
 }
 
-// helpOverlay packs every registered action into two columns. Its dynamic
-// height is consumed through helpLineCount, so optional source extensions are
-// never silently omitted or allowed to desynchronize mouse geometry.
-func helpOverlay(actions []nav.KeyAction) []string {
-	lines := make([]string, 0, helpLineCount(actions))
-	for i := 0; i < len(actions); i += 2 {
-		line := actions[i].Key + " " + actions[i].Summary
-		if i+1 < len(actions) {
-			line += "    " + actions[i+1].Key + " " + actions[i+1].Summary
-		}
-		lines = append(lines, line)
-	}
-	return lines
-}
-
 func (m *model) queryLine() string {
 	return clipLine(m.theme.Accent.Render("/")+" "+m.theme.Text.Render(m.query)+m.theme.Muted.Render("▏"), m.width)
-}
-
-func (m *model) helpLines() []string {
-	lines := helpOverlay(m.registeredKeyActions())
-	out := make([]string, 0, len(lines))
-	for _, l := range lines {
-		out = append(out, clipLine(m.theme.Muted.Render(l), m.width))
-	}
-	return out
 }
 
 // navLines renders a viewport-clipped window of rows that follows the cursor,
@@ -2457,19 +2586,6 @@ func (m *model) helpLines() []string {
 // handler. Deriving the row from the click's Y offset arithmetically only worked
 // while every row was exactly one line tall.
 func (m *model) navLines(avail int) []string {
-	if avail < 1 {
-		avail = 1
-	}
-	m.lineRow = m.lineRow[:0]
-	out := make([]string, 0, avail)
-	pad := func() []string {
-		for len(out) < avail {
-			out = append(out, "")
-			m.lineRow = append(m.lineRow, -1)
-		}
-		return out
-	}
-
 	rows := m.navigatorRows()
 	if len(rows) == 0 {
 		m.vpStart = 0
@@ -2482,32 +2598,17 @@ func (m *model) navLines(avail int) []string {
 		case m.query != "" && len(m.rows) > 0:
 			label = "(no matches)"
 		}
-		out = append(out, clipLine(m.theme.Muted.Render(label), m.width))
-		m.lineRow = append(m.lineRow, -1)
-		return pad()
-	}
-
-	m.vpStart = m.scrollTo(avail)
-
-	// 2 columns for the cursor prefix; continuation lines are indented under it.
-	rowWidth := m.width - 2
-	if rowWidth < 1 {
-		rowWidth = 1
-	}
-	for i := m.vpStart; i < len(rows) && len(out) < avail; i++ {
-		for j, line := range rows[i].Lines {
-			if len(out) >= avail {
-				break
-			}
-			prefix := "  "
-			if j == 0 && i == m.sel && m.focusRegion == focusNavigator {
-				prefix = m.theme.Accent.Render("▶") + " "
-			}
-			out = append(out, prefix+clipLine(line, rowWidth))
-			m.lineRow = append(m.lineRow, i)
+		lines := []string{clipLine(m.theme.Muted.Render(label), m.width)}
+		m.lineRow = []int{-1}
+		for len(lines) < avail {
+			lines = append(lines, "")
+			m.lineRow = append(m.lineRow, -1)
 		}
+		return lines
 	}
-	return pad()
+	frame := navview.RenderList(rows, m.width, avail, m.sel, m.vpStart, m.focusRegion == focusNavigator, m.theme)
+	m.vpStart, m.lineRow = frame.Start, frame.Hits
+	return frame.Lines
 }
 
 // scrollTo returns the first row index to render so that the selected row is
@@ -2518,7 +2619,7 @@ func (m *model) scrollTo(avail int) int {
 	rows := m.navigatorRows()
 	total := 0
 	for _, r := range rows {
-		total += len(r.Lines)
+		total += navigatorRowHeight(r)
 	}
 	if total <= avail {
 		return 0
@@ -2533,7 +2634,7 @@ func (m *model) scrollTo(avail int) int {
 	for start < m.sel {
 		used := 0
 		for i := start; i <= m.sel; i++ {
-			used += len(rows[i].Lines)
+			used += navigatorRowHeight(rows[i])
 		}
 		if used <= avail {
 			break

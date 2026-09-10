@@ -10,7 +10,7 @@ import (
 
 func TestFiletreeActionsAdvertiseEverySourceControl(t *testing.T) {
 	got := Filetree{}.KeyActions()
-	want := []string{"Space", "h", "p", "R", "Backspace"}
+	want := []string{"Space", "Left/Right", "h", "p", "R", "Backspace"}
 	if len(got) != len(want) {
 		t.Fatalf("actions = %#v", got)
 	}

@@ -260,9 +260,11 @@ func (b *AgentsGlance) shown() (n, more int) {
 	if limit > len(rows) {
 		limit = len(rows)
 	}
-	if !b.attentionOnly && b.viewport > 0 {
+	showMore := true
+	if b.viewport > 0 {
 		available := b.viewport - 1 // label
-		if len(rows) > available && available > 0 {
+		showMore = len(rows) > available && available >= 2
+		if showMore {
 			available-- // +N more
 		}
 		if available < 0 {
@@ -272,7 +274,11 @@ func (b *AgentsGlance) shown() (n, more int) {
 			limit = available
 		}
 	}
-	return limit, len(rows) - limit
+	more = len(rows) - limit
+	if !showMore {
+		more = 0
+	}
+	return limit, more
 }
 
 func (b *AgentsGlance) SetExtra(n int) {
@@ -311,6 +317,49 @@ func (b *AgentsGlance) Height() int {
 		return 2
 	}
 	return h
+}
+
+// AmbientLines is a read-only projection of currently active agents for the
+// main cockpit. It never changes block mode, focus, visibility, or collection.
+func (b *AgentsGlance) AmbientLines(width, max int) []string {
+	return b.ambientLines(width, max, true)
+}
+
+// WorkingLines excludes permission/wait blockers already rendered by the main
+// attention block, preventing duplicate rows in the cockpit.
+func (b *AgentsGlance) WorkingLines(width, max int) []string {
+	return b.ambientLines(width, max, false)
+}
+
+func (b *AgentsGlance) ambientLines(width, max int, includeUrgent bool) []string {
+	if max < 2 {
+		return nil
+	}
+	type indexed struct {
+		index int
+		row   agents.Row
+	}
+	active := make([]indexed, 0, len(b.rows))
+	for i, row := range b.rows {
+		if row.State == agents.StateIdle {
+			continue
+		}
+		if !includeUrgent && row.State != agents.StateThinking {
+			continue
+		}
+		active = append(active, indexed{i, row})
+	}
+	if len(active) == 0 {
+		return nil
+	}
+	lines := []string{label(b.theme.Accent, "active agents")}
+	for _, item := range active {
+		if len(lines) >= max {
+			break
+		}
+		lines = append(lines, "  "+b.renderRow(item.index, item.row))
+	}
+	return strings.Split(join(lines, width), "\n")
 }
 
 func (b *AgentsGlance) View(width int) string {

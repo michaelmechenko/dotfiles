@@ -13,6 +13,7 @@ import { archiveCompletedPlan, completedPlanRecord, listCompletedPlansForSession
 import { planFooterStatus } from "./plan-status.ts";
 import { checkRestrictedToolCall, PLAN_EXECUTION_TOOLS, PLAN_UPDATE_TOOL, restrictedTools, restrictionGuidance } from "./restricted-mode.ts";
 import { buildRecalibrationMessage, promptForRecalibration } from "./recalibration-editor.ts";
+import { renderExecutionSettingsHeader, renderPlanProgress } from "./tui-rendering.ts";
 import { parsePlanEditText, type TodoItem } from "./utils.ts";
 
 const PLAN_STEP_TOOL = "plan_step";
@@ -262,7 +263,7 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 				change(row.id, cycleExecutionSettingValue(row.values, row.currentValue, direction));
 			};
 			const container = new Container();
-			container.addChild({ render: () => [theme.fg("accent", theme.bold("Execution settings")), theme.fg("dim", "↑↓ select • tab/right next • shift-tab/left previous • enter/space next • esc cancel"), ""], invalidate() {} });
+			container.addChild({ render: (width: number) => renderExecutionSettingsHeader(theme, width, truncateToWidth), invalidate() {} });
 			refresh();
 			container.addChild({ render: (width: number) => list.render(width), invalidate: () => list.invalidate(), handleInput: (data: string) => list.handleInput(data) });
 			return {
@@ -385,9 +386,9 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 	async function showTodos(ctx: ExtensionContext): Promise<void> {
 		if (!state.steps.length) return;
 		await ctx.ui.custom<void>((tui, theme, _kb, done) => {
-			let index = 0; let cache: string[] | undefined;
-			const refresh = () => { cache = undefined; tui.requestRender(); };
-			return { render(width) { if (cache) return cache; cache = [theme.fg("accent", " Plan Progress "), ...state.steps.map((step, i) => truncateToWidth(`${i === index ? theme.fg("accent", " ❯ ") : "   "}${step.completed ? theme.fg("success", "[x] ") : step.skipped ? theme.fg("dim", "[-] ") : theme.fg("muted", "[ ] ")}${step.text}`, width)), theme.fg("dim", " ↑↓ navigate • space cycle status • esc close")]; return cache; }, invalidate() { cache = undefined; }, handleInput(data) { if (matchesKey(data, Key.escape) || matchesKey(data, "ctrl+c")) return done(); if (matchesKey(data, Key.up)) { index = (index - 1 + state.steps.length) % state.steps.length; refresh(); } else if (matchesKey(data, Key.down)) { index = (index + 1) % state.steps.length; refresh(); } else if (matchesKey(data, Key.space) || matchesKey(data, Key.enter)) { const step = state.steps[index]!; if (!step.completed && !step.skipped) step.completed = true; else if (step.completed) { step.completed = false; step.skipped = true; } else step.skipped = false; persist(); updateUi(ctx); refresh(); } } };
+			let index = 0;
+			const refresh = () => tui.requestRender();
+			return { render: (width) => renderPlanProgress(theme, state.steps, index, width, truncateToWidth), invalidate() {}, handleInput(data) { if (matchesKey(data, Key.escape) || matchesKey(data, "ctrl+c")) return done(); if (matchesKey(data, Key.up)) { index = (index - 1 + state.steps.length) % state.steps.length; refresh(); } else if (matchesKey(data, Key.down)) { index = (index + 1) % state.steps.length; refresh(); } else if (matchesKey(data, Key.space) || matchesKey(data, Key.enter)) { const step = state.steps[index]!; if (!step.completed && !step.skipped) step.completed = true; else if (step.completed) { step.completed = false; step.skipped = true; } else step.skipped = false; persist(); updateUi(ctx); refresh(); } } };
 		});
 	}
 

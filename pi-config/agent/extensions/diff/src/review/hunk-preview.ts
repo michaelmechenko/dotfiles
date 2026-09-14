@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { extname } from "node:path";
 
 import { codeToANSI } from "@shikijs/cli";
+import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import * as Diff from "diff";
 import { configIndicatorStyle } from "../core/config.js";
 import { getSepStyle, pairChangeBlock, type ParsedDiff, sepLabelSplit, sepLabelUnified } from "../core/diff.js";
@@ -130,11 +131,7 @@ const SPLIT_MAX_WRAP_LINES = 10;
 const MAX_HL_CHARS = 80_000;
 const CACHE_LIMIT = 192;
 const WORD_DIFF_MIN_SIM = 0.15;
-const MAX_WRAP_ROWS_WIDE = 3;
-const MAX_WRAP_ROWS_MED = 2;
-const MAX_WRAP_ROWS_NARROW = 1;
 const DEFAULT_RENDER_WIDTH = 120;
-const MIN_RENDER_WIDTH = 40;
 
 let RST = "\x1b[0m";
 const DIM = "\x1b[2m";
@@ -158,8 +155,6 @@ function getBorderBar(): string {
 }
 let DIVIDER = `${FG_RULE}${RST}`;
 const ESC_RE = "\u001b";
-const ANSI_RE = new RegExp(`${ESC_RE}\\[[0-9;]*m`, "g");
-const ANSI_CAPTURE_RE = new RegExp(`${ESC_RE}\\[([^m]*)m`, "g");
 const ANSI_PARAM_CAPTURE_RE = new RegExp(`${ESC_RE}\\[([0-9;]*)m`, "g");
 const BG_DEFAULT = "\x1b[49m";
 let BG_BASE = BG_DEFAULT;
@@ -216,7 +211,7 @@ const highlightCache = new Map<string, string[]>();
 export async function renderReviewHunkPreview(input: ReviewHunkPreviewInput): Promise<string> {
 	ensurePalette();
 	const diff = createParsedDiffFromReviewHunk(input.hunk);
-	const width = Math.max(MIN_RENDER_WIDTH, input.width || DEFAULT_RENDER_WIDTH);
+	const width = Math.max(1, Math.floor(input.width || DEFAULT_RENDER_WIDTH));
 	const language = lang(input.filePath);
 	const colors = resolveDiffColors(input.theme);
 	return renderUnified(diff, language, input.maxLines ?? diff.lines.length, colors, width);
@@ -507,59 +502,13 @@ export function resolveDiffColors(theme?: any): DiffColors {
 	}
 }
 
-function strip(content: string): string {
-	return content.replace(ANSI_RE, "");
-}
-
 function tabs(content: string): string {
 	return content.replace(/\t/g, "  ");
 }
 
-function adaptiveWrapRows(width: number): number {
-	if (width >= 180) return MAX_WRAP_ROWS_WIDE;
-	if (width >= 120) return MAX_WRAP_ROWS_MED;
-	return MAX_WRAP_ROWS_NARROW;
-}
-
 function fit(content: string, width: number): string {
 	if (width <= 0) return "";
-	const plain = strip(content);
-	if (plain.length <= width) return content + " ".repeat(width - plain.length);
-	const showWidth = width > 2 ? width - 1 : width;
-	let visible = 0;
-	let index = 0;
-	while (index < content.length && visible < showWidth) {
-		if (content[index] === "\x1b") {
-			const end = content.indexOf("m", index);
-			if (end !== -1) {
-				index = end + 1;
-				continue;
-			}
-		}
-		visible += 1;
-		index += 1;
-	}
-	return width > 2 ? `${content.slice(0, index)}${RST}${FG_DIM}›${RST}` : `${content.slice(0, index)}${RST}`;
-}
-
-function ansiState(content: string): string {
-	let fg = "";
-	let bg = "";
-	for (const match of content.matchAll(ANSI_CAPTURE_RE)) {
-		const params = match[1] ?? "";
-		const sequence = match[0] ?? "";
-		if (params === "0") {
-			fg = "";
-			bg = "";
-		} else if (params === "39") {
-			fg = "";
-		} else if (params.startsWith("38;")) {
-			fg = sequence;
-		} else if (params.startsWith("48;")) {
-			bg = sequence;
-		}
-	}
-	return bg + fg;
+	return truncateToWidth(content, width, width > 2 ? `${RST}${FG_DIM}›${RST}` : "", true);
 }
 
 function isLowContrastShikiFg(params: string): boolean {
@@ -579,69 +528,16 @@ function normalizeShikiContrast(ansi: string): string {
 	);
 }
 
-function wrapAnsi(content: string, width: number, maxRows: number, fillBg = ""): string[] {
+function wrapAnsi(content: string, width: number, fillBg = ""): string[] {
 	if (width <= 0) return [""];
-	maxRows = areToolOutputsWrapped() ? Number.MAX_SAFE_INTEGER : 1;
-	const plain = strip(content);
-	if (plain.length <= width) {
-		const padding = width - plain.length;
-		return padding > 0 ? [content + fillBg + " ".repeat(padding) + (fillBg ? RST : "")] : [content];
-	}
-	const rows: string[] = [];
-	let row = "";
-	let visible = 0;
-	let index = 0;
-	let onLastRow = false;
-	let effectiveWidth = width;
-	while (index < content.length) {
-		if (!onLastRow && rows.length >= maxRows - 1) {
-			onLastRow = true;
-			effectiveWidth = width > 2 ? width - 1 : width;
-		}
-		if (content[index] === "\x1b") {
-			const end = content.indexOf("m", index);
-			if (end !== -1) {
-				row += content.slice(index, end + 1);
-				index = end + 1;
-				continue;
-			}
-		}
-		if (visible >= effectiveWidth) {
-			if (onLastRow) {
-				let hasMore = false;
-				for (let cursor = index; cursor < content.length; cursor++) {
-					if (content[cursor] === "\x1b") {
-						const escapeEnd = content.indexOf("m", cursor);
-						if (escapeEnd !== -1) {
-							cursor = escapeEnd;
-							continue;
-						}
-					}
-					hasMore = true;
-					break;
-				}
-				if (hasMore && width > 2) row += `${RST}${fillBg}${FG_DIM}…${RST}`;
-				else row += fillBg + " ".repeat(Math.max(0, width - visible)) + RST;
-				rows.push(row);
-				return rows;
-			}
-			const state = ansiState(row);
-			rows.push(row + RST);
-			row = state + fillBg;
-			visible = 0;
-			if (rows.length >= maxRows - 1) {
-				onLastRow = true;
-				effectiveWidth = width > 2 ? width - 1 : width;
-			}
-		}
-		row += content[index];
-		visible += 1;
-		index += 1;
-	}
-	if (row.length > 0 || rows.length === 0) {
-		rows.push(row + fillBg + " ".repeat(Math.max(0, width - visible)) + RST);
-	}
-	return rows;
+	const rows = areToolOutputsWrapped()
+		? wrapTextWithAnsi(content, width)
+		: [truncateToWidth(content, width, width > 1 ? `${RST}${fillBg}${FG_DIM}…${RST}` : "")];
+	return rows.map((row) => {
+		const fitted = truncateToWidth(row, width, "");
+		const padding = " ".repeat(Math.max(0, width - visibleWidth(fitted)));
+		return `${fitted}${fillBg}${padding}${fillBg ? RST : ""}`;
+	});
 }
 
 function lnum(value: number | null, width: number, fg = FG_LNUM): string {
@@ -678,7 +574,7 @@ function shouldUseSplit(diff: ParsedDiff, width: number, maxRows: number, option
 	for (const line of visibleLines) {
 		if (line.type === "sep") continue;
 		contentLines += 1;
-		if (tabs(line.content).length > codeWidth) wrapCandidates += 1;
+		if (visibleWidth(tabs(line.content)) > codeWidth) wrapCandidates += 1;
 	}
 	if (contentLines === 0) return true;
 	const wrapRatio = wrapCandidates / contentLines;
@@ -810,15 +706,16 @@ export async function renderUnified(
 ): Promise<string> {
 	if (!diff.lines.length) return "";
 	const visible = diff.lines.slice(0, maxLines);
-	const renderWidth = Math.max(MIN_RENDER_WIDTH, width);
+	const renderWidth = Math.max(1, Math.floor(width));
 	const numberWidth = Math.max(
 		2,
 		String(Math.max(...visible.map((line) => line.oldNum ?? line.newNum ?? 0), 0)).length,
 	);
 	const compactGutter = !!options.compactGutter;
-	const gutterWidth = numberWidth + (compactGutter ? 3 : 4);
-
-	const codeWidth = Math.max(20, renderWidth - gutterWidth);
+	const nominalGutterWidth = numberWidth + (compactGutter ? 3 : 4);
+	const narrowGutter = renderWidth <= nominalGutterWidth;
+	const gutterWidth = renderWidth <= 1 ? 0 : narrowGutter ? 1 : nominalGutterWidth;
+	const codeWidth = Math.max(1, renderWidth - gutterWidth);
 	const canHighlight = diff.chars <= MAX_HL_CHARS && visible.length <= maxLines;
 
 	const oldSource: string[] = [];
@@ -847,9 +744,17 @@ export async function renderUnified(
 		const borderFg = sign === "-" ? colors.fgDel : sign === "+" ? colors.fgAdd : "";
 		const border = compactGutter ? "" : borderFg ? `${borderFg}${getBorderBar()}${RST}` : `${BG_BASE} `;
 		const numFg = borderFg || FG_LNUM;
-		const gutter = `${border}${gutterBg}${lnum(number, numberWidth, numFg)}${gutterBg} ${signFg}${sign}${gutterBg} ${RST}`;
-		const continuationGutter = `${border}${gutterBg}${" ".repeat(numberWidth + 3)}${RST}`;
-		const rows = wrapAnsi(tabs(body), codeWidth, adaptiveWrapRows(renderWidth), bodyBg);
+		const gutter = gutterWidth === 0
+			? ""
+			: narrowGutter
+				? `${gutterBg}${signFg}${sign}${RST}`
+				: `${border}${gutterBg}${lnum(number, numberWidth, numFg)}${gutterBg} ${signFg}${sign}${gutterBg} ${RST}`;
+		const continuationGutter = gutterWidth === 0
+			? ""
+			: narrowGutter
+				? `${gutterBg} ${RST}`
+				: `${border}${gutterBg}${" ".repeat(numberWidth + 3)}${RST}`;
+		const rows = wrapAnsi(tabs(body), codeWidth, bodyBg);
 		output.push(`${gutter}${rows[0]}${RST}`);
 		for (let rowIndex = 1; rowIndex < rows.length; rowIndex++) {
 			output.push(`${continuationGutter}${rows[rowIndex]}${RST}`);
@@ -865,10 +770,11 @@ export async function renderUnified(
 				continue;
 			}
 			const totalWidth = renderWidth;
-			const padding = Math.max(0, totalWidth - label.length);
+			const fittedLabel = truncateToWidth(label, totalWidth, "…");
+			const padding = Math.max(0, totalWidth - visibleWidth(fittedLabel));
 			const left = Math.floor(padding / 2);
 			const right = padding - left;
-			output.push(`${BG_BASE}${FG_DIM}${"─".repeat(left)}${label}${"─".repeat(right)}${RST}`);
+			output.push(`${BG_BASE}${FG_DIM}${"─".repeat(left)}${fittedLabel}${"─".repeat(right)}${RST}`);
 			index += 1;
 			continue;
 		}
@@ -932,7 +838,7 @@ export async function renderUnified(
 	}
 
 	if (diff.lines.length > visible.length) {
-		output.push(`${BG_BASE}${FG_DIM}  … ${diff.lines.length - visible.length} more lines — ctrl+o${RST}`);
+		output.push(`${BG_BASE}${FG_DIM}${fit(`  … ${diff.lines.length - visible.length} more lines — ctrl+o`, renderWidth)}${RST}`);
 	}
 	return output.join("\n");
 }
@@ -986,15 +892,17 @@ export async function renderSplit(
 	}
 
 	const visible = rows.slice(0, maxLines);
-	const renderWidth = Math.max(MIN_RENDER_WIDTH, width);
+	const renderWidth = Math.max(1, Math.floor(width));
 	const numberWidth = Math.max(
 		2,
 		String(Math.max(...diff.lines.map((line) => line.oldNum ?? line.newNum ?? 0), 0)).length,
 	);
 	const compactGutter = !!options.compactGutter;
 	const gutterWidth = numberWidth + (compactGutter ? 3 : 4);
-	const half = Math.floor(renderWidth / 2);
-	const codeWidth = Math.max(12, half - gutterWidth);
+	const leftHalfWidth = Math.floor(renderWidth / 2);
+	const rightHalfWidth = renderWidth - leftHalfWidth;
+	const leftCodeWidth = Math.max(1, leftHalfWidth - gutterWidth);
+	const rightCodeWidth = Math.max(1, rightHalfWidth - gutterWidth);
 	const canHighlight = diff.chars <= MAX_HL_CHARS && visible.length * 2 <= maxLines * 2;
 
 	const leftSource: string[] = [];
@@ -1011,20 +919,37 @@ export async function renderSplit(
 	let rightIndex = 0;
 	const output: string[] = [];
 
-	type HalfResult = { gutter: string; continuation: string; bodyRows: string[] };
+	type HalfResult = {
+		gutter: string;
+		continuation: string;
+		bodyRows: string[];
+		bodyBg: string;
+		codeWidth: number;
+		halfWidth: number;
+		missing: boolean;
+	};
 
 	function buildHalf(
 		line: ParsedDiff["lines"][number] | null,
 		highlight: string,
 		ranges: Array<[number, number]> | null,
 		side: "left" | "right",
+		halfWidth: number,
+		codeWidth: number,
 	): HalfResult {
 		if (!line) {
-			return { gutter: "", continuation: "", bodyRows: [""] };
+			return {
+				gutter: "",
+				continuation: "",
+				bodyRows: [],
+				bodyBg: BG_EMPTY,
+				codeWidth,
+				halfWidth,
+				missing: true,
+			};
 		}
 		if (line.type === "sep") {
 			const label = sepLabelSplit(getSepStyle(), line.hunkMeta, line.newNum, line.content);
-			if (!label) return { gutter: "", continuation: "", bodyRows: [""] };
 			const gutter = compactGutter
 				? `${BG_BASE}${FG_DIM}${fit("", numberWidth + 3)}${RST}`
 				: `${BG_BASE} ${FG_DIM}${fit("", numberWidth + 3)}${RST}`;
@@ -1032,6 +957,10 @@ export async function renderSplit(
 				gutter,
 				continuation: gutter,
 				bodyRows: [`${BG_BASE}${FG_DIM}${fit(label, codeWidth)}${RST}`],
+				bodyBg: BG_BASE,
+				codeWidth,
+				halfWidth,
+				missing: !label,
 			};
 		}
 		const isDeletion = line.type === "del";
@@ -1051,8 +980,19 @@ export async function renderSplit(
 		return {
 			gutter,
 			continuation,
-			bodyRows: wrapAnsi(tabs(body), codeWidth, adaptiveWrapRows(renderWidth), codeBg),
+			bodyRows: wrapAnsi(tabs(body), codeWidth, codeBg),
+			bodyBg: codeBg,
+			codeWidth,
+			halfWidth,
+			missing: false,
 		};
+	}
+
+	function composeHalf(half: HalfResult, rowIndex: number): string {
+		if (half.missing) return `${BG_EMPTY}${" ".repeat(half.halfWidth)}${RST}`;
+		const prefix = rowIndex === 0 ? half.gutter : half.continuation;
+		const body = half.bodyRows[rowIndex] ?? `${half.bodyBg}${" ".repeat(half.codeWidth)}${RST}`;
+		return `${prefix}${body}`;
 	}
 
 	for (const row of visible) {
@@ -1060,10 +1000,11 @@ export async function renderSplit(
 			const separator = row.left?.type === "sep" ? row.left : row.right;
 			const label = separator ? sepLabelUnified(getSepStyle(), separator.hunkMeta, separator.newNum, separator.content) : "";
 			if (label) {
-				const padding = Math.max(0, renderWidth - label.length);
+				const fittedLabel = truncateToWidth(label, renderWidth, "…");
+				const padding = Math.max(0, renderWidth - visibleWidth(fittedLabel));
 				const left = Math.floor(padding / 2);
 				const right = padding - left;
-				output.push(`${BG_BASE}${FG_DIM}${"─".repeat(left)}${label}${"─".repeat(right)}${RST}`);
+				output.push(`${BG_BASE}${FG_DIM}${"─".repeat(left)}${fittedLabel}${"─".repeat(right)}${RST}`);
 			}
 			continue;
 		}
@@ -1078,25 +1019,24 @@ export async function renderSplit(
 			leftHighlight,
 			isPairedChange && wordDiffBalanced && wordDiff.similarity >= WORD_DIFF_MIN_SIM ? wordDiff.oldRanges : null,
 			"left",
+			leftHalfWidth,
+			leftCodeWidth,
 		);
 		const rightHalf = buildHalf(
 			row.right,
 			rightHighlight,
 			isPairedChange && wordDiffBalanced && wordDiff.similarity >= WORD_DIFF_MIN_SIM ? wordDiff.newRanges : null,
 			"right",
+			rightHalfWidth,
+			rightCodeWidth,
 		);
-		const maxRows = Math.max(leftHalf.bodyRows.length, rightHalf.bodyRows.length);
+		const maxRows = Math.max(1, leftHalf.bodyRows.length, rightHalf.bodyRows.length);
 		for (let rowIndex = 0; rowIndex < maxRows; rowIndex++) {
-			const leftBody = leftHalf.bodyRows[rowIndex] ?? "";
-			const rightBody = rightHalf.bodyRows[rowIndex] ?? "";
-			if (!leftHalf.gutter && !rightHalf.gutter && !leftBody && !rightBody) continue;
-			output.push(
-				`${rowIndex === 0 ? leftHalf.gutter : leftHalf.continuation}${leftBody.trimEnd()}${rowIndex === 0 ? rightHalf.gutter : rightHalf.continuation}${rightBody.trimEnd()}`,
-			);
+			output.push(`${composeHalf(leftHalf, rowIndex)}${composeHalf(rightHalf, rowIndex)}`);
 		}
 	}
 
 	if (rows.length > visible.length)
-		output.push(`${BG_BASE}${FG_DIM}  … ${rows.length - visible.length} more lines — ctrl+o${RST}`);
+		output.push(`${BG_BASE}${FG_DIM}${fit(`  … ${rows.length - visible.length} more lines — ctrl+o`, renderWidth)}${RST}`);
 	return output.join("\n");
 }

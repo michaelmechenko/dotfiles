@@ -7,8 +7,10 @@ A bounded, foreground delegation tool for isolated pi subprocesses. It retains t
 - Runs every agent in a fresh `pi --mode json --no-session` subprocess.
 - Uses the parent model and thinking level for agents without a pinned `model`; pinned agents keep their own model.
 - Delivers the task and agent system prompt through a mode-0600 temporary directory, never as raw task text in argv. Files are removed when the run settles, aborts, times out, or fails to spawn.
-- Accepts YAML `tools` frontmatter as either `read, bash` or `[read, bash]`.
-- Bounds JSONL lines (1 MiB), stderr (32 KiB), retained messages (64), and recent activity (8 items).
+- Accepts YAML `tools` frontmatter as either `read, bash` or `[read, bash]`. An omitted policy inherits the parent; `tools: []` grants no tools; malformed policies are reported without hiding valid sibling agents.
+- Intersects every agent policy with the parent's active tools and always removes recursive delegation and parent-owned plan lifecycle tools. Restricted parents cannot regain mutation tools through any agent, including `researcher`.
+- Requires exactly one nonempty mode. Parallel and chain calls are capped at 8 items; parallel execution is capped at 4 children.
+- Bounds incomplete and complete JSONL records (1 MiB), stderr (32 KiB), retained messages (64), and recent activity (8 items), and requires exactly one final documented `agent_end` event (while accepting Pi's optional trailing `agent_settled`).
 - Enforces a 30-minute runtime limit. Abort and timeout terminate the owned child process group, then escalate after five seconds if needed.
 - Keeps `tool-display/` and Pi's default tool shell as the sole frame. This extension has no renderer or widget.
 
@@ -34,7 +36,7 @@ Parallel model-visible results are capped at 50 KiB per agent. Failures report t
 
 ## Agents
 
-User agents live in `~/.config/pi-config/agent/agents/*.md`. Project agents in `.pi/agents/*.md` load only when a call sets `agentScope: "project"` or `"both"`; interactive calls ask before running them.
+User agents live in `~/.config/pi-config/agent/agents/*.md`. Project agents in `.pi/agents/*.md` load only when a call sets `agentScope: "project"` or `"both"`. They require interactive approval by default; headless use must explicitly set `confirmProjectAgents: false` after independent trust.
 
 Use `researcher` for deep primary-source research, `scout` for compact read-only recon, `reviewer` for adversarial review, and `worker` for bounded implementation. Give every delegation an objective, scope, deliverable, constraints, and verification. The parent owns integration decisions; one writer owns a checkout at a time.
 

@@ -7,10 +7,8 @@ import { StringEnum } from "@earendil-works/pi-ai";
 import { CONFIG_DIR_NAME, type ExtensionAPI, getAgentDir } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { type AgentConfig, type AgentScope, discoverAgents } from "./agents.ts";
+import { MAX_CONCURRENCY, normalizeDelegationRequest, replacePreviousLiteral, resolveChildTools } from "./delegation.ts";
 import { createRunnerState, reduceEvent, runSpawnedJsonl, truncateUtf8, type RunnerState, type UsageStats } from "./runner.ts";
-
-const MAX_PARALLEL_TASKS = 8;
-const MAX_CONCURRENCY = 4;
 const PER_TASK_OUTPUT_CAP = 50 * 1024;
 const PROGRESS_INTERVAL_MS = 150;
 
@@ -36,6 +34,7 @@ interface SubagentDetails {
 	mode: "single" | "parallel" | "chain";
 	agentScope: AgentScope;
 	projectAgentsDir: string | null;
+	diagnostics: string[];
 	results: SingleResult[];
 }
 
@@ -123,7 +122,7 @@ function stateResult(agent: AgentConfig | undefined, agentName: string, task: st
 	return { agent: agentName, agentSource: agent?.source ?? "unknown", task, exitCode, messages: state.messages as Message[], stderr, usage: state.usage, model: state.model, stopReason: state.stopReason, errorMessage: state.errorMessage, step, state: state.state, activeTool: state.activeTool, activity: [...state.activity], startedAt: state.startedAt };
 }
 
-async function runSingleAgent(defaultCwd: string, defaults: DispatchDefaults, agents: AgentConfig[], agentName: string, task: string, cwd: string | undefined, step: number | undefined, signal: AbortSignal | undefined, onUpdate: OnUpdateCallback | undefined, makeDetails: (results: SingleResult[]) => SubagentDetails): Promise<SingleResult> {
+async function runSingleAgent(defaultCwd: string, defaults: DispatchDefaults, agents: AgentConfig[], parentTools: string[], agentName: string, task: string, cwd: string | undefined, step: number | undefined, signal: AbortSignal | undefined, onUpdate: OnUpdateCallback | undefined, makeDetails: (results: SingleResult[]) => SubagentDetails): Promise<SingleResult> {
 	const agent = agents.find((candidate) => candidate.name === agentName);
 	if (!agent) {
 		const available = agents.map((candidate) => `"${candidate.name}"`).join(", ") || "none";
@@ -149,7 +148,7 @@ async function runSingleAgent(defaultCwd: string, defaults: DispatchDefaults, ag
 		const args = ["--mode", "json", "-p", "--no-session"];
 		if (model) args.push("--model", model);
 		if (inheritsParent && defaults.thinkingLevel) args.push("--thinking", defaults.thinkingLevel);
-		if (agent.tools?.length) args.push("--tools", agent.tools.join(","));
+		args.push("--tools", resolveChildTools(agent, parentTools).join(","));
 		if (files.promptPath) args.push("--append-system-prompt", files.promptPath);
 		args.push("Read the attached private task file and complete it.", `@${files.taskPath}`);
 		const invocation = getPiInvocation(args);
@@ -158,8 +157,9 @@ async function runSingleAgent(defaultCwd: string, defaults: DispatchDefaults, ag
 		if (spawned.reason === "aborted") { state.state = "aborted"; state.errorMessage = "Subagent was aborted."; }
 		if (spawned.reason === "timed_out") { state.state = "timed_out"; state.errorMessage = "Subagent timed out after 30 minutes."; }
 		if (spawned.spawnError) { state.state = "failed"; state.errorMessage = `Could not start subagent: ${spawned.spawnError}`; }
+		if (spawned.protocolError) { state.state = "failed"; state.errorMessage = spawned.protocolError; }
 		if (spawned.exitCode !== 0 && (state.state === "starting" || state.state === "running")) state.state = "failed";
-		if (spawned.exitCode === 0 && state.state === "starting") state.state = "completed";
+		if (spawned.exitCode === 0 && !spawned.protocolError && (state.state === "starting" || state.state === "running")) state.state = "completed";
 		const result = stateResult(agent, agentName, task, step, state, spawned.exitCode, spawned.stderr);
 		emit(true);
 		return result;
@@ -179,7 +179,7 @@ export default function(pi: ExtensionAPI) {
 	pi.on("tool_result", async (event) => {
 		if (event.toolName !== "subagent") return undefined;
 		const details = event.details as SubagentDetails | undefined;
-		return { isError: Boolean(details?.results.some(isFailedResult)) };
+		return { isError: event.isError || Boolean(details?.results.some(isFailedResult)) };
 	});
 	pi.registerTool({
 		name: "subagent", label: "Subagent", renderShell: "default", executionMode: "parallel",
@@ -188,34 +188,36 @@ export default function(pi: ExtensionAPI) {
 		promptGuidelines: ["Delegate deep primary-source research to researcher with a compact task contract; it writes the detailed cited brief to a file and returns a concise handoff.", "Use fresh isolated context for research and review; retain parent authority and do not delegate trivial work or concurrent writes to the same checkout."],
 		parameters: SubagentParams,
 		async execute(_id, params, signal, onUpdate, ctx) {
+			const request = normalizeDelegationRequest(params, ctx.cwd);
 			const agentScope: AgentScope = params.agentScope ?? "user";
 			const discovery = discoverAgents(ctx.cwd, agentScope);
+			const parentTools = pi.getActiveTools();
 			const defaults: DispatchDefaults = { model: ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : undefined, thinkingLevel: ctx.thinkingLevel };
-			const makeDetails = (mode: SubagentDetails["mode"]) => (results: SingleResult[]): SubagentDetails => ({ mode, agentScope, projectAgentsDir: discovery.projectAgentsDir, results });
-			const mode = params.chain?.length ? "chain" : params.tasks?.length ? "parallel" : params.agent && params.task ? "single" : undefined;
-			if (!mode) throw new Error("Invalid parameters. Provide exactly one of single, tasks, or chain.");
-			if ((params.confirmProjectAgents ?? true) && (agentScope === "project" || agentScope === "both") && ctx.hasUI) {
-				const names = (params.chain ?? params.tasks ?? (params.agent ? [{ agent: params.agent }] : [])).map((item) => item.agent);
+			const makeDetails = (mode: SubagentDetails["mode"]) => (results: SingleResult[]): SubagentDetails => ({ mode, agentScope, projectAgentsDir: discovery.projectAgentsDir, diagnostics: [...discovery.diagnostics], results });
+			const mode = request.mode;
+			if ((params.confirmProjectAgents ?? true) && (agentScope === "project" || agentScope === "both")) {
+				const names = request.items.map((item) => item.agent);
 				const project = names.map((name) => discovery.agents.find((item) => item.name === name)).filter((item): item is AgentConfig => item?.source === "project");
+				if (project.length && !ctx.hasUI) throw new Error("Project-local agents require interactive approval. Set confirmProjectAgents=false only after independently trusting them.");
 				if (project.length && !(await ctx.ui.confirm("Run project-local agents?", `Agents: ${project.map((item) => item.name).join(", ")}\nSource: ${discovery.projectAgentsDir}\n\nProject agents are repo-controlled.`))) return { content: [{ type: "text", text: "Canceled: project-local agents not approved." }], details: makeDetails(mode)([]) };
 			}
 			if (mode === "single") {
-				const result = await runSingleAgent(ctx.cwd, defaults, discovery.agents, params.agent!, params.task!, params.cwd, undefined, signal, onUpdate, makeDetails("single"));
+				const item = request.items[0];
+				const result = await runSingleAgent(ctx.cwd, defaults, discovery.agents, parentTools, item.agent, item.task, item.cwd, undefined, signal, onUpdate, makeDetails("single"));
 				return { content: [{ type: "text", text: isFailedResult(result) ? `Agent failed: ${getResultOutput(result)}` : getFinalOutput(result.messages) || "(no output)" }], details: makeDetails("single")([result]), usage: aggregateUsage([result]) };
 			}
 			if (mode === "chain") {
 				const results: SingleResult[] = []; let previous = "";
-				for (let index = 0; index < params.chain!.length; index++) {
-					const item = params.chain![index];
-					const result = await runSingleAgent(ctx.cwd, defaults, discovery.agents, item.agent, item.task.replace(/\{previous\}/g, previous), item.cwd, index + 1, signal, (partial) => { const current = partial.details?.results[0]; if (current) onUpdate?.({ content: [{ type: "text", text: formatProgress(current, `Step ${index + 1}/${params.chain!.length} · `) }], details: makeDetails("chain")([...results, current]) }); }, makeDetails("chain"));
+				for (let index = 0; index < request.items.length; index++) {
+					const item = request.items[index];
+					const result = await runSingleAgent(ctx.cwd, defaults, discovery.agents, parentTools, item.agent, replacePreviousLiteral(item.task, previous), item.cwd, index + 1, signal, (partial) => { const current = partial.details?.results[0]; if (current) onUpdate?.({ content: [{ type: "text", text: formatProgress(current, `Step ${index + 1}/${request.items.length} · `) }], details: makeDetails("chain")([...results, current]) }); }, makeDetails("chain"));
 					results.push(result); if (isFailedResult(result)) return { content: [{ type: "text", text: `Chain stopped at step ${index + 1} (${item.agent}): ${getResultOutput(result)}` }], details: makeDetails("chain")(results), usage: aggregateUsage(results) }; previous = getFinalOutput(result.messages);
 				}
 				return { content: [{ type: "text", text: getFinalOutput(results.at(-1)!.messages) || "(no output)" }], details: makeDetails("chain")(results), usage: aggregateUsage(results) };
 			}
-			if (params.tasks!.length > MAX_PARALLEL_TASKS) throw new Error(`Too many parallel tasks (${params.tasks!.length}). Max is ${MAX_PARALLEL_TASKS}.`);
-			const all: SingleResult[] = params.tasks!.map((item) => stateResult(undefined, item.agent, item.task, undefined, createRunnerState(), -1));
+			const all: SingleResult[] = request.items.map((item) => stateResult(undefined, item.agent, item.task, undefined, createRunnerState(), -1));
 			const emitParallel = () => onUpdate?.({ content: [{ type: "text", text: all.map((result, index) => formatProgress(result, `Lane ${index + 1}/${all.length} · `)).join("\n") }], details: makeDetails("parallel")([...all]) });
-			const results = await mapWithConcurrencyLimit(params.tasks!, MAX_CONCURRENCY, async (item, index) => { const result = await runSingleAgent(ctx.cwd, defaults, discovery.agents, item.agent, item.task, item.cwd, undefined, signal, (partial) => { if (partial.details?.results[0]) { all[index] = partial.details.results[0]; emitParallel(); } }, makeDetails("parallel")); all[index] = result; emitParallel(); return result; });
+			const results = await mapWithConcurrencyLimit(request.items, MAX_CONCURRENCY, async (item, index) => { const result = await runSingleAgent(ctx.cwd, defaults, discovery.agents, parentTools, item.agent, item.task, item.cwd, undefined, signal, (partial) => { if (partial.details?.results[0]) { all[index] = partial.details.results[0]; emitParallel(); } }, makeDetails("parallel")); all[index] = result; emitParallel(); return result; });
 			const summaries = results.map((result) => `### [${result.agent}] ${isFailedResult(result) ? "failed" : "completed"}\n\n${truncateOutput(getResultOutput(result))}`);
 			return { content: [{ type: "text", text: `Parallel: ${results.filter((result) => !isFailedResult(result)).length}/${results.length} succeeded\n\n${summaries.join("\n\n---\n\n")}` }], details: makeDetails("parallel")(results), usage: aggregateUsage(results) };
 		},

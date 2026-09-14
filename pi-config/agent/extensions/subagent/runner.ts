@@ -1,5 +1,4 @@
 import { spawn } from "node:child_process";
-import { StringDecoder } from "node:string_decoder";
 
 export const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000;
 export const MAX_EVENT_LINE_BYTES = 1024 * 1024;
@@ -124,32 +123,54 @@ export function reduceEvent(state: RunnerState, event: any): boolean {
 }
 
 export class JsonlDecoder {
-	private decoder = new StringDecoder("utf8");
-	private buffered = "";
+	private bufferedChunks: Buffer[] = [];
+	private bufferedLength = 0;
+	private discardingOversizedLine = false;
 	private readonly maxLineBytes: number;
+	rejectedLines = 0;
 	constructor(maxLineBytes = MAX_EVENT_LINE_BYTES) { this.maxLineBytes = maxLineBytes; }
+	get bufferedBytes(): number { return this.bufferedLength; }
 
 	push(chunk: Buffer): unknown[] {
-		this.buffered += this.decoder.write(chunk);
-		return this.drain(false);
+		const events: unknown[] = [];
+		let offset = 0;
+		while (offset < chunk.length) {
+			const newline = chunk.indexOf(0x0a, offset);
+			const end = newline === -1 ? chunk.length : newline;
+			const segment = chunk.subarray(offset, end);
+			if (!this.discardingOversizedLine) {
+				const remaining = this.maxLineBytes - this.bufferedLength;
+				if (segment.length > remaining) {
+					this.clearBuffered();
+					this.discardingOversizedLine = true;
+					this.rejectedLines++;
+				} else if (segment.length) {
+					this.bufferedChunks.push(Buffer.from(segment));
+					this.bufferedLength += segment.length;
+				}
+			}
+			if (newline === -1) break;
+			if (!this.discardingOversizedLine) this.parseBuffered(events);
+			this.clearBuffered();
+			this.discardingOversizedLine = false;
+			offset = newline + 1;
+		}
+		return events;
 	}
 
 	finish(): unknown[] {
-		this.buffered += this.decoder.end();
-		return this.drain(true);
+		const events: unknown[] = [];
+		if (!this.discardingOversizedLine && this.bufferedLength) this.parseBuffered(events);
+		this.clearBuffered();
+		this.discardingOversizedLine = false;
+		return events;
 	}
 
-	private drain(final: boolean): unknown[] {
-		const lines = this.buffered.split("\n");
-		const remainder = final ? lines.pop() || "" : lines.pop() || "";
-		this.buffered = final ? "" : remainder;
-		if (final && remainder) lines.push(remainder);
-		const events: unknown[] = [];
-		for (const line of lines) {
-			if (!line.trim() || Buffer.byteLength(line, "utf8") > this.maxLineBytes) continue;
-			try { events.push(JSON.parse(line)); } catch { /* ignore malformed child output */ }
-		}
-		return events;
+	private clearBuffered() { this.bufferedChunks = []; this.bufferedLength = 0; }
+	private parseBuffered(events: unknown[]) {
+		const line = Buffer.concat(this.bufferedChunks, this.bufferedLength).toString("utf8");
+		if (!line.trim()) return;
+		try { events.push(JSON.parse(line)); } catch { this.rejectedLines++; }
 	}
 }
 
@@ -184,10 +205,11 @@ export interface SpawnedRun {
 	cwd: string;
 	signal?: AbortSignal;
 	timeoutMs?: number;
+	killGraceMs?: number;
 	onEvent: (event: unknown) => void;
 }
 
-export interface SpawnedResult { exitCode: number; stderr: string; reason?: "aborted" | "timed_out"; spawnError?: string }
+export interface SpawnedResult { exitCode: number; stderr: string; reason?: "aborted" | "timed_out"; spawnError?: string; protocolError?: string }
 
 /** Spawn one owned Pi child with bounded output and deterministic cancellation cleanup. */
 export async function runSpawnedJsonl(options: SpawnedRun): Promise<SpawnedResult> {
@@ -196,32 +218,52 @@ export async function runSpawnedJsonl(options: SpawnedRun): Promise<SpawnedResul
 		let finished = false;
 		let reason: SpawnedResult["reason"];
 		let killTimer: NodeJS.Timeout | undefined;
+		let terminalEvents = 0;
+		let settledEvents = 0;
+		let eventAfterSettled = false;
 		const decoder = new JsonlDecoder();
+		const acceptEvent = (event: unknown) => {
+			if (settledEvents) eventAfterSettled = true;
+			if (typeof event === "object" && event !== null) {
+				const record = event as { type?: unknown; willRetry?: unknown };
+				if (record.type === "agent_end" && record.willRetry !== true) terminalEvents++;
+				if (record.type === "agent_settled") settledEvents++;
+			}
+			options.onEvent(event);
+		};
 		const proc = spawn(options.command, options.args, { cwd: options.cwd, shell: false, detached: process.platform !== "win32", stdio: ["ignore", "pipe", "pipe"] });
 		const terminate = (why: NonNullable<SpawnedResult["reason"]>) => {
 			if (finished || reason) return;
 			reason = why;
 			terminateProcessTree(proc.pid, "SIGTERM");
-			killTimer = setTimeout(() => terminateProcessTree(proc.pid, "SIGKILL"), 5000);
+			killTimer = setTimeout(() => terminateProcessTree(proc.pid, "SIGKILL"), options.killGraceMs ?? 5000);
+			killTimer.unref();
 		};
 		const abortListener = () => terminate("aborted");
 		const timeout = setTimeout(() => terminate("timed_out"), options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
 		if (options.signal?.aborted) abortListener();
 		else options.signal?.addEventListener("abort", abortListener, { once: true });
-		proc.stdout.on("data", (chunk: Buffer) => decoder.push(chunk).forEach(options.onEvent));
+		proc.stdout.on("data", (chunk: Buffer) => decoder.push(chunk).forEach(acceptEvent));
 		proc.stderr.on("data", (chunk: Buffer) => { stderr = appendOutputBounded(stderr, chunk); });
 		proc.on("error", (error) => finish(1, error.message));
 		proc.on("close", (code) => {
-			decoder.finish().forEach(options.onEvent);
+			decoder.finish().forEach(acceptEvent);
 			finish(code ?? 1);
 		});
 		function finish(exitCode: number, spawnError?: string) {
 			if (finished) return;
 			finished = true;
 			clearTimeout(timeout);
-			if (killTimer) clearTimeout(killTimer);
+			if (killTimer && !reason) clearTimeout(killTimer);
 			options.signal?.removeEventListener("abort", abortListener);
-			resolve({ exitCode, stderr, reason, spawnError });
+			let protocolError: string | undefined;
+			if (!reason && !spawnError && exitCode === 0) {
+				if (decoder.rejectedLines) protocolError = `Subagent emitted ${decoder.rejectedLines} malformed or oversized JSONL record(s).`;
+				else if (terminalEvents !== 1) protocolError = `Subagent emitted ${terminalEvents} final agent_end event(s); expected exactly one.`;
+				else if (settledEvents > 1) protocolError = `Subagent emitted ${settledEvents} agent_settled events; expected at most one.`;
+				else if (eventAfterSettled) protocolError = "Subagent emitted data after its agent_settled event.";
+			}
+			resolve({ exitCode, stderr, reason, spawnError, protocolError });
 		}
 	});
 }

@@ -21,12 +21,61 @@ else
 fi
 [ -r "$file" ] || { echo "tload: no such snapshot: $1" >&2; exit 1; }
 
+# Validate the complete authority before creating anything. schema_version is optional
+# for snapshots written before versioning was introduced.
+if ! jq -e '
+  def integer: type == "number" and floor == . and . >= 0;
+  (type == "object") and
+  ((.schema_version // 1) == 1) and
+  (.sessions | type == "array") and
+  (([.sessions[].name] | unique | length) == (.sessions | length)) and
+  all(.sessions[];
+    (.name | type == "string" and length > 0 and (contains(":") | not)) and
+    (.active_window | integer) and
+    (.windows | type == "array" and length > 0) and
+    (. as $session |
+      (([.windows[].index] | unique | length) == (.windows | length)) and
+      any(.windows[]; .index == $session.active_window) and
+      all(.windows[];
+        (.index | integer) and (.name | type == "string") and
+        (.layout | type == "string") and (.active_pane | integer) and
+        (.panes | type == "array" and length > 0) and
+        (. as $window |
+          (([.panes[].index] | unique | length) == (.panes | length)) and
+          any(.panes[]; .index == $window.active_pane) and
+          all(.panes[];
+            (.index | integer) and (.cwd | type == "string") and
+            (.command | type == "string") and (.title | type == "string") and
+            ((.pane_label == null) or (.pane_label | type == "string")) and
+            ((.pane_named == null) or (.pane_named | type == "string")) and
+            ((.claude_session == null) or (.claude_session | type == "string")) and
+            ((.pi_session == null) or (.pi_session | type == "string"))
+          )
+        )
+      )
+    )
+  )
+' "$file" >/dev/null 2>&1; then
+    printf 'tload: invalid or unsupported snapshot: %s\n' "$file" >&2
+    exit 1
+fi
+
 expand_home() {
     case "$1" in
         "~") printf '%s' "$HOME" ;;
         "~/"*) printf '%s' "$HOME${1#\~}" ;;
         *) printf '%s' "$1" ;;
     esac
+}
+
+restore_cwd() {
+    _cwd=$(expand_home "$1")
+    if [ -d "$_cwd" ]; then
+        printf '%s' "$_cwd"
+    else
+        printf 'tload: missing cwd %s; using %s\n' "$_cwd" "$HOME" >&2
+        printf '%s' "$HOME"
+    fi
 }
 
 # Single-quote a value so it's safe to splice literally into a shell one-liner
@@ -84,7 +133,7 @@ for i in $order; do
         apane=$(jq -r "$wp.active_pane" "$file")
         np=$(jq -r "$wp.panes | length" "$file")
 
-        p0cwd=$(expand_home "$(jq -r "$wp.panes[0].cwd" "$file")")
+        p0cwd=$(restore_cwd "$(jq -r "$wp.panes[0].cwd" "$file")")
         if [ "$w" -eq 0 ]; then
             first_pane=$(tmux new-session -d -s "$sname" -n "$wname" -c "$p0cwd" -P -F '#{pane_id}')
         else
@@ -99,7 +148,7 @@ for i in $order; do
         pane_ids="$first_pane"
         p=1
         while [ "$p" -lt "$np" ]; do
-            pcwd=$(expand_home "$(jq -r "$wp.panes[$p].cwd" "$file")")
+            pcwd=$(restore_cwd "$(jq -r "$wp.panes[$p].cwd" "$file")")
             npid=$(tmux split-window -t "$first_pane" -c "$pcwd" -P -F '#{pane_id}')
             pane_ids="$pane_ids $npid"
             p=$((p + 1))
@@ -117,8 +166,14 @@ for i in $order; do
             csid=$(jq -r "$wp.panes[$p].claude_session // empty" "$file")
             psid=$(jq -r "$wp.panes[$p].pi_session // empty" "$file")
             cmd=$(jq -r "$wp.panes[$p].command" "$file")
-            pcwd=$(expand_home "$(jq -r "$wp.panes[$p].cwd" "$file")")
+            pcwd=$(restore_cwd "$(jq -r "$wp.panes[$p].cwd" "$file")")
             pidx=$(jq -r "$wp.panes[$p].index" "$file")
+            title=$(jq -r "$wp.panes[$p].title" "$file")
+            pane_label=$(jq -r "$wp.panes[$p].pane_label // empty" "$file")
+            pane_named=$(jq -r "$wp.panes[$p].pane_named // empty" "$file")
+            tmux select-pane -t "$pane" -T "$title"
+            if [ -n "$pane_label" ]; then tmux set-option -p -t "$pane" @pane-label "$pane_label"; else tmux set-option -pu -t "$pane" @pane-label 2>/dev/null || true; fi
+            if [ -n "$pane_named" ]; then tmux set-option -p -t "$pane" @pane-named "$pane_named"; else tmux set-option -pu -t "$pane" @pane-named 2>/dev/null || true; fi
             [ "$pidx" = "$apane" ] && active_pane_id="$pane"
             notice=$(pane_notice_cmd "$csid" "$psid" "$cmd" "$pcwd")
             [ -n "$notice" ] && tmux send-keys -t "$pane" "$notice" C-m

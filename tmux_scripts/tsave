@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
 # Snapshot every active tmux session -> window -> pane to a JSON file plus a
 # human-readable markdown tree, under ~/.config/tmux_sessions/. A pane running
@@ -12,12 +12,20 @@ set -e
 set -f
 
 name="${1:-$(date +%Y%m%d-%H%M%S)}"
+case "$name" in
+    ''|.|..|*[!A-Za-z0-9._-]*)
+        printf 'tsave: invalid snapshot name: %s\n' "$name" >&2
+        exit 2
+        ;;
+esac
 dir="$HOME/.config/tmux_sessions"
 mkdir -p "$dir"
 json="$dir/$name.json"
 md="$dir/$name.md"
 
-TAB=$(printf '\t')
+SEP=$(printf '\037')
+CODEC="$HOME/.config/tmux_scripts/tmux-snapshot-codec.py"
+[ -x "$CODEC" ] || { printf 'tsave: missing snapshot codec: %s\n' "$CODEC" >&2; exit 1; }
 
 # BFS over a pid's descendants (inclusive of itself), one pid per line.
 pane_descendants() {
@@ -61,14 +69,35 @@ pi_session() {
 
 # @sidebar_pane is appended as a trailing field purely so the loop below can skip
 # mm-sidebar panes; it is not carried into the snapshot.
-fmt="#{session_name}${TAB}#{window_index}${TAB}#{window_name}${TAB}#{window_layout}${TAB}#{window_active}${TAB}#{pane_index}${TAB}#{pane_active}${TAB}#{pane_pid}${TAB}#{pane_current_path}${TAB}#{pane_current_command}${TAB}#{session_id}${TAB}#{pane_title}${TAB}#{@sidebar_pane}"
+fmt="#{q/a:session_name}${SEP}#{q/a:window_index}${SEP}#{q/a:window_name}${SEP}#{q/a:window_layout}${SEP}#{q/a:window_active}${SEP}#{q/a:pane_index}${SEP}#{q/a:pane_active}${SEP}#{q/a:pane_pid}${SEP}#{q/a:pane_current_path}${SEP}#{q/a:pane_current_command}${SEP}#{q/a:session_id}${SEP}#{q/a:pane_title}${SEP}#{q/a:@pane-label}${SEP}#{q/a:@pane-named}${SEP}#{q/a:@sidebar_pane}"
 
-tmp=$(mktemp "${TMPDIR:-/tmp}/tsave.XXXXXX")
-trap 'rm -f "$tmp"' EXIT
+raw=$(mktemp "${TMPDIR:-/tmp}/tsave.raw.XXXXXX")
+decoded=$(mktemp "${TMPDIR:-/tmp}/tsave.decoded.XXXXXX")
+tmp=$(mktemp "${TMPDIR:-/tmp}/tsave.rows.XXXXXX")
+jsonl=$(mktemp "${TMPDIR:-/tmp}/tsave.jsonl.XXXXXX")
+json_tmp=$(mktemp "$dir/.${name}.json.XXXXXX")
+md_tmp=$(mktemp "$dir/.${name}.md.XXXXXX")
+trap 'rm -f "$raw" "$decoded" "$tmp" "$jsonl" "$json_tmp" "$md_tmp"' EXIT HUP INT TERM
 
-# Capture all panes, then enrich each line with the Claude sessionId and pi
-# session id (last two fields).
-tmux list-panes -a -F "$fmt" | while IFS="$TAB" read -r session widx wname layout wactive pidx pactive ppid cwd cmd sid title sidebar; do
+# Keep list-panes outside a pipeline: its status is authoritative and must not be
+# hidden by a successful downstream loop.
+tmux list-panes -a -F "$fmt" >"$raw"
+"$CODEC" decode 15 <"$raw" >"$decoded"
+while IFS= read -r -d '' session &&
+      IFS= read -r -d '' widx &&
+      IFS= read -r -d '' wname &&
+      IFS= read -r -d '' layout &&
+      IFS= read -r -d '' wactive &&
+      IFS= read -r -d '' pidx &&
+      IFS= read -r -d '' pactive &&
+      IFS= read -r -d '' ppid &&
+      IFS= read -r -d '' cwd &&
+      IFS= read -r -d '' cmd &&
+      IFS= read -r -d '' sid &&
+      IFS= read -r -d '' title &&
+      IFS= read -r -d '' pane_label &&
+      IFS= read -r -d '' pane_named &&
+      IFS= read -r -d '' sidebar; do
     # Skip mm-sidebar panes. A sidebar is a UI surface owned by M-Tab, not work
     # worth restoring: tload would recreate it as a plain shell sitting in the
     # saved cwd, with the window-scoped @sidebar_* state gone, so M-Tab would then
@@ -90,15 +119,16 @@ tmux list-panes -a -F "$fmt" | while IFS="$TAB" read -r session widx wname layou
             esac
         fi
     fi
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-        "$session" "$widx" "$wname" "$layout" "$wactive" "$pidx" "$pactive" "$ppid" "$cwd" "$cmd" "$sid" "$title" "$csid" "$psid"
-done >"$tmp"
+    printf '%s\0%s\0%s\0%s\0%s\0%s\0%s\0%s\0%s\0%s\0%s\0%s\0%s\0%s\0%s\0%s\0' \
+        "$session" "$widx" "$wname" "$layout" "$wactive" "$pidx" "$pactive" "$ppid" "$cwd" "$cmd" "$sid" "$title" "$pane_label" "$pane_named" "$csid" "$psid"
+done <"$decoded" >"$tmp"
+"$CODEC" rows 16 <"$tmp" >"$jsonl"
 
 ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
-# Group the flat TSV into nested session/window/pane JSON.
-jq -R -s --arg name "$name" --arg saved_at "$ts" '
-    [ split("\n")[] | select(length > 0) | split("\t") | {
+# Group the flat unit-separated rows into nested session/window/pane JSON.
+jq -s --arg name "$name" --arg saved_at "$ts" '
+    [ .[] | {
         session: .[0],
         widx: (.[1] | tonumber),
         wname: .[2],
@@ -110,8 +140,10 @@ jq -R -s --arg name "$name" --arg saved_at "$ts" '
         command: .[9],
         sidnum: (.[10] | ltrimstr("$") | tonumber),
         title: .[11],
-        claude_session: (if (.[12] | length) > 0 then .[12] else null end),
-        pi_session: (if (.[13] | length) > 0 then .[13] else null end)
+        pane_label: .[12],
+        pane_named: .[13],
+        claude_session: (if (.[14] | length) > 0 then .[14] else null end),
+        pi_session: (if (.[15] | length) > 0 then .[15] else null end)
       } ]
     | group_by(.session)
     | sort_by(.[0].sidnum)
@@ -130,6 +162,8 @@ jq -R -s --arg name "$name" --arg saved_at "$ts" '
                       cwd: .cwd,
                       command: (if .claude_session != null then "claude" elif .pi_session != null then "pi" else .command end),
                       title: .title,
+                      pane_label: .pane_label,
+                      pane_named: .pane_named,
                       claude_session: .claude_session,
                       pi_session: .pi_session
                     }))
@@ -138,8 +172,11 @@ jq -R -s --arg name "$name" --arg saved_at "$ts" '
           )
         }
       )
-    | { name: $name, saved_at: $saved_at, sessions: . }
-' "$tmp" >"$json"
+    | { schema_version: 1, name: $name, saved_at: $saved_at, sessions: . }
+' "$jsonl" >"$json_tmp"
+
+jq -e '.schema_version == 1 and (.sessions | type == "array")' "$json_tmp" >/dev/null
+mv -f "$json_tmp" "$json"
 
 # Render the human-readable tree.
 jq -r --arg home "$HOME" '
@@ -159,6 +196,7 @@ jq -r --arg home "$HOME" '
         )
       )
     )
-' "$json" >"$md"
+' "$json" >"$md_tmp"
+mv -f "$md_tmp" "$md"
 
 printf '%s\n%s\n' "$json" "$md"

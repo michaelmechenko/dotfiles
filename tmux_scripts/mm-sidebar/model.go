@@ -150,10 +150,13 @@ type model struct {
 	// stateSeq orders every refresh completion, including skipped and failed
 	// polls. Bubble Tea Cmds run concurrently; an older World must never replace
 	// newer pane targets, rows, or agent inputs.
-	stateSeq         uint64
-	appliedStateSeq  uint64
-	worldFingerprint string
-	rowContextKey    string
+	stateSeq           uint64
+	appliedStateSeq    uint64
+	stateRefreshActive bool
+	stateRefreshQueued bool
+	stateRefreshForce  bool
+	worldFingerprint   string
+	rowContextKey      string
 	// Diagnostics retains the latest accepted observation and refresh outcome.
 	// These counters describe work the normal refresh already performed; viewing
 	// diagnostics is therefore free of recurring forks.
@@ -352,14 +355,18 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleMouse(msg)
 
 	case stateMsg:
+		// At most one World/source fetch runs per sidebar. Collapse any triggers
+		// received while it was active into one latest follow-up, preserving force.
+		m.stateRefreshActive = false
+		nextRefresh := m.queuedStateRefresh()
 		// A refresh that began before a local tab choice may still finish after
 		// it. Its snapshot and rows belong to the old source, so discard the
 		// whole state message rather than letting it revert the selection.
 		if msg.sourceGeneration != m.sourceGeneration {
-			return m, nil
+			return m, nextRefresh
 		}
 		if msg.stateSeq < m.appliedStateSeq {
-			return m, nil
+			return m, nextRefresh
 		}
 		m.applyState(msg)
 		if msg.stateErr == nil {
@@ -368,9 +375,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.feed != nil {
 				m.feed.setWorld(msg.world)
 			}
-			return m, tea.Batch(m.react(worldMsg), m.syncBlockVisibility())
+			return m, tea.Batch(m.react(worldMsg), m.syncBlockVisibility(), nextRefresh)
 		}
-		return m, m.syncBlockVisibility()
+		return m, tea.Batch(m.syncBlockVisibility(), nextRefresh)
 
 	case navTickMsg:
 		return m, tea.Batch(
@@ -523,6 +530,12 @@ func (m *model) react(msg tea.Msg) tea.Cmd {
 // force is for the inputs the key CANNOT see: an explicit `r`, and returning
 // from the scratch editor (the file changed; no tmux state did).
 func (m *model) refreshState(force bool) tea.Cmd {
+	if m.stateRefreshActive {
+		m.stateRefreshQueued = true
+		m.stateRefreshForce = m.stateRefreshForce || force
+		return nil
+	}
+	m.stateRefreshActive = true
 	srcIdx := m.srcIdx
 	sourceGeneration := m.sourceGeneration
 	root, rootPane := m.sourceRoot, m.sourceRootPane
@@ -589,6 +602,16 @@ func (m *model) refreshState(force bool) tea.Cmd {
 			stateSeq: stateSeq, fetchErr: fetchErr, elapsed: time.Since(started), sourceFetched: true,
 		}
 	}
+}
+
+func (m *model) queuedStateRefresh() tea.Cmd {
+	if !m.stateRefreshQueued {
+		return nil
+	}
+	force := m.stateRefreshForce
+	m.stateRefreshQueued = false
+	m.stateRefreshForce = false
+	return m.refreshState(force)
 }
 
 func (m *model) applyState(msg stateMsg) {

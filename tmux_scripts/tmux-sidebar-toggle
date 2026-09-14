@@ -53,7 +53,19 @@ mode="${1:-toggle}"
 # sidebar actions must switch, rather than whichever client becomes active later.
 origin_client="${MM_SIDEBAR_ORIGIN_CLIENT:-}"
 PERSIST_OPTION='@sidebar_persistent'
-PERSIST_LOCK="${TMPDIR:-/tmp}/mm-sidebar-persistent.lock"
+SERVER_SOCKET=${TMUX:-}
+SERVER_SOCKET=${SERVER_SOCKET%%,*}
+if [ -n "$SERVER_SOCKET" ] && [ "${SERVER_SOCKET%/*}" != "$SERVER_SOCKET" ]; then
+  LOCK_DIR=${SERVER_SOCKET%/*}
+  SERVER_NAME=${SERVER_SOCKET##*/}
+else
+  LOCK_DIR=${TMPDIR:-/tmp}
+  SERVER_NAME=default
+fi
+# Same-server invocations share the socket's stable directory even when callers
+# have different TMPDIR values; the socket basename distinguishes sibling servers.
+LOCK_SCOPE="${UID:-$(id -u)}.$SERVER_NAME"
+PERSIST_LOCK="$LOCK_DIR/.mm-sidebar-persistent.$LOCK_SCOPE.lock"
 
 persistent_enabled() { [ "$(tmux show-options -gqv "$PERSIST_OPTION" 2>/dev/null || true)" = 1 ]; }
 
@@ -61,29 +73,58 @@ persistent_enabled() { [ "$(tmux show-options -gqv "$PERSIST_OPTION" 2>/dev/null
 # desired state; close-all reuses canonical close so each owner restores layout,
 # focus, and zoom instead of directly killing panes.
 close_all_sidebars() {
-  local skip_pane="${1:-}" rows pane marker
+  local skip_pane="${1:-}" rows pane marker failed=0
   rows=$(tmux list-panes -a -F $'#{pane_id}\t#{@sidebar_pane}' 2>/dev/null || true)
   while IFS=$'\t' read -r pane marker; do
     [ "$marker" = 1 ] || continue
     [ "$pane" = "$skip_pane" ] && continue
     # Do not inherit the invoking sidebar's owner window into a different
     # owner's canonical close; that guard would intentionally reject it.
-    TMUX_PANE="$pane" MM_SIDEBAR_EXPECTED_PANE="$pane" MM_SIDEBAR_EXPECTED_WINDOW= "$0" --close || true
+    if ! TMUX_PANE="$pane" MM_SIDEBAR_EXPECTED_PANE="$pane" MM_SIDEBAR_EXPECTED_WINDOW='' "$0" --close; then
+      sleep 0.05
+      TMUX_PANE="$pane" MM_SIDEBAR_EXPECTED_PANE="$pane" MM_SIDEBAR_EXPECTED_WINDOW='' "$0" --close || failed=1
+    fi
   done <<<"$rows"
+  return "$failed"
+}
+
+create_lock() {
+  local lock="$1" candidate="$1.$$.$RANDOM"
+  printf '%s\n' "$$" >"$candidate" || return 1
+  if ln "$candidate" "$lock" 2>/dev/null; then
+    rm -f "$candidate"
+    return 0
+  fi
+  rm -f "$candidate"
+  return 1
+}
+
+stale_lock() {
+  local pid=
+  [ -r "$1" ] || return 0
+  IFS= read -r pid <"$1" || pid=
+  case "$pid" in ''|*[!0-9]*) return 0 ;; esac
+  ! kill -0 "$pid" 2>/dev/null
+}
+
+release_lock() {
+  local pid=
+  [ -r "$1" ] || return 0
+  IFS= read -r pid <"$1" || pid=
+  [ "$pid" != "$$" ] || rm -f "$1"
 }
 
 acquire_persist_lock() {
   local tries=0
-  while ! mkdir "$PERSIST_LOCK" 2>/dev/null; do
-    if [ -f "$PERSIST_LOCK/pid" ] && ! kill -0 "$(cat "$PERSIST_LOCK/pid" 2>/dev/null)" 2>/dev/null; then
-      rm -rf "$PERSIST_LOCK"
+  while ! create_lock "$PERSIST_LOCK"; do
+    if stale_lock "$PERSIST_LOCK"; then
+      rm -f "$PERSIST_LOCK"
       continue
     fi
     tries=$((tries + 1))
     [ "$tries" -lt 150 ] || return 1
     sleep 0.02
   done
-  printf '%s\n' "$$" >"$PERSIST_LOCK/pid"
 }
 
 # Handle global desired-state transitions before taking the per-lifecycle lock:
@@ -91,7 +132,7 @@ acquire_persist_lock() {
 case "$mode" in
   --toggle-persistent|--dismiss)
     acquire_persist_lock || exit 0
-    trap 'rm -rf "$PERSIST_LOCK"' EXIT
+    trap 'release_lock "$PERSIST_LOCK"' EXIT
     if [ "$mode" = --toggle-persistent ] && ! persistent_enabled; then
       tmux set-option -g "$PERSIST_OPTION" 1 || exit 1
       TMUX_PANE="${TMUX_PANE:-}" MM_SIDEBAR_ORIGIN_CLIENT="$origin_client" "$0" --ensure
@@ -101,14 +142,19 @@ case "$mode" in
       # every OTHER owner first, then the invoking owner last. Killing it first
       # can terminate that targeted job before it completes the global sweep.
       tmux set-option -gu "$PERSIST_OPTION" 2>/dev/null || true
+      close_failed=0
       if [ "$mode" = --dismiss ] && [ -n "${MM_SIDEBAR_EXPECTED_PANE:-}" ]; then
-        close_all_sidebars "$MM_SIDEBAR_EXPECTED_PANE"
+        close_all_sidebars "$MM_SIDEBAR_EXPECTED_PANE" || close_failed=1
         TMUX_PANE="${TMUX_PANE:-}" \
           MM_SIDEBAR_EXPECTED_PANE="$MM_SIDEBAR_EXPECTED_PANE" \
           MM_SIDEBAR_EXPECTED_WINDOW="${MM_SIDEBAR_EXPECTED_WINDOW:-}" \
-          "$0" --close || true
+          "$0" --close || close_failed=1
       else
-        close_all_sidebars
+        close_all_sidebars || close_failed=1
+      fi
+      if [ "$close_failed" -ne 0 ]; then
+        tmux display-message 'sidebar disabled; one or more panes could not be closed' 2>/dev/null || true
+        exit 1
       fi
     fi
     exit 0
@@ -127,12 +173,12 @@ fi
 # edge-triggered (a duplicate press is dropped), while canonical --close waits
 # briefly for an in-flight gated open to publish and release the lock. This keeps
 # an old close from clearing a newly-opened sidebar's state.
-LOCK="${TMPDIR:-/tmp}/mm-sidebar-toggle.lock"
+LOCK="$LOCK_DIR/.mm-sidebar-toggle.$LOCK_SCOPE.lock"
 acquire_lock() {
   local attempts=0
-  while ! mkdir "$LOCK" 2>/dev/null; do
-    if [ -f "$LOCK/pid" ] && ! kill -0 "$(cat "$LOCK/pid" 2>/dev/null)" 2>/dev/null; then
-      rm -rf "$LOCK"
+  while ! create_lock "$LOCK"; do
+    if stale_lock "$LOCK"; then
+      rm -f "$LOCK"
       continue
     fi
     # Event-driven ensure must wait behind a close/open transaction; dropping it
@@ -142,12 +188,11 @@ acquire_lock() {
     [ "$attempts" -lt 150 ] || return 1
     sleep 0.02
   done
-  echo $$ >"$LOCK/pid"
 }
 acquire_lock || exit 0
 # Replaced by the transaction-aware EXIT trap immediately before open state is
 # saved. It still covers early command/build/close exits.
-trap 'rm -rf "$LOCK"' EXIT
+trap 'release_lock "$LOCK"' EXIT
 
 # "Which pane am I acting for" must come from $TMUX_PANE, not `display-message -p
 # '#{pane_id}'`. The latter resolves to the *currently active* pane per the attached
@@ -356,7 +401,7 @@ rollback_open() {
 # saved. Signals exit through EXIT so cleanup runs once; clearing traps first
 # avoids recursive EXIT/SIGNAL handling if a cleanup command itself fails.
 cleanup_lock() {
-  rm -rf "$LOCK" 2>/dev/null || true
+  release_lock "$LOCK"
 }
 on_exit() {
   local status="$1"

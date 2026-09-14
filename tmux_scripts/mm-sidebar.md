@@ -163,9 +163,13 @@ and one global pane list. Sessions, panes, and agents share that observation.
 A length-framed in-process fingerprint covers every rendered session/pane field.
 The active source fetches only when its source/content/cwd/root/options/invalidation
 key changes; monotonic refresh sequencing and agent World fingerprints reject late
-completions. `r` forces a fetch. On projects it is the deliberate Git/Worktrunk
+completions. Only one World/source refresh runs per sidebar: timer, fsnotify, and
+action triggers received in flight collapse into one follow-up, preserving a forced
+refresh. `r` forces a fetch. On projects it is the deliberate Git/Worktrunk
 metadata refresh, because recurring external polling is forbidden. Filetree changes arrive via
-its scoped two-level fsnotify watcher. Pane liveness/cwd and content retargeting
+its scoped two-level fsnotify watcher. Rename/remove events also invalidate the
+in-process watch mirror, allowing a recreated root or child to be reattached on
+the next World refresh. Pane liveness/cwd and content retargeting
 come from `World.PaneSet`, with no per-pane query path.
 
 ## `M-Tab` / `M-BTab`: persistent mode and local focus
@@ -219,13 +223,16 @@ local focus gesture.
 
 Implementation notes:
 
-- **Atomic `mkdir` lock with a pid staleness guard**, the same idiom as
-  `sketchybar/plugins/frontapps.sh`. `run-shell` is asynchronous, so a fast
+- **Atomic socket-scoped ownership files with pid staleness guards.** A fully
+  initialized candidate is hard-linked into place, eliminating the `mkdir` → pid
+  publication gap. Locks live beside the tmux socket, so same-server callers share
+  them regardless of `TMPDIR`; the socket basename distinguishes sibling servers. `run-shell` is asynchronous, so a fast
   double-press can start two invocations before either writes
-  `@sidebar_pane_id`; both would take the open path. The `kill -0` guard clears a
-  lock left by a killed run, so a stale lock can never permanently break `M-Tab`
-  — the failure mode the `@in_float_popup` flag hit (see `AGENTS.md`).
-  Verified: two concurrent invocations produce exactly one sidebar.
+  `@sidebar_pane_id`; both would take the open path. Dead owners and the narrower
+  crash window before the pid file is written are reclaimed after a bounded
+  grace period. Separate tmux sockets never suppress one another. A global
+  dismissal retries each canonical close once and reports any owner that remains
+  instead of silently treating partial cleanup as success.
 - **The acting pane comes from `$TMUX_PANE`, not `display-message -p
   '#{pane_id}'`.** The latter resolves to the *currently active* pane per the
   attached client, which is not necessarily the pane an invocation belongs to —

@@ -692,12 +692,39 @@ def test_multiple_windows_and_repin(h: Harness) -> None:
     h.close(second)
 
 
+def lock_for_socket(h: Harness, kind: str, socket_path: Path) -> Path:
+    socket_path = socket_path.resolve()
+    return socket_path.parent / f".mm-sidebar-{kind}.{os.getuid()}.{socket_path.name}.lock"
+
+
+def sidebar_lock(h: Harness, kind: str) -> Path:
+    socket_path = h.tmp / "tmux" / f"tmux-{os.getuid()}" / h.socket
+    return lock_for_socket(h, kind, socket_path)
+
+
 def wait_sidebar_lifecycle_idle(h: Harness) -> None:
     h.wait(
         "sidebar lifecycle lock releases",
-        lambda: not (h.tmp / "tmp" / "mm-sidebar-toggle.lock").exists()
-        and not (h.tmp / "tmp" / "mm-sidebar-persistent.lock").exists(),
+        lambda: not sidebar_lock(h, "toggle").exists()
+        and not sidebar_lock(h, "persistent").exists(),
     )
+
+
+def test_uninitialized_lifecycle_lock_is_reclaimed(h: Harness) -> None:
+    main = h.new_session("stale-lock")
+    # Same socket basename under a different TMUX_TMPDIR must have an independent lock.
+    other_socket = h.tmp / "other-tmux" / f"tmux-{os.getuid()}" / h.socket
+    other_socket_lock = lock_for_socket(h, "toggle", other_socket)
+    other_socket_lock.parent.mkdir(parents=True)
+    other_socket_lock.write_text("99999999\n")
+    lock = sidebar_lock(h, "toggle")
+    lock.write_text("not-a-pid\n")
+    alternate_tmp = h.tmp / "alternate-tmp"
+    alternate_tmp.mkdir()
+    h.invoke_toggle(main, extra_env={"TMPDIR": str(alternate_tmp)})
+    h.wait("stale uninitialized lock reclaimed", lambda: bool(h.sidebar(main)))
+    h.invoke_toggle(main)
+    h.wait("sidebar closes after stale lock recovery", lambda: not h.sidebar(main))
 
 
 def test_q_and_escape_startup_stress(h: Harness) -> None:
@@ -937,7 +964,7 @@ def test_signal_after_split_rolls_back(h: Harness) -> None:
         lambda: h.panes(main) == before_panes and not h.sidebar(main) and h.layout(main) == before_layout,
     )
     assert_transient_state_cleared(h, main)
-    h.require(not (h.tmp / "tmp" / "mm-sidebar-toggle.lock").exists(), "signal rollback leaked the launcher lock")
+    h.require(not sidebar_lock(h, "toggle").exists(), "signal rollback leaked the launcher lock")
 
 
 def test_prepublication_gate(h: Harness) -> None:
@@ -1146,7 +1173,7 @@ def test_canonical_close_does_not_kill_destination_sidebar(h: Harness) -> None:
 
 
 def test_sidebar_nav_transport_handles_hostile_tmux_strings(h: Harness) -> None:
-    float_pane = h.new_session("float-hostile-nav")
+    float_pane = h.new_session("float")
     float_session_id = h.fmt(float_pane, "#{session_id}")
     pane = h.new_session("hostile-nav")
     hostile_dir = h.home / "cwd\x1f\n\t\x1b中é"
@@ -1260,7 +1287,7 @@ def test_moved_sidebar_and_content_are_stale(h: Harness) -> None:
             not h.sidebar(prepublication)
             and not h.option(prepublication, "@sidebar_gate")
             and not gate.exists()
-            and not (h.tmp / "tmp" / "mm-sidebar-toggle.lock").exists()
+            and not sidebar_lock(h, "toggle").exists()
         ),
     )
     if h.alive(pending):
@@ -1334,6 +1361,23 @@ def test_sidebar_focus_preserves_window_name(h: Harness) -> None:
     time.sleep(0.1)
     h.require(h.fmt(main, "#{window_name}") == "kept-name", "sidebar focus changed window name")
     h.close(main)
+
+
+def test_failed_global_dismissal_is_reported_and_retryable(h: Harness) -> None:
+    main = h.new_session("dismiss-failure")
+    other = h.tmux("new-window", "-d", "-P", "-F", "#{pane_id}", "-t", "dismiss-failure:", "-n", "other")
+    h.invoke_toggle(main, "--toggle-persistent")
+    h.wait("first persistent sidebar opened for failure test", lambda: bool(h.sidebar(main)))
+    h.invoke_toggle(other, "--ensure")
+    h.wait("persistent sidebars opened for failure test", lambda: bool(h.sidebar(main)) and bool(h.sidebar(other)))
+    h.invoke_toggle(main, "--toggle-persistent", fail="kill")
+    h.wait("global dismissal kill fault", lambda: h.last_fault_marker.exists())
+    h.require(h.tmux("show-options", "-gqv", "@sidebar_persistent", check=False) == "", "failed dismissal retained desired state")
+    h.require(bool(h.sidebar(main)) or bool(h.sidebar(other)), "injected close failure was silently treated as success")
+    for pane in (main, other):
+        if h.sidebar(pane):
+            h.invoke_toggle(h.sidebar(pane), "--close")
+    h.wait("failed dismissal cleanup remains retryable", lambda: not h.sidebar(main) and not h.sidebar(other))
 
 
 def test_persistent_sidebar_across_windows_and_sessions(h: Harness) -> None:
@@ -1425,6 +1469,7 @@ def main() -> int:
     try:
         h.setup()
         h.run("detached open/close", lambda: test_detached_open_close(h))
+        h.run("uninitialized lifecycle lock recovery", lambda: test_uninitialized_lifecycle_lock_is_reclaimed(h))
         h.run("--focus open and switch", lambda: test_focus_switch(h))
         h.run("one/two/three-pane layouts", lambda: test_layouts(h))
         h.run("M-H two-pane equalization", lambda: test_m_h_two_pane_layout(h))
@@ -1458,6 +1503,7 @@ def main() -> int:
         h.run("moved sidebar/content safety", lambda: test_moved_sidebar_and_content_are_stale(h))
         h.run("switch-client focus compatibility", lambda: test_focus_pane_switch_client_compatibility(h))
         h.run("sidebar window-name guard", lambda: test_sidebar_focus_preserves_window_name(h))
+        h.run("failed global dismissal", lambda: test_failed_global_dismissal_is_reported_and_retryable(h))
         h.run("persistent window/session sidebars", lambda: test_persistent_sidebar_across_windows_and_sessions(h))
         h.run("explicit inactive-pane targeting", lambda: test_explicit_targeting(h))
         print(f"ok: {h.passed} lifecycle checks")

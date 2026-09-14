@@ -119,9 +119,15 @@ func (w *filetreeWatch) loop() {
 			case w.configured <- struct{}{}:
 			default:
 			}
-		case _, ok := <-watcher.Events:
+		case event, ok := <-watcher.Events:
 			if !ok {
 				return
+			}
+			// Backends remove a watch when its directory is renamed or deleted. Keep
+			// the mirror honest so the next World refresh can re-add a recreated root
+			// or child instead of treating a dead kernel watch as installed.
+			if event.Op&(fsnotify.Remove|fsnotify.Rename) != 0 {
+				delete(watched, filepath.Clean(event.Name))
 			}
 			select {
 			case w.events <- struct{}{}:

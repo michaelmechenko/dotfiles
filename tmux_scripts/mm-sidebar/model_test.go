@@ -527,6 +527,9 @@ func TestContextEffectsTransitionSourcesAndReuseEditorLifecycle(t *testing.T) {
 	if m.srcIdx != nav.SourceByID("filetree") || m.sourceRoot != "/repo/clean" || !m.rootPinned {
 		t.Fatalf("source transition did not apply generic state: source=%d root=%q pinned=%t", m.srcIdx, m.sourceRoot, m.rootPinned)
 	}
+	// The test does not hand the command to Bubble Tea, so model the completion
+	// before requesting the next transition. Production clears this on stateMsg.
+	m.stateRefreshActive = false
 	generation := m.sourceGeneration
 	m.queryActive, m.query = true, "stale"
 	m.sel, m.selectionID = 3, "stale"
@@ -764,6 +767,20 @@ func runCmd(cmd tea.Cmd) {
 	}
 }
 
+func TestStateRefreshCoalescesAndPreservesForce(t *testing.T) {
+	m := &model{}
+	if cmd := m.refreshState(false); cmd == nil || !m.stateRefreshActive {
+		t.Fatalf("first refresh = %T active=%t", cmd, m.stateRefreshActive)
+	}
+	if cmd := m.refreshState(true); cmd != nil || !m.stateRefreshQueued || !m.stateRefreshForce {
+		t.Fatalf("queued refresh = %T queued=%t force=%t", cmd, m.stateRefreshQueued, m.stateRefreshForce)
+	}
+	m.stateRefreshActive = false
+	if cmd := m.queuedStateRefresh(); cmd == nil || !m.stateRefreshActive || m.stateRefreshQueued || m.stateRefreshForce {
+		t.Fatalf("drained refresh = %T active=%t queued=%t force=%t", cmd, m.stateRefreshActive, m.stateRefreshQueued, m.stateRefreshForce)
+	}
+}
+
 func TestFiletreeWatchCoversTwoLevelViewAndStops(t *testing.T) {
 	root := t.TempDir()
 	sub := filepath.Join(root, "sub")
@@ -797,6 +814,55 @@ func TestFiletreeWatchCoversTwoLevelViewAndStops(t *testing.T) {
 
 	cancel()
 	watch.Close()
+}
+
+func TestFiletreeWatchReattachesAfterRootReplacement(t *testing.T) {
+	parent := t.TempDir()
+	root := filepath.Join(parent, "root")
+	if err := os.Mkdir(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	watch := newFiletreeWatch(ctx)
+	watch.Start()
+	defer func() { cancel(); watch.Close() }()
+	watch.SetRoot(root)
+	select {
+	case <-watch.configured:
+	case <-time.After(time.Second):
+		t.Fatal("filetree watcher did not configure")
+	}
+
+	changed := make(chan tea.Msg, 1)
+	go func() { changed <- watch.wait()() }()
+	if err := os.Remove(root); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-changed:
+	case <-time.After(2 * time.Second):
+		t.Fatal("root removal did not emit a change")
+	}
+	if err := os.Mkdir(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	watch.SetRoot(root)
+	select {
+	case <-watch.configured:
+	case <-time.After(time.Second):
+		t.Fatal("recreated root did not reconfigure")
+	}
+
+	changed = make(chan tea.Msg, 1)
+	go func() { changed <- watch.wait()() }()
+	if err := os.WriteFile(filepath.Join(root, "changed"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-changed:
+	case <-time.After(2 * time.Second):
+		t.Fatal("recreated root remained unwatched")
+	}
 }
 
 func TestAgentFeedCloseWithoutStartDoesNotLeak(t *testing.T) {

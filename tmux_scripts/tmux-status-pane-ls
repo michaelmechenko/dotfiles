@@ -1,57 +1,47 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
-# Disable glob expansion to prevent * in session names from expanding
-set -f
+SEP=$'\x1f'
+literal_label() {
+  local value="$1"
+  value=${value//$'\n'/ }
+  value=${value//$'\r'/ }
+  value=${value//$'\t'/ }
+  value=$(printf '%s' "$value" | LC_ALL=C tr -d '\001-\010\013\014\016-\037\177')
+  printf '%s' "${value//#/##}"
+}
 
-# Get current session to exclude it
-current_session=$(tmux display-message -p '#{session_name}')
-
-# Get absolute bottom-left coordinates of the window
+current_session_id=$(tmux display-message -p '#{session_id}')
 client_width=$(tmux display-message -p '#{client_width}')
-client_height=$(tmux display-message -p '#{client_height}')
+menu=()
+float=()
+other=()
 
-# Build menu items: list all windows from OTHER sessions
-# Use a temp file to avoid subshell issues
-tmp_file="/tmp/tmux-windows-menu-$$"
-> "$tmp_file"
+# One global query replaces the old session -> window -> pane fork tree. Targets are
+# pane IDs, while user-controlled metadata remains a display-only argv element.
+while IFS="$SEP" read -r sid sname pane win_name cmd path title sidebar; do
+  [ -n "$pane" ] || continue
+  [ "$sid" != "$current_session_id" ] || continue
+  [ "$sidebar" != 1 ] || continue
+  short_path=${path/#$HOME/~}
+  label=$(literal_label "$sname $win_name: $cmd [$short_path] [$title]")
+  row="$label"$'\t'"$pane"
+  if [[ "$sname" == float ]]; then float+=("$row"); else other+=("$row"); fi
+done < <(tmux list-panes -a -F "#{session_id}${SEP}#{session_name}${SEP}#{pane_id}${SEP}#{window_name}${SEP}#{pane_current_command}${SEP}#{pane_current_path}${SEP}#{pane_title}${SEP}#{@sidebar_pane}")
 
-# Iterate through all sessions except current
-for session in $(tmux list-sessions -O creation -F '#{session_name}'); do
-    # Skip current session
-    if [ "$session" = "$current_session" ]; then
-        continue
-    fi
-    
-    # Get all windows in this session
-    tmux list-windows -t "$session" -F '#{window_index}' | while read -r win_idx; do
-        # Get all panes in this window
-        tmux list-panes -t "$session:$win_idx" -F '#{pane_index}|#{window_name}|#{pane_current_command}|#{pane_current_path}|#{pane_title}' | while IFS='|' read -r pane_idx win_name cmd path pane_title; do
-            # Shorten path
-            short_path=$(echo "$path" | sed "s|^$HOME|~|")
+append_rows() {
+  local row label pane
+  for row in "$@"; do
+    label=${row%%$'\t'*}
+    pane=${row#*$'\t'}
+    menu+=("$label" "" "switch-client -t $pane")
+  done
+}
+((${#float[@]} == 0)) || append_rows "${float[@]}"
+((${#other[@]} == 0)) || append_rows "${other[@]}"
+[ "${#menu[@]}" -gt 0 ] || menu+=("No other panes" "" "")
+menu+=("" "" "" "" "" "" "new window" w "new-window")
 
-            # Format: "{session} {window name}: {cmd} [{dir}] [{pane title}]"
-            display_name="$session $win_name: $cmd [$short_path] [$pane_title]"
-            
-            # Build menu item: name, key (empty), command
-            echo "\"$display_name\" \"\" \"switch-client -t $session:$win_idx.$pane_idx\"" >> "$tmp_file"
-        done
-    done
-done
-
-# Read menu items from temp file
-menu_items=$(cat "$tmp_file" | tr '\n' ' ')
-rm -f "$tmp_file"
-
-# If no panes found, show a message
-if [ -z "$menu_items" ]; then
-    menu_items="\"No other panes\" \"\" \"\""
-fi
-
-# Display menu at bottom-left corner (x=0 for left edge, y at bottom)
-eval "tmux display-menu -M -O -T \"#[align=centre]other panes\" -b rounded -x $client_width -y 1 \
-    $menu_items \
-    \"\" \"\" \"\" \
-    \"\" \"\" \"\" \
-    \"new window\" w \"new-window\""
+tmux display-menu -M -O -T '#[align=centre]other panes' -b rounded \
+  -x "$client_width" -y 1 "${menu[@]}"

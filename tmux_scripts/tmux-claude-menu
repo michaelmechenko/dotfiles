@@ -10,18 +10,34 @@
 SELF="$HOME/.config/tmux_scripts/tmux-claude-menu"
 LS="$HOME/.config/tmux_scripts/tmux-claude-ls"
 
+session_matches() {
+  local sid="$1" pane="$2" states="${3:-}"
+  "$LS" | awk -F'\t' -v sid="$sid" -v pane="$pane" -v states="$states" '
+    $1 == sid && $2 == pane && (states == "" || index("|" states "|", "|" $5 "|") > 0) { found=1 }
+    END { exit(found ? 0 : 1) }'
+}
+
+hex_rgb() {
+  local hex=${1#\#}
+  printf '%d;%d;%d' "$((16#${hex:0:2}))" "$((16#${hex:2:2}))" "$((16#${hex:4:2}))"
+}
+
 case "${1:-}" in
   --colorize)
     # Emit fzf rows sorted actionable-first via a leading composite key
     # (prio, then oldest-activity first); the key is stripped by `cut` after sort.
-    "$LS" | awk -F'\t' -v now="$(date +%s)" '
+    primary=$(tmux show-options -gqv @color-accent-primary); primary=${primary:-#d8647e}
+    tertiary=$(tmux show-options -gqv @color-accent-tertiary); tertiary=${tertiary:-#bb9dbd}
+    muted=$(tmux show-options -gqv @color-text-muted); muted=${muted:-#656a80}
+    "$LS" | awk -F'\t' -v now="$(date +%s)" \
+      -v primary="$(hex_rgb "$primary")" -v tertiary="$(hex_rgb "$tertiary")" -v muted="$(hex_rgb "$muted")" '
     BEGIN { ESC = sprintf("%c", 27); RST = ESC "[0m" }
     {
       sid=$1; pane=$2; target=$3; sname=$4; state=$5; name=$6; tr=$7; wname=$8; ts=$9;
-      if (state == "awaiting-permission") { c = "216;100;126"; tag = "PERMISSION"; prio = 0 }
-      else if (state == "waiting")        { c = "216;100;126"; tag = "WAITING";    prio = 1 }
-      else if (state == "thinking")       { c = "187;157;189"; tag = "thinking";   prio = 2 }
-      else                                { c = "101;106;128"; tag = "idle";       prio = 3 }
+      if (state == "awaiting-permission") { c = primary;  tag = "PERMISSION"; prio = 0 }
+      else if (state == "waiting")        { c = primary;  tag = "WAITING";    prio = 1 }
+      else if (state == "thinking")       { c = tertiary; tag = "thinking";   prio = 2 }
+      else                                { c = muted;    tag = "idle";       prio = 3 }
       age = now - int(ts/1000);                # relative age of last status change
       if      (ts+0 <= 0)   agestr = "";
       else if (age < 60)    agestr = age "s";
@@ -67,22 +83,36 @@ case "${1:-}" in
         --terminal-width="${FZF_PREVIEW_COLUMNS:-80}"
     exit 0 ;;
 
+  --act)
+    action="$2"; sid="$3"; pane="$4"
+    case "$action" in
+      approve)
+        session_matches "$sid" "$pane" 'awaiting-permission|waiting' || exit 0
+        tmux send-keys -t "$pane" Enter ;;
+      kill)
+        session_matches "$sid" "$pane" || exit 0
+        tmux kill-pane -t "$pane" ;;
+      *) exit 2 ;;
+    esac
+    exit 0 ;;
+
   --accept-all)
-    # Send Enter to every session needing user input (approves a permission
-    # prompt's highlighted default; takes the default on a question).
-    "$LS" | awk -F'\t' '$5=="awaiting-permission" || $5=="waiting" {print $2}' | while read -r p; do
-      [ -n "$p" ] && tmux send-keys -t "$p" Enter
-    done
+    printf 'approve all waiting sessions? [y/N] '
+    IFS= read -r answer
+    case "$answer" in y|Y|yes|YES) ;; *) exit 0 ;; esac
+    while IFS=$'\t' read -r sid pane; do
+      [ -n "$sid" ] && "$SELF" --act approve "$sid" "$pane"
+    done < <("$LS" | awk -F'\t' '$5=="awaiting-permission" || $5=="waiting" {print $1 "\t" $2}')
     exit 0 ;;
 
   --send)
     # Send a typed line to the selected session's pane. Invoked via fzf `execute`
     # (fzf yields the terminal), so a plain read prompt works inside the popup.
-    pane="$2"
-    [ -n "$pane" ] || exit 0
+    sid="$2"; pane="$3"
+    [ -n "$sid" ] && [ -n "$pane" ] || exit 0
     printf 'msg> '
     IFS= read -r msg
-    if [ -n "$msg" ]; then
+    if [ -n "$msg" ] && session_matches "$sid" "$pane"; then
       tmux send-keys -t "$pane" -l "$msg"
       tmux send-keys -t "$pane" Enter
     fi
@@ -91,10 +121,10 @@ case "${1:-}" in
   --inner)
     out=$("$SELF" --colorize | fzf --ansi --delimiter='\t' --with-nth=1 \
       --no-sort --layout=reverse-list --cycle --prompt='claude > ' \
-      --header=$'enter focus · k approve-all · C-y approve · C-s msg · C-x kill · esc close\nC-j/C-k nav · C-d/C-u scroll preview' \
+      --header=$'enter focus · k approve-all (confirm) · C-y approve · C-s msg · C-x kill · esc close\nC-j/C-k nav · C-d/C-u scroll preview' \
       --preview "$SELF --preview {5}" \
       --preview-window 'right,58%,wrap,follow,+999999,<80(down,55%)' --preview-wrap-sign='' \
-      --bind "tab:down,btab:up,ctrl-j:down,ctrl-k:up,alt-j:down,alt-k:up,ctrl-d:preview-half-page-down,ctrl-u:preview-half-page-up,alt-n:preview-half-page-down,alt-u:preview-half-page-up,alt-q:abort,alt-b:abort,k:execute-silent($SELF --accept-all)+reload($SELF --colorize),ctrl-y:execute-silent(tmux send-keys -t {2} Enter)+reload($SELF --colorize),ctrl-s:execute($SELF --send {2})+reload($SELF --colorize),ctrl-x:execute-silent(tmux kill-pane -t {2})+reload($SELF --colorize)")
+      --bind "tab:down,btab:up,ctrl-j:down,ctrl-k:up,alt-j:down,alt-k:up,ctrl-d:preview-half-page-down,ctrl-u:preview-half-page-up,alt-n:preview-half-page-down,alt-u:preview-half-page-up,alt-q:abort,alt-b:abort,k:execute($SELF --accept-all)+reload($SELF --colorize),ctrl-y:execute-silent($SELF --act approve {4} {2})+reload($SELF --colorize),ctrl-s:execute($SELF --send {4} {2})+reload($SELF --colorize),ctrl-x:execute-silent($SELF --act kill {4} {2})+reload($SELF --colorize)")
     [ -n "$out" ] || exit 0
     pane=$(printf '%s' "$out" | cut -f2)
     target=$(printf '%s' "$out" | cut -f3)

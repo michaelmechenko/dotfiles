@@ -3,6 +3,7 @@
 import os
 import platform
 import re
+import shlex
 import subprocess
 import shutil
 import sys
@@ -240,10 +241,9 @@ class ExtraktoPlugin:
 
     def open(self, path):
         if self.open_tool:
-            subprocess.run(
-                ["tmux", "run-shell", "-b", f"cd -- $PWD; {self.open_tool} {path}"],
-                check=True,
-            )
+            # Selection text is data, never part of a shell program. The configured
+            # adapter resolves relative paths from this popup's origin environment.
+            subprocess.run(shlex.split(self.open_tool) + [path], check=True)
 
     # this returns the start point parameter for `tmux capture-pane`.
     def get_capture_pane_start(self):
@@ -495,7 +495,7 @@ class ExtraktoPlugin:
                         "send-keys",
                         "-t",
                         self.trigger_pane,
-                        f"{self.editor} -- {text}",
+                        f"{self.editor} -- {shlex.quote(text)}",
                         "C-m",
                     ],
                     check=True,

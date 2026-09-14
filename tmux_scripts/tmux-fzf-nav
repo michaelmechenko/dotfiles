@@ -172,7 +172,7 @@ list_sessions() {
         session_windows[sid] = $4
         session_attached[sid] = $5
 
-        if (sname ~ /^float/) {
+        if (sname == "float") {
           float_order[++float_count] = sid
         } else {
           other_order[++other_count] = sid
@@ -290,7 +290,7 @@ list_sessions_sidebar() {
   fi
 
   {
-    tmux list-sessions -O creation -F "S${SEP}#{q/a:session_id}${SEP}#{q/a:session_name}${SEP}#{q/a:session_windows}${SEP}#{q/a:session_attached}${SEP}#{m/r:^float,#{session_name}}"
+    tmux list-sessions -O creation -F "S${SEP}#{q/a:session_id}${SEP}#{q/a:session_name}${SEP}#{q/a:session_windows}${SEP}#{q/a:session_attached}${SEP}#{m/r:^float$,#{session_name}}"
     tmux list-panes -a -F "P${SEP}#{q/a:session_id}${SEP}#{q/a:pane_id}${SEP}#{q/a:window_index}${SEP}#{?pane_active,1,0}${SEP}#{?window_active,1,0}${SEP}#{q/a:pane_current_path}"
   } | awk -F "$SEP" -v current_id="$current_session_id" '
     BEGIN { OFS = "\t"; print "PANE", "TARGET", "DISPLAY", "SNAME", "WINDOWS", "ATTACHED", "CWD", "CURRENT" }
@@ -352,7 +352,7 @@ list_other_panes() {
 
       if (!(sid in seen_session)) {
         seen_session[sid] = 1
-        if (sname ~ /^float/) {
+        if (sname == "float") {
           float_order[++float_count] = sid
         } else {
           other_order[++other_count] = sid

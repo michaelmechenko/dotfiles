@@ -41,6 +41,7 @@ if [ "$split_direction" = "p" ]; then
 			-h "${popup_height:-${popup_width}}" \
 			-x "${popup_x}" \
 			-y "${popup_y:-$popup_x}" \
+			-e "EXTRAKTO_ORIGIN_PANE=${EXTRAKTO_ORIGIN_PANE:-$pane_id}" \
 			$extra_options \
 			-E "${extrakto} ${pane_id} popup"
 		rc=$?
@@ -50,6 +51,7 @@ else
 	split_size=$(get_option "@extrakto_split_size" 7)
 	tmux split-window \
 		-${split_direction} \
+		-e "EXTRAKTO_ORIGIN_PANE=${EXTRAKTO_ORIGIN_PANE:-$pane_id}" \
 		$extra_options \
 		-l ${split_size} "tmux setw remain-on-exit off; ${extrakto} ${pane_id} split"
 fi

@@ -246,8 +246,6 @@ Type a query; every matching substring in the popup's visible content rows gets 
 | `M-z` | root | Zoom pane (`resize-pane -Z`) |
 | `M-x` | root | Kill pane (confirm) |
 | `M-X` | root | Kill window (double confirm) |
-| `M-Up` | root | Resize pane up |
-| `M-Down` | root | Resize pane down |
 | `M-Right` | root | Forward raw key (zsh Alt+Right word-jump). Popup layout cycling disabled — see below. |
 | `M-Left` | root | Forward raw key (zsh Alt+Left word-jump). Popup layout cycling disabled — see below. |
 

@@ -1,24 +1,45 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
-# Disable glob expansion to prevent * in session names from expanding to files
-set -f
+literal_label() {
+  local value="$1"
+  value=${value//$'\n'/ }
+  value=${value//$'\r'/ }
+  value=${value//$'\t'/ }
+  value=$(printf '%s' "$value" | LC_ALL=C tr -d '\001-\010\013\014\016-\037\177')
+  printf '%s' "${value//#/##}"
+}
 
-# Get absolute bottom-right coordinates of the window
 client_width=$(tmux display-message -p '#{client_width}')
-client_height=$(tmux display-message -p '#{client_height}')
+menu=()
+float=()
+other=()
+while IFS=$'\t' read -r sid name; do
+  [ -n "$sid" ] || continue
+  row="$(literal_label "$name")"$'\t'"$sid"
+  if [[ "$name" == float ]]; then float+=("$row"); else other+=("$row"); fi
+done < <(tmux list-sessions -O creation -F $'#{session_id}\t#{session_name}')
 
-# Build menu items: sessions list + separator + new session/window options
-sessions=$(tmux list-sessions -O creation -F '#S' | awk 'BEGIN {ORS=" "} {print $1, NR, "\"switch-client -t", $1 "\""}')
+index=1
+append_rows() {
+  local row name sid key
+  for row in "$@"; do
+    name=${row%%$'\t'*}
+    sid=${row#*$'\t'}
+    key=$index
+    [ "$index" -le 9 ] || key=""
+    menu+=("$name" "$key" "switch-client -t $sid")
+    index=$((index + 1))
+  done
+}
+((${#float[@]} == 0)) || append_rows "${float[@]}"
+((${#other[@]} == 0)) || append_rows "${other[@]}"
 
-# Use eval to properly handle the command
-# Multiple separator lines (empty name/key/command) create more spacing
-# Position at absolute bottom right corner of window
-eval "tmux display-menu -M -O -T \"#[align=centre]choose session\" -b rounded -x $client_width -y 1 \
-    $sessions \
-    \"\" \"\" \"\" \
-    \"\" \"\" \"\" \
-    \"rename session\" r \"command-prompt -I '#S' 'rename-session \\\"%%\\\"'\" \
-    \"new session\" s \"command-prompt -p 'new session:' 'new-session -s \\\"%%\\\"'\" \
-    \"new window\" w \"new-window\""
+menu+=("" "" "" "" "" ""
+  "rename session" r "command-prompt -I '#S' 'rename-session \"%%\"'"
+  "new session" s "command-prompt -p 'new session:' 'new-session -s \"%%\"'"
+  "new window" w "new-window")
+
+tmux display-menu -M -O -T '#[align=centre]choose session' -b rounded \
+  -x "$client_width" -y 1 "${menu[@]}"

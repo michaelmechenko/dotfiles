@@ -287,16 +287,14 @@ fifo_pager() {
             # supports live wrap toggling ('w' key) for genuinely long lines - see ../toggle-wrap
             # (bound to nnn ;w).
             #
-            # Dim the line-number gutter: bat's --theme=ansi emits no color/style at all for the
-            # number column (verified: zero escape codes around it, even with --color=always), so
-            # it renders at full terminal-foreground brightness. Wrap it in copy-mode-indicator
-            # #606079 (24-bit true color) to match nvim's dim/muted text color, instead of a new
-            # hardcoded color. Only applies when NNN_BATSTYLE includes "numbers" (the gutter format
-            # this regex assumes); other styles (plain/full/grid) pass through unchanged.
+            # Dim the line-number gutter with the active tmux text-muted role passed by
+            # tmux-nnn-explorer. bat's ansi theme leaves this column completely unstyled.
             case "$NNN_BATSTYLE" in
                 *numbers*)
                     ESC=$'\x1b'
-                    DIM_NUM_SED="s/^( *[0-9]+ )/${ESC}[38;2;96;96;121m\\1${ESC}[0m/" ;;
+                    muted=${NNN_MUTED_HEX:-#606079}; muted=${muted#\#}
+                    printf -v muted_rgb '%d;%d;%d' "0x${muted:0:2}" "0x${muted:2:2}" "0x${muted:4:2}"
+                    DIM_NUM_SED="s/^( *[0-9]+ )/${ESC}[38;2;${muted_rgb}m\\1${ESC}[0m/" ;;
                 *) DIM_NUM_SED='' ;;
             esac
             bat --terminal-width="$cols" --decorations=always --color=always --wrap=never \

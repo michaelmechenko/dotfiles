@@ -1,66 +1,64 @@
-#!/bin/zsh
+#!/usr/bin/env zsh
 
 set -e
 
-# Placement mode: "float" (default, M-d) = centred popup; "pane" (M-B) = overlay the
-# launching pane so the explorer fills it instead of floating.
-MODE="${1:-float}"
+# Private popup process: all caller-controlled values arrive as environment data,
+# then become individual new-session argv elements. The shell command stays fixed.
+if [ "${1:-}" = "--inner" ]; then
+    exec tmux new-session -s nnn \
+        -e "NNN_ORIGIN_PANE=$NNN_ORIGIN_PANE" \
+        -e "NNN_PLUG=$NNN_PLUG" \
+        -e "NNN_SPLIT=$NNN_SPLIT" \
+        -e "NNN_SPLITSIZE=$NNN_SPLITSIZE" \
+        -e "NNN_BATSTYLE=$NNN_BATSTYLE" \
+        -e "NNN_BATTHEME=$NNN_BATTHEME" \
+        -e "NNN_COLORS=$NNN_COLORS" \
+        -e "NNN_FCOLORS=$NNN_FCOLORS" \
+        -e "NNN_PAGER=$NNN_PAGER" \
+        -e "NNN_MUTED_HEX=$NNN_MUTED_HEX" \
+        -e "FZF_DEFAULT_OPTS=$FZF_DEFAULT_OPTS" \
+        -e "RG_COLORS=$RG_COLORS" \
+        -c "$NNN_CWD" 'exec nnn -aH -l 1 -P p'
+fi
 
-# Toggle: pressing the launch key from inside the explorer popup closes it
-# (the popup hosts a nested tmux client, so tmux intercepts the key here).
+# Placement mode: float (M-d) is centred; pane (M-B) overlays the launcher.
+MODE="${1:-float}"
 if [ "$(tmux display-message -p '#{session_name}')" = "nnn" ]; then
     tmux kill-session -t nnn
     exit 0
 fi
 
-# Self-heal exec bits: nnn EXECUTES its plugins directly, so a checkout that didn't honor the
-# exec bit (core.fileMode=false) would break ;l/;j/;i/;p/;f. `*` skips dotfiles, so name the
-# execed dotfile plugin explicitly (.nnn-plugin-helper is sourced → intentionally left non-exec).
 chmod +x "$HOME"/.config/nnn/plugins/* "$HOME"/.config/nnn/plugins/.nnn-tmux-split "$HOME"/.config/nnn/plugins/.nnn-open-origin 2>/dev/null
 
 ORIGIN_PANE="$(tmux display-message -p '#{pane_id}')"
 CWD="$(tmux display-message -p '#{pane_current_path}')"
-# Pane geometry, used only in "pane" mode to overlay the launching pane. The popup -y anchors
-# the popup's BOTTOM edge, so we anchor at popup_pane_bottom (popup_pane_left for -x); both
-# account for the status-line offset. pane_width/height give the size.
 PANE_W="$(tmux display-message -p '#{pane_width}')"
 PANE_H="$(tmux display-message -p '#{pane_height}')"
 BORDER_COLOR=$(tmux show-options -gqv @color-text-muted)
 BORDER_COLOR=${BORDER_COLOR:-"#a9b1d6"}
+PRIMARY_COLOR=$(tmux show-options -gqv @color-accent-primary)
+PRIMARY_COLOR=${PRIMARY_COLOR:-"#d8647e"}
+hex_rgb() {
+    local hex=${1#\#}
+    printf '%d,%d,%d' "$((16#${hex[1,2]}))" "$((16#${hex[3,4]}))" "$((16#${hex[5,6]}))"
+}
 
-# in-nnn plugin keys (pressed as ;<key>): ;l horizontal split, ;j vertical split,
-# ;e new window (dir -> shell there / file -> nvim, new window cwd = browse dir),
-# ;i send a cd command to the origin pane's prompt, ;p toggle file preview,
-# ;f fzf fuzzy-jump to a subdir (ctrl-o there opens a file in an nvim split in the origin
-# window), ;g live ripgrep -> open match in an nvim split, ;w toggle preview pane word-wrap,
-# ;h keybind cheatsheet (nnn native ?, plugin keys, plus the M-* keys inside ;f/;g).
-# (nnn keybinds are compiled-in; ; is a mandatory plugin prefix — bare keys can't run plugins
-# without recompiling nnn.)
 PLUG='l:tmux-split-h;j:tmux-split-v;e:tmux-newwindow;i:cd-origin;p:preview-tui;f:fzcd;g:fzrg;w:toggle-wrap;h:tmux-help'
-# colors via ANSI indices -> inherit the terminal's themed (vague) palette.
-COLORS='63256325'                          # 4 context colors (lavender/pale/mauve/slate), repeated
-FCOLORS='060606020005030801050201'         # blk chr DIR exe reg hard sym miss orph fifo sock unk
-SPLITSIZE=70                               # preview pane width % (explorer gets the other 30%)
-# M-d uses side-by-side panes only when the outer client is wide enough to give
-# both columns useful room. M-B keeps its historical side-by-side behavior.
+COLORS='63256325'
+FCOLORS='060606020005030801050201'
+SPLITSIZE=70
 if [ "$MODE" = "float" ]; then
     CLIENT_W="$(tmux display-message -p '#{client_width}')"
-    if [ "$CLIENT_W" -ge 160 ] 2>/dev/null; then
-        NNN_SPLIT=v
-    else
-        NNN_SPLIT=h
-    fi
+    if [ "$CLIENT_W" -ge 160 ] 2>/dev/null; then NNN_SPLIT=v; else NNN_SPLIT=h; fi
 else
     NNN_SPLIT=v
 fi
-# preview-tui text-speed knobs: plain bat (no line-number/grid rendering),
-# ansi theme (inherits the terminal palette). Image/video previewers left unset
-# so those heavy branches never fire.
 BATSTYLE=numbers
 BATTHEME=ansi
 
+MUTED_RGB=${BORDER_COLOR#\#}
 if command -v moor >/dev/null 2>&1; then
-    PAGER_CMD='moor --no-linenumbers --mousemode=scroll --statusbar=plain --scroll-left-hint=ESC[38;2;101;106;128m<ESC[39m --scroll-right-hint=ESC[38;2;101;106;128m>ESC[39m'
+    PAGER_CMD="moor --no-linenumbers --mousemode=scroll --statusbar=plain --scroll-left-hint=ESC[38;2;$((16#${MUTED_RGB[1,2]}));$((16#${MUTED_RGB[3,4]}));$((16#${MUTED_RGB[5,6]}))m<ESC[39m --scroll-right-hint=ESC[38;2;$((16#${MUTED_RGB[1,2]}));$((16#${MUTED_RGB[3,4]}));$((16#${MUTED_RGB[5,6]}))m>ESC[39m"
 else
     PAGER_CMD='less -R --mouse --wheel-lines=1 -+F'
 fi
@@ -70,18 +68,28 @@ if [ -z "$FZF_OPTS" ]; then
     FZF_OPTS=$(tmux show-environment -g FZF_DEFAULT_OPTS 2>/dev/null || true)
     FZF_OPTS=${FZF_OPTS#FZF_DEFAULT_OPTS=}
 fi
+RG_THEME_COLORS="${RG_COLORS:-match:fg:$(hex_rgb "$PRIMARY_COLOR"):style:underline}"
 
-RG_THEME_COLORS="${RG_COLORS:-match:fg:216,100,126:style:underline}"
-
-# fresh session each launch (reaps any lingering detached one), start in origin cwd
 tmux kill-session -t nnn 2>/dev/null || true
-
-# Geometry: centred float by default; overlay the launching pane in "pane" mode.
 if [ "$MODE" = "pane" ]; then
     GEO=(-t "$ORIGIN_PANE" -x '#{popup_pane_left}' -y '#{popup_pane_bottom}' -w "$PANE_W" -h "$PANE_H")
 else
     GEO=(-xC -yC -w65% -h75%)
 fi
 
+SELF=${0:A}
 tmux popup "${GEO[@]}" -S "fg=$BORDER_COLOR" -E \
-    "tmux new-session -s nnn -e NNN_ORIGIN_PANE='$ORIGIN_PANE' -e NNN_PLUG='$PLUG' -e NNN_SPLIT=$NNN_SPLIT -e NNN_SPLITSIZE=$SPLITSIZE -e NNN_BATSTYLE=$BATSTYLE -e NNN_BATTHEME=$BATTHEME -e NNN_COLORS='$COLORS' -e NNN_FCOLORS='$FCOLORS' -e NNN_PAGER='$PAGER_CMD' -e FZF_DEFAULT_OPTS='$FZF_OPTS' -e RG_COLORS='$RG_THEME_COLORS' -c '$CWD' nnn -aH -l 1 -P p" || true
+    -e "NNN_ORIGIN_PANE=$ORIGIN_PANE" \
+    -e "NNN_CWD=$CWD" \
+    -e "NNN_PLUG=$PLUG" \
+    -e "NNN_SPLIT=$NNN_SPLIT" \
+    -e "NNN_SPLITSIZE=$SPLITSIZE" \
+    -e "NNN_BATSTYLE=$BATSTYLE" \
+    -e "NNN_BATTHEME=$BATTHEME" \
+    -e "NNN_COLORS=$COLORS" \
+    -e "NNN_FCOLORS=$FCOLORS" \
+    -e "NNN_PAGER=$PAGER_CMD" \
+    -e "NNN_MUTED_HEX=$BORDER_COLOR" \
+    -e "FZF_DEFAULT_OPTS=$FZF_OPTS" \
+    -e "RG_COLORS=$RG_THEME_COLORS" \
+    "$SELF --inner" || true

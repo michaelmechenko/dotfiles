@@ -45,14 +45,33 @@ export function isStepDone(step: TodoItem): boolean { return step.completed || s
 export function pendingSteps(state: PlanState): TodoItem[] { return state.steps.filter((step) => !isStepDone(step)); }
 
 export function applyPlanUpdate(state: PlanState, input: { goal: string; steps: string[]; criteria?: string[]; followUps?: string[]; executionBrief: ExecutionBrief }): PlanState {
-	const existing = new Map(state.steps.map((step) => [step.text.trim().toLowerCase(), step]));
-	const steps = input.steps.map((text, index) => { const previous = existing.get(text.trim().toLowerCase()); return { id: previous?.id ?? randomUUID(), step: index + 1, text, completed: previous?.completed ?? false, skipped: previous?.skipped ?? false }; });
+	const existing = new Map<string, TodoItem[]>();
+	for (const step of state.steps) {
+		const key = step.text.trim().toLowerCase();
+		existing.set(key, [...(existing.get(key) ?? []), step]);
+	}
+	const steps = input.steps.map((text, index) => {
+		const previous = existing.get(text.trim().toLowerCase())?.shift();
+		return { id: previous?.id ?? randomUUID(), step: index + 1, text, completed: previous?.completed ?? false, skipped: previous?.skipped ?? false };
+	});
 	return { ...state, goal: input.goal, steps, criteria: input.criteria ?? [], followUps: input.followUps ?? [], executionBrief: cloneExecutionBrief(input.executionBrief), phase: state.phase === "drafting" ? "ready" : state.phase, awaitingReview: state.phase === "drafting", completionRequested: false };
+}
+
+export function updatePlanStep(state: PlanState, stepNumber: number, action: "complete" | "uncomplete" | "skip"): PlanState {
+	if (!state.steps.some((step) => step.step === stepNumber)) throw new Error("plan_step requires a valid step.");
+	return {
+		...state,
+		steps: state.steps.map((step) => step.step !== stepNumber ? { ...step } : {
+			...step,
+			completed: action === "complete",
+			skipped: action === "skip",
+		}),
+	};
 }
 export function canClosePlan(state: PlanState): boolean { return state.phase === "executing" && state.steps.length > 0 && state.steps.every(isStepDone); }
 export function isExecutionBrief(value: unknown): value is ExecutionBrief { if (!value || typeof value !== "object") return false; const brief = value as Partial<ExecutionBrief>; return typeof brief.summary === "string" && isStringArray(brief.findings) && isStringArray(brief.decisions) && isStringArray(brief.constraints) && Array.isArray(brief.relevantFiles) && brief.relevantFiles.every((file) => !!file && typeof file === "object" && typeof (file as { path?: unknown }).path === "string" && typeof (file as { note?: unknown }).note === "string"); }
 export function isPlanState(value: unknown): value is PlanState { if (!value || typeof value !== "object") return false; const plan = value as Partial<PlanState>; return plan.version === 6 && isAccessMode(plan.accessMode) && isPlanPhase(plan.phase) && typeof plan.goal === "string" && isTodoList(plan.steps) && isStringArray(plan.criteria) && isStringArray(plan.followUps) && isExecutionBrief(plan.executionBrief) && (plan.planId === undefined || (typeof plan.planId === "string" && PLAN_ID.test(plan.planId))) && (plan.createdAt === undefined || typeof plan.createdAt === "string") && (plan.executionSource === undefined || isExecutionSource(plan.executionSource)) && (plan.toolsBeforePlan === undefined || isStringArray(plan.toolsBeforePlan)) && (plan.planningModel === undefined || isModelSnapshot(plan.planningModel)) && (plan.executionModel === undefined || isModelSnapshot(plan.executionModel)) && typeof plan.widgetCollapsed === "boolean" && typeof plan.awaitingReview === "boolean" && typeof plan.resumeAfterRevision === "boolean" && typeof plan.completionRequested === "boolean" && (plan.closeout === undefined || isCloseout(plan.closeout)); }
-function clonePlanState(state: PlanState): PlanState { return { version: 6, accessMode: state.accessMode, phase: state.phase, goal: state.goal, steps: state.steps.map((step) => ({ ...step })), criteria: [...state.criteria], followUps: [...state.followUps], executionBrief: cloneExecutionBrief(state.executionBrief), planId: state.planId, createdAt: state.createdAt, executionSource: state.executionSource ? { ...state.executionSource } : undefined, toolsBeforePlan: state.toolsBeforePlan ? [...state.toolsBeforePlan] : undefined, planningModel: state.planningModel ? { ...state.planningModel } : undefined, executionModel: state.executionModel ? { ...state.executionModel } : undefined, widgetCollapsed: state.widgetCollapsed, awaitingReview: state.awaitingReview, resumeAfterRevision: state.resumeAfterRevision, completionRequested: state.completionRequested, closeout: state.closeout ? { ...state.closeout, verification: [...state.closeout.verification], deviations: [...state.closeout.deviations], nextSteps: [...state.closeout.nextSteps] } : undefined }; }
+export function clonePlanState(state: PlanState): PlanState { return { version: 6, accessMode: state.accessMode, phase: state.phase, goal: state.goal, steps: state.steps.map((step) => ({ ...step })), criteria: [...state.criteria], followUps: [...state.followUps], executionBrief: cloneExecutionBrief(state.executionBrief), planId: state.planId, createdAt: state.createdAt, executionSource: state.executionSource ? { ...state.executionSource } : undefined, toolsBeforePlan: state.toolsBeforePlan ? [...state.toolsBeforePlan] : undefined, planningModel: state.planningModel ? { ...state.planningModel } : undefined, executionModel: state.executionModel ? { ...state.executionModel } : undefined, widgetCollapsed: state.widgetCollapsed, awaitingReview: state.awaitingReview, resumeAfterRevision: state.resumeAfterRevision, completionRequested: state.completionRequested, closeout: state.closeout ? { ...state.closeout, verification: [...state.closeout.verification], deviations: [...state.closeout.deviations], nextSteps: [...state.closeout.nextSteps] } : undefined }; }
 function cloneExecutionBrief(brief: ExecutionBrief): ExecutionBrief { return { summary: brief.summary, findings: [...brief.findings], decisions: [...brief.decisions], relevantFiles: brief.relevantFiles.map((file) => ({ ...file })), constraints: [...brief.constraints] }; }
 function isExecutionSource(value: unknown): value is NonNullable<PlanState["executionSource"]> { return !!value && typeof value === "object" && typeof (value as { sessionId?: unknown }).sessionId === "string" && typeof (value as { cwd?: unknown }).cwd === "string" && ((value as { tmuxSession?: unknown }).tmuxSession === undefined || typeof (value as { tmuxSession?: unknown }).tmuxSession === "string"); }
 function isModelSnapshot(value: unknown): value is ModelSnapshot { return !!value && typeof value === "object" && typeof (value as ModelSnapshot).provider === "string" && typeof (value as ModelSnapshot).model === "string" && isThinkingLevel((value as ModelSnapshot).thinkingLevel); }

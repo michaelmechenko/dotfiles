@@ -67,7 +67,7 @@ export function archiveCompletedPlan(agentDir: string, record: CompletedPlanReco
 	const path = join(dir, `${record.id}.json`);
 	const content = `${JSON.stringify(record, null, "\t")}\n`;
 	if (existsSync(path)) {
-		if (readFileSync(path, "utf8") !== content) throw new Error(`Plan history already contains a different record for ${record.id}.`);
+		if (!sameCompletedPlan(readFileSync(path, "utf8"), record)) throw new Error(`Plan history already contains a different record for ${record.id}.`);
 		return path;
 	}
 	const tmp = join(dirname(path), `.${record.id}.${process.pid}.${Date.now()}.tmp`);
@@ -76,11 +76,20 @@ export function archiveCompletedPlan(agentDir: string, record: CompletedPlanReco
 		// link(2) publishes without replacing an existing record, unlike rename.
 		linkSync(tmp, path);
 	} catch (error) {
-		if (!existsSync(path) || readFileSync(path, "utf8") !== content) throw error;
+		if (!existsSync(path) || !sameCompletedPlan(readFileSync(path, "utf8"), record)) throw error;
 	} finally {
 		try { unlinkSync(tmp); } catch { /* publication succeeded or cleanup raced */ }
 	}
 	return path;
+}
+
+function sameCompletedPlan(existingContent: string, incoming: CompletedPlanRecord): boolean {
+	try {
+		const existing = JSON.parse(existingContent) as CompletedPlanRecord;
+		const { completedAt: _existingCompletedAt, ...existingStable } = existing;
+		const { completedAt: _incomingCompletedAt, ...incomingStable } = incoming;
+		return JSON.stringify(existingStable) === JSON.stringify(incomingStable);
+	} catch { return false; }
 }
 
 function isCompletedPlanRecord(value: unknown): value is CompletedPlanRecord {

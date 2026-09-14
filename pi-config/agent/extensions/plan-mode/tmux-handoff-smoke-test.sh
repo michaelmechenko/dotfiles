@@ -37,6 +37,7 @@ pane=$(tmux -L "$socket" display-message -p '#{pane_id}')
 window=$(tmux -L "$socket" display-message -p '#{window_id}')
 
 handoff=$(packet)
+printf '%s\n' "$handoff" >> "$tmp/handoffs"
 tmux -L "$socket" new-window -d -t source -c "$workdir" \
 	-e "PI_PLAN_HANDOFF=$handoff" -e 'PI_PLAN_PROVIDER=stub' -e 'PI_PLAN_MODEL=stub-model' -e 'PI_PLAN_THINKING=low' \
 	'pi --provider "$PI_PLAN_PROVIDER" --model "$PI_PLAN_MODEL" --thinking "$PI_PLAN_THINKING"; exec /bin/sh -l'
@@ -44,6 +45,7 @@ tmux -L "$socket" new-window -d -t source -c "$workdir" \
 [ "$(tmux -L "$socket" display-message -p '#{window_id}')" = "$window" ]
 
 handoff=$(packet)
+printf '%s\n' "$handoff" >> "$tmp/handoffs"
 tmux -L "$socket" split-window -d -v -t "$pane" -c "$workdir" \
 	-e "PI_PLAN_HANDOFF=$handoff" -e 'PI_PLAN_PROVIDER=stub' -e 'PI_PLAN_MODEL=stub-model' -e 'PI_PLAN_THINKING=low' \
 	'pi --provider "$PI_PLAN_PROVIDER" --model "$PI_PLAN_MODEL" --thinking "$PI_PLAN_THINKING"; exec /bin/sh -l'
@@ -51,6 +53,7 @@ tmux -L "$socket" split-window -d -v -t "$pane" -c "$workdir" \
 [ "$(tmux -L "$socket" display-message -p '#{window_id}')" = "$window" ]
 
 handoff=$(packet)
+printf '%s\n' "$handoff" >> "$tmp/handoffs"
 right=$(tmux -L "$socket" split-window -d -h -P -F '#{pane_id}' -t "$pane" -c "$workdir" \
 	-e "PI_PLAN_HANDOFF=$handoff" -e 'PI_PLAN_PROVIDER=stub' -e 'PI_PLAN_MODEL=stub-model' -e 'PI_PLAN_THINKING=low' \
 	'pi --provider "$PI_PLAN_PROVIDER" --model "$PI_PLAN_MODEL" --thinking "$PI_PLAN_THINKING"; exec /bin/sh -l')
@@ -68,6 +71,6 @@ right_left=$(tmux -L "$socket" display-message -p -t "$right" '#{pane_left}')
 source_left=$(tmux -L "$socket" display-message -p -t "$pane" '#{pane_left}')
 [ "$right_left" -gt "$source_left" ]
 [ ! -s "$result.consume" ]
-find "$agent_dir/plan-handoffs" -name "*.ack" -delete
+node --experimental-strip-types --no-warnings --input-type=module -e "import { readFileSync } from 'node:fs'; import { deleteExecutionPacket, waitForExecutionAcknowledgement } from '$root/execution-handoff.ts'; for (const path of readFileSync('$tmp/handoffs', 'utf8').trim().split('\\n')) { if (await waitForExecutionAcknowledgement(process.env.PLAN_MODE_AGENT_DIR, path, 100) !== 'ready') process.exit(1); deleteExecutionPacket(process.env.PLAN_MODE_AGENT_DIR, path); }"
 [ "$(find "$agent_dir/plan-handoffs" -type f | wc -l)" -eq 0 ]
 printf '%s\n' 'tmux pane/window handoff smoke test passed'

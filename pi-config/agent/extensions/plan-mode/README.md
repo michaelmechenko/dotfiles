@@ -39,7 +39,7 @@ The execution settings screen defaults to a new parent-linked Pi session in the 
 
 Detached panes default below the source and expose a per-launch Below/Right placement row; the row is hidden for every other destination. Outside tmux, the destination falls back to the current Pi session. The tmux-only current-pane destination replaces the session in the existing Pi process with an empty, parent-linked session and transfers only the canonical execution packet; it does not copy the planning transcript. A separate `Save as plan default` toggle applies only to a manually chosen model. Clipboard hides irrelevant model controls and does not resolve or mutate model state.
 
-The saved default is only `agent/plan-mode.json`'s `executionModel`; it never changes Pi's global `defaultProvider` or `defaultModel`. Temporary current-session switches use Pi's public model APIs so session history stays correct, then restore global defaults through `SettingsManager`. A forced process kill between those operations is the narrow remaining window where Pi's global defaults can be left temporarily changed.
+The saved default is only `agent/plan-mode.json`'s `executionModel`; it never changes Pi's global `defaultProvider` or `defaultModel`. Execution and planning model changes use Pi's session-local setters. Session start, resume, and branch navigation restore the selected branch's plan state, tool policy, and planning or execution model.
 
 ## Footer status
 
@@ -53,7 +53,9 @@ The footer's plan status is derived from the active plan and completed history f
 
 ## Tmux handoff
 
-Tmux is offered only inside a resolved tmux pane. Detached handoffs write a mode-`0600`, one-time file under `agent/plan-handoffs/`, then invoke detached `tmux new-window` or `tmux split-window` below/right of the source with argv and handoff/model environment variables only; plan text is never interpolated into shell source. Every spawned Pi command falls through to the pane's login shell on exit. Both preserve source cwd and focus. The source becomes handed-off only after a detached child consumes the packet and writes a bounded acknowledgement; launch or acknowledgement failure deletes stale packet files and leaves the source plan ready. The current-pane replacement follows the same private packet path through `/plan-review` in the fresh extension instance.
+Tmux is offered only inside a resolved tmux pane. Detached handoffs write a mode-`0600` packet under `agent/plan-handoffs/`, then invoke detached `tmux new-window` or `tmux split-window` below/right of the source with argv and handoff/model environment variables only; plan text is never interpolated into shell source. Every spawned Pi command falls through to the pane's login shell on exit. The child atomically claims the durable packet, persists execution state, then acknowledges readiness. An unclaimed timeout leaves the source ready; a live claimed timeout leaves ownership with the child so the source cannot create a duplicate executor. The current-pane replacement uses the same claim path through `/plan-review` in the fresh extension instance.
+
+Completed-plan archive retries compare stable plan and closeout content while retaining the first completion timestamp. Clipboard export includes the full execution brief as well as the plan and verification sections.
 
 ## Configuration
 

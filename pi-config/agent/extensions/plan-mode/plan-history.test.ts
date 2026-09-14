@@ -21,7 +21,7 @@ test("completed plans archive atomically and retain sequential session history",
 		const first = completedPlanRecord(completedState("first"), "session-a", project, closeout, "2026-01-02T00:00:00.000Z");
 		const second = completedPlanRecord(completedState("second"), "session-a", project, closeout, "2026-01-03T00:00:00.000Z");
 		archiveCompletedPlan(dir, first);
-		archiveCompletedPlan(dir, first);
+		archiveCompletedPlan(dir, { ...first, completedAt: "2026-01-02T00:00:01.000Z" });
 		const otherSession = completedPlanRecord(completedState("third"), "session-b", project, closeout, "2026-01-04T00:00:00.000Z");
 		archiveCompletedPlan(dir, second);
 		archiveCompletedPlan(dir, otherSession);

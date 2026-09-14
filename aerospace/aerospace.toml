@@ -121,8 +121,11 @@ automatically-unhide-macos-hidden-apps = false
     # balance sizes
     cmd-shift-0 = 'balance-sizes'
 
+    # Close through Hammerspoon so the original workspace regains focus after the
+    # macOS/AeroSpace close race. Fall back to the native command if HS IPC is unavailable.
+    cmd-w = 'exec-and-forget /opt/homebrew/bin/hs -c "closeKeepWorkspace()" || /opt/homebrew/bin/aerospace close'
+
     # See: https://nikitabobko.github.io/AeroSpace/commands#focus
-    cmd-w = 'close'
     cmd-h = 'focus --ignore-floating --boundaries-action wrap-around-the-workspace left'
     cmd-j = 'focus --boundaries-action wrap-around-the-workspace down'
     cmd-k = 'focus --boundaries-action wrap-around-the-workspace up'

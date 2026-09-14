@@ -4,6 +4,7 @@ local bar = require("bar")
 local borders = require("borders")
 local display = require("display")
 local gaming = require("gaming")
+local closeFocus = require("close_focus")
 require("drag")
 -- local rectangle = require("rectangle-keybinds")
 
@@ -22,6 +23,9 @@ _G.fullMaximize = window.fullMaximize
 _G.toggleFloatKeepPos = window.toggleFloatKeepPos
 _G.toggleBarMode = bar.toggleMode
 _G.toggleAerospace = bar.toggleAerospace
+_G.closeKeepWorkspace = closeFocus.closeWindow
+
+closeFocus.start()
 
 hs.hotkey.bind({ "cmd", "ctrl", "alt" }, "c", window.almostMaximizeFocusedWorkspace)
 hs.hotkey.bind({ "cmd", "ctrl", "alt" }, "x", window.almostMaximize)

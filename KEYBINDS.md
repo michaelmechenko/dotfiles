@@ -120,7 +120,7 @@ Reference for all active keybinds across AeroSpace (`aerospace/aerospace.toml`),
 | `cmd-shift-m` | Almost-maximize every window on focused workspace (Hammerspoon `almostMaximizeFocusedWorkspace`) |
 | `cmd-shift-n` | Enter **move** mode |
 | `cmd-shift-enter` | Enter **service** mode |
-| `cmd-w` | Close focused window |
+| `cmd-w` | Close focused window, then restore the most recent surviving focus on its AeroSpace workspace (`close_focus.lua`) |
 
 ## AeroSpace — move mode
 Entered via `cmd-shift-n`. All keys return to main mode after.
@@ -145,6 +145,13 @@ Entered via `cmd-shift-enter`. All keys return to main mode after.
 | `cmd-shift-j` | Join with down |
 | `cmd-shift-k` | Join with up |
 | `cmd-shift-l` | Join with right |
+
+## Hammerspoon — close focus guard (`close_focus.lua`)
+Cmd-Q is observed by an eventtap but not consumed or rebound, so application-specific quit behavior remains native.
+
+| Key | Action |
+| --- | --- |
+| `cmd-q` | Quit the frontmost app normally; after confirmed termination, restore the captured AeroSpace workspace and its most recent surviving window |
 
 ## Hammerspoon — window sizing (`window.lua`)
 All `cmd-ctrl-alt-*` (bound in `init.lua`). Frames computed directly, no Rectangle.

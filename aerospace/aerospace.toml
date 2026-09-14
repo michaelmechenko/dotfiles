@@ -247,10 +247,10 @@ automatically-unhide-macos-hidden-apps = false
     "4*" = 'main'
     "5*" = 'main'
 
-    # secondary monitors
-    "1^" = ['dell', 'built-in']
-    "2^" = ['dell', 'built-in']
-    # "3^" = ['dell', 'built-in']
+    # secondary monitor: XZ322QU V3; built-in is the portable fallback
+    "1^" = ['XZ322QU', 'built-in']
+    "2^" = ['XZ322QU', 'built-in']
+    # "3^" = ['XZ322QU', 'built-in']
 
 # floating windows by default
 [[on-window-detected]]

@@ -164,6 +164,7 @@ All `cmd-ctrl-alt-*` (bound in `init.lua`). Frames computed directly, no Rectang
 | `cmd-ctrl-alt-v` | Maximize focused window (small-gap inset; bar stays visible) |
 | `cmd-ctrl-alt-shift-v` | Full maximize — same left/right as `v`, top inset = bottom so window covers the SketchyBar strip |
 | `cmd-ctrl-alt-space` | Center focused window (no resize) |
+| `cmd-ctrl-alt-l` | Toggle HiDPI ↔ LoDPI on Odyssey G50SF and XZ322QU V3 (`display.lua`) |
 
 ## Hammerspoon — window drag (`drag.lua`)
 Not a `hs.hotkey.bind` — a global mouse eventtap, active as long as Hammerspoon is running.

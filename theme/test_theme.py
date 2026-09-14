@@ -243,18 +243,17 @@ class BundleDriftTests(unittest.TestCase):
 
 
 class TmuxFooterTests(unittest.TestCase):
-    def test_active_unlabeled_center_stars_distinct_from_outer_stars(self):
+    def test_active_unlabeled_normal_stars_use_tertiary_without_underline(self):
         config = (theme.CONFIG_DIR / "tmux.conf").read_text()
-        # The normal (non-zoomed) active+unlabeled branch: outer 4 stars keep
-        # accent-tertiary, the center *-*-* trio switches to accent-primary.
-        marker = ("#[us=#{@color-text-muted}]#[fg=#{@color-accent-tertiary}]*"
-                   "#[fg=#{@color-accent-secondary}]---#[fg=#{@color-accent-tertiary}]*"
-                   "#[fg=#{@color-accent-secondary}]---#[fg=#{@color-accent-primary}]*"
-                   "#[fg=#{@color-accent-secondary}]-#[fg=#{@color-accent-primary}]*"
-                   "#[fg=#{@color-accent-secondary}]-#[fg=#{@color-accent-primary}]*"
-                   "#[fg=#{@color-accent-secondary}]---#[fg=#{@color-accent-tertiary}]*"
-                   "#[fg=#{@color-accent-secondary}]---#[fg=#{@color-accent-tertiary}]*")
+        marker = ("──#[fg=#{@color-accent-tertiary}]*"
+                  "#[fg=#{@color-accent-secondary}]───#[fg=#{@color-accent-tertiary}]*"
+                  "#[fg=#{@color-accent-secondary}]───#[fg=#{@color-accent-tertiary}]*"
+                  "#[fg=#{@color-accent-secondary}]─#[fg=#{@color-accent-tertiary}]*"
+                  "#[fg=#{@color-accent-secondary}]─#[fg=#{@color-accent-tertiary}]*"
+                  "#[fg=#{@color-accent-secondary}]───#[fg=#{@color-accent-tertiary}]*"
+                  "#[fg=#{@color-accent-secondary}]───#[fg=#{@color-accent-tertiary}]*")
         self.assertIn(marker, config)
+        self.assertNotIn("#[us=#{@color-text-muted}]", config)
 
 
 class PiDiscoveryTests(unittest.TestCase):

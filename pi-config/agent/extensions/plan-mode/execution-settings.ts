@@ -29,9 +29,9 @@ export interface ResolvedExecution {
 
 export type ResolveExecutionResult = { ok: true; value: ResolvedExecution } | { ok: false; error: string };
 
-/** The tmux replacement handoff keeps execution in the focused pane without copying the planning transcript. */
-export function defaultExecutionDestination(hasTmux: boolean): ExecutionDestination {
-	return hasTmux ? "tmux-current" : "current";
+/** Continue the active conversation by default; tmux handoffs remain explicit alternatives. */
+export function defaultExecutionDestination(_hasTmux: boolean): ExecutionDestination {
+	return "current";
 }
 
 /** Cycle a settings value in either direction while preserving one-value action rows. */

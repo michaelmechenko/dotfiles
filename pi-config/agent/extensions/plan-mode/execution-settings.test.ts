@@ -12,7 +12,7 @@ const candidates: ModelCandidate[] = [
 
 test("execution settings default to the requested destination and model policy", () => {
 	assert.deepEqual(createExecutionSettings(current, "tmux-pane", "saved"), { destination: "tmux-pane", modelPolicy: "saved", provider: "current", model: "current-model", thinkingLevel: "low", saveDefault: false, paneDirection: "below" });
-	assert.equal(defaultExecutionDestination(true), "tmux-current");
+	assert.equal(defaultExecutionDestination(true), "current");
 	assert.equal(defaultExecutionDestination(false), "current");
 });
 

@@ -258,7 +258,7 @@ extension's shortcut via `keybindings.json`** — verified against `@earendil-wo
 | `skill-toggle/` | `ctrl+shift+e` |
 | `prompt-stash/` | `ctrl+s` |
 | `tool-display/` | `ctrl+shift+o` — toggle omitted multiline tool-call/input detail; `ctrl+shift+w` or `/tool-wrap` — toggle session-local textual tool-output wrapping (on by default, reset on session start/reload); `ctrl+o` remains Pi's built-in result-detail toggle for `read`, `bash`, diff, and default tool results |
-| `plan-mode/` | `ctrl+p` — cycle `none → plan → read-only → none`; `ctrl+alt+p` / `ctrl+alt+t` — toggle the progress widget |
+| `plan-mode/` | `ctrl+p` — cycle `none → plan → read-only → none`; `ctrl+alt+p` / `ctrl+alt+t` — toggle the progress widget. Plan execution defaults to the current Pi session; tmux handoffs remain explicit destinations |
 | `thinking-controls/` | `ctrl+tab` (Ghostty sends F13) — cycle the current model's thinking level backward; `shift+tab` remains Pi's forward cycle |
 | `session-rename/` | `ctrl+r` or `/rename [name]` — rename the current live session |
 

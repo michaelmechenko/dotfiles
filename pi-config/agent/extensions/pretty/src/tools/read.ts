@@ -129,12 +129,35 @@ export function registerReadTool(
 				const total = lines.length;
 				const filePath = String(d.filePath ?? "");
 				const skillName = getSkillName(filePath, d.content);
+				const textRecord = text as any;
+				const highlightThemeKey = [
+					"mdHeading", "mdLink", "mdCode", "mdCodeBlock", "mdCodeBlockBorder", "mdQuote", "mdQuoteBorder", "mdHr", "mdListBullet",
+					"syntaxComment", "syntaxKeyword", "syntaxFunction", "syntaxVariable", "syntaxString", "syntaxNumber", "syntaxType", "syntaxOperator", "syntaxPunctuation",
+				].map((token) => theme.fg(token, token)).join("\0");
+				const highlightKey = `${filePath}\0${d.content}\0${highlightThemeKey}`;
+				const requestHighlight = (onReady: () => void) => {
+					if (textRecord.__prettyReadHighlightKey === highlightKey || textRecord.__prettyReadHighlightPending === highlightKey) return;
+					textRecord.__prettyReadHighlightPending = highlightKey;
+					renderFileContent(d.content, d.filePath, d.offset || 0, lines.length, 100_000, theme)
+						.then((highlighted) => {
+							if (textRecord.__prettyReadHighlightPending !== highlightKey) return;
+							textRecord.__prettyReadHighlight = highlighted.split("\n");
+							textRecord.__prettyReadHighlightKey = highlightKey;
+							textRecord.__prettyReadHighlightPending = undefined;
+							onReady();
+							ctx.invalidate();
+						})
+						.catch(() => {
+							if (textRecord.__prettyReadHighlightPending === highlightKey) textRecord.__prettyReadHighlightPending = undefined;
+						});
+				};
 				if (!ctx.expanded) {
 					const previewCount = Math.min(total, 3);
 					const summary = `${theme.fg("success", "✓")} ${FG_DIM}${total} lines${RST}`;
-					return frameText(text, (renderWidth) => {
+					const buildCollapsed = (renderWidth: number) => {
 						const codeWidth = Math.max(1, renderWidth - 8);
-						const rows = lines.slice(0, previewCount).flatMap((line, index) => {
+						const displayLines: string[] = textRecord.__prettyReadHighlight ?? lines;
+						const rows = displayLines.slice(0, previewCount).flatMap((line, index) => {
 							const lineNo = String((d.offset || 0) + index + 1).padStart(3, " ");
 							const gutter = `${TOOL_RESULT_INDENT}${FG_LNUM}${lineNo}${RST} ${FG_RULE}│${RST} `;
 							const continuation = `${TOOL_RESULT_INDENT}${FG_LNUM}   ${RST} ${FG_RULE}│${RST} `;
@@ -147,13 +170,20 @@ export function registerReadTool(
 							...rows.map((line) => frameRow(line, BG_BASE, renderWidth)),
 							framePadding(BG_BASE, renderWidth),
 						].join("\n");
-					});
+					};
+					const framed = frameText(text, buildCollapsed);
+					if (/\.(?:md|markdown|mdx)$/i.test(filePath)) {
+						requestHighlight(() => {
+							if (textRecord.__toolFrame) textRecord.__toolFrame.width = 0;
+							textRecord.setText(buildCollapsed(termWidth()));
+						});
+					}
+					return framed;
 				}
 				const maxShow = lines.length;
 				const show = lines.slice(0, maxShow);
 				const nw = Math.max(3, String((d.offset || 0) + total).length);
 				const header = skillName ? `${TOOL_RESULT_INDENT}${renderSkillHeader(skillName, true, theme)}` : "";
-				const textRecord = text as any;
 				const buildPlain = (renderWidth: number) => {
 					const codeWidth = Math.max(1, renderWidth - nw - 5);
 					const out: string[] = [renderToolResultDivider(theme, renderWidth), ...(header ? ["", header] : [])];
@@ -192,14 +222,10 @@ export function registerReadTool(
 				// Highlight source lines at a deliberately wide width, then apply the
 				// shared display policy on every render. This keeps the ANSI source
 				// intact for both wrapping and one-row clipping modes.
-				renderFileContent(d.content, d.filePath, d.offset || 0, maxShow, 100_000, theme)
-					.then((hl) => {
-						textRecord.__prettyReadHighlight = hl.split("\n");
-						textRecord.__prettyReadRenderKey = "";
-						textRecord.setText(buildPlain(termWidth()));
-						ctx.invalidate();
-					})
-					.catch(() => {});
+				requestHighlight(() => {
+					textRecord.__prettyReadRenderKey = "";
+					textRecord.setText(buildPlain(termWidth()));
+				});
 
 				return text;
 			}

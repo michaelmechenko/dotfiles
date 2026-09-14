@@ -147,7 +147,7 @@ pi (the coding agent TUI) uses a **generated** theme at `~/.config/theme/active/
 
 Syntax tokens (`syntax*`) map to the same accents used elsewhere for consistency: comments/punctuation → `text-muted`, keywords → `accent-secondary`, functions/bullets → `accent-periwinkle`, strings → `accent-tertiary`, numbers → `accent-amber`, types → `accent-info`.
 
-The `md*` tokens (`mdHeading`, `mdQuote`/`mdQuoteBorder`, `mdLink`, `mdCode`/`mdListBullet`, `mdHr`, `mdCodeBlockBorder`) style Pi's built-in chat Markdown renderer. The narrow `pretty` override also uses these semantic roles for Markdown read previews; diff rendering derives its add/delete/context surfaces from the Pi tool backgrounds.
+The `md*` tokens (`mdHeading`, `mdQuote`/`mdQuoteBorder`, `mdLink`, `mdCode`/`mdListBullet`, `mdHr`, `mdCodeBlockBorder`) style Pi's built-in chat Markdown renderer. `markdown-code` adds conservative display-only language hints to recognizable bare fences so the built-in renderer can apply the existing `syntax*` roles; explicit tags and ambiguous/plain blocks are preserved. The narrow `pretty` override reuses the same fence scanner plus these Markdown and syntax roles for Markdown read previews; diff rendering derives its add/delete/context surfaces from the Pi tool backgrounds.
 
 Pi tool-card accent edges (`▌`, `tool-display/frame.ts`) introduce no new palette role: the edge uses `warning` / `accent-amber` while pending, `success` / `accent-tertiary` on success, and `error` / `accent-primary` on error. It replaces the existing one-cell left frame pad, so the `width - 2` content budget and semantic tool backgrounds remain unchanged. The edge is applied to `write`/`edit`/`apply_patch`, `ask_user`, and all error cards; routine cards remain tint-only.
 

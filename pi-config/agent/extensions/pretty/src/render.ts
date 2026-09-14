@@ -6,7 +6,7 @@
  */
 
 import { basename, dirname } from "node:path";
-import type { AgentToolResult } from "@earendil-works/pi-coding-agent";
+import { highlightCode, type AgentToolResult } from "@earendil-works/pi-coding-agent";
 // Top-level value import so jiti's pi-tui alias applies (it only rewrites
 // static top-level import/require, not function-body require — see tui-text.ts).
 import { truncateToWidth } from "@earendil-works/pi-tui";
@@ -37,6 +37,7 @@ import {
 	normalizeLineEndings,
 } from "./helpers.js";
 import type { ThemeLike } from "./types.js";
+import { scanMarkdownFences } from "../../markdown-code/fences.js";
 
 /** Thin wrapper over pi-tui's truncateToWidth (imported at top level above). */
 function _truncateToWidth(text: string, maxWidth: number, ellipsis?: string, pad?: boolean): string {
@@ -281,7 +282,28 @@ function renderMarkdownInline(text: string, theme: ThemeLike): string {
 }
 
 export function renderMarkdownBlock(code: string, theme: ThemeLike): string[] {
-	return code.split("\n").map((line) => {
+	const lines = code.split("\n");
+	const rendered: string[] = new Array(lines.length);
+	const fencedLines = new Set<number>();
+
+	for (const fence of scanMarkdownFences(code)) {
+		fencedLines.add(fence.openingLine);
+		rendered[fence.openingLine] = theme.fg("mdCodeBlockBorder", lines[fence.openingLine] ?? "");
+		const body = lines.slice(fence.bodyStartLine, fence.bodyEndLine);
+		const highlighted = highlightCode(body.join("\n"), fence.language);
+		for (let offset = 0; offset < body.length; offset++) {
+			const lineIndex = fence.bodyStartLine + offset;
+			fencedLines.add(lineIndex);
+			rendered[lineIndex] = highlighted.length === body.length ? highlighted[offset] ?? "" : theme.fg("mdCodeBlock", body[offset] ?? "");
+		}
+		if (fence.closingLine !== undefined) {
+			fencedLines.add(fence.closingLine);
+			rendered[fence.closingLine] = theme.fg("mdCodeBlockBorder", lines[fence.closingLine] ?? "");
+		}
+	}
+
+	return lines.map((line, lineIndex) => {
+		if (fencedLines.has(lineIndex)) return rendered[lineIndex] ?? "";
 		const heading = line.match(MD_HEADING_RE);
 		if (heading) {
 			return theme.fg("mdHeading", theme.bold(`${heading[1]}${heading[2]}${renderMarkdownInline(heading[3], theme)}`));

@@ -256,6 +256,19 @@ class TmuxFooterTests(unittest.TestCase):
         self.assertNotIn("#[us=#{@color-text-muted}]", config)
 
 
+class LualineConfigTests(unittest.TestCase):
+    def test_buffer_components_share_resolved_palette_colors(self):
+        config = (theme.CONFIG_DIR / "nvim/lua/plugins/lualine.lua").read_text()
+        self.assertEqual(config.count("buffers_color = buffer_colors"), 2)
+        self.assertIn('local buffer_active_bg = palette["surface-highlight"]', config)
+        self.assertIn("fg = chrome_fg", config)
+        self.assertIn("bg = buffer_active_bg", config)
+        self.assertIn("fg = inactive_fg", config)
+        self.assertIn("bg = chrome", config)
+        self.assertNotIn('bg = "chrome"', config)
+        self.assertNotIn('fg = "inactive_fg"', config)
+
+
 class PiDiscoveryTests(unittest.TestCase):
     """Pi resolves themes by internal `name`. Every canonical palette renders a
     generated pi theme named after the palette; the only other files pi

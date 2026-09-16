@@ -2,7 +2,20 @@ local palette = require("palette")
 local chrome = palette["surface-chrome"] or "#1C1C24"      -- surface-chrome (whole bar bg)
 local chrome_fg = palette["text"] or "#BEBEBE"             -- text
 local block_fg = palette["canvas"] or "#100E11"            -- canvas (dark text on accent block)
-local inactive_fg = palette["text-muted"] or "inactive_fg"     -- text-muted
+local inactive_fg = palette["text-muted"] or "#656a80"     -- text-muted
+local buffer_active_bg = palette["surface-highlight"] or "#2A2A35"
+
+local buffer_colors = {
+  active = {
+    fg = chrome_fg,
+    bg = buffer_active_bg,
+    gui = "bold",
+  },
+  inactive = {
+    fg = inactive_fg,
+    bg = chrome,
+  },
+}
 
 local filetype_spacing = {
   sections = {
@@ -15,7 +28,7 @@ local filetype_spacing = {
           return " "
         end,
         padding = 0,
-        color = { bg = "chrome", }
+        color = { bg = chrome, }
       },
       {
         "buffers",
@@ -39,18 +52,7 @@ local filetype_spacing = {
           alternate_file = "", -- Text to show to identify the alternate file
           directory = "", -- Text to show when the buffer is a directory
         },
-        buffers_color = {
-          active = {
-            -- bg = "None", --[[ fg = "#9CABCA", ]]
-            bg = "chrome",
-            gui = "bold"
-          },
-          inactive = {
-            -- bg = "None", --[[ fg = "#9CABCA", ]]
-            bg = "chrome",
-            fg = "inactive_fg",
-          },
-        },
+        buffers_color = buffer_colors,
       },
     },
     -- lualine_z = {
@@ -128,7 +130,7 @@ return {
             end,
             padding = 0,
             -- color = { bg = "None", }
-            color = { bg = "chrome" }
+            color = { bg = chrome }
           },
           {
             "buffers",
@@ -152,18 +154,7 @@ return {
               alternate_file = "", -- Text to show to identify the alternate file
               directory = "", -- Text to show when the buffer is a directory
             },
-            buffers_color = {
-              active = {
-                -- bg = "None", --[[ fg = "#9CABCA", ]]
-                -- gui = "bold"
-                bg = "chrome"
-              },
-              inactive = {
-                -- bg = "None", --[[ fg = "#9CABCA", ]]
-                bg = "chrome",
-                fg = "inactive_fg",
-              },
-            },
+            buffers_color = buffer_colors,
           },
         },
         lualine_c = {

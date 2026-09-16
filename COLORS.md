@@ -222,7 +222,7 @@ Lualine's section→color mapping is fixed: `lualine_a` + `lualine_z` use `.a`, 
   - replace → `accent-primary` `#d8647e`
 - **Inactive** (`a`/`b`/`c`) = bg `#1C1C24`, fg `text-muted` `#656a80`.
 
-Per-component overrides in the same file (the `buffers_color` block, the zero-width `#1c1c24` spacer in `lualine_b`, and the `filetype_spacing` extension) pin buffers to `#1c1c24` so they don't inherit the mode accent — consistent with the theme bg.
+Buffer colors are shared by the main component and `filetype_spacing` extension: active buffers use bold `text` on `surface-highlight`; inactive buffers use `text-muted` on `surface-chrome`. The adjacent zero-width spacer also uses the resolved `surface-chrome` value. Pass the Lua palette values themselves—not literal strings such as `"chrome"`/`"inactive_fg"`, which Neovim drops and leaves incomplete highlight groups.
 
 ## Window borders (JankyBorders)
 

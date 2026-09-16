@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import tempfile
 import unittest
@@ -125,11 +126,43 @@ class LazyGitAdapterTests(unittest.TestCase):
 class TmuxAdapterTests(unittest.TestCase):
     def test_static_styles_are_materialized(self):
         tmux = theme.render_bundle(theme.load_palette("vague"))["tmux/colors.conf"]
-        self.assertIn('set -g status-style "bg=#100E11"', tmux)
-        self.assertIn('setw -g pane-active-border-style "fg=#aeaed1, bg=#100E11"', tmux)
-        self.assertIn("if -F '#{==:#{version},next-3.8}' 'setw -g window-style \"bg=#100E11,dim=20%\"' 'setw -g window-style \"bg=#100E11\"'", tmux)
+        self.assertIn('set -g @color-surface-inactive "#0b0a0c"', tmux)
+        self.assertIn('set -g @color-surface-pane-active "#1a1920"', tmux)
+        self.assertIn('set -g status-style "bg=#100e11"', tmux)
+        self.assertIn('setw -g pane-active-border-style "fg=#aeaed1, bg=#100e11"', tmux)
+        self.assertIn("if -F '#{==:#{version},next-3.8}' 'setw -g window-style \"bg=#0b0a0c,dim=20%\"' 'setw -g window-style \"bg=#0b0a0c\"'", tmux)
         self.assertNotIn('status-style "bg=#{', tmux)
         self.assertNotIn('pane-active-border-style "fg=#{', tmux)
+
+    def test_materialized_style_hex_is_lowercase_for_safe_format_expansion(self):
+        for path in sorted(theme.PALETTES_DIR.glob("*.json")):
+            with self.subTest(palette=path.stem):
+                tmux = theme.render_bundle(theme.load_palette(path.stem))["tmux/colors.conf"]
+                static = tmux.split("# Materialized static styles", 1)[1]
+                colors = re.findall(r"#[0-9A-Fa-f]{6}", static)
+                self.assertTrue(colors)
+                self.assertEqual(colors, [color.lower() for color in colors])
+
+    def test_derived_pane_surfaces(self):
+        self.assertEqual(theme._tmux_inactive_surface("#1E1D23", "#242329"), "#151418")
+        self.assertEqual(theme._tmux_inactive_surface("#000000", "#101010"), "#080808")
+        self.assertEqual(theme._tmux_active_surface("#242329"), "#232228")
+
+    def test_derived_pane_surfaces_stay_distinct_in_every_palette(self):
+        for path in sorted(theme.PALETTES_DIR.glob("*.json")):
+            with self.subTest(palette=path.stem):
+                palette = theme.load_palette(path.stem)
+                canvas = palette["roles"]["canvas"]
+                active_role = palette["roles"]["surface-active"]
+                inactive = theme._tmux_inactive_surface(canvas, active_role)
+                active = theme._tmux_active_surface(active_role)
+                self.assertGreaterEqual(theme._hex_distance(canvas, inactive), theme.DISTINCT_SURFACE)
+                self.assertGreaterEqual(theme._hex_distance(canvas, active), theme.DISTINCT_SURFACE)
+                self.assertGreaterEqual(theme._hex_distance(inactive, active), theme.DISTINCT_SURFACE)
+
+    def test_derived_surface_validation_rejects_impossible_fallback(self):
+        with self.assertRaisesRegex(theme.ThemeError, "tmux derived canvas/inactive"):
+            theme._validate_tmux_surfaces("#000000", "#030000", "#060000")
 
     def test_tmux_sources_active_palette_portably(self):
         config = (theme.CONFIG_DIR / "tmux.conf").read_text()
@@ -243,17 +276,20 @@ class BundleDriftTests(unittest.TestCase):
 
 
 class TmuxFooterTests(unittest.TestCase):
-    def test_active_unlabeled_normal_stars_use_tertiary_without_underline(self):
+    def test_footer_uses_requested_silhouettes_and_zoom_background(self):
         config = (theme.CONFIG_DIR / "tmux.conf").read_text()
-        marker = ("──#[fg=#{@color-accent-tertiary}]*"
-                  "#[fg=#{@color-accent-secondary}]───#[fg=#{@color-accent-tertiary}]*"
-                  "#[fg=#{@color-accent-secondary}]───#[fg=#{@color-accent-tertiary}]*"
-                  "#[fg=#{@color-accent-secondary}]─#[fg=#{@color-accent-tertiary}]*"
-                  "#[fg=#{@color-accent-secondary}]─#[fg=#{@color-accent-tertiary}]*"
-                  "#[fg=#{@color-accent-secondary}]───#[fg=#{@color-accent-tertiary}]*"
-                  "#[fg=#{@color-accent-secondary}]───#[fg=#{@color-accent-tertiary}]*")
-        self.assertIn(marker, config)
-        self.assertNotIn("#[us=#{@color-text-muted}]", config)
+        self.assertIn("#{?#{window_zoomed_flag},#[bg=#{@color-divider}],}", config)
+        self.assertIn("#{?#{window_zoomed_flag},#[bg=#{@color-canvas}],}", config)
+        self.assertNotIn("#[underscore#,us=#{@color-divider}]", config)
+        self.assertIn("#{@pane-label}#[fg=#{@color-accent-secondary}]───*───*───*───*───*", config)
+        self.assertIn("#{@pane-label}#[fg=#{@color-text-muted}]───#[fg=#{@color-accent-primary}]*", config)
+        self.assertNotIn("---#[fg=#{@color-accent", config)
+        footer = next(line for line in config.splitlines() if line.startswith("setw -g pane-border-format"))
+        self.assertEqual(footer.count("#[align=centre]"), 2)
+        self.assertNotIn("align=absolute-centre", footer)
+        status_row = next(line for line in config.splitlines() if line.startswith("set -g status-format[1]"))
+        self.assertIn("#{?#{e|>:#{pane_left},0},+,}", status_row)
+        self.assertIn("#{window_width}},+,}", status_row)
 
 
 class LualineConfigTests(unittest.TestCase):

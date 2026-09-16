@@ -34,6 +34,19 @@ a hex or an `@role` reference. The full set is enforced by `theme/theme.py`'s
 `REQUIRED_ROLES`; the ANSI 0–15 array and the `native` section (Neovim/Zed names) are
 explicit per palette.
 
+The tmux adapter derives two consumer-only roles. `@color-surface-inactive` is
+canvas blended 30% toward black; when a near-black canvas cannot clear the surface
+distinctness floor, it falls back to the midpoint between canvas and
+`surface-active`. `@color-surface-pane-active` is `surface-active` blended 3%
+toward black. They strengthen pane contrast without changing shared palette
+surfaces or requiring extra hand-curated values in every palette. Theme
+application reads the derived active option when rematerializing per-window styles,
+so switching themes cannot restore the canonical undarkened value. Concrete hex
+embedded in tmux style options is emitted lowercase: tmux's nested `#{E:...}`
+expansion otherwise interprets an uppercase `#D` prefix as the pane-ID shorthand
+and can invalidate the same style directive that owns a status item's clickable
+range.
+
 ## Override layer (`overrides`)
 
 A palette may carry an optional `overrides` object (`{roles: {...}, reason?: "..."}`)

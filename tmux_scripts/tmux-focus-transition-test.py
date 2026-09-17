@@ -147,7 +147,9 @@ def run_case(name: str, *, equal_backgrounds: bool = False,
         sizes: list[int] = []
         frames: list[int] = []
 
-        for index in range(12):
+        # Discard one measured probe after warm-up; interactive shell startup can
+        # finish asynchronously and append extra synchronized frames to it.
+        for index in range(13):
             destination = second if index % 2 == 0 else first
             key = b"\x1bl" if index % 2 == 0 else b"\x1bh"
             os.write(master, key)
@@ -167,8 +169,9 @@ def run_case(name: str, *, equal_backgrounds: bool = False,
                 raise AssertionError(f"{name}: focus transition issued a full-screen erase")
             if pane_styles and not equal_backgrounds and (inactive_bg not in data or active_bg not in data):
                 raise AssertionError(f"{name}: transition omitted active/inactive backgrounds")
-            sizes.append(len(data))
-            frames.append(len(starts))
+            if index:
+                sizes.append(len(data))
+                frames.append(len(starts))
 
         return Result(name, sizes, frames)
     finally:

@@ -357,9 +357,10 @@ def verify_status_stripe_layouts() -> None:
 
 def verify_footer_centering() -> None:
     parity_cases = 0
+    inactive_color_cases = 0
 
     def run_case(cols: int, layout: str) -> None:
-        nonlocal parity_cases
+        nonlocal parity_cases, inactive_color_cases
         socket = f"{SOCKET}-footer-{cols}-{layout}"
         base = ["tmux", "-L", socket]
 
@@ -398,6 +399,7 @@ def verify_footer_centering() -> None:
                      f"{cols}/{layout} footer client did not attach")
             active_marker = run("show-option", "-gqv", "@color-accent-tertiary").lower()
             inactive_marker = run("show-option", "-gqv", "@color-accent-primary").lower()
+            muted_marker = run("show-option", "-gqv", "@color-text-muted").lower()
 
             def capture() -> tuple[list[list[str]], list[list[str | None]]]:
                 while select.select([master], [], [], 0)[0]:
@@ -462,6 +464,20 @@ def verify_footer_centering() -> None:
                                 f"{cols}/{layout}/{pane}/{state}/{needle} marker "
                                 f"color={colors[footer_row][index]!r} expected={expected_marker}"
                             )
+                        if not label and not active:
+                            motif = "*───*───*───*───*───*─*─*───*───*───*───*───*"
+                            motif_start = row.find(motif, span_start, span_end + 1)
+                            if motif_start >= 0:
+                                inactive_color_cases += 1
+                                star_offsets = [i for i, char in enumerate(motif) if char == "*"]
+                                for star_index, offset in enumerate(star_offsets):
+                                    expected = muted_marker if star_index < 3 or star_index >= 10 else inactive_marker
+                                    actual = colors[footer_row][motif_start + offset]
+                                    if actual != expected:
+                                        raise AssertionError(
+                                            f"{cols}/{layout}/{pane}/inactive star {star_index} "
+                                            f"color={actual!r} expected={expected}"
+                                        )
                         actual_center = index + (len(needle) - 1) / 2
                         fraction = (len(needle) - 1) / 2 % 1
                         expected_center = int(target_center - fraction) + fraction
@@ -489,6 +505,8 @@ def verify_footer_centering() -> None:
     run_case(180, "mixed")
     if parity_cases == 0:
         raise AssertionError("footer matrix missed odd right-edge/even-label parity")
+    if inactive_color_cases == 0:
+        raise AssertionError("footer matrix missed a fully visible inactive unlabeled motif")
 
 
 def verify_zoom_render() -> None:
@@ -626,9 +644,9 @@ def main() -> int:
         tmux("select-pane", "-t", pane)
         base_footer = {
             (pane, ""): "*───*───*───*───*───*─*─*───*───*───*───*───*",
-            (inactive, ""): "*───*───*─*─*───*───*",
+            (inactive, ""): "*───*───*───*───*───*─*─*───*───*───*───*───*",
             (pane, "label"): "*───*───*───*───*───label───*───*───*───*───*",
-            (inactive, "label"): "*───*───label───*───*",
+            (inactive, "label"): "*───*───*───*───*───label───*───*───*───*───*",
         }
 
         def footer_pad(target: str, label: str) -> str:

@@ -34,14 +34,15 @@ a hex or an `@role` reference. The full set is enforced by `theme/theme.py`'s
 `REQUIRED_ROLES`; the ANSI 0–15 array and the `native` section (Neovim/Zed names) are
 explicit per palette.
 
-The tmux adapter derives two consumer-only roles. `@color-surface-inactive` is
-canvas blended 30% toward black; when a near-black canvas cannot clear the surface
-distinctness floor, it falls back to the midpoint between canvas and
-`surface-active`. `@color-surface-pane-active` is `surface-active` blended 3%
-toward black. They strengthen pane contrast without changing shared palette
-surfaces or requiring extra hand-curated values in every palette. Theme
-application reads the derived active option when rematerializing per-window styles,
-so switching themes cannot restore the canonical undarkened value. Concrete hex
+The tmux adapter derives one consumer-only role: `@color-surface-inactive` is
+canvas blended 28% toward black; when a near-black canvas cannot clear the surface
+distinctness floor, it chooses the more distinct of the prior 30% dark blend and
+the midpoint between canvas and `surface-active`. `@color-surface-pane-active`
+aliases canvas so focused panes use the terminal background while inactive panes
+retain a subtle contrast. These
+options change no shared palette surfaces and require no extra hand-curated values
+in every palette. Theme application reads both generated options when
+rematerializing per-window styles. Concrete hex
 embedded in tmux style options is emitted lowercase: tmux's nested `#{E:...}`
 expansion otherwise interprets an uppercase `#D` prefix as the pane-ID shorthand
 and can invalidate the same style directive that owns a status item's clickable

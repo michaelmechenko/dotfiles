@@ -343,9 +343,8 @@ def check_quality(p: dict) -> list[str]:
         findings.append(f"{name}: canvas vs surface-active too similar ({d:.1f} < {DISTINCT_SURFACE}, {r['canvas']} vs {r['surface-active']})")
 
     inactive = _tmux_inactive_surface(r["canvas"], r["surface-active"])
-    active = _tmux_active_surface(r["surface-active"])
     try:
-        _validate_tmux_surfaces(r["canvas"], inactive, active)
+        _validate_tmux_surfaces(r["canvas"], inactive)
     except ThemeError as exc:
         findings.append(f"{name}: {exc}")
 
@@ -419,33 +418,26 @@ def _blend_toward_black(color: str, factor: float) -> str:
 
 def _tmux_inactive_surface(canvas: str, active: str) -> str:
     """Return tmux's inactive surface, preserving contrast on near-black canvas."""
-    inactive = _blend_toward_black(canvas, 0.70)
-    if _hex_distance(canvas, inactive) < DISTINCT_SURFACE:
-        channels = (
-            round((int(canvas[i:i + 2], 16) + int(active[i:i + 2], 16)) / 2)
-            for i in (1, 3, 5)
+    preferred = _blend_toward_black(canvas, 0.72)
+    if _hex_distance(canvas, preferred) >= DISTINCT_SURFACE:
+        return preferred
+
+    darker = _blend_toward_black(canvas, 0.70)
+    channels = (
+        round((int(canvas[i:i + 2], 16) + int(active[i:i + 2], 16)) / 2)
+        for i in (1, 3, 5)
+    )
+    midpoint = "#" + "".join(f"{channel:02x}" for channel in channels)
+    return max((darker, midpoint), key=lambda color: _hex_distance(canvas, color))
+
+
+def _validate_tmux_surfaces(canvas: str, inactive: str) -> None:
+    distance = _hex_distance(canvas, inactive)
+    if distance < DISTINCT_SURFACE:
+        raise ThemeError(
+            "tmux derived canvas/inactive surfaces too similar "
+            f"({distance:.1f} < {DISTINCT_SURFACE}, {canvas} vs {inactive})"
         )
-        inactive = "#" + "".join(f"{channel:02x}" for channel in channels)
-    return inactive
-
-
-def _tmux_active_surface(active: str) -> str:
-    """Return tmux's split-pane active surface: 3% darker than the palette role."""
-    return _blend_toward_black(active, 0.97)
-
-
-def _validate_tmux_surfaces(canvas: str, inactive: str, active: str) -> None:
-    for label, first, second in (
-        ("canvas/inactive", canvas, inactive),
-        ("canvas/active", canvas, active),
-        ("inactive/active", inactive, active),
-    ):
-        distance = _hex_distance(first, second)
-        if distance < DISTINCT_SURFACE:
-            raise ThemeError(
-                f"tmux derived {label} surfaces too similar "
-                f"({distance:.1f} < {DISTINCT_SURFACE}, {first} vs {second})"
-            )
 
 
 def _tmux(p: dict) -> str:
@@ -456,7 +448,7 @@ def _tmux(p: dict) -> str:
     canvas = r["canvas"].lower()
     active_role = r["surface-active"].lower()
     inactive = _tmux_inactive_surface(canvas, active_role)
-    active = _tmux_active_surface(active_role)
+    active = canvas
     accent = r["accent-secondary"].lower()
     muted = r["text-muted"].lower()
     default = r["text-default"].lower()

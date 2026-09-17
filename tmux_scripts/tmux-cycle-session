@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+direction=${1:-}
+client=${2:-}
+case "$direction" in
+  previous|next) ;;
+  *) exit 2 ;;
+esac
+[ -n "$client" ] || exit 2
+
+current=""
+while IFS=$'\t' read -r client_name session_id; do
+  if [[ "$client_name" == "$client" ]]; then
+    current=$session_id
+    break
+  fi
+done < <(tmux list-clients -F $'#{client_name}\t#{session_id}')
+[ -n "$current" ] || exit 1
+
+float=()
+other=()
+while IFS=$'\t' read -r session_id session_name; do
+  [ -n "$session_id" ] || continue
+  if [[ "$session_name" == float ]]; then
+    float+=("$session_id")
+  else
+    other+=("$session_id")
+  fi
+done < <(tmux list-sessions -O creation -F $'#{session_id}\t#{session_name}')
+
+sessions=("${float[@]}" "${other[@]}")
+count=${#sessions[@]}
+((count > 0)) || exit 0
+
+current_index=-1
+for ((i = 0; i < count; i++)); do
+  if [[ "${sessions[i]}" == "$current" ]]; then
+    current_index=$i
+    break
+  fi
+done
+((current_index >= 0)) || exit 1
+
+if [[ "$direction" == previous ]]; then
+  target_index=$(((current_index - 1 + count) % count))
+else
+  target_index=$(((current_index + 1) % count))
+fi
+
+tmux switch-client -c "$client" -t "${sessions[target_index]}"

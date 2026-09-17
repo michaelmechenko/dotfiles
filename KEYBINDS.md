@@ -320,8 +320,8 @@ Type a query; every matching substring in the popup's visible content rows gets 
 | Key | Scope | Action |
 | --- | --- | --- |
 | `MouseDown1Status` | root | Switch to the clicked status-bar window (native window range; attached-client verified) |
-| `MouseDown1StatusRight` | root | Session chooser on status-right click (`tmux-status-session-ls`; backgrounded — tmux 3.7 segfault workaround) |
-| `MouseDown3StatusRight` | root | Pane chooser on status-right right-click (`tmux-status-pane-ls`; backgrounded) |
+| `MouseDown1StatusRight` | root | Switch to previous session in float-first creation order |
+| `MouseDown3StatusRight` | root | Switch to next session in float-first creation order |
 | `MouseDown3Pane` | root | Pane context menu (open-in-finder, history top/bottom, paste, copy word/line/link, splits, swap, kill, respawn, mark, zoom) |
 | `M-MouseDown3Pane` | root | Force pane context menu (even when app has mouse focus) |
 

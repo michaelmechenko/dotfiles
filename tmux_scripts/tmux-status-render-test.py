@@ -585,6 +585,10 @@ def main() -> int:
         root_keys = tmux("list-keys", "-T", "root")
         if "M-Tab" not in root_keys or "M-BTab" not in root_keys or "M-S-Tab" in root_keys:
             raise AssertionError("sidebar Meta/Backtab bindings do not match the transport contract")
+        if not re.search(r"MouseDown1StatusRight\s+run-shell -b .*tmux-cycle-session previous", root_keys):
+            raise AssertionError("status-right left click is not previous-session cycling")
+        if not re.search(r"MouseDown3StatusRight\s+run-shell -b .*tmux-cycle-session next", root_keys):
+            raise AssertionError("status-right right click is not next-session cycling")
 
         tmux("new-session", "-d", "-s", "float-work")
         tmux("new-session", "-d", "-s", "float")
@@ -635,6 +639,20 @@ def main() -> int:
         before_active = wide[:wide.find("#[underscore]")]
         if before_active.count(" * ") != 1:
             raise AssertionError("only the exact float session should precede the active non-float session")
+
+        def click_status_right(button: int, expected_session: str) -> None:
+            tmux("switch-client", "-c", client_name, "-t", "=alpha")
+            wait_for(lambda: client_state()[0] == "alpha", "client did not reset to alpha")
+            os.write(master, f"\x1b[<{button};220;1M".encode())
+            wait_for(
+                lambda: client_state()[0] == expected_session,
+                f"status-right button {button} did not switch to {expected_session}",
+            )
+
+        click_status_right(0, "float")
+        click_status_right(2, "float-work")
+        tmux("switch-client", "-c", client_name, "-t", "=alpha")
+        wait_for(lambda: client_state()[0] == "alpha", "client did not return to alpha")
 
         def plain_format(value: str) -> str:
             return re.sub(r"#\[[^]]*\]", "", value)

@@ -16,7 +16,12 @@ esac
 pane_pid=${1:-}
 [ -n "$pane_pid" ] || exit 2
 
-PI_SESS_DIR=${PI_SESS_DIR:-"$HOME/.config/pi-config/agent/sessions"}
+# pi's transcript store lives under whatever config dir the active pi runs
+# with: $PI_CODING_AGENT_DIR (exported by zshrc, or zshrc.local for a
+# machine-local deployment) wins; the in-repo ~/.config/pi-config path is
+# only the last-resort default. An explicit PI_SESS_DIR override outranks
+# both (used by the test fixture).
+PI_SESS_DIR=${PI_SESS_DIR:-"${PI_CODING_AGENT_DIR:-$HOME/.config/pi-config/agent}/sessions"}
 PI_STATE_DIR=${PI_STATE_DIR:-/tmp/pi-session-state}
 
 trim() {

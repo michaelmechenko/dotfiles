@@ -38,10 +38,12 @@ The tmux adapter derives one consumer-only role: `@color-surface-inactive` is
 canvas blended 28% toward black; when a near-black canvas cannot clear the surface
 distinctness floor, it chooses the more distinct of the prior 30% dark blend and
 the midpoint between canvas and `surface-active`. `@color-surface-pane-active`
-aliases canvas so focused panes use the terminal background while inactive panes
-retain a subtle contrast. These
-options change no shared palette surfaces and require no extra hand-curated values
-in every palette. Theme application reads both generated options when
+lifts canvas by a small RGB delta (`+3,+3,+4`) so split-focused panes sit just
+above the terminal background while inactive panes retain a subtle contrast. On a
+near-black palette where that lift cannot stay distinct from the inactive fallback,
+it uses canonical `surface-active`; single-pane and zoomed windows remain on canvas.
+These options change no shared palette surfaces and require no extra hand-curated
+values in every palette. Theme application reads both generated options when
 rematerializing per-window styles. Concrete hex
 embedded in tmux style options is emitted lowercase: tmux's nested `#{E:...}`
 expansion otherwise interprets an uppercase `#D` prefix as the pane-ID shorthand

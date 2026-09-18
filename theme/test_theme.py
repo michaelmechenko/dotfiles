@@ -127,7 +127,7 @@ class TmuxAdapterTests(unittest.TestCase):
     def test_static_styles_are_materialized(self):
         tmux = theme.render_bundle(theme.load_palette("vague"))["tmux/colors.conf"]
         self.assertIn('set -g @color-surface-inactive "#0c0a0c"', tmux)
-        self.assertIn('set -g @color-surface-pane-active "#100e11"', tmux)
+        self.assertIn('set -g @color-surface-pane-active "#131115"', tmux)
         self.assertIn('set -g status-style "bg=#100e11"', tmux)
         self.assertIn('setw -g pane-active-border-style "fg=#aeaed1, bg=#100e11"', tmux)
         self.assertIn("if -F '#{==:#{version},next-3.8}' 'setw -g window-style \"bg=#0c0a0c,dim=20%\"' 'setw -g window-style \"bg=#0c0a0c\"'", tmux)
@@ -146,6 +146,8 @@ class TmuxAdapterTests(unittest.TestCase):
     def test_derived_pane_surfaces(self):
         self.assertEqual(theme._tmux_inactive_surface("#1E1D23", "#242329"), "#161519")
         self.assertEqual(theme._tmux_inactive_surface("#000000", "#101010"), "#080808")
+        self.assertEqual(theme._tmux_active_surface("#1E1D23", "#161519", "#242329"), "#212027")
+        self.assertEqual(theme._tmux_active_surface("#050505", "#0a0a0a", "#0f0f0f"), "#0f0f0f")
 
     def test_derived_pane_surfaces_stay_distinct_in_every_palette(self):
         for path in sorted(theme.PALETTES_DIR.glob("*.json")):
@@ -153,11 +155,13 @@ class TmuxAdapterTests(unittest.TestCase):
                 palette = theme.load_palette(path.stem)
                 canvas = palette["roles"]["canvas"]
                 inactive = theme._tmux_inactive_surface(canvas, palette["roles"]["surface-active"])
+                active = theme._tmux_active_surface(canvas, inactive, palette["roles"]["surface-active"])
                 self.assertGreaterEqual(theme._hex_distance(canvas, inactive), theme.DISTINCT_SURFACE)
+                self.assertGreaterEqual(theme._hex_distance(inactive, active), theme.DISTINCT_SURFACE)
 
     def test_derived_surface_validation_rejects_impossible_fallback(self):
         with self.assertRaisesRegex(theme.ThemeError, "tmux derived canvas/inactive"):
-            theme._validate_tmux_surfaces("#000000", "#030000")
+            theme._validate_tmux_surfaces("#000000", "#030000", "#060000")
 
     def test_tmux_sources_active_palette_portably(self):
         config = (theme.CONFIG_DIR / "tmux.conf").read_text()

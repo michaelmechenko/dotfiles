@@ -343,8 +343,9 @@ def check_quality(p: dict) -> list[str]:
         findings.append(f"{name}: canvas vs surface-active too similar ({d:.1f} < {DISTINCT_SURFACE}, {r['canvas']} vs {r['surface-active']})")
 
     inactive = _tmux_inactive_surface(r["canvas"], r["surface-active"])
+    active = _tmux_active_surface(r["canvas"], inactive, r["surface-active"])
     try:
-        _validate_tmux_surfaces(r["canvas"], inactive)
+        _validate_tmux_surfaces(r["canvas"], inactive, active)
     except ThemeError as exc:
         findings.append(f"{name}: {exc}")
 
@@ -431,13 +432,27 @@ def _tmux_inactive_surface(canvas: str, active: str) -> str:
     return max((darker, midpoint), key=lambda color: _hex_distance(canvas, color))
 
 
-def _validate_tmux_surfaces(canvas: str, inactive: str) -> None:
-    distance = _hex_distance(canvas, inactive)
-    if distance < DISTINCT_SURFACE:
-        raise ThemeError(
-            "tmux derived canvas/inactive surfaces too similar "
-            f"({distance:.1f} < {DISTINCT_SURFACE}, {canvas} vs {inactive})"
-        )
+def _tmux_active_surface(canvas: str, inactive: str, fallback: str) -> str:
+    """Return tmux's subtly lifted focused-pane surface."""
+    channels = (min(255, int(canvas[i:i + 2], 16) + offset)
+                for i, offset in zip((1, 3, 5), (3, 3, 4)))
+    preferred = "#" + "".join(f"{channel:02x}" for channel in channels)
+    if _hex_distance(inactive, preferred) >= DISTINCT_SURFACE:
+        return preferred
+    return fallback.lower()
+
+
+def _validate_tmux_surfaces(canvas: str, inactive: str, active: str) -> None:
+    for label, first, second in (
+        ("canvas/inactive", canvas, inactive),
+        ("inactive/active", inactive, active),
+    ):
+        distance = _hex_distance(first, second)
+        if distance < DISTINCT_SURFACE:
+            raise ThemeError(
+                f"tmux derived {label} surfaces too similar "
+                f"({distance:.1f} < {DISTINCT_SURFACE}, {first} vs {second})"
+            )
 
 
 def _tmux(p: dict) -> str:
@@ -448,7 +463,7 @@ def _tmux(p: dict) -> str:
     canvas = r["canvas"].lower()
     active_role = r["surface-active"].lower()
     inactive = _tmux_inactive_surface(canvas, active_role)
-    active = canvas
+    active = _tmux_active_surface(canvas, inactive, active_role)
     accent = r["accent-secondary"].lower()
     muted = r["text-muted"].lower()
     default = r["text-default"].lower()

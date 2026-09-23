@@ -18,6 +18,14 @@
 SRC="$HOME/.config/tmux_scripts/mm-sidebar"
 BIN="$SRC/mm-sidebar"
 
+# Linux/Nix packages the binary ahead of time because the source tree is
+# immutable in the Nix store. macOS retains the on-demand build path below.
+if [ -n "${MM_SIDEBAR_BIN:-}" ] && [ -x "$MM_SIDEBAR_BIN" ] &&
+    "$MM_SIDEBAR_BIN" --help >/dev/null 2>&1; then
+    printf '%s\n' "$MM_SIDEBAR_BIN"
+    exit 0
+fi
+
 needs_build() {
     [ -x "$BIN" ] || return 0
     # Source packages can be nested arbitrarily. Keep the check recursive so a

@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"mm-sidebar/internal/projectcatalog"
@@ -112,7 +113,7 @@ func fileActions(path string) []ContextAction {
 		{ID: "open", Label: "open file", Kind: ContextOpenFile, Path: path},
 		{ID: "open-parent", Label: "open parent split", Kind: ContextOpenParent, Path: path},
 		{ID: "copy-path", Label: "copy path", Kind: ContextCopyPath, Path: path},
-		{ID: "reveal", Label: "reveal in Finder", Kind: ContextRevealPath, Path: path},
+		{ID: "reveal", Label: "reveal in file manager", Kind: ContextRevealPath, Path: path},
 	}
 }
 
@@ -127,7 +128,7 @@ func projectDirActions(path, commonDir string) []ContextAction {
 		{ID: "open", Label: "open split here", Kind: ContextOpenDir, Path: path, CommonDir: commonDir},
 		{ID: "new-window", Label: "new window here", Kind: ContextNewWindow, Path: path, CommonDir: commonDir},
 		{ID: "copy-path", Label: "copy path", Kind: ContextCopyPath, Path: path},
-		{ID: "reveal", Label: "reveal in Finder", Kind: ContextRevealPath, Path: path},
+		{ID: "reveal", Label: "reveal in file manager", Kind: ContextRevealPath, Path: path},
 	}
 }
 
@@ -150,7 +151,7 @@ func projectActions(path, commonDir string, pane *tmuxio.PaneRow) []ContextActio
 		ContextAction{ID: "pi", Label: "open pi", Kind: ContextOpenPi, Path: path, CommonDir: commonDir},
 		ContextAction{ID: "claude", Label: "open Claude", Kind: ContextOpenClaude, Path: path, CommonDir: commonDir},
 		ContextAction{ID: "copy-path", Label: "copy path", Kind: ContextCopyPath, Path: path},
-		ContextAction{ID: "reveal", Label: "reveal in Finder", Kind: ContextRevealPath, Path: path},
+		ContextAction{ID: "reveal", Label: "reveal in file manager", Kind: ContextRevealPath, Path: path},
 	)
 	return actions
 }
@@ -270,7 +271,13 @@ func (e ContextExecutor) Execute(client *tmuxio.Client, action ContextAction, co
 		if _, err := os.Stat(action.Path); err != nil {
 			return result, errors.New("path no longer exists")
 		}
-		_ = exec.Command("open", "-R", action.Path).Run()
+		if runtime.GOOS == "darwin" {
+			_ = exec.Command("open", "-R", action.Path).Run()
+		} else if _, err := exec.LookPath("dolphin"); err == nil {
+			_ = exec.Command("dolphin", "--select", action.Path).Run()
+		} else {
+			_ = exec.Command("xdg-open", filepath.Dir(action.Path)).Run()
+		}
 	case ContextOpenParent:
 		client.SplitAt(content, filepath.Dir(action.Path))
 	case ContextAgentResponse:
@@ -351,9 +358,13 @@ func (e ContextExecutor) Execute(client *tmuxio.Client, action ContextAction, co
 func copyPath(path string) { copyText(path) }
 
 func copyText(text string) {
-	cmd := exec.Command("pbcopy")
+	name := "pbcopy"
+	if runtime.GOOS != "darwin" {
+		name = "wl-copy"
+	}
+	cmd := exec.Command(name)
 	cmd.Stdin = strings.NewReader(text)
-	// pbcopy is intentionally best-effort: a headless test or SSH environment
-	// must not make an otherwise-valid palette action fatal.
+	// Clipboard writes are best-effort: a headless test or SSH environment must
+	// not make an otherwise-valid palette action fatal.
 	_ = cmd.Run()
 }

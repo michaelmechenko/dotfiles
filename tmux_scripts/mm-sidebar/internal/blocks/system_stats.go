@@ -1,9 +1,11 @@
 package blocks
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -165,29 +167,34 @@ func sampleCPU() int {
 // sysctl on every 5s sample -- two forks per tick, forever, for values that
 // cannot change while the process lives. Resolved once, on first use.
 var (
-	cpuThreadsOnce sync.Once
-	cpuThreadsVal  = 1
-
 	memTotalOnce sync.Once
 	memTotalVal  int64
 )
 
 func cpuThreads() int {
-	cpuThreadsOnce.Do(func() {
-		out, err := exec.Command("sysctl", "-n", "machdep.cpu.thread_count").Output()
-		if err != nil {
-			return
-		}
-		if n, err := strconv.Atoi(strings.TrimSpace(string(out))); err == nil && n > 0 {
-			cpuThreadsVal = n
-		}
-	})
-	return cpuThreadsVal
+	if n := runtime.NumCPU(); n > 0 {
+		return n
+	}
+	return 1
 }
 
 // memTotal returns total RAM in bytes, or 0 if it couldn't be read.
 func memTotal() int64 {
 	memTotalOnce.Do(func() {
+		if runtime.GOOS == "linux" {
+			data, err := os.ReadFile("/proc/meminfo")
+			if err != nil {
+				return
+			}
+			for _, line := range strings.Split(string(data), "\n") {
+				var kb int64
+				if _, err := fmt.Sscanf(line, "MemTotal: %d kB", &kb); err == nil && kb > 0 {
+					memTotalVal = kb * 1024
+					return
+				}
+			}
+			return
+		}
 		out, err := exec.Command("sysctl", "-n", "hw.memsize").Output()
 		if err != nil {
 			return
@@ -210,6 +217,19 @@ var vmStatPageSize = regexp.MustCompile(`page size of (\d+) bytes`)
 func sampleMem() int {
 	total := memTotal()
 	if total <= 0 {
+		return 0
+	}
+	if runtime.GOOS == "linux" {
+		data, err := os.ReadFile("/proc/meminfo")
+		if err != nil {
+			return 0
+		}
+		var availableKB int64
+		for _, line := range strings.Split(string(data), "\n") {
+			if _, err := fmt.Sscanf(line, "MemAvailable: %d kB", &availableKB); err == nil && availableKB >= 0 {
+				return clampPct(int(100 - availableKB*1024*100/total))
+			}
+		}
 		return 0
 	}
 	out, err := exec.Command("vm_stat").Output()

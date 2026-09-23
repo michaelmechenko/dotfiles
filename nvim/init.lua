@@ -1,4 +1,4 @@
-local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
+local lazypath = vim.env.NVIM_LAZY_PATH or (vim.fn.stdpath("data") .. "/lazy/lazy.nvim")
 if not (vim.uv or vim.loop).fs_stat(lazypath) then
   vim.fn.system({
     "git",
@@ -11,6 +11,9 @@ if not (vim.uv or vim.loop).fs_stat(lazypath) then
 end
 
 vim.opt.rtp:prepend(lazypath)
+if vim.env.NVIM_TREESITTER_RTP then
+  vim.opt.rtp:prepend(vim.env.NVIM_TREESITTER_RTP)
+end
 vim.opt.termguicolors = true
 vim.opt.cursorline = true
 vim.opt.conceallevel = 0
@@ -104,12 +107,20 @@ vim.diagnostic.config({
 
 require("vim-keymaps")
 require("filetypes")
+local declarative_nvim = vim.env.NIXOS_DECLARATIVE_NVIM == "1"
 require("lazy").setup("plugins", {
+  install = { missing = not declarative_nvim },
+  root = declarative_nvim and vim.env.NVIM_PLUGIN_PATH or nil,
+  lockfile = declarative_nvim
+      and (vim.fn.stdpath("state") .. "/lazy-lock.json")
+    or (vim.fn.stdpath("config") .. "/lazy-lock.json"),
   performance = {
     rtp = {
       -- lazy resets rtp, dropping the XDG_DATA_DIRS entry where Ghostty ships its own
       -- syntax/ftplugin/compiler files for `ghostty/config`.
-      paths = { "/Applications/Ghostty.app/Contents/Resources/nvim/site" },
+      paths = vim.fn.has("mac") == 1
+          and { "/Applications/Ghostty.app/Contents/Resources/nvim/site" }
+        or {},
     },
   },
 })

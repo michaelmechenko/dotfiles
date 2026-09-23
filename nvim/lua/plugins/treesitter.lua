@@ -53,12 +53,14 @@ return {
         "terraform",
         "scss",
       }
-      local installed = require("nvim-treesitter.config").get_installed()
-      local missing = vim.iter(ensure_installed)
-        :filter(function(p) return not vim.tbl_contains(installed, p) end)
-        :totable()
-      if #missing > 0 then
-        require("nvim-treesitter").install(missing)
+      if vim.env.NIXOS_DECLARATIVE_NVIM ~= "1" then
+        local installed = require("nvim-treesitter.config").get_installed()
+        local missing = vim.iter(ensure_installed)
+          :filter(function(p) return not vim.tbl_contains(installed, p) end)
+          :totable()
+        if #missing > 0 then
+          require("nvim-treesitter").install(missing)
+        end
       end
 
       -- Enable treesitter highlight and indent for all filetypes

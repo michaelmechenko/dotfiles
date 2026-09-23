@@ -11,6 +11,21 @@ Single source of truth for colors used across tmux, Ghostty, and zsh (via ohmypo
 > (`@color-rose`, `@color-lavender2`, …) are gone. The per-tool gotchas below remain
 > hand-written and authoritative.
 
+## Linux NixOS bootstrap
+
+`nix/home/palette.nix` reads `theme/palettes/vague.json`, resolves role references
+and optional role overrides, and supplies the Linux-only desktop and terminal
+modules. Hyprland active borders and selected controls use `accent-secondary`;
+inactive borders use `divider-subtle`; Waybar/launcher/notifications use
+`surface-chrome`, `surface-highlight`, `text`, and `text-ui`; urgent states use
+`accent-primary`; the lock background uses `canvas`. Ghostty uses the palette's
+`ghostty` and ANSI definitions, and Oh My Posh retains `ohmyposh/base.json` with
+the resolved roles injected as its palette. No new color role is introduced.
+
+Linux currently selects Vague declaratively at rebuild time. The macOS live
+`theme switch` command is not deployed by this bootstrap; changing the canonical
+palette requires rebuilding the Linux profile. See `nix/README.md` for scope.
+
 ## Roles
 
 ### Surfaces

@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/usr/bin/env zsh
 
 # Move the current ephemeral popup pane into the window it was spawned from
 # (bound to `prefix a`). No-op outside an ephemeral session. Uses join-pane,

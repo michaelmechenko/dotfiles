@@ -1,37 +1,33 @@
 ---
 name: cc-clipboard
-description: "Pipe relevant content to the clipboard via pbcopy. Use when asked to copy something to clipboard, or when instructed to make content available for pasting. Pass -l/--lowercase to lowercase the copied content."
+description: "Pipe relevant content to the system clipboard. Use when asked to copy something to clipboard, or when instructed to make content available for pasting. Pass -l/--lowercase to lowercase the copied content."
 allowed-tools: bash read grep find
 ---
 
 # Copy Content to Clipboard
 
-Identify the content the user wants copied, then pipe it to `pbcopy`.
+Identify the requested content, then pipe it to the cross-platform `copy` helper
+(`pbcopy` on macOS, `wl-copy` on Wayland).
 
 ## Flags
 
-- `-l` / `--lowercase` — lowercase the content before copying by inserting
-  `tr '[:upper:]' '[:lower:]'` in the pipe just before `pbcopy`. Applies to whatever content
-  the skill would otherwise copy (file, command output, generated text, search results).
+- `-l` / `--lowercase` — insert `tr '[:upper:]' '[:lower:]'` immediately before `copy`.
 
 ## Workflow
 
-1. Check whether the user asked for lowercasing; the remainder of their request is the file/pattern hint (if any).
-2. Determine what content is requested (file, code block, command output, search result, etc.)
-3. Read or generate the content.
-4. Pipe it to `pbcopy` via bash — routing through `tr` first when lowercase is requested.
+1. Check whether lowercasing was requested.
+2. Determine the requested content.
+3. Read or generate it.
+4. Pipe it to `copy`, routing through `tr` first when requested.
+5. Briefly confirm what was copied without echoing the full content.
 
 ## Examples
 
-- **Whole file**: `cat path/to/file | pbcopy`
-- **Line range**: `sed -n '10,25p' path/to/file | pbcopy`
-- **Command output**: `some-command | pbcopy`
-- **Generated text**: `echo 'content' | pbcopy`
-- **Search results**: `rg 'pattern' path | pbcopy`
-- **Lowercased**: `cat path/to/file | tr '[:upper:]' '[:lower:]' | pbcopy`
+- Whole file: `cat path/to/file | copy`
+- Line range: `sed -n '10,25p' path/to/file | copy`
+- Command output: `some-command | copy`
+- Generated text: `printf '%s' 'content' | copy`
+- Search results: `rg 'pattern' path | copy`
+- Lowercased: `cat path/to/file | tr '[:upper:]' '[:lower:]' | copy`
 
-## Guidelines
-
-- Always confirm what was copied (brief summary, not the full content); note when it was lowercased.
-- For large content, warn the user before copying
-- If the user specified a file or pattern, use that directly
+Warn before copying unusually large content. Use a user-specified file or pattern directly.

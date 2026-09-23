@@ -7,6 +7,13 @@ is not used here.
 Everything under `agent/` is auto-discovered by pi except where noted. After changing extensions,
 agents, or prompts, run `/reload` inside a pi session to pick up changes without restarting.
 
+On NixOS, `nix/home/pi.nix` installs pinned Pi 0.86.1 and deploys only public resources. Settings,
+keybindings, package state, toggles, credentials, sessions, and caches remain writable under this
+same `PI_CODING_AGENT_DIR`; Home Manager seeds settings/keybindings/package dependencies only when
+absent. Local dependency-bearing extensions and the three external packages are built by Nix, so
+normal startup does not run npm. Mac `node_modules`, auth, and session state are never deployment
+inputs. The active Pi theme is the generated Nix-owned Vague bundle.
+
 ## Layout
 
 ```
@@ -145,7 +152,7 @@ resolution this extension uses internally. To pick up upstream changes, diff aga
 |---|---|
 | `lsp-startup/` | On a fresh interactive Pi launch, displays the globally/project-enabled LSP server names once as a notification. It respects Pi's global-plus-project LSP merge and an all-LSP disable; it does not display LSP status in the footer. |
 | `markdown-code/` | Display-only fenced-code language hints for Pi chat Markdown. Explicit tags win; recognizable untagged JavaScript, TypeScript, Python, shell, and JSON blocks receive conservative hints so Pi's native highlighter uses the active theme, while prose and ambiguous blocks remain plain. The same fence scanner is reused by `pretty/` Markdown read previews. |
-| `finder/` | `open_in_finder` tool — opens/reveals a referenced local path in macOS Finder, or in ForkLift when `/Applications/ForkLift.app` is installed (auto-preferred, Finder fallback). Directories open as a pane/tab; files are revealed-and-selected in their parent folder. Resolves `@`-prefixed, `~`-home-relative, absolute, and cwd-relative paths (cwd-relative against `ctx.cwd`, same convention as the built-in file tools), validates existence via `stat` before invoking either app, then spawns the handler directly with an argv array (no shell, no Oh My Zsh `ofd` alias, no tmux dependency). **ForkLift path:** `/usr/bin/osascript -e 'tell application "ForkLift" to reveal path "<absPath>"'` (the `reveal` command from ForkLift's `Contents/Resources/ForkLift.sdef`); `reveal` does not steal focus and is a silent no-op on missing paths, which is why existence is checked first and `activate` is deliberately omitted. **Finder path (fallback or no ForkLift):** `/usr/bin/open <dir>` or `/usr/bin/open -R <file>`. On the first ForkLift call a brand-new install may prompt for Automation permission for the calling terminal (TCC is per source-app); the probe from this terminal ran unprompted. Used when the user asks to "open this folder in Finder" or reveal/show a file the agent just referenced; it only acts when explicitly requested and reports the resolved path plus which app handled it (`details.app: "forklift" \| "finder"`). macOS-only (throws on other platforms). |
+| `finder/` | `open_in_finder` tool — opens/reveals a referenced local path after validating it. On macOS it prefers ForkLift and falls back to Finder (`open`/`open -R`); on Linux it uses Dolphin (`--select` for files) and falls back to `xdg-open`. Resolves `@`, `~`, absolute, and cwd-relative paths and spawns argv directly without a shell. It acts only when explicitly requested and reports the resolved path and handler. |
 | `tmux/` | `tmux` tool plus `/tmux`, `/tmux:cat`, and `/tmux:fork [below|right]` commands. `/tmux:fork` waits for Pi to become idle, duplicates the current active branch at its exact leaf into a new session file, and opens that fork in a detached pane below by default or right when requested, preserving source focus and cwd. Forked Pi falls through to a login shell when it exits. Pi's built-in `/fork` previous-message picker remains unchanged because built-in interactive commands cannot be disabled through the extension interface. Managed jobs expose only `run`, `attach`, `peek`, `list`, and `mute`; use argv-based tmux calls, private durable records, bounded capture output, one-shot silence/completion notifications, and Ghostty attachment without switching the source client. The public extension never offers session/window/pane deletion. |
 
 ### Local tool renderers and execution extensions
@@ -203,14 +210,16 @@ Installed via `pi install npm:<name>` (writes here automatically; `pi update --e
 
 | Package | Purpose |
 |---|---|
-| `@dreki-gg/pi-lsp` | Generic LSP integration with 11 operations. The tracked config enables TypeScript, Pyright, and Bash and disables Rust, Go, and Lua. Installed v0.5.2 still reads legacy `~/.pi/agent/extensions/lsp/config.json` instead of `PI_CODING_AGENT_DIR`; that live legacy file currently disables every server. `lsp-startup/` reports the effective configured state, direct availability, unverified npx fallbacks, true missing commands, and the root mismatch. |
+| `@dreki-gg/pi-lsp` | Generic LSP integration with 11 operations. The tracked config enables TypeScript, Pyright, and Bash and disables Rust, Go, and Lua. NixOS patches v0.5.2's global config lookup to honor `PI_CODING_AGENT_DIR`, avoiding a second `~/.pi` root; macOS behavior is unchanged. `lsp-startup/` reports the effective configured state and executable availability. |
 | `pi-ast-grep` | Generic AST search — one `ast_grep` tool wrapping the `ast-grep` CLI (`run`/`scan`). **Read-only in v0**, no rewrite mode. For structural rewrites, invoke the `ast-grep` CLI directly via `bash` (`ast-grep run -p '<pattern>' -r '<rewrite>' -U`) |
 | `pi-mcp-adapter` | Installed but intentionally unconfigured pending a separate keep/configure/remove decision. |
 
 
 
 Installed package sources live under `agent/npm/node_modules/` (gitignored — see `agent/npm/.gitignore`
-and the repo-root `.gitignore` entry for `agent/extensions/*/node_modules`).
+and the repo-root `.gitignore` entry for `agent/extensions/*/node_modules`). NixOS seeds exact versions
+`@dreki-gg/pi-lsp@0.5.2`, `pi-ast-grep@0.1.0`, and `pi-mcp-adapter@2.36.0` into this writable workspace;
+subsequent user package-management changes are not overwritten.
 
 ## Agents & Prompts
 

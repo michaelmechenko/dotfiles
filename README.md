@@ -42,4 +42,9 @@ cool tools and things used:
 
 #### nixos
 
-soon
+The Linux desktop bootstrap lives in [`flake.nix`](flake.nix) and [`nix/`](nix/README.md).
+It preserves the installed Plasma fallback and adds Hyprland/UWSM, a clickable
+Waybar, desktop applications, and Linux-adapted versions of the shared terminal,
+Neovim, tmux/sidebar, and Pi workflows. See `nix/README.md` for deployment,
+activation, recovery, mutable-state boundaries, and acceptance tests. It does not
+change the macOS behavior.

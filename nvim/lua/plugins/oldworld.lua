@@ -1,3 +1,5 @@
+if vim.env.NIXOS_DECLARATIVE_NVIM == "1" then return {} end
+
 return {
   {
     "dgox16/oldworld.nvim",

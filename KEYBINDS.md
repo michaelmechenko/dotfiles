@@ -1,6 +1,36 @@
 # Keybinds
 
-Reference for all active keybinds across AeroSpace (`aerospace/aerospace.toml`), Hammerspoon (`hammerspoon/init.lua`), tmux (`tmux.conf`), and pi. Modifier order: `cmd` > `ctrl` > `alt` > `shift`.
+Reference for keybinds across AeroSpace (`aerospace/aerospace.toml`), Hammerspoon (`hammerspoon/init.lua`), tmux (`tmux.conf`), pi, and the Linux bootstrap (`nix/home/`). Modifier order: `cmd` > `ctrl` > `alt` > `shift`.
+
+## Linux bootstrap — Hyprland
+
+These bindings apply after activating the NixOS profile and selecting Hyprland
+(managed by UWSM), not in the Plasma fallback. `Super` is the Windows/Command key.
+The full Mac tmux/sidebar and Neovim plugin configuration is not enabled here.
+
+| Key | Action |
+| --- | --- |
+| `Super-Enter` | Open Ghostty |
+| `Super-Space` | Search/launch applications with fuzzel |
+| `Super-e` / `Super-b` | Open Dolphin / Firefox |
+| `Super-q` | Close focused window |
+| `Super-f` | Toggle fullscreen |
+| `Super-Shift-Space` | Toggle floating |
+| `Super-h/j/k/l` | Focus left/down/up/right |
+| `Super-1..9` | Switch workspace |
+| `Super-Shift-1..9` | Move window to workspace |
+| `Super` + left/right mouse drag | Move/resize window |
+| `Super-Ctrl-l` | Lock session |
+| `Super-Shift-Escape` | Session menu: lock, log out, restart, shut down |
+| `Print` | Select screenshot region and copy image to clipboard; Escape cancels |
+| Volume/mute and play/next/previous media keys | Audio and MPRIS controls |
+| `Ctrl-Shift-r` inside Ghostty | Reload Ghostty configuration |
+
+Linux tmux uses `Ctrl-Space` as prefix; prefix `r` reloads its Home Manager config;
+prefix `c` creates a window in the current directory. `Alt-h/j/k/l` select panes,
+`Alt-Shift-j/l` split below/right, `Alt-e` creates a window, `Alt-z` zooms. Copy-mode
+uses `v` to select and `y` to copy via `wl-copy`. Linux zsh's `Ctrl-Tab` accepts the
+whole autosuggestion (Ghostty transports it through F13).
 
 ## Pi
 

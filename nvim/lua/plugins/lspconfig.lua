@@ -14,8 +14,9 @@ return {
   {
     "williamboman/mason-lspconfig.nvim",
     config = function()
+      local declarative = vim.env.NIXOS_DECLARATIVE_NVIM == "1"
       require("mason-lspconfig").setup({
-        ensure_installed = {
+        ensure_installed = declarative and {} or {
           "terraformls",
           "marksman",
           "lua_ls",
@@ -37,7 +38,7 @@ return {
           "yamlls",
           "jsonls"
         },
-        automatic_enable = true
+        automatic_enable = not declarative
       })
     end,
   },

@@ -14,6 +14,22 @@ is_action() { case "$1" in open|copy|finder|nvim) return 0 ;; *) return 1 ;; esa
 die() { printf 'tmux-open-target: %s\n' "$*" >&2; return 2; }
 dry() { [ "${OPEN_TARGET_DRY_RUN:-0}" = "1" ]; }
 
+open_path() {
+  if [ "$(uname -s)" = Darwin ]; then open "$1"; else xdg-open "$1"; fi
+}
+reveal_path() {
+  if [ "$(uname -s)" = Darwin ]; then
+    [ -f "$1" ] && open -R "$1" || open "$1"
+  elif [ -f "$1" ] && command -v dolphin >/dev/null 2>&1; then
+    dolphin --select "$1"
+  else
+    xdg-open "$1"
+  fi
+}
+copy_path() {
+  if command -v pbcopy >/dev/null 2>&1; then pbcopy; else wl-copy; fi
+}
+
 pane_cwd() { tmux display -p -t "$1" '#{pane_current_path}'; }
 
 require_pane() {
@@ -68,7 +84,7 @@ do_open() {
   resolve "$target" "$pane" || return
   case "$KIND" in
     file) nvim_split "$pane" "$RPATH" "$line" ;;
-    dir|url|other) if dry; then printf 'open %q\n' "$RPATH"; else open "$RPATH"; fi ;;
+    dir|url|other) if dry; then printf 'open %q\n' "$RPATH"; else open_path "$RPATH"; fi ;;
   esac
 }
 
@@ -85,8 +101,8 @@ do_finder() {
   local pane="$1" target="$2"
   resolve "$target" "$pane" || return
   case "$KIND" in
-    file) if dry; then printf 'open -R %q\n' "$RPATH"; else open -R "$RPATH"; fi ;;
-    dir) if dry; then printf 'open %q\n' "$RPATH"; else open "$RPATH"; fi ;;
+    file) if dry; then printf 'open -R %q\n' "$RPATH"; else reveal_path "$RPATH"; fi ;;
+    dir) if dry; then printf 'open %q\n' "$RPATH"; else reveal_path "$RPATH"; fi ;;
     *) die "finder requires a filesystem target"; return 1 ;;
   esac
 }
@@ -94,7 +110,7 @@ do_finder() {
 do_copy() {
   local pane="$1" target="$2"
   resolve "$target" "$pane" || return
-  if dry; then printf 'printf %%s %q | pbcopy\n' "$RPATH"; else printf '%s' "$RPATH" | pbcopy; fi
+  if dry; then printf 'printf %%s %q | pbcopy\n' "$RPATH"; else printf '%s' "$RPATH" | copy_path; fi
 }
 
 explicit() {

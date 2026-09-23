@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/usr/bin/env zsh
 
 # Break the active pane out into its own new window at the end of the session.
 # Delegates to the shared crash-safe helper tmux-pane-to-new-window, because the

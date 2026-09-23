@@ -112,7 +112,9 @@ export function scheduleSilence(agentDir: string, id: string, notify: (job: Tmux
 }
 
 export async function attachInGhostty(exec: (command: string, args: string[], timeout?: number) => Promise<TmuxExecResult>, target: TmuxTarget): Promise<void> {
-	const result = await exec("open", ["-na", "Ghostty", "--args", "-e", "tmux", "attach-session", "-t", target.session], 5_000);
+	const result = process.platform === "darwin"
+		? await exec("open", ["-na", "Ghostty", "--args", "-e", "tmux", "attach-session", "-t", target.session], 5_000)
+		: await exec("ghostty", ["-e", "tmux", "attach-session", "-t", target.session], 5_000);
 	if (result.code !== 0) throw new Error(result.stderr.trim() || "Could not open Ghostty.");
 }
 

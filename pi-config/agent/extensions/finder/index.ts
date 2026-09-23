@@ -29,6 +29,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 const OPEN_BINARY = "/usr/bin/open";
 const OSASCRIPT_BINARY = "/usr/bin/osascript";
 const FORKLIFT_APP_PATH = "/Applications/ForkLift.app";
+const XDG_OPEN_BINARY = "xdg-open";
 
 /** Resolve a user-supplied path the same way built-in tools do: strip a leading @, expand ~, make absolute against cwd. */
 function resolveTarget(rawPath: string, cwd: string): string {
@@ -49,6 +50,7 @@ function escapeAppleScriptString(value: string): string {
 let forkLiftInstalled: boolean | undefined;
 
 async function detectForkLift(): Promise<boolean> {
+	if (process.platform !== "darwin") return false;
 	if (forkLiftInstalled !== undefined) return forkLiftInstalled;
 	try {
 		await stat(FORKLIFT_APP_PATH);
@@ -90,11 +92,13 @@ function revealInForkLift(target: string, signal: AbortSignal | undefined): Prom
 	});
 }
 
-/** Open/reveal `target` in Finder via /usr/bin/open (directory -> open, file -> open -R). */
-function openInFinder(target: string, isDir: boolean, signal: AbortSignal | undefined): Promise<void> {
-	const args = isDir ? [target] : ["-R", target];
+/** Open/reveal `target` in the platform file manager. */
+function openInFileManager(target: string, isDir: boolean, signal: AbortSignal | undefined): Promise<void> {
+	const linux = process.platform === "linux";
+	const command = linux && !isDir ? "dolphin" : linux ? XDG_OPEN_BINARY : OPEN_BINARY;
+	const args = linux && !isDir ? ["--select", target] : isDir ? [target] : ["-R", target];
 	return new Promise<void>((promiseResolve, promiseReject) => {
-		const child = spawn(OPEN_BINARY, args, { stdio: "ignore" });
+		const child = spawn(command, args, { stdio: "ignore" });
 		const onAbort = () => {
 			child.kill("SIGTERM");
 		};
@@ -112,7 +116,7 @@ function openInFinder(target: string, isDir: boolean, signal: AbortSignal | unde
 		child.once("close", (code) => {
 			if (signal) signal.removeEventListener("abort", onAbort);
 			if (code === 0) promiseResolve();
-			else promiseReject(new Error(`open exited with code ${code}`));
+			else promiseReject(new Error(`${command} exited with code ${code}`));
 		});
 	});
 }
@@ -123,10 +127,10 @@ export default function finderExtension(pi: ExtensionAPI) {
 
 	pi.registerTool({
 		name: "open_in_finder",
-		label: "Open in Finder",
+		label: "Open in File Manager",
 		description:
-			"Open a local file or directory in macOS Finder, or in ForkLift when ForkLift.app is installed. Directories open in a new pane/tab; files are revealed and selected in their parent folder. Use this when the user asks to open, show, or reveal a file/folder in Finder (the tool routes to ForkLift automatically when present, falling back to Finder otherwise). Accepts @-prefixed, ~-home-relative, absolute, or cwd-relative paths. Does not edit or read file contents.",
-		promptSnippet: "Open a local file or directory in macOS Finder (or ForkLift when installed)",
+			"Open a local file or directory in the platform file manager. On macOS this uses ForkLift when installed, falling back to Finder; on Linux it uses Dolphin/xdg-open. Directories open and files are revealed and selected. Accepts @-prefixed, ~-home-relative, absolute, or cwd-relative paths. Does not edit or read file contents.",
+		promptSnippet: "Open a local file or directory in the platform file manager",
 		promptGuidelines: [
 			"Use open_in_finder when the user asks to open, show, or reveal a file or folder in Finder (e.g. \"open this folder in Finder\"). Pass the referenced path; do not call it for remote paths or URLs. ForkLift is used automatically when installed, Finder otherwise.",
 		],
@@ -137,8 +141,8 @@ export default function finderExtension(pi: ExtensionAPI) {
 		}),
 
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-			if (process.platform !== "darwin") {
-				throw new Error("open_in_finder is only available on macOS");
+			if (process.platform !== "darwin" && process.platform !== "linux") {
+				throw new Error("open_in_finder supports macOS and Linux");
 			}
 
 			const target = resolveTarget(params.path, ctx.cwd);
@@ -172,17 +176,17 @@ export default function finderExtension(pi: ExtensionAPI) {
 				}
 			}
 
-			await openInFinder(target, isDir, signal);
+			await openInFileManager(target, isDir, signal);
 			return {
 				content: [
 					{
 						type: "text",
 						text: isDir
-							? `Opened folder in Finder: ${target}`
-							: `Revealed file in Finder: ${target}`,
+							? `Opened folder in file manager: ${target}`
+							: `Revealed file in file manager: ${target}`,
 					},
 				],
-				details: { path: target, kind: isDir ? "directory" : "file", app: "finder" },
+				details: { path: target, kind: isDir ? "directory" : "file", app: process.platform === "linux" ? "dolphin" : "finder" },
 			};
 		},
 	});

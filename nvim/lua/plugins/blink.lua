@@ -5,7 +5,9 @@ return {
   },
   {
     "saghen/blink.cmp",
-    dependencies = { "rafamadriz/friendly-snippets", "saghen/blink.lib" },
+    dependencies = vim.env.NIXOS_DECLARATIVE_NVIM == "1"
+        and { "rafamadriz/friendly-snippets" }
+      or { "rafamadriz/friendly-snippets", "saghen/blink.lib" },
     version = "2.*",
     build = function() require('blink.cmp').build():pwait() end,
     opts = {

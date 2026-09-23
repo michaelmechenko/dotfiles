@@ -1,0 +1,10 @@
+{
+  "name": "pi-linux-packages",
+  "private": true,
+  "version": "1.0.0",
+  "dependencies": {
+    "@dreki-gg/pi-lsp": "0.5.2",
+    "pi-ast-grep": "0.1.0",
+    "pi-mcp-adapter": "2.36.0"
+  }
+}

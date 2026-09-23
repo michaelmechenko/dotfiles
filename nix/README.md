@@ -73,12 +73,13 @@ Mac auth/session/cache state. The active generated theme is store-backed.
 
 ## Build and activate
 
-The deployment is an allowlisted snapshot at `/home/mishka/nixos-config` on
-the PC. It includes the flake/Nix modules plus only the public shared config and
-source trees required by the Linux profile. It is not a clone of the Mac's live
-`~/.config`; node_modules, auth, sessions, caches, logs, SSH material, browser
-profiles, Steam state, and machine-local `zshrc.local` are excluded. Local source
-of truth remains this repository. `nix/deploy.sh` verifies the previous SHA-256
+The PC's normal source checkout is `~/.dotfiles`. Pull published changes there,
+then build from that checkout. Git excludes node_modules, auth, sessions, caches,
+logs, SSH material, browser profiles, Steam state, and machine-local
+`zshrc.local`; those remain writable private state outside the Nix store.
+
+`/home/mishka/nixos-config` remains an allowlisted deployment snapshot and
+recovery/build staging path. `nix/deploy.sh` verifies its previous SHA-256
 manifest and refuses to overwrite PC-side edits before updating the allowlist.
 Never feed the entire live Mac config tree to a `path:` flake or archive operation.
 
@@ -92,7 +93,8 @@ corresponding deployment endpoint changes.
 On the PC, build and validate without changing the running system:
 
 ```sh
-cd /home/mishka/nixos-config
+cd ~/.dotfiles
+git pull --ff-only
 nix --extra-experimental-features 'nix-command flakes' build \
   .#nixosConfigurations.nixos.config.system.build.toplevel --out-link result
 bash nix/check.sh
@@ -101,7 +103,7 @@ bash nix/check.sh
 For the first activation, save work and install the generation for the next boot:
 
 ```sh
-sudo nixos-rebuild boot --flake /home/mishka/nixos-config#nixos \
+sudo nixos-rebuild boot --flake /home/mishka/.dotfiles#nixos \
   --option experimental-features 'nix-command flakes'
 ```
 

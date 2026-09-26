@@ -1,30 +1,15 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
-import { realpathSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { resolve } from "node:path";
 import test from "node:test";
 import { pathToFileURL } from "node:url";
-import markdownCodeExtension from "./index.ts";
+import { agent, codingAgentRoot, jiti, tui } from "./test-runtime.mjs";
+const { default: markdownCodeExtension } = await jiti.import(resolve(import.meta.dirname, "index.ts"));
 import { inferFenceLanguage, scanMarkdownFences, transformFencedMarkdown } from "./fences.ts";
 
-const piCli = realpathSync(execFileSync("which", ["pi"], { encoding: "utf8" }).trim());
-const codingAgentRoot = resolve(dirname(piCli), "..", "..");
-const codingAgentPath = resolve(codingAgentRoot, "dist", "index.js");
-const tuiPath = resolve(codingAgentRoot, "node_modules", "@earendil-works", "pi-tui", "dist", "index.js");
-const { getMarkdownTheme, initTheme } = await import(pathToFileURL(codingAgentPath).href);
+const { getMarkdownTheme, initTheme } = agent;
 const syntaxHighlightPath = resolve(codingAgentRoot, "dist", "utils", "syntax-highlight.js");
 const { loadAllHighlightLanguages } = await import(pathToFileURL(syntaxHighlightPath).href);
-const { Markdown, visibleWidth } = await import(pathToFileURL(tuiPath).href);
-const jitiPath = resolve(codingAgentRoot, "node_modules", "jiti", "lib", "jiti.mjs");
-const { createJiti } = await import(pathToFileURL(jitiPath).href);
-const jiti = createJiti(import.meta.url, {
-	fsCache: false,
-	moduleCache: false,
-	alias: {
-		"@earendil-works/pi-coding-agent": codingAgentPath,
-		"@earendil-works/pi-tui": tuiPath,
-	},
-});
+const { Markdown, visibleWidth } = tui;
 const { renderMarkdownBlock, renderFileContent } = await jiti.import(resolve(import.meta.dirname, "../pretty/src/render.ts")) as {
 	renderMarkdownBlock: (code: string, theme: unknown) => string[];
 	renderFileContent: (content: string, filePath: string, offset: number, maxLines: number, width: number, theme: unknown) => Promise<string>;
@@ -120,7 +105,7 @@ test("explicit languages win and plaintext or unsupported tags stay unchanged", 
 
 test("extension transforms user and assistant Markdown, including streaming updates", () => {
 	let transformer: ((markdown: string, context: { messageType: string; isStreaming: boolean; availableWidth: number }) => string) | undefined;
-	markdownCodeExtension({ registerMarkdownTransformer(value: typeof transformer) { transformer = value; } } as never);
+	markdownCodeExtension({ on() {}, registerMarkdownTransformer(value: typeof transformer) { transformer = value; } } as never);
 	assert.ok(transformer);
 	for (const messageType of ["user", "assistant"] as const) {
 		for (const isStreaming of [false, true]) {

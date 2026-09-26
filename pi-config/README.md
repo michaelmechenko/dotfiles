@@ -12,7 +12,9 @@ keybindings, package state, toggles, credentials, sessions, and caches remain wr
 same `PI_CODING_AGENT_DIR`; Home Manager seeds settings/keybindings/package dependencies only when
 absent. Local dependency-bearing extensions and the three external packages are built by Nix, so
 normal startup does not run npm. Mac `node_modules`, auth, and session state are never deployment
-inputs. The active Pi theme is the generated Nix-owned Vague bundle.
+inputs. The active Pi theme is the generated Nix-owned Vague bundle. Extension source edits on
+NixOS require rebuilding/activating the Home Manager configuration before `/reload`; they are
+not live-linked from the checkout.
 
 ## Layout
 
@@ -151,9 +153,17 @@ resolution this extension uses internally. To pick up upstream changes, diff aga
 | Extension | What it does |
 |---|---|
 | `lsp-startup/` | On a fresh interactive Pi launch, displays the globally/project-enabled LSP server names once as a notification. It respects Pi's global-plus-project LSP merge and an all-LSP disable; it does not display LSP status in the footer. |
-| `markdown-code/` | Display-only fenced-code language hints for Pi chat Markdown. Explicit tags win; recognizable untagged JavaScript, TypeScript, Python, shell, and JSON blocks receive conservative hints so Pi's native highlighter uses the active theme, while prose and ambiguous blocks remain plain. The same fence scanner is reused by `pretty/` Markdown read previews. |
+| `markdown-code/` | Display-only fenced-code language hints for Pi chat Markdown. Explicit tags win; recognizable untagged JavaScript, TypeScript, Python, shell, and JSON blocks receive conservative hints so Pi's native highlighter uses the active theme, while prose and ambiguous blocks remain plain. Assistant fenced blocks also get a full-width, subtle `toolPendingBg` (`surface-chrome`) panel, including fences, blank rows, and wrapped continuations. User messages, thinking, inline/indented code, and tool previews retain their existing backgrounds. The same fence scanner is reused by `pretty/` Markdown read previews. |
 | `finder/` | `open_in_finder` tool — opens/reveals a referenced local path after validating it. On macOS it prefers ForkLift and falls back to Finder (`open`/`open -R`); on Linux it uses Dolphin (`--select` for files) and falls back to `xdg-open`. Resolves `@`, `~`, absolute, and cwd-relative paths and spawns argv directly without a shell. It acts only when explicitly requested and reports the resolved path and handler. |
 | `tmux/` | `tmux` tool plus `/tmux`, `/tmux:cat`, and `/tmux:fork [below|right]` commands. `/tmux:fork` waits for Pi to become idle, duplicates the current active branch at its exact leaf into a new session file, and opens that fork in a detached pane below by default or right when requested, preserving source focus and cwd. Forked Pi falls through to a login shell when it exits. Pi's built-in `/fork` previous-message picker remains unchanged because built-in interactive commands cannot be disabled through the extension interface. Managed jobs expose only `run`, `attach`, `peek`, `list`, and `mute`; use argv-based tmux calls, private durable records, bounded capture output, one-shot silence/completion notifications, and Ghostty attachment without switching the source client. The public extension never offers session/window/pane deletion. |
+
+`markdown-code/background.ts` confines its guarded Pi 0.86.1 adapter to Markdown rendering:
+Pi's public transformer context identifies assistant text, and only native fenced-code tokens
+receive background fill. Parsing, syntax colors, nesting, and source text remain Pi's. The adapter
+is inert after shutdown/disable, invalidates cached backgrounds across reload, and falls back to
+native code rows if decoration fails. Test with
+`node --test pi-config/agent/extensions/markdown-code/{background,fences}.test.ts` (npm and Nix Pi
+layouts are detected; `PI_PACKAGE_DIR` can specify another package root).
 
 ### Local tool renderers and execution extensions
 

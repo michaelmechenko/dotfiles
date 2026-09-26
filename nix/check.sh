@@ -19,6 +19,10 @@ sessions=$(nix_eval services.displayManager.sessionData.desktops)
 export PATH="$home_path/bin:$PWD/result/sw/bin:$PATH"
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 files="$home_package/home-files"
+test -x "$home_path/bin/blender"
+test -x "$home_path/bin/obsidian"
+test -f "$home_path/share/applications/blender.desktop"
+test -f "$home_path/share/applications/obsidian.desktop"
 configured_home=$(nix_eval home-manager.users.mishka.home.homeDirectory)
 [[ $HOME == "$configured_home" ]] || { echo 'Run this check as the configured user.' >&2; exit 1; }
 live_paths=(

@@ -10,7 +10,7 @@ is pinned in `flake.nix`; `flake.lock` also pins Home Manager.
   installer configuration. Keep filesystem identifiers and `stateVersion` intact.
 - `modules/desktop.nix`: NixOS Hyprland/UWSM/portal/PAM/hardware integration.
 - `home/desktop.nix`: Hyprland Lua, Waybar, launcher, notifications, lock/idle.
-- `home/apps.nix`: Sidra, Helium, Legcord, Dolphin integrations and MIME defaults.
+- `home/apps.nix`: Blender, Obsidian, Sidra, Helium, Legcord, Dolphin and MIME defaults.
 - `home/terminal.nix`: shared Ghostty, zsh, prompt, tmux/sidebar, nnn, and Neovim.
 - `home/pi.nix`: Pi runtime, public resources, pinned dependencies, and writable seeds.
 - `home/palette.nix`: consumes canonical `theme/palettes/vague.json` roles,
@@ -62,6 +62,9 @@ animated auto-hiding dock. A separate dock can be chosen after the baseline work
   Likewise, KDE's mouse KCM cannot query Hyprland input devices: Piper/ratbagd owns
   supported Logitech gaming-mouse DPI, polling, button, and onboard-profile settings,
   while Hyprland's declarative `input` block owns pointer acceleration.
+- Blender and Obsidian use the existing Nixpkgs pin (5.1.1 and 1.13.7 respectively
+  at introduction). Obsidian uses the existing unfree-package policy. No vault,
+  account, sync subscription, MIME default, or Blender GPU backend is configured.
 - Steam has 32/64-bit graphics support. Proton behavior, game ownership, and
   Deadlock compatibility remain runtime acceptance items, not build guarantees.
 - tmux 3.7b comes from the package-only tools pin. The full shared config and Go

@@ -7,6 +7,8 @@ let
 in
 {
   home.packages = with pkgs; [
+    blender
+    obsidian
     grimoire
     helium
     sidra

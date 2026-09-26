@@ -20,7 +20,11 @@ inactive borders use `divider-subtle`; Waybar/launcher/notifications use
 `surface-chrome`, `surface-highlight`, `text`, and `text-ui`; urgent states use
 `accent-primary`; the lock background uses `canvas`. Ghostty uses the palette's
 `ghostty` and ANSI definitions, and Oh My Posh retains `ohmyposh/base.json` with
-the resolved roles injected as its palette. No new color role is introduced.
+the resolved roles injected as its palette. The Linux HackerNoonPixel icon theme
+reuses `text` for general artwork and `accent-secondary` for folders. Waybar's
+Apps/Session/volume/network controls are text-only; their existing text-state
+colors are unchanged. PNG alpha masks and SVG geometry are preserved while their
+foregrounds are recolored at build time; no new color role is introduced.
 
 Linux currently selects Vague declaratively at rebuild time. The macOS live
 `theme switch` command is not deployed by this bootstrap; changing the canonical

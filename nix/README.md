@@ -11,6 +11,7 @@ is pinned in `flake.nix`; `flake.lock` also pins Home Manager.
 - `modules/desktop.nix`: NixOS Hyprland/UWSM/portal/PAM/hardware integration.
 - `home/desktop.nix`: Hyprland Lua, Waybar, launcher, notifications, lock/idle.
 - `home/apps.nix`: Blender, Obsidian, Sidra, Helium, Legcord, Dolphin and MIME defaults.
+- `home/icons.nix`: HackerNoon pixel theme selection; targeted GTK/KDE icon settings.
 - `home/terminal.nix`: shared Ghostty, zsh, prompt, tmux/sidebar, nnn, and Neovim.
 - `home/pi.nix`: Pi runtime, public resources, pinned dependencies, and writable seeds.
 - `home/palette.nix`: consumes canonical `theme/palettes/vague.json` roles,
@@ -82,6 +83,60 @@ Pi settings, keybindings, extension/skill toggles, auth, sessions, package state
 and caches remain writable in `~/.config/pi-config/agent`. Home Manager seeds
 settings, keybindings, and the npm workspace only when absent; it never deploys
 Mac auth/session/cache state. The active generated theme is store-backed.
+
+## Pixel desktop icons
+
+`packages/pixel-icons.nix` builds a curated **HackerNoonPixel** icon theme from
+Pixel Icon Library by [HackerNoon](https://github.com/hackernoon/pixel-icon-library).
+The original artwork is kept outside Git. Download the free ZIP from
+<https://pixeliconlibrary.com/> and import it before building on a new machine:
+
+```sh
+sha256sum ~/Downloads/pixel-icon-library-by-hackernoon.zip
+# Expected: 42cf4f81d6a6ccd661a238c1a63e511670eaf7e88e42051280221604e832020d
+nix-store --add-fixed sha256 ~/Downloads/pixel-icon-library-by-hackernoon.zip
+```
+
+`requireFile` pins those exact bytes; moving/removing Downloads afterward does
+not affect an installed generation. Keep a private copy for future builds after
+store garbage collection. A changed upstream archive needs deliberate checksum
+and asset validation, not an automatic hash update.
+
+Artwork is credited as **CC BY 4.0**, not the repository's non-artwork MIT license:
+<https://creativecommons.org/licenses/by/4.0/>. The generated theme includes
+`ATTRIBUTION`; changes are curation, aliases, palette recoloring and normalization
+of a few non-square upstream PNG canvases. The publisher also describes a
+standalone-redistribution restriction on its [license page](https://pixeliconlibrary.com/license/).
+Do not publish the ZIP/artwork/standalone generated theme without resolving that
+wording; this repository contains only build code and mappings.
+
+`pixel-icons-mapping.json` lists every alias. Folders, common MIME types, navigation
+and a few applications get pixel artwork; Blender, Obsidian and unmatched brands
+keep their original icons through `breeze-dark,breeze,hicolor` inheritance.
+The package includes native 16/24/48px PNGs and scalable SVG fallbacks. Foregrounds
+use `text` for general artwork and `accent-secondary` for folders, both resolved
+from the canonical palette.
+
+Fuzzel, the 24px Waybar taskbar, GTK 3/4 and Dolphin/KDE share this theme. Because
+Plasma already maintains writable GTK files, Home Manager updates only their
+`gtk-icon-theme-name` keys via its KConfig writer, plus `kdeglobals`'s `Icons/Theme`
+and the GNOME dconf icon-theme key. Existing fonts, cursors, dark preferences,
+widget themes and KDE colors are preserved; Qt's platform theme is not changed.
+
+Waybar's Apps, Session, volume, network and Bluetooth controls are text-only,
+including muted/unmuted audio and Wi-Fi/Ethernet/offline states. Apps/Session use
+10px horizontal padding; volume/network use 6px, with no reserved icon slots.
+Native state colors, click/scroll actions and tooltips are unchanged. Taskbar and
+tray icons remain visible. Tray-provided pixmaps,
+absolute-path icons (including Helium's desktop entry) and app-internal artwork
+may bypass the theme. These are not claimed as replaced.
+
+After activation, reopen Dolphin/Fuzzel and reload Waybar to clear icon caches.
+Check native sizes, launcher/folder selection, active/inactive taskbar entries,
+muted/unmuted audio and connection states. Do not disconnect networking merely
+to test the bar: use an isolated state fixture. Launch both new apps without
+opening private files/vaults. The build also includes the committed Pi fenced-code
+background fix; run `/reload` in Pi after activation to pick it up.
 
 ## Configuration ownership
 

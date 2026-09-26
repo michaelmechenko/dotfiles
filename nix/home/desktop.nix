@@ -1,4 +1,4 @@
-{ lib, pkgs, ... }:
+{ config, lib, pkgs, ... }:
 let
   palette = import ./palette.nix { inherit lib; };
   inherit (palette) roles hex;
@@ -130,6 +130,7 @@ in
         font = "Lilex Nerd Font:size=12";
         terminal = "ghostty -e";
         launch-prefix = "uwsm app --";
+        icon-theme = config.gtk.iconTheme.name;
       };
       colors = {
         background = "${hex roles.surface-chrome}ff";
@@ -223,7 +224,8 @@ in
       };
       "wlr/taskbar" = {
         format = "{icon}";
-        icon-size = 20;
+        icon-size = 24;
+        icon-theme = config.gtk.iconTheme.name;
         tooltip-format = "{title}";
         on-click = "activate";
       };

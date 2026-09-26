@@ -3,6 +3,7 @@
   imports = [
     ./terminal.nix
     ./desktop.nix
+    ./icons.nix
     ./apps.nix
     ./pi.nix
   ];

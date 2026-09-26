@@ -29,7 +29,9 @@ bootstrap; harden it separately after verifying persistent key access.
   text on chrome; urgent workspace: rose. Offline/muted states say so in text.
 - Focused window: lavender border; unfocused: subtle divider border. Eight-pixel
   corners, no transparency or blur. Restrained 150–250ms window/fade/workspace
-  animations are enabled. Fullscreen follows Hyprland defaults.
+  animations are enabled. `misc.vrr = 2` enables variable refresh rate only
+  with fullscreen windows on displays supporting adaptive sync; ordinary
+  windowed use keeps VRR off. Other fullscreen behavior follows Hyprland defaults.
 - Monitor mode/scale are auto-detected. Test native resolution and 100%/150%
   scaling, several open apps, long titles, fullscreen, and disconnected network.
 - Notifications: chrome/text/lavender; critical messages persist with rose borders.

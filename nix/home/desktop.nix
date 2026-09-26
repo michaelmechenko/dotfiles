@@ -63,6 +63,7 @@ in
         animations = { enabled = true },
         input = { kb_layout = "us", follow_mouse = 0 },
         misc = {
+          vrr = 2, -- Adaptive sync only while a fullscreen window is present.
           disable_hyprland_logo = true,
           disable_splash_rendering = true,
           force_default_wallpaper = 0,

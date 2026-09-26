@@ -22,9 +22,10 @@ let
       pkgs.uwsm
     ];
     text = ''
-      choice=$(printf 'Lock\nLog out\nRestart\nShut down\n' | fuzzel --dmenu --prompt='Session: ') || exit 0
+      choice=$(printf 'Lock\nSleep\nLog out\nRestart\nShut down\n' | fuzzel --dmenu --prompt='Session: ') || exit 0
       case "$choice" in
         Lock) loginctl lock-session ;;
+        Sleep) systemctl suspend ;;
         'Log out') uwsm stop ;;
         Restart) systemctl reboot ;;
         'Shut down') systemctl poweroff ;;
@@ -51,6 +52,8 @@ in
     systemd.enable = false;
     extraConfig = ''
       hl.monitor({ output = "", mode = "preferred", position = "auto", scale = "auto" })
+      hl.monitor({ output = "DP-1", mode = "2560x1440@179.98", position = "0x0", scale = 1 })
+      hl.monitor({ output = "DP-2", mode = "2560x1440@180", position = "2560x0", scale = 1 })
       hl.config({
         general = {
           gaps_in = 6, gaps_out = 12, border_size = 2, layout = "dwindle",

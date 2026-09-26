@@ -25,6 +25,9 @@ bootstrap; harden it separately after verifying persistent key access.
 
 - A 34px top Waybar on every monitor: Apps, workspaces, running app icons;
   centered clock; volume, network, Bluetooth, tray and session menu on the right.
+  The session menu (also Super-Shift-Escape) offers Lock, Sleep, Log out, Restart,
+  and Shut down. Sleep runs `systemctl suspend`; Hypridle requests locking before
+  sleep. The session stays in RAM and still requires power.
 - Active workspace/app: lavender on the highlight surface; inactive: muted UI
   text on chrome; urgent workspace: rose. Offline/muted states say so in text.
 - Focused window: lavender border; unfocused: subtle divider border. Eight-pixel
@@ -32,8 +35,12 @@ bootstrap; harden it separately after verifying persistent key access.
   animations are enabled. `misc.vrr = 2` enables variable refresh rate only
   with fullscreen windows on displays supporting adaptive sync; ordinary
   windowed use keeps VRR off. Other fullscreen behavior follows Hyprland defaults.
-- Monitor mode/scale are auto-detected. Test native resolution and 100%/150%
-  scaling, several open apps, long titles, fullscreen, and disconnected network.
+- Both monitors use 2560×1440 at nominal 180 Hz and 100% scale, top-aligned:
+  Samsung Odyssey G50SF (`DP-1`) is on the left at `0x0`, using its advertised
+  179.98 Hz mode; Acer XZ322QU V3 (`DP-2`) is on the right at `2560x0`, at 180 Hz.
+  Other outputs retain preferred-mode, automatic-position, automatic-scale fallback.
+  After activation, verify refresh rates, pointer crossing, Waybar and window
+  placement, fullscreen behavior, and persistence across the next login.
 - Notifications: chrome/text/lavender; critical messages persist with rose borders.
   Lock screen: solid canvas and centered password input on every monitor.
 - Only Hyprland starts Waybar, mako, hypridle, the secrets component of

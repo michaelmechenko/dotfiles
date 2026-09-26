@@ -21,7 +21,7 @@ The full Mac tmux/sidebar and Neovim plugin configuration is not enabled here.
 | `Super-Shift-1..9` | Move window to workspace |
 | `Super` + left/right mouse drag | Move/resize window |
 | `Super-Ctrl-l` | Lock session |
-| `Super-Shift-Escape` | Session menu: lock, log out, restart, shut down |
+| `Super-Shift-Escape` | Session menu: lock, sleep, log out, restart, shut down |
 | `Print` | Select screenshot region and copy image to clipboard; Escape cancels |
 | Volume/mute and play/next/previous media keys | Audio and MPRIS controls |
 | `Ctrl-Shift-r` inside Ghostty | Reload Ghostty configuration |

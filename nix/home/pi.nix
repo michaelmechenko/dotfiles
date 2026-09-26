@@ -1,5 +1,7 @@
-{ inputs, lib, pkgs, ... }:
+{ config, inputs, lib, pkgs, ... }:
 let
+  # Guidance is live-editable; extensions and their dependencies stay packaged.
+  liveResource = name: config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/.dotfiles/pi-config/agent/${name}";
   system = pkgs.stdenv.hostPlatform.system;
   piPkgs = import inputs.nixpkgs-pi {
     inherit system;
@@ -25,11 +27,11 @@ in
   };
 
   xdg.configFile = {
-    "pi-config/agent/AGENTS.md".source = ../../pi-config/agent/AGENTS.md;
-    "pi-config/agent/agents" = { source = ../../pi-config/agent/agents; recursive = true; };
+    "pi-config/agent/AGENTS.md".source = liveResource "AGENTS.md";
+    "pi-config/agent/agents".source = liveResource "agents";
     "pi-config/agent/extensions" = { source = extensions; recursive = true; };
-    "pi-config/agent/prompts" = { source = ../../pi-config/agent/prompts; recursive = true; };
-    "pi-config/agent/skills" = { source = ../../pi-config/agent/skills; recursive = true; };
+    "pi-config/agent/prompts".source = liveResource "prompts";
+    "pi-config/agent/skills".source = liveResource "skills";
     "pi-config/agent/themes/active.json".source = ../../theme/bundles/vague/pi/theme.json;
   };
 

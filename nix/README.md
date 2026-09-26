@@ -61,8 +61,8 @@ animated auto-hiding dock. A separate dock can be chosen after the baseline work
 - Neovim uses the shared Lua configuration with a Nix-owned plugin tree, parsers,
   language servers, formatters, and native build dependencies. Lazy cannot install
   missing plugins and Mason/parser auto-install is disabled on NixOS.
-- Pi 0.86.1 is a narrow package-only pin. Public extensions/skills/prompts and
-  dependency-bearing local extensions are Nix-owned. The pinned pi-lsp,
+- Pi 0.86.1 is a narrow package-only pin. All extensions and their dependencies
+  are Nix-owned; guidance resources use the live links described below. The pinned pi-lsp,
   pi-ast-grep, and pi-mcp-adapter workspace is seeded locally, so normal startup
   does not need an npm install. pi-lsp is patched to honor `PI_CODING_AGENT_DIR`.
 
@@ -71,17 +71,44 @@ and caches remain writable in `~/.config/pi-config/agent`. Home Manager seeds
 settings, keybindings, and the npm workspace only when absent; it never deploys
 Mac auth/session/cache state. The active generated theme is store-backed.
 
+## Configuration ownership
+
+`~/.dotfiles` is the single Git checkout; `~/.config` is the runtime tree.
+Home Manager owns every deployed link. Do not layer manual links, Stow, or a
+bidirectional copy job on top of it.
+
+| Ownership | Paths under `~/.config` | Applying changes |
+| --- | --- | --- |
+| Live source links into the same paths under `~/.dotfiles` | `zshrc`, `tmux.conf`, `nvim`, `pi-config/agent/AGENTS.md`, `pi-config/agent/agents`, `pi-config/agent/prompts`, `pi-config/agent/skills` | Edit the source; reload/restart the application |
+| Store-backed configuration and packages | Ghostty, Linux desktop, `oh-my-posh`, active themes, tmux scripts/plugins/sidebar, nnn plugins, shell helpers, all Pi extensions and Neovim dependencies | Build, check, then deliberately activate |
+| Local writable state | Pi settings/keybindings/auth/sessions/npm/cache, `zshrc.local`, application state | Leave local; never import whole runtime directories into Git or Nix |
+
+The seven live links use `mkOutOfStoreSymlink` with an absolute home-derived
+`~/.dotfiles` path. Keep this checkout in place; do not point links at temporary
+worktrees. Directory links pick up new guidance/Lua files without a rebuild.
+Changes to the link declarations themselves still require activation.
+
+A source edit, branch switch, or Git update is immediately visible through these
+links, even before a build. Review updates first. Reload tmux with its existing
+reload binding, open a new shell for zsh, and restart Neovim/Pi as appropriate.
+The compiled sidebar and Pi extension code are deliberately **not** live-linked.
+Pi settings and keybindings remain local seeded copies, not source links.
+
 ## Build and activate
 
-The PC's normal source checkout is `~/.dotfiles`. Pull published changes there,
-then build from that checkout. Git excludes node_modules, auth, sessions, caches,
-logs, SSH material, browser profiles, Steam state, and machine-local
-`zshrc.local`; those remain writable private state outside the Nix store.
+The PC's normal source checkout is `~/.dotfiles`. Review its status before pulling
+published changes there. Git excludes auth, sessions, caches, logs, and
+machine-local `zshrc.local`; private runtime state stays outside the checkout.
+Never use `git add .` against the live `~/.config` tree.
 
 `/home/mishka/nixos-config` remains an allowlisted deployment snapshot and
 recovery/build staging path. `nix/deploy.sh` verifies its previous SHA-256
 manifest and refuses to overwrite PC-side edits before updating the allowlist.
 Never feed the entire live Mac config tree to a `path:` flake or archive operation.
+The snapshot is **not** a self-contained runtime backup once live links are used:
+even a generation built there links to `~/.dotfiles`, not to the snapshot.
+Keep the matching canonical checkout available for recovery. The following is a
+remote snapshot operation, not the local configuration update command:
 
 ```sh
 bash nix/deploy.sh
@@ -94,13 +121,46 @@ On the PC, build and validate without changing the running system:
 
 ```sh
 cd ~/.dotfiles
+git status --short
+# Pull only after reviewing/preserving local changes:
 git pull --ff-only
 nix --extra-experimental-features 'nix-command flakes' build \
   .#nixosConfigurations.nixos.config.system.build.toplevel --out-link result
 bash nix/check.sh
 ```
 
-For the first activation, save work and install the generation for the next boot:
+Keep the source unchanged between build, check, and activation; rebuild and
+recheck after any edit. `check.sh` refuses a `result` from a different evaluated
+system, verifies the live targets and retained packaged dependencies, and reports
+migration collisions. Builds and checks do not activate the running system.
+
+### First migration from recursive store links
+
+The existing real directories `nvim` and `pi-config/agent/{agents,prompts,skills}`
+contain recursively deployed store links. The new generation uses one live
+source-directory link for each. Do not remove these directories manually.
+
+1. Save an owner-only backup outside `~/.config` and `~/.dotfiles`, preserving
+   symlinks, the affected directories, Pi settings/keybindings, and the current
+   system/Home Manager generation identities. Inventory unmanaged files first.
+2. Build and run `bash nix/check.sh`. Each directory's `.before-home-manager`
+   sibling must be absent, including dangling symlinks. Stop for any unmanaged
+   entry; reconcile it explicitly instead of hiding it behind a directory link.
+3. After approval, activate the reviewed generation. Home Manager checks for
+   collisions, removes obsolete managed leaves, moves each real directory to
+   its `.before-home-manager` sibling, then installs its replacement link.
+   Keep the separate backup: obsolete managed leaves are cleaned **before**
+   these sibling backups are made. The transition is not transactional.
+4. Check `systemctl status home-manager-mishka.service`, resolve each live link,
+   open a new shell, and test tmux/Neovim/Pi. Confirm settings/keybindings remain
+   writable and unchanged. Keep all backups until recovery is no longer needed.
+
+Do **not** run the full Home Manager activation script as a harmless dry-run:
+existing custom activation actions include direct writes not guarded by `run`.
+The file-link transition can instead be exercised in a disposable HOME using
+only the pinned collision/cleanup/link operations, without service/profile hooks.
+
+For the first NixOS bootstrap activation, save work and install the generation for the next boot:
 
 ```sh
 sudo nixos-rebuild boot --flake /home/mishka/.dotfiles#nixos \
@@ -120,10 +180,30 @@ Do not change `system.stateVersion` or `home.stateVersion` to upgrade packages.
 
 ## Recovery and acceptance
 
-At boot, select the previous NixOS generation if necessary. If only Hyprland is
-broken, select Plasma at SDDM. From a working terminal, `sudo nixos-rebuild switch
---rollback` restores the preceding system generation. A rollback is not a home-data
-backup: inspect Home Manager's `.before-home-manager` files if reverting user files.
+If only Hyprland is broken, select Plasma at SDDM. System generations can otherwise
+be rolled back with `sudo nixos-rebuild switch --rollback` or the boot menu, but
+**first check whether the old generation predates the live-directory migration**.
+
+An old recursive generation can follow a new directory link and write into the
+Git checkout. Before activating **or booting** such a generation:
+
+1. Save any newer source/local changes independently. Confirm that each of the
+   four directory targets is still a symlink resolving to its expected path in
+   `~/.dotfiles`, and that its preserved directory backup is available.
+2. With explicit approval, detach only those four symlinks themselves (`unlink`,
+   never a recursive removal or a path with a trailing slash), then restore the
+   corresponding backed-up real directories. Check all paths before changing any.
+   Do not move anything out of the source checkout or overwrite newer local data.
+3. Only then activate the previous generation. Home Manager can recreate any
+   old managed leaves removed during the forward migration. The three standalone
+   file links do not have the directory-traversal hazard.
+
+Once both generations use the same live-link layout, the representation change
+no longer applies. However, **Nix rollback never restores live source edits**:
+recover those separately through reviewed Git changes, without a hard reset.
+A generation rollback is not a backup of mutable home data either. Keep the
+private pre-migration backup and `.before-home-manager` directories until you
+explicitly choose to retire this recovery route.
 
 Before treating this profile as daily-driver ready:
 

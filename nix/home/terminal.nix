@@ -1,5 +1,7 @@
-{ inputs, lib, pkgs, ... }:
+{ config, inputs, lib, pkgs, ... }:
 let
+  # Keep these editable sources outside the store; packages stay Nix-owned.
+  liveConfig = name: config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/.dotfiles/${name}";
   palette = import ./palette.nix { inherit lib; };
   inherit (palette) roles;
   prompt = builtins.fromJSON (builtins.readFile ../../ohmyposh/base.json);
@@ -96,16 +98,16 @@ in
   };
 
   xdg.configFile = {
-    "zshrc".source = ../../zshrc;
+    "zshrc".source = liveConfig "zshrc";
     "oh-my-zsh".source = "${pkgs.oh-my-zsh}/share/oh-my-zsh";
     "zsh-custom".source = zshCustom;
-    "tmux.conf".source = ../../tmux.conf;
+    "tmux.conf".source = liveConfig "tmux.conf";
     "tmux_scripts" = { source = ../../tmux_scripts; recursive = true; };
     "tmux_plugins" = { source = ../../tmux_plugins; recursive = true; };
     "nnn/plugins" = { source = ../../nnn/plugins; recursive = true; };
     "qol_scripts/copy".source = ../../qol_scripts/copy;
     "qol_scripts/pasta".source = ../../qol_scripts/pasta;
-    "nvim" = { source = ../../nvim; recursive = true; };
+    "nvim".source = liveConfig "nvim";
     "theme/active/tmux/colors.conf".source = ../../theme/bundles/vague/tmux/colors.conf;
     "theme/active/shell/palette.sh".source = ../../theme/bundles/vague/shell/palette.sh;
     "theme/active/nvim/native.lua".source = ../../theme/bundles/vague/nvim/native.lua;

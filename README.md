@@ -48,3 +48,9 @@ Waybar, desktop applications, and Linux-adapted versions of the shared terminal,
 Neovim, tmux/sidebar, and Pi workflows. See `nix/README.md` for deployment,
 activation, recovery, mutable-state boundaries, and acceptance tests. It does not
 change the macOS behavior.
+
+On Linux, `~/.dotfiles` is the single source checkout and Home Manager owns
+`~/.config`. Selected plain configs and Pi guidance are live-linked to the
+checkout; generated Linux settings, extensions, and dependencies stay in the
+Nix store. Credentials, sessions, and local preferences stay writable and local.
+See the ownership table and migration/rollback instructions in `nix/README.md`.

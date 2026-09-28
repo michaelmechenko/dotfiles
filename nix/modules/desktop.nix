@@ -6,6 +6,14 @@
     xwayland.enable = true;
   };
 
+  services.displayManager = {
+    defaultSession = "hyprland-uwsm";
+    autoLogin = {
+      enable = true;
+      user = "mishka";
+    };
+  };
+
   hardware.graphics.enable = true;
   hardware.graphics.enable32Bit = true;
 

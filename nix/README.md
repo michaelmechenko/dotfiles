@@ -18,6 +18,10 @@ is pinned in `flake.nix`; `flake.lock` also pins Home Manager.
   references, and overrides. No second hand-maintained palette.
 
 Plasma/SDDM, networking, audio, firewall, SSH, and disk layout are preserved.
+SDDM automatically logs `mishka` into Hyprland (managed by UWSM) at startup,
+without a login password prompt. Anyone powering on the PC can access the desktop;
+any disk-encryption prompt is unaffected. Logging out returns to SDDM, where
+Plasma remains available.
 No automatic updates, garbage collection, passwordless sudo, disk changes,
 or reboot are introduced. SSH password authentication is not changed by this
 bootstrap; harden it separately after verifying persistent key access.
@@ -240,9 +244,10 @@ sudo nixos-rebuild boot --flake /home/mishka/.dotfiles#nixos \
   --option experimental-features 'nix-command flakes'
 ```
 
-This leaves the current desktop session alone. Reboot when ready. In SDDM choose
-**Hyprland (managed by UWSM)**, not the unmanaged Hyprland entry. Plasma remains
-available. Home Manager activation runs as part of the new NixOS generation;
+This leaves the current desktop session alone. Reboot when ready; SDDM automatically
+starts **Hyprland (managed by UWSM)** for `mishka`. After logging out, select that
+same entry for manual login, or Plasma as a fallback. Home Manager activation
+runs as part of the new NixOS generation;
 existing managed files are backed up with `.before-home-manager`, not overwritten.
 If that backup name already exists, activation stops instead of replacing it.
 

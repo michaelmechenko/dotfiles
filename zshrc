@@ -248,6 +248,7 @@ alias tf="terraform"
 
 # folders
 alias main="cd ~/_main"
+alias msg="cd ~/_main/msg"
 alias config="cd ~/.config"
 alias dot="cd ~/.dotfiles"
 

@@ -110,3 +110,4 @@ __pycache__/
 /tmux_sessions
 /pi-config/agent/plan-history
 /tmux_scripts/mm-sidebar/mm-sidebar
+/result

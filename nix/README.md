@@ -28,7 +28,9 @@ bootstrap; harden it separately after verifying persistent key access.
   centered clock; volume, network, Bluetooth, tray and session menu on the right.
   The session menu (also Super-Shift-Escape) offers Lock, Sleep, Log out, Restart,
   and Shut down. Sleep runs `systemctl suspend`; Hypridle requests locking before
-  sleep. The session stays in RAM and still requires power.
+  sleep. The session stays in RAM and still requires power. Hypridle has no idle
+  timeout, so inactivity does not lock the session or power off the displays;
+  manual locking and locking before explicit sleep remain enabled.
 - Active workspace/app: lavender on the highlight surface; inactive: muted UI
   text on chrome; urgent workspace: rose. Offline/muted states say so in text.
 - Focused window: lavender border; unfocused: subtle divider border. Eight-pixel
@@ -278,8 +280,9 @@ Before treating this profile as daily-driver ready:
    focus/fullscreen, monitor resolution/refresh, and expected scaling.
 2. Check `hyprctl configerrors`, notifications (`notify-send test`), clipboard,
    screenshot selection/cancellation, volume, Wi-Fi, Bluetooth, and USB mounting.
-3. Lock with Super-Ctrl-L and unlock with the user password; test idle locking
-   and suspend/resume. Do not rely on locking until this succeeds.
+3. Lock with Super-Ctrl-L and unlock with the user password; then test explicit
+   suspend/resume and confirm the session locks before sleep. Leave the machine
+   idle past the former 10-minute timeout and confirm it does not lock.
 4. Test microphone and portal file selection/screen sharing. Compare Vulkan
    device selection with the RX 9060 XT; the CPU's iGPU also exists.
 5. Log out using the session menu, return to Plasma, and verify there is no

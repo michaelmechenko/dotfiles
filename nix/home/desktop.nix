@@ -173,10 +173,6 @@ in
       lock_cmd = pidof hyprlock || hyprlock
       before_sleep_cmd = loginctl lock-session
     }
-    listener {
-      timeout = 600
-      on-timeout = loginctl lock-session
-    }
   '';
   xdg.configFile."mako/config".text = ''
     font=Lilex Nerd Font 11

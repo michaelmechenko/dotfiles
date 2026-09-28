@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { realpathSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import test from "node:test";
 import { pathToFileURL } from "node:url";
@@ -9,7 +9,12 @@ import { EXECUTION_SETTINGS_HELP, renderExecutionSettingsHeader, renderPlanProgr
 import type { TodoItem } from "./utils.ts";
 
 const piCli = realpathSync(execFileSync("which", ["pi"], { encoding: "utf8" }).trim());
-const tuiPath = resolve(dirname(piCli), "..", "..", "node_modules", "@earendil-works", "pi-tui", "dist", "index.js");
+const tuiCandidates = [
+	resolve(dirname(piCli), "..", "..", "node_modules", "@earendil-works", "pi-tui", "dist", "index.js"),
+	resolve(dirname(piCli), "..", "lib", "node_modules", "pi-monorepo", "node_modules", "@earendil-works", "pi-tui", "dist", "index.js"),
+];
+const tuiPath = tuiCandidates.find(existsSync);
+if (!tuiPath) throw new Error("Cannot locate the installed Pi TUI package");
 const { truncateToWidth, visibleWidth } = await import(pathToFileURL(tuiPath).href);
 
 const ansiTheme = {

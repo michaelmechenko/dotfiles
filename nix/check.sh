@@ -32,6 +32,7 @@ configured_home=$(nix_eval home-manager.users.mishka.home.homeDirectory)
 live_paths=(
   zshrc tmux.conf nvim pi-config/agent/AGENTS.md
   pi-config/agent/agents pi-config/agent/prompts pi-config/agent/skills
+  pi-config/agent/pi-lens-global.json
 )
 for relative in "${live_paths[@]}"; do
   source="$configured_home/.dotfiles/$relative"

@@ -152,11 +152,11 @@ bidirectional copy job on top of it.
 
 | Ownership | Paths under `~/.config` | Applying changes |
 | --- | --- | --- |
-| Live source links into the same paths under `~/.dotfiles` | `zshrc`, `tmux.conf`, `nvim`, `pi-config/agent/AGENTS.md`, `pi-config/agent/agents`, `pi-config/agent/prompts`, `pi-config/agent/skills` | Edit the source; reload/restart the application |
+| Live source links into the same paths under `~/.dotfiles` | `zshrc`, `tmux.conf`, `nvim`, `pi-config/agent/AGENTS.md`, `pi-config/agent/agents`, `pi-config/agent/prompts`, `pi-config/agent/skills`, `pi-config/agent/pi-lens-global.json` | Edit the source; reload/restart the application |
 | Store-backed configuration and packages | Ghostty, Linux desktop, `oh-my-posh`, active themes, tmux scripts/plugins/sidebar, nnn plugins, shell helpers, all Pi extensions and Neovim dependencies | Build, check, then deliberately activate |
 | Local writable state | Pi settings/keybindings/auth/sessions/npm/cache, `zshrc.local`, application state | Leave local; never import whole runtime directories into Git or Nix |
 
-The seven live links use `mkOutOfStoreSymlink` with an absolute home-derived
+The eight live links use `mkOutOfStoreSymlink` with an absolute home-derived
 `~/.dotfiles` path. Keep this checkout in place; do not point links at temporary
 worktrees. Directory links pick up new guidance/Lua files without a rebuild.
 Changes to the link declarations themselves still require activation.

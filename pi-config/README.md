@@ -53,7 +53,7 @@ project-slug convention.
   `agent/themes/`. Personal per-palette tweaks go in a palette's optional `overrides.roles` (see
   `theme/SUPPORT.md`), not a separate pi theme file.
 - `defaultProvider` / `defaultModel`: `openai-codex` / `gpt-5.6-terra`.
-- `enabledModels`: `openai-codex/*`, `ollama-cloud/*`. The current catalog reports no Ollama Cloud matches; provider metadata remains explicit follow-up work.
+- `enabledModels`: `openai-codex/*`. The current catalog reports no Ollama Cloud matches; provider metadata remains explicit follow-up work.
 - `defaultProjectTrust: "ask"` — project-local executable resources require a trust decision.
 - `compaction.enabled: true` — Pi conservatively compacts long sessions; the footer reports auto/active compaction and context urgency.
 - `packages`: npm packages managed via `pi install` / `pi remove` (see [Packages](#packages) below).

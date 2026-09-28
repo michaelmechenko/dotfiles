@@ -86,7 +86,7 @@ in
       hl.bind("SUPER + Return", launch("ghostty"))
       hl.bind("SUPER + Space", launch("fuzzel"))
       hl.bind("SUPER + E", launch("dolphin"))
-      hl.bind("SUPER + B", launch("firefox"))
+      hl.bind("SUPER + B", launch("helium"))
       hl.bind("SUPER + Q", hl.dsp.window.close())
       hl.bind("SUPER + F", hl.dsp.window.fullscreen())
       hl.bind("SUPER + SHIFT + Space", hl.dsp.window.float({ action = "toggle" }))

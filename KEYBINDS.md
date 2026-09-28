@@ -12,7 +12,7 @@ The full Mac tmux/sidebar and Neovim plugin configuration is not enabled here.
 | --- | --- |
 | `Super-Enter` | Open Ghostty |
 | `Super-Space` | Search/launch applications with fuzzel |
-| `Super-e` / `Super-b` | Open Dolphin / Firefox |
+| `Super-e` / `Super-b` | Open Dolphin / Helium |
 | `Super-q` | Close focused window |
 | `Super-f` | Toggle fullscreen |
 | `Super-Shift-Space` | Toggle floating |

@@ -27,6 +27,7 @@ python3 -m py_compile \
   "$ROOT/tmux_scripts/tmux-snapshot-codec.py" \
   "$ROOT/tmux_plugins/extrakto/extrakto_plugin.py"
 
+python3 "$ROOT/tmux_scripts/tmux-reload-permissions-test.py"
 python3 "$ROOT/tmux_scripts/tmux-boundary-test.py"
 "$ROOT/tmux_scripts/tmux-session-snapshot-test.sh"
 "$ROOT/tmux_scripts/tmux-nnn-explorer-test.sh"

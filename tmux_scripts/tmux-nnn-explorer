@@ -78,8 +78,8 @@ if [ -z "$FZF_OPTS" ]; then
     FZF_OPTS=${FZF_OPTS#FZF_DEFAULT_OPTS=}
 fi
 RG_THEME_COLORS="${RG_COLORS:-match:fg:$(hex_rgb "$PRIMARY_COLOR"):style:underline}"
-POPUP_SESSION="nnn-popup-$$"
-POPUP_TOKEN="$POPUP_SESSION-$RANDOM"
+POPUP_SESSION="nnn-popup-$$-$RANDOM-$RANDOM"
+POPUP_TOKEN="$POPUP_SESSION"
 
 if [ "$MODE" = "pane" ]; then
     GEO=(-t "$ORIGIN_PANE" -x '#{popup_pane_left}' -y '#{popup_pane_bottom}' -w "$PANE_W" -h "$PANE_H")

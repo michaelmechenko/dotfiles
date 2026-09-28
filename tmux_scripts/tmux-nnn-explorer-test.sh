@@ -40,7 +40,7 @@ run_case() {
     exit 1
   }
   [ ! -s "$tmp/kill" ] || { echo 'launcher killed an unrelated nnn session' >&2; exit 1; }
-  grep -Eq 'NNN_POPUP_SESSION=nnn-popup-[0-9]+' "$tmp/capture" || { echo 'popup session is not launch-unique' >&2; exit 1; }
+  grep -Eq 'NNN_POPUP_SESSION=nnn-popup-[0-9]+-[0-9]+-[0-9]+' "$tmp/capture" || { echo 'popup session is not launch-unique' >&2; exit 1; }
   grep -Fq "NNN_SPLIT=$expected" "$tmp/capture" || {
     echo "width $width did not select NNN_SPLIT=$expected" >&2
     cat "$tmp/capture" >&2

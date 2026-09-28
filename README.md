@@ -2,6 +2,11 @@
 
 many changes, will update soon
 
+This repository configures both macOS and NixOS machines. Before giving
+hardware- or platform-specific instructions, inspect the active machine's OS,
+relevant hardware, desktop environment, and session type instead of assuming the
+macOS configuration or permanently treating one host as universal.
+
 ### things
 
 #### macos

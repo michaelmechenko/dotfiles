@@ -4,7 +4,9 @@
 
 ## What this repo is
 
-A personal macOS dotfiles tree mounted at `~/.config`. The `README.md` lists the tools at a high level (tmux, ghostty, zsh+ohmyposh, nvim, aerospace, sketchybar, jankyborders, raycast). Almost all work happens by editing configs and reloading the live tool — there is no repo-wide build / test / lint pipeline.
+A personal cross-platform dotfiles tree for macOS and NixOS, mounted at `~/.config` on macOS and checked out at `~/.dotfiles` on NixOS. The `README.md` lists the tools at a high level; `nix/README.md` documents the NixOS desktop. Most macOS work happens by editing configs and reloading the live tool, while NixOS store-backed changes require a build and deliberate activation. There is no single repo-wide build / test / lint pipeline.
+
+Before answering a hardware- or platform-specific question, inspect the active machine's OS, relevant hardware, desktop environment, and session type. Do not infer macOS from the repository's historical focus or permanently assume the current NixOS host.
 
 **The one exception is `tmux_scripts/mm-sidebar/`**, a Go module (the `M-Tab` sidebar TUI). It builds itself on demand — `tmux_scripts/tmux-sidebar-build` rebuilds when the binary is missing, stale, or unrunnable, so editing a `.go` file and pressing `M-Tab` is the whole loop. `go.mod`/`go.sum` are tracked; the architecture-specific binary is generated on demand and ignored by `.gitignore`. Requires the Go toolchain (`go` on `PATH`); without it the sidebar falls back to the legacy bash dispatcher and `tmux-agent-ls` degrades to Claude-only rows.
 

@@ -29,7 +29,7 @@ in
     PI_FFF_MODE = "override";
     PI_BTW_FOCUS_KEYS = "alt+/";
     PI_BTW_WIDTH_KEY = "alt+shift+/";
-    PI_LENS_CONFIG_PATH = "$HOME/.config/pi-config/agent/extensions/pi-lens.json";
+    PI_LENS_CONFIG_PATH = "$HOME/.config/pi-config/agent/pi-lens-global.json";
     PI_LENS_HOME = "$HOME/.local/state/pi-lens";
     PI_LENS_DISABLE_LSP_INSTALL = "1";
     PI_LENS_DISABLE_TOOL_INSTALL = "1";
@@ -44,6 +44,7 @@ in
     "pi-config/agent/extensions" = { source = extensions; recursive = true; };
     "pi-config/agent/prompts".source = liveResource "prompts";
     "pi-config/agent/skills".source = liveResource "skills";
+    "pi-config/agent/pi-lens-global.json".source = liveResource "pi-lens-global.json";
     "pi-config/agent/themes/active.json".source = ../../theme/bundles/vague/pi/theme.json;
   };
 

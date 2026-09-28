@@ -224,8 +224,10 @@ Pinned npm and git package sources (`pi update --extensions` reconciles without 
 
 Nix-generated settings additionally load fixed-output `michaelmechenko/pi-lens` and
 `michaelmechenko/pi-btw` package directories. Their package skills are disabled. Lens uses
-`agent/extensions/pi-lens.json` plus shell/Home Manager hard disables for installers, tool refresh,
-automatic mutation, and context injection; BTW inherits the parent's active-tool ceiling and access
+`agent/pi-lens-global.json` plus shell/Home Manager hard disables for installers, tool refresh,
+automatic mutation, and context injection. The non-reserved basename prevents Lens from mistaking its
+tracked global config for a deprecated project config when this repository is the active workspace;
+BTW inherits the parent's active-tool ceiling and access
 mode. Both Nix derivations pin the reviewed published fork commits, so normal NixOS startup is
 network-free. The tracked cross-platform settings point macOS at the same immutable commits; Pi
 clones them on initial macOS reconciliation and does not move pinned refs during extension updates.

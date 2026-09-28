@@ -68,7 +68,10 @@ for (const variable of ["PI_LENS_CONFIG_PATH", "PI_LENS_DISABLE_LSP_INSTALL", "P
   check(nixPi.includes(variable), `Nix Pi environment missing ${variable}`);
   check(shell.includes(variable), `shell environment missing ${variable}`);
 }
-const lensConfig = JSON.parse(read("agent/extensions/pi-lens.json"));
+const lensConfig = JSON.parse(read("agent/pi-lens-global.json"));
+check(!existsSync(join(agent, "extensions/pi-lens.json")), "Lens global config must not use the reserved project-config basename under extensions");
+check(nixPi.includes('"pi-config/agent/pi-lens-global.json".source = liveResource "pi-lens-global.json";'), "Nix must expose the tracked Lens global config");
+check(shell.includes('PI_LENS_CONFIG_PATH="$PI_CODING_AGENT_DIR/pi-lens-global.json"'), "shell Lens global config path drifted");
 check(lensConfig.lsp?.enabled === true, "Lens LSP must be enabled");
 check(lensConfig.format?.enabled === false && lensConfig.autofix?.enabled === false && lensConfig.contextInjection?.enabled === false, "Lens mutation/context defaults must stay disabled");
 check(lensConfig.tools?.lsp_navigation?.enabled === true && lensConfig.tools?.lens_diagnostics?.enabled === true, "Lens navigation/diagnostic tools must stay enabled");

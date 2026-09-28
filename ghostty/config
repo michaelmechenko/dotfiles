@@ -152,6 +152,10 @@ keybind = alt+right=csi:1;3C
 # alt+o: CSI-u transports M-o to tmux's typed open picker (111 = lowercase o,
 # 3 = Alt modifier). Ghostty otherwise sends modified Option keys unreliably.
 keybind = alt+o=csi:111;3u
+# pi-btw focus and width toggles. Slash is unbound in tmux's root table, unlike
+# the upstream Alt+w width default (47 = slash; Alt = 3; Alt+Shift = 4).
+keybind = alt+/=csi:47;3u
+keybind = alt+shift+/=csi:47;4u
 keybind = cmd+left=csi:1;9D
 keybind = cmd+right=csi:1;9C
 

@@ -14,7 +14,7 @@ none → plan → read-only → none
 - **read-only** — preserves the same baseline except direct mutation and tracked-execution tools. `plan_update` remains available for internal agent planning only.
 - **none** — restores the exact active-tool baseline captured before entering the restricted cycle. A preserved plan is shown as `none (plan paused)`, not as an active restriction; `plan_update` remains available when the user has not disabled it.
 
-Bash remains available in both restricted modes. Plan mode is not a shell sandbox: normal `permission-gate` and `protected-paths` safeguards remain independently active. Mode changes wait for Pi to be idle. Pressing `Ctrl+P` while an idle plan executes pauses it, restores the planning model, then enters plan mode.
+Bash remains available in both restricted modes. Plan mode is not a shell sandbox; project trust and the mode's active-tool restrictions remain independent boundaries. Mode changes wait for Pi to be idle. Pressing `Ctrl+P` while an idle plan executes pauses it, restores the planning model, then enters plan mode.
 
 ## Internal and tracked plans
 

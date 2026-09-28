@@ -13,16 +13,21 @@
   "enableInstallTelemetry": false,
   "defaultProjectTrust": "ask",
   "packages": [
-    "npm:@dreki-gg/pi-lsp",
     "npm:pi-ast-grep",
-    "npm:pi-mcp-adapter"
+    "npm:pi-mcp-adapter",
+    {
+      "source": "git:github.com/michaelmechenko/pi-lens@5e27080a3855dba5a2263f7e3b043e8d7385c3a5",
+      "skills": []
+    },
+    {
+      "source": "git:github.com/michaelmechenko/pi-btw@3241ec5f541367e17bff3d5ccf0c9cbca71a04ea",
+      "skills": []
+    }
   ],
   "extensions": [
     "+extensions/titlebar-spinner/index.ts",
     "+extensions/plan-mode/index.ts",
-    "+extensions/minimal-working-indicator/index.ts",
-    "-extensions/permission-gate/index.ts",
-    "+extensions/lsp-startup/index.ts"
+    "+extensions/minimal-working-indicator/index.ts"
   ],
   "defaultThinkingLevel": "high",
   "skills": [

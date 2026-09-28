@@ -9,13 +9,16 @@ let
   };
   extensions = pkgs.callPackage ../packages/pi-extensions.nix { };
   runtimePackages = pkgs.callPackage ../packages/pi-runtime.nix { };
+  piLens = pkgs.callPackage ../packages/pi-lens.nix { };
+  piBtw = pkgs.callPackage ../packages/pi-btw.nix { };
   sourceSettings = builtins.fromJSON (builtins.readFile ../../pi-config/agent/settings.json);
   linuxSettings = sourceSettings // {
     lastChangelogVersion = piPkgs.pi-coding-agent.version;
     packages = [
-      "npm:@dreki-gg/pi-lsp@0.5.2"
       "npm:pi-ast-grep@0.1.0"
       "npm:pi-mcp-adapter@2.36.0"
+      { source = "${piLens}"; skills = [ ]; }
+      { source = "${piBtw}"; skills = [ ]; }
     ];
   };
 in
@@ -24,6 +27,15 @@ in
   home.sessionVariables = {
     PI_CODING_AGENT_DIR = "$HOME/.config/pi-config/agent";
     PI_FFF_MODE = "override";
+    PI_BTW_FOCUS_KEYS = "alt+/";
+    PI_BTW_WIDTH_KEY = "alt+shift+/";
+    PI_LENS_CONFIG_PATH = "$HOME/.config/pi-config/agent/extensions/pi-lens.json";
+    PI_LENS_HOME = "$HOME/.local/state/pi-lens";
+    PI_LENS_DISABLE_LSP_INSTALL = "1";
+    PI_LENS_DISABLE_TOOL_INSTALL = "1";
+    PI_LENS_DISABLE_TOOL_REFRESH = "1";
+    PI_LENS_DISABLE_MUTATIONS = "1";
+    PI_LENS_NO_CONTEXT_INJECTION = "1";
   };
 
   xdg.configFile = {

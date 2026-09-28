@@ -10,9 +10,11 @@ agents, or prompts, run `/reload` inside a pi session to pick up changes without
 On NixOS, `nix/home/pi.nix` installs pinned Pi 0.86.1 and deploys only public resources. Settings,
 keybindings, package state, toggles, credentials, sessions, and caches remain writable under this
 same `PI_CODING_AGENT_DIR`; Home Manager seeds settings/keybindings/package dependencies only when
-absent. Local dependency-bearing extensions and the three external packages are built by Nix, so
-normal startup does not run npm. Mac `node_modules`, auth, and session state are never deployment
-inputs. The active Pi theme is the generated Nix-owned Vague bundle. Extension source edits on
+absent. Local dependency-bearing extensions, the two npm packages, and the reviewed Lens/BTW fork
+packages are built by Nix, so normal startup does not run npm. Mac `node_modules`, auth, and session
+state are never deployment inputs. The tracked macOS settings use immutable published fork commits,
+while NixOS replaces them with fixed-output store paths; the shared zsh config exports the same
+Lens/BTW controls on both platforms. The active Pi theme is the generated Nix-owned Vague bundle. Extension source edits on
 NixOS require rebuilding/activating the Home Manager configuration before `/reload`; they are
 not live-linked from the checkout.
 
@@ -50,7 +52,7 @@ project-slug convention.
   entry (a stable symlink to the active generated bundle) — no standalone theme files live in
   `agent/themes/`. Personal per-palette tweaks go in a palette's optional `overrides.roles` (see
   `theme/SUPPORT.md`), not a separate pi theme file.
-- `defaultProvider` / `defaultModel`: `openai-codex` / `gpt-5.6-sol`.
+- `defaultProvider` / `defaultModel`: `openai-codex` / `gpt-5.6-terra`.
 - `enabledModels`: `openai-codex/*`, `ollama-cloud/*`. The current catalog reports no Ollama Cloud matches; provider metadata remains explicit follow-up work.
 - `defaultProjectTrust: "ask"` — project-local executable resources require a trust decision.
 - `compaction.enabled: true` — Pi conservatively compacts long sessions; the footer reports auto/active compaction and context urgency.
@@ -64,24 +66,20 @@ directory already lives under pi's `extensions/`, so the prefix is redundant), n
 file extension isn't part of the extension's identity), plain `kebab-case` names throughout.
 
 <!-- inventory:extensions -->
-`answer`, `ask-user`, `diff`, `extension-toggle`, `finder`, `footer`, `header`, `image-proxy`, `lsp-startup`, `markdown-code`, `minimal-working-indicator`, `permission-gate`, `plan-mode`, `pretty`, `prompt-stash`, `protected-paths`, `save-md`, `session-recall`, `session-rename`, `session-state`, `skill-toggle`, `subagent`, `thinking-controls`, `thinking-label`, `titlebar-spinner`, `tmux`, `tool-display`, `tool-toggle`, `web-tools`, `whimsical`
+`answer`, `ask-user`, `diff`, `extension-toggle`, `finder`, `footer`, `header`, `image-proxy`, `markdown-code`, `minimal-working-indicator`, `plan-mode`, `pretty`, `prompt-stash`, `save-md`, `session-recall`, `session-rename`, `session-state`, `skill-toggle`, `subagent`, `thinking-controls`, `thinking-label`, `titlebar-spinner`, `tmux`, `tool-display`, `tool-toggle`, `web-tools`, `whimsical`
 <!-- /inventory:extensions -->
-
-`agent/extensions/lsp/config.json` is package configuration, not an auto-discovered local extension.
 
 ### Vendored from pi's own `examples/extensions/`
 
 | Extension | What it does |
 |---|---|
 | `session-rename/` | Ctrl+R or `/rename [name]` renames the current live session. |
-| `protected-paths/` | Blocks `write`, `edit`, and `apply_patch` mutations to canonical protected paths, including move destinations and existing symlink aliases. Protects `.env`/`.env.*`, `.git`, `node_modules`, `auth.json`, `.ssh`, `id_rsa`, and `.pem` files without substring false positives. |
-| `permission-gate/` | Confirms dangerous `rm`, `sudo`, `chmod`, and `chown` commands. It only auto-allows literal absolute operands canonically confined to `/tmp`, `/private/tmp`, or the OS temp directory; mixed, relative, dynamic, and privileged commands require confirmation. |
 | `tool-toggle/` | `/tool-toggle` persists only disabled-tool deltas, so newly installed tools remain visible while plan/read-only positive allowlists stay authoritative. |
 | `titlebar-spinner/` | Slow terminal-title activity spinner; returns to the current session/cwd title only after the agent fully settles and refreshes on session rename/start. |
 | `minimal-working-indicator/` | Replaces pi's 80 ms inline spinner with the fixed-width themed sequence `*  ` → `** ` → `***` → `** ` at 1.5-second intervals (0.67 frames/second). The padding keeps the working text at a fixed column; the slower timer reduces TUI synchronized-redraw pressure in tmux by about 95% while retaining visible activity. |
 | `thinking-label/` | Lowercases the "Thinking..." placeholder shown for collapsed thinking blocks (`hideThinkingBlock: true`) to `thinking...`, via `ctx.ui.setHiddenThinkingLabel()`. A prior `hidden-thinking-label/` extension exposed this as a full `/thinking-label [text]` command and was removed as unneeded; this is a fixed, no-command replacement |
 | `plan-mode/` | Structured sequential tracked-plan workflow plus isolated internal agent plans. `plan_update` defaults to tracked only during explicit planning/execution and to branch-local internal state otherwise; `scope=internal` works in every mode without plan files, history, footer/widget, review, model, or handoff side effects. `Ctrl+P` cycles `none → plan → read-only → none`; restricted modes preserve bash while removing direct mutations, and read-only retains internal planning. Tracked branch navigation restores state, tools, and session model. Tmux execution uses durable claim/readiness handoffs; completed-plan retries are idempotent, and clipboard exports include the execution brief. |
-| `subagent/` | Bounded foreground single/parallel/chain delegation. Child tools are intersected with the parent's active tools, project agents require trust, and JSONL/process lifecycles are bounded; see [Agents & Prompts](#agents--prompts). |
+| `subagent/` | Bounded foreground single/parallel/chain delegation. Child tools are intersected with the parent's active tools, project agents require trust, one session-wide limiter caps all sibling calls at four children, large JSONL records spill privately with typed diagnostics, and truncated results return mode-0600 retained-artifact paths; see [Agents & Prompts](#agents--prompts). |
 | `prompt-stash/` | Claude Code-style Ctrl+S "stash or restore prompt": stashes and clears a non-empty editor, restores it on the next Ctrl+S press when the editor is empty. In-memory only (per pi process, cleared on `session_shutdown`); no cursor-position or pasted-image restore since pi's extension API doesn't expose those. Not vendored from anywhere — written directly against pi's `registerShortcut` + `ctx.ui.getEditorText`/`setEditorText` API. Ctrl+S collides with three built-in shortcuts: `app.models.save` (only live inside the `/scoped-models` picker), `app.session.toggleSort` (only live inside the `/resume` session picker), and `app.thinking.save`; `agent/keybindings.json` rebinds the first two to `ctrl+shift+s` and `ctrl+shift+r` and disables the last to resolve them — prompt-stash keeps the Claude Code-matching key |
 | `session-state/` | Publishes an atomic, mode `0600` `/tmp/pi-session-state/<pid>.json` record on every `session_start` (including reload/new/resume/fork), containing the exact session ID, session file, and cwd; removes it on `session_shutdown`. `tmux-pi-session`, `tsave`, and mm-sidebar validate it against the live pi PID and cwd. |
 
@@ -152,10 +150,9 @@ resolution this extension uses internally. To pick up upstream changes, diff aga
 
 | Extension | What it does |
 |---|---|
-| `lsp-startup/` | On a fresh interactive Pi launch, displays the globally/project-enabled LSP server names once as a notification. It respects Pi's global-plus-project LSP merge and an all-LSP disable; it does not display LSP status in the footer. |
 | `markdown-code/` | Display-only fenced-code language hints for Pi chat Markdown. Explicit tags win; recognizable untagged JavaScript, TypeScript, Python, shell, and JSON blocks receive conservative hints so Pi's native highlighter uses the active theme, while prose and ambiguous blocks remain plain. Assistant fenced blocks also get a full-width, subtle `toolPendingBg` (`surface-chrome`) panel, including fences, blank rows, and wrapped continuations. User messages, thinking, inline/indented code, and tool previews retain their existing backgrounds. The same fence scanner is reused by `pretty/` Markdown read previews. |
 | `finder/` | `open_in_finder` tool — opens/reveals a referenced local path after validating it. On macOS it prefers ForkLift and falls back to Finder (`open`/`open -R`); on Linux it uses Dolphin (`--select` for files) and falls back to `xdg-open`. Resolves `@`, `~`, absolute, and cwd-relative paths and spawns argv directly without a shell. It acts only when explicitly requested and reports the resolved path and handler. |
-| `tmux/` | `tmux` tool plus `/tmux`, `/tmux:cat`, and `/tmux:fork [below|right]` commands. `/tmux:fork` waits for Pi to become idle, duplicates the current active branch at its exact leaf into a new session file, and opens that fork in a detached pane below by default or right when requested, preserving source focus and cwd. Forked Pi falls through to a login shell when it exits. Pi's built-in `/fork` previous-message picker remains unchanged because built-in interactive commands cannot be disabled through the extension interface. Managed jobs expose only `run`, `attach`, `peek`, `list`, and `mute`; use argv-based tmux calls, private durable records, bounded capture output, one-shot silence/completion notifications, and Ghostty attachment without switching the source client. The public extension never offers session/window/pane deletion. |
+| `tmux/` | `tmux` tool plus `/tmux`, `/tmux:cat`, and `/tmux:fork [below|right]` commands. `/tmux:fork` waits for Pi to become idle, duplicates the current active branch at its exact leaf into a new session file, and opens that fork in a detached pane below by default or right when requested, preserving source focus and cwd. Forked Pi falls through to a login shell when it exits. Managed jobs expose only `run`, `attach`, `peek`, `list`, and `mute`; bind new records to the originating Pi session/ancestor branch and exact tmux socket; stream PTY output to a mode-0600 retained log capped at 64 MiB; and keep bounded reads available after pane exit. A directory watcher reconciles durable completion markers, SQLite claims deduplicate concurrent resumed Pi processes, and owner-only completion context is queued for the next user turn before acknowledgement. Silence means no retained-log activity for the requested interval and re-arms on later output. Version-1 records remain metadata-readable but never auto-inject or capture an unverified pane. Ghostty attachment pins the original socket without switching the source client. The extension never deletes tmux sessions, windows, panes, or successful job artifacts; no cleanup policy exists yet. |
 
 `markdown-code/background.ts` confines its guarded Pi 0.86.1 adapter to Markdown rendering:
 Pi's public transformer context identifies assistant text, and only native fenced-code tokens
@@ -210,25 +207,32 @@ collide with core defaults, so `keybindings.json` frees those keys up:
 - `tui.editor.cursorLineEnd` (default `["end", "ctrl+e"]`) drops the `ctrl+e` alias, keeping only `end`,
   so `extension-toggle/`'s `ctrl+e` picker shortcut doesn't collide with moving the cursor to line end.
 
-## Packages (`agent/settings.json` → `packages`, npm-managed)
+## Packages (`agent/settings.json` → `packages`)
 
-Installed via `pi install npm:<name>` (writes here automatically; `pi update --extensions` reconciles):
+Pinned npm and git package sources (`pi update --extensions` reconciles without moving immutable refs):
 
 <!-- inventory:packages -->
-`npm:@dreki-gg/pi-lsp`, `npm:pi-ast-grep`, `npm:pi-mcp-adapter`
+`npm:pi-ast-grep`, `npm:pi-mcp-adapter`, `git:github.com/michaelmechenko/pi-lens@5e27080a3855dba5a2263f7e3b043e8d7385c3a5`, `git:github.com/michaelmechenko/pi-btw@3241ec5f541367e17bff3d5ccf0c9cbca71a04ea`
 <!-- /inventory:packages -->
 
 | Package | Purpose |
 |---|---|
-| `@dreki-gg/pi-lsp` | Generic LSP integration with 11 operations. The tracked config enables TypeScript, Pyright, and Bash and disables Rust, Go, and Lua. NixOS patches v0.5.2's global config lookup to honor `PI_CODING_AGENT_DIR`, avoiding a second `~/.pi` root; macOS behavior is unchanged. `lsp-startup/` reports the effective configured state and executable availability. |
 | `pi-ast-grep` | Generic AST search — one `ast_grep` tool wrapping the `ast-grep` CLI (`run`/`scan`). **Read-only in v0**, no rewrite mode. For structural rewrites, invoke the `ast-grep` CLI directly via `bash` (`ast-grep run -p '<pattern>' -r '<rewrite>' -U`) |
 | `pi-mcp-adapter` | Installed but intentionally unconfigured pending a separate keep/configure/remove decision. |
+| `michaelmechenko/pi-lens` | Pinned fork: diagnostics, LSP navigation, and structural tools under hard operator mutation/install/context boundaries. Package skills disabled. |
+| `michaelmechenko/pi-btw` | Pinned fork: side conversation whose child tools never exceed the parent's active tool boundary. Package skills disabled. |
 
-
+Nix-generated settings additionally load fixed-output `michaelmechenko/pi-lens` and
+`michaelmechenko/pi-btw` package directories. Their package skills are disabled. Lens uses
+`agent/extensions/pi-lens.json` plus shell/Home Manager hard disables for installers, tool refresh,
+automatic mutation, and context injection; BTW inherits the parent's active-tool ceiling and access
+mode. Both Nix derivations pin the reviewed published fork commits, so normal NixOS startup is
+network-free. The tracked cross-platform settings point macOS at the same immutable commits; Pi
+clones them on initial macOS reconciliation and does not move pinned refs during extension updates.
 
 Installed package sources live under `agent/npm/node_modules/` (gitignored — see `agent/npm/.gitignore`
 and the repo-root `.gitignore` entry for `agent/extensions/*/node_modules`). NixOS seeds exact versions
-`@dreki-gg/pi-lsp@0.5.2`, `pi-ast-grep@0.1.0`, and `pi-mcp-adapter@2.36.0` into this writable workspace;
+`pi-ast-grep@0.1.0` and `pi-mcp-adapter@2.36.0` into this writable workspace;
 subsequent user package-management changes are not overwritten.
 
 ## Agents & Prompts
@@ -373,12 +377,12 @@ The extension declares matching Pi/TypeBox peers plus local dev dependencies; ru
 Every entry in `agent/extensions/` is `<name>/index.ts` — a directory, never a bare `<name>.ts` file,
 and never prefixed with `pi-`. This applies to locally vendored/forked extensions only; npm-managed
 packages in the `packages` array (see below) keep their real upstream package names
-(`@dreki-gg/pi-lsp`, `pi-ast-grep`, `pi-mcp-adapter`) since those are fixed identifiers pi itself tracks for `pi
+(`pi-ast-grep`, `pi-mcp-adapter`) since those are fixed identifiers pi itself tracks for `pi
 update`/`pi list` — renaming them isn't possible without forking them too.
 
 ## Emoji policy
 
-`AGENTS.md` (Communication section) directs the model not to use emoji/pictograph symbols (⚠️, 📋, ✅, etc.) in its own output unless explicitly asked. This is separate from, but consistent with, extension-level cleanup: `permission-gate` and `plan-mode` had hardcoded pictograph glyphs (⚠, 📋, ⏸, ☑, ☐) removed in favor of plain text/ASCII (`[x]`/`[ ]`). Plain typographic symbols already used idiomatically across vendored TUI extensions (✓/✗ status marks, →/↑/↓ arrows, ❯ bullets, ✦ spinners) are not emoji and were left as-is — rewriting those would touch nearly every vendored extension for no behavioral benefit.
+`AGENTS.md` (Communication section) directs the model not to use emoji/pictograph symbols (⚠️, 📋, ✅, etc.) in its own output unless explicitly asked. This is separate from, but consistent with, extension-level cleanup: `plan-mode` and the pi-btw fork use plain text/ASCII (`[x]`/`[ ]`) instead of pictographs. Plain typographic symbols already used idiomatically across vendored TUI extensions (✓/✗ status marks, →/↑/↓ arrows, ❯ bullets, ✦ spinners) are not emoji and were left as-is — rewriting those would touch nearly every vendored extension for no behavioral benefit.
 
 ## Verification
 
@@ -393,6 +397,7 @@ Then run affected extension tests (`node --experimental-strip-types --no-warning
 ## Maintenance
 
 - Extensions with a `package.json` manage their own local dependencies. Run `npm install` in the affected directory after dependency changes; use `--ignore-scripts` for `ask-user/` because its dev-only prepare script is not needed.
-- `pi list` / `pi update --extensions` manage the npm-installed `packages` array only — vendored
-  and forked extensions are plain files in this repo and update by hand.
+- `pi list` / `pi update --extensions` manage the tracked npm and pinned-git package entries. Nix
+  store-backed Lens/BTW sources move only by updating their reviewed revisions and fixed-output
+  hashes; locally vendored extensions update by hand.
 - `PI_CODING_AGENT_DIR=~/.config/pi-config/agent pi --help` is the non-session extension-load smoke check.

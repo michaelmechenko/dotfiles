@@ -19,6 +19,9 @@ for (const key of ["extensions", "skills", "prompts"]) {
 
 check(settings.defaultProjectTrust === "ask", "defaultProjectTrust must be 'ask'");
 check(settings.compaction?.enabled === true, "auto-compaction must be enabled");
+check(settings.defaultProvider === "openai-codex" && settings.defaultModel === "gpt-6-astra", "Pi default must be openai-codex/gpt-6-astra");
+check(JSON.stringify(settings.enabledModels) === JSON.stringify(["openai-codex/*"]), "enabled models must exclude retired Ollama Cloud");
+check(!existsSync(join(agent, "models.json")), "retired custom models.json must remain absent");
 
 const extensionNames = readdirSync(join(agent, "extensions")).filter((name) => existsSync(join(agent, "extensions", name, "index.ts"))).sort();
 const extensions = new Set(extensionNames);

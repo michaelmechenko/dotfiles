@@ -53,6 +53,9 @@ whole autosuggestion (Ghostty transports it through F13).
 | `end` / `cmd-right` | Move to the end of the current editor line |
 | `ctrl+p` | Cycle plan-mode access: none → plan → read-only → none; an idle execution pauses and re-enters plan mode |
 | `ctrl+alt+p` / `ctrl+alt+t` | Toggle the plan execution progress widget |
+| `alt+/` | Toggle focus between the pi-btw overlay and the main editor |
+| `alt+shift+/` | Toggle the pi-btw overlay between framed and full-width layouts |
+| `/btw` / `/side` / `/btw:tangent` / `/btw:ask` | Open a contextual, aliased, contextless, or read-only side conversation |
 | `/plan` / `/plan-review` | Enter structured planning or review a ready plan; execution opens the destination/model wizard |
 | `tab` / `right` and `shift-tab` / `left` | In the plan-mode execution wizard, cycle the selected multi-value setting forward/backward with wraparound; `enter` / `space` also advance it |
 | `ctrl+v` | In the plan-mode TUI recalibration editor, attach a clipboard image or paste clipboard text when no image is available |

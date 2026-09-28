@@ -19,9 +19,18 @@ export function restrictionGuidance(accessMode: AccessMode): string | undefined 
 	return undefined;
 }
 
-/** Defense in depth for extensions or stale active-tool state that invoke a blocked direct mutation. */
-export function checkRestrictedToolCall(accessMode: AccessMode, toolName: string): string | undefined {
+/** Return whether a pi-lens tool call would mutate source files. Preview/read operations stay available. */
+export function isLensMutation(toolName: string, input: Record<string, unknown> = {}): boolean {
+	if (toolName === "ast_grep_replace") return input.apply === true;
+	if (toolName === "lens_diagnostic_mark") return input.disposition === "suppress";
+	if (toolName !== "lsp_navigation" || input.apply !== true) return false;
+	return ["rename", "rename_file", "executeCommand"].includes(String(input.operation ?? ""));
+}
+
+/** Defense in depth for extensions or stale active-tool state that invoke a blocked mutation. */
+export function checkRestrictedToolCall(accessMode: AccessMode, toolName: string, input: Record<string, unknown> = {}): string | undefined {
 	if (accessMode !== "none" && RESTRICTED_MUTATION_TOOLS.has(toolName)) return `${accessMode} mode blocks direct file mutation tool '${toolName}'.`;
+	if (accessMode !== "none" && isLensMutation(toolName, input)) return `${accessMode} mode blocks mutating pi-lens call '${toolName}'. Preview and read-only operations remain available.`;
 	if (accessMode === "read-only" && PLAN_EXECUTION_TOOLS.includes(toolName)) return "read-only mode blocks tracked execution tools.";
 	if (accessMode === "plan" && (toolName === "plan_step" || toolName === "plan_complete")) return "plan mode blocks execution-only plan tools.";
 	return undefined;

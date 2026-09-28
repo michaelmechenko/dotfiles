@@ -1,0 +1,143 @@
+{
+  "lens": {
+    "enabled": true
+  },
+  "lsp": {
+    "enabled": true,
+    "disabledServers": [
+      "deno",
+      "python-jedi",
+      "go",
+      "rust",
+      "ruby",
+      "php",
+      "powershell",
+      "csharp",
+      "omnisharp",
+      "fsharp",
+      "java",
+      "kotlin",
+      "swift",
+      "dart",
+      "lua",
+      "cpp",
+      "zig",
+      "haskell",
+      "elixir",
+      "expert",
+      "gleam",
+      "tinymist",
+      "marksman",
+      "ocaml",
+      "clojure",
+      "cue",
+      "terraform",
+      "nix",
+      "fish",
+      "cmake",
+      "docker",
+      "yaml",
+      "json",
+      "html",
+      "toml",
+      "prisma",
+      "vue",
+      "svelte",
+      "css",
+      "opengrep",
+      "ast-grep",
+      "zizmor",
+      "typos"
+    ]
+  },
+  "startup": {
+    "mode": "minimal",
+    "scans": {
+      "enabled": false
+    }
+  },
+  "widget": {
+    "visible": false
+  },
+  "ui": {
+    "hideLspStatus": true
+  },
+  "tools": {
+    "lazy": true,
+    "ast_grep_search": { "enabled": false },
+    "ast_grep_replace": { "enabled": false },
+    "ast_grep_outline": { "enabled": false },
+    "lsp_navigation": { "enabled": true },
+    "lens_diagnostics": { "enabled": true },
+    "lens_diagnostic_mark": { "enabled": false },
+    "symbol_search": { "enabled": false },
+    "module_report": { "enabled": false },
+    "project_report": { "enabled": false },
+    "read_symbol": { "enabled": false },
+    "read_enclosing": { "enabled": false },
+    "effective_config": { "enabled": false },
+    "analyze": { "enabled": false },
+    "health": { "enabled": false },
+    "latency": { "enabled": false },
+    "project_scan": { "enabled": false },
+    "rebuild": { "enabled": false }
+  },
+  "format": {
+    "enabled": false
+  },
+  "autofix": {
+    "enabled": false
+  },
+  "actionableWarnings": {
+    "enabled": false,
+    "includeLspCodeActions": false,
+    "autoFix": {
+      "enabled": false
+    }
+  },
+  "contextInjection": {
+    "enabled": false
+  },
+  "tests": {
+    "enabled": false
+  },
+  "opengrep": {
+    "enabled": false
+  },
+  "readGuard": {
+    "enabled": false
+  },
+  "guard": {
+    "enabled": false,
+    "sharedCheckout": false
+  },
+  "turnSummary": {
+    "enabled": false
+  },
+  "turnEnd": {
+    "madge": {
+      "enabled": false
+    }
+  },
+  "knip": {
+    "enabled": false
+  },
+  "jscpd": {
+    "enabled": false
+  },
+  "madge": {
+    "enabled": false
+  },
+  "gitleaks": {
+    "enabled": false
+  },
+  "govulncheck": {
+    "enabled": false
+  },
+  "deadCode": {
+    "enabled": false
+  },
+  "complexity": {
+    "enabled": false
+  }
+}

@@ -77,9 +77,13 @@ animated auto-hiding dock. A separate dock can be chosen after the baseline work
   language servers, formatters, and native build dependencies. Lazy cannot install
   missing plugins and Mason/parser auto-install is disabled on NixOS.
 - Pi 0.86.1 is a narrow package-only pin. All extensions and their dependencies
-  are Nix-owned; guidance resources use the live links described below. The pinned pi-lsp,
-  pi-ast-grep, and pi-mcp-adapter workspace is seeded locally, so normal startup
-  does not need an npm install. pi-lsp is patched to honor `PI_CODING_AGENT_DIR`.
+  are Nix-owned; guidance resources use the live links described below. The pinned
+  pi-ast-grep and pi-mcp-adapter workspace is seeded locally, while reviewed
+  `michaelmechenko/pi-lens` and `michaelmechenko/pi-btw` revisions are fixed-output
+  package directories in the generated settings. Their optional skills are not
+  loaded. Lens grammars and runtime dependencies are store-backed, install/refresh
+  paths are disabled, mutation and context-injection hard disables are exported,
+  and normal startup requires no package download.
 
 Pi settings, keybindings, extension/skill toggles, auth, sessions, package state,
 and caches remain writable in `~/.config/pi-config/agent`. Home Manager seeds

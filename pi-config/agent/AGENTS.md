@@ -38,6 +38,8 @@
 - Prefer dedicated read/search/edit tools over shell when available
 - Batch independent reads/searches; parallelize when safe
 - Use CLI tools if provided
+- Use pi-lens `lsp_navigation` for definitions, references, hover, symbols, and diagnostics; keep `ast_grep` for structural searches
+- In plan or read-only mode, keep pi-lens mutation calls in preview mode: no `ast_grep_replace.apply`, LSP rename/execute-command apply, or diagnostic suppression
 - Read enough context before editing; avoid thrashing
 - After edits, run a lightweight verification step when relevant
 

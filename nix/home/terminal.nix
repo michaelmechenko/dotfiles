@@ -134,6 +134,8 @@ in
         "alt+left=csi:1;3D"
         "alt+right=csi:1;3C"
         "alt+o=csi:111;3u"
+        "alt+/=csi:47;3u"
+        "alt+shift+/=csi:47;4u"
         "alt+enter=csi:13;3u"
         "shift+enter=csi:13;2u"
         "ctrl+enter=csi:13;5u"

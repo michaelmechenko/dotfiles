@@ -7,6 +7,75 @@ export const MAX_CONCURRENCY = 4;
 
 const CHILD_DENIED_TOOLS = new Set(["subagent", "plan_update", "plan_step", "plan_complete"]);
 
+type PendingSlot = {
+	resolve: (release: () => void) => void;
+	reject: (error: Error) => void;
+	signal?: AbortSignal;
+	onAbort?: () => void;
+};
+
+function abortError(): Error {
+	const error = new Error("Subagent was aborted while waiting for an execution slot.");
+	error.name = "AbortError";
+	return error;
+}
+
+/** FIFO limiter shared by every subagent tool invocation in one extension session. */
+export class SharedConcurrencyLimiter {
+	private active = 0;
+	private closed = false;
+	private readonly queue: PendingSlot[] = [];
+	readonly limit: number;
+	constructor(limit = MAX_CONCURRENCY) {
+		if (!Number.isInteger(limit) || limit < 1) throw new Error("Concurrency limit must be a positive integer.");
+		this.limit = limit;
+	}
+	get activeCount(): number { return this.active; }
+	get queuedCount(): number { return this.queue.length; }
+
+	acquire(signal?: AbortSignal): Promise<() => void> {
+		if (this.closed) return Promise.reject(new Error("Subagent concurrency limiter is closed."));
+		if (signal?.aborted) return Promise.reject(abortError());
+		return new Promise((resolve, reject) => {
+			const pending: PendingSlot = { resolve, reject, signal };
+			pending.onAbort = () => {
+				const index = this.queue.indexOf(pending);
+				if (index >= 0) this.queue.splice(index, 1);
+				reject(abortError());
+			};
+			if (this.active < this.limit) this.grant(pending);
+			else {
+				this.queue.push(pending);
+				signal?.addEventListener("abort", pending.onAbort, { once: true });
+			}
+		});
+	}
+
+	close(): void {
+		this.closed = true;
+		for (const pending of this.queue.splice(0)) {
+			pending.signal?.removeEventListener("abort", pending.onAbort!);
+			pending.reject(new Error("Subagent concurrency limiter closed before the task started."));
+		}
+	}
+
+	private grant(pending: PendingSlot): void {
+		pending.signal?.removeEventListener("abort", pending.onAbort!);
+		this.active++;
+		let released = false;
+		pending.resolve(() => {
+			if (released) return;
+			released = true;
+			this.active--;
+			this.drain();
+		});
+	}
+
+	private drain(): void {
+		while (!this.closed && this.active < this.limit && this.queue.length) this.grant(this.queue.shift()!);
+	}
+}
+
 export interface DelegationItem {
 	agent: string;
 	task: string;

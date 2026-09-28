@@ -324,6 +324,15 @@ pi() {
 export CLAUDE_CONFIG_DIR=~/.config/claude
 export PI_CODING_AGENT_DIR=~/.config/pi-config/agent
 export PI_FFF_MODE=override
+export PI_BTW_FOCUS_KEYS='alt+/'
+export PI_BTW_WIDTH_KEY='alt+shift+/'
+export PI_LENS_CONFIG_PATH="$PI_CODING_AGENT_DIR/extensions/pi-lens.json"
+export PI_LENS_HOME=~/.local/state/pi-lens
+export PI_LENS_DISABLE_LSP_INSTALL=1
+export PI_LENS_DISABLE_TOOL_INSTALL=1
+export PI_LENS_DISABLE_TOOL_REFRESH=1
+export PI_LENS_DISABLE_MUTATIONS=1
+export PI_LENS_NO_CONTEXT_INJECTION=1
 
 # Hammerspoon is a GUI app and can't see this shell env, so its config dir is set via the
 # MJConfigFile default (not an env var). Verify on shell start; correct if it drifted.

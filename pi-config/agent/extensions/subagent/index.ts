@@ -7,9 +7,14 @@ import { StringEnum } from "@earendil-works/pi-ai";
 import { CONFIG_DIR_NAME, type ExtensionAPI, getAgentDir } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { type AgentConfig, type AgentScope, discoverAgents } from "./agents.ts";
-import { MAX_CONCURRENCY, normalizeDelegationRequest, replacePreviousLiteral, resolveChildTools } from "./delegation.ts";
-import { createRunnerState, reduceEvent, runSpawnedJsonl, truncateUtf8, type RunnerState, type UsageStats } from "./runner.ts";
+import { MAX_CONCURRENCY, normalizeDelegationRequest, replacePreviousLiteral, resolveChildTools, SharedConcurrencyLimiter } from "./delegation.ts";
+import { prepareOutputCapture, type ResultArtifact } from "./result-artifacts.ts";
+import { createRunnerState, MAX_ERROR_BYTES, MAX_METADATA_BYTES, reduceEvent, runSpawnedJsonl, truncateUtf8, type RunnerState, type UsageStats } from "./runner.ts";
 const PER_TASK_OUTPUT_CAP = 50 * 1024;
+const TOTAL_PARALLEL_OUTPUT_CAP = 100 * 1024;
+const PARALLEL_OUTPUT_OVERHEAD_RESERVE = 4 * 1024;
+const TASK_DETAIL_CAP = 4 * 1024;
+const AGENT_NAME_CAP = 128;
 const PROGRESS_INTERVAL_MS = 150;
 
 interface SingleResult {
@@ -23,6 +28,10 @@ interface SingleResult {
 	model?: string;
 	stopReason?: string;
 	errorMessage?: string;
+	output: string;
+	outputTruncated: boolean;
+	outputArtifact?: ResultArtifact;
+	outputArtifactError?: string;
 	step?: number;
 	state: RunnerState["state"];
 	activeTool?: string;
@@ -52,26 +61,22 @@ function aggregateUsage(results: SingleResult[]) {
 type OnUpdateCallback = (partial: AgentToolResult<SubagentDetails>) => void;
 interface DispatchDefaults { model?: string; thinkingLevel?: ThinkingLevel }
 
-function getFinalOutput(messages: Message[]): string {
-	for (let i = messages.length - 1; i >= 0; i--) {
-		const msg = messages[i];
-		if (msg.role !== "assistant") continue;
-		for (const part of msg.content) if (part.type === "text") return part.text;
-	}
-	return "";
-}
-
 function isFailedResult(result: SingleResult): boolean {
 	return result.exitCode !== 0 || result.state === "failed" || result.state === "aborted" || result.state === "timed_out" || result.stopReason === "error" || result.stopReason === "aborted";
 }
 
 function getResultOutput(result: SingleResult): string {
-	return isFailedResult(result) ? result.errorMessage || result.stderr || getFinalOutput(result.messages) || "(no output)" : getFinalOutput(result.messages) || "(no output)";
+	return isFailedResult(result) ? result.errorMessage || result.stderr || result.output || "(no output)" : result.output || "(no output)";
 }
 
-function truncateOutput(output: string): string {
-	if (Buffer.byteLength(output, "utf8") <= PER_TASK_OUTPUT_CAP) return output;
-	return `${truncateUtf8(output, PER_TASK_OUTPUT_CAP)}\n\n[Output truncated. Full output remains in tool details.]`;
+function formatResultOutput(result: SingleResult, budget = PER_TASK_OUTPUT_CAP): string {
+	const output = getResultOutput(result);
+	const notes: string[] = [];
+	if (result.outputArtifact) notes.push(`Full output: ${result.outputArtifact.path} (${result.outputArtifact.bytes} bytes, mode 0600).`);
+	else if (result.outputTruncated) notes.push(`Output truncated; retained artifact unavailable${result.outputArtifactError ? `: ${result.outputArtifactError}` : "."}`);
+	const suffix = notes.length ? `\n\n[${notes.join(" ")}]` : "";
+	const outputBudget = Math.max(0, budget - Buffer.byteLength(suffix, "utf8"));
+	return truncateUtf8(`${truncateUtf8(output, outputBudget)}${suffix}`, budget);
 }
 
 function formatElapsed(startedAt: number): string { return `${Math.max(0, Math.floor((Date.now() - startedAt) / 1000))}s`; }
@@ -119,10 +124,11 @@ function getPiInvocation(args: string[]) {
 }
 
 function stateResult(agent: AgentConfig | undefined, agentName: string, task: string, step: number | undefined, state: RunnerState, exitCode = -1, stderr = ""): SingleResult {
-	return { agent: agentName, agentSource: agent?.source ?? "unknown", task, exitCode, messages: state.messages as Message[], stderr, usage: state.usage, model: state.model, stopReason: state.stopReason, errorMessage: state.errorMessage, step, state: state.state, activeTool: state.activeTool, activity: [...state.activity], startedAt: state.startedAt };
+	const taskPreview = Buffer.byteLength(task, "utf8") > TASK_DETAIL_CAP ? `${truncateUtf8(task, TASK_DETAIL_CAP)}\n[task truncated in details]` : task;
+	return { agent: truncateUtf8(agentName, AGENT_NAME_CAP), agentSource: agent?.source ?? "unknown", task: taskPreview, exitCode, messages: state.messages as Message[], stderr, usage: state.usage, model: state.model ? truncateUtf8(state.model, MAX_METADATA_BYTES) : undefined, stopReason: state.stopReason ? truncateUtf8(state.stopReason, MAX_METADATA_BYTES) : undefined, errorMessage: state.errorMessage ? truncateUtf8(state.errorMessage, MAX_ERROR_BYTES) : undefined, output: state.finalOutput, outputTruncated: state.outputTruncated, outputArtifact: state.outputArtifact, outputArtifactError: state.outputArtifactError ? truncateUtf8(state.outputArtifactError, MAX_ERROR_BYTES) : undefined, step, state: state.state, activeTool: state.activeTool ? truncateUtf8(state.activeTool, MAX_METADATA_BYTES) : undefined, activity: [...state.activity], startedAt: state.startedAt };
 }
 
-async function runSingleAgent(defaultCwd: string, defaults: DispatchDefaults, agents: AgentConfig[], parentTools: string[], agentName: string, task: string, cwd: string | undefined, step: number | undefined, signal: AbortSignal | undefined, onUpdate: OnUpdateCallback | undefined, makeDetails: (results: SingleResult[]) => SubagentDetails): Promise<SingleResult> {
+async function runSingleAgent(defaultCwd: string, defaults: DispatchDefaults, agents: AgentConfig[], parentTools: string[], agentName: string, task: string, cwd: string | undefined, step: number | undefined, outputBudget: number, limiter: SharedConcurrencyLimiter, signal: AbortSignal | undefined, onUpdate: OnUpdateCallback | undefined, makeDetails: (results: SingleResult[]) => SubagentDetails): Promise<SingleResult> {
 	const agent = agents.find((candidate) => candidate.name === agentName);
 	if (!agent) {
 		const available = agents.map((candidate) => `"${candidate.name}"`).join(", ") || "none";
@@ -133,6 +139,7 @@ async function runSingleAgent(defaultCwd: string, defaults: DispatchDefaults, ag
 	const model = agent.model ?? defaults.model;
 	const state = createRunnerState(model);
 	let files: Awaited<ReturnType<typeof writePrivateTaskFiles>> | undefined;
+	let releaseSlot: (() => void) | undefined;
 	let lastUpdate = 0;
 	let lastContent = "";
 	const emit = (force = false) => {
@@ -144,6 +151,22 @@ async function runSingleAgent(defaultCwd: string, defaults: DispatchDefaults, ag
 		onUpdate({ content: [{ type: "text", text: content }], details: makeDetails([result]) });
 	};
 	try {
+		try {
+			releaseSlot = await limiter.acquire(signal);
+		} catch (error) {
+			state.state = signal?.aborted || (error instanceof Error && error.name === "AbortError") ? "aborted" : "failed";
+			state.errorMessage = error instanceof Error ? error.message : String(error);
+			return stateResult(agent, agentName, task, step, state, state.state === "aborted" ? -1 : 1, state.errorMessage);
+		}
+		try {
+			state.captureOutput = await prepareOutputCapture(agent.name, Math.max(1, outputBudget));
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			state.captureOutput = (output) => {
+				const truncated = Buffer.byteLength(output, "utf8") > outputBudget;
+				return { preview: truncateUtf8(output, outputBudget), truncated, artifactError: truncated ? message : undefined };
+			};
+		}
 		files = await writePrivateTaskFiles(agent.name, task, agent.systemPrompt);
 		const args = ["--mode", "json", "-p", "--no-session"];
 		if (model) args.push("--model", model);
@@ -164,7 +187,11 @@ async function runSingleAgent(defaultCwd: string, defaults: DispatchDefaults, ag
 		emit(true);
 		return result;
 	} finally {
-		if (files) await fs.promises.rm(files.dir, { recursive: true, force: true });
+		try {
+			if (files) await fs.promises.rm(files.dir, { recursive: true, force: true });
+		} finally {
+			releaseSlot?.();
+		}
 	}
 }
 
@@ -174,6 +201,8 @@ const AgentScopeSchema = StringEnum(["user", "project", "both"] as const, { desc
 const SubagentParams = Type.Object({ agent: Type.Optional(Type.String({ description: "Name of the agent to invoke (for single mode)" })), task: Type.Optional(Type.String({ description: "Task to delegate (for single mode)" })), tasks: Type.Optional(Type.Array(TaskItem, { description: "Array of {agent, task} for parallel execution" })), chain: Type.Optional(Type.Array(ChainItem, { description: "Array of {agent, task} for sequential execution" })), agentScope: Type.Optional(AgentScopeSchema), confirmProjectAgents: Type.Optional(Type.Boolean({ description: "Prompt before running project-local agents. Default: true.", default: true })), cwd: Type.Optional(Type.String({ description: "Working directory for the agent process (single mode)" })) });
 
 export default function(pi: ExtensionAPI) {
+	const limiter = new SharedConcurrencyLimiter(MAX_CONCURRENCY);
+	pi.on("session_shutdown", async () => { limiter.close(); });
 	// AgentToolResult has no isError field. Patch the completed tool result through
 	// Pi's supported event seam while retaining structured details and usage.
 	pi.on("tool_result", async (event) => {
@@ -203,23 +232,33 @@ export default function(pi: ExtensionAPI) {
 			}
 			if (mode === "single") {
 				const item = request.items[0];
-				const result = await runSingleAgent(ctx.cwd, defaults, discovery.agents, parentTools, item.agent, item.task, item.cwd, undefined, signal, onUpdate, makeDetails("single"));
-				return { content: [{ type: "text", text: isFailedResult(result) ? `Agent failed: ${getResultOutput(result)}` : getFinalOutput(result.messages) || "(no output)" }], details: makeDetails("single")([result]), usage: aggregateUsage([result]) };
+				const result = await runSingleAgent(ctx.cwd, defaults, discovery.agents, parentTools, item.agent, item.task, item.cwd, undefined, PER_TASK_OUTPUT_CAP, limiter, signal, onUpdate, makeDetails("single"));
+				const prefix = isFailedResult(result) ? "Agent failed: " : "";
+				const output = `${prefix}${formatResultOutput(result, PER_TASK_OUTPUT_CAP - Buffer.byteLength(prefix, "utf8"))}`;
+				return { content: [{ type: "text", text: truncateUtf8(output, PER_TASK_OUTPUT_CAP) }], details: makeDetails("single")([result]), usage: aggregateUsage([result]) };
 			}
 			if (mode === "chain") {
 				const results: SingleResult[] = []; let previous = "";
 				for (let index = 0; index < request.items.length; index++) {
 					const item = request.items[index];
-					const result = await runSingleAgent(ctx.cwd, defaults, discovery.agents, parentTools, item.agent, replacePreviousLiteral(item.task, previous), item.cwd, index + 1, signal, (partial) => { const current = partial.details?.results[0]; if (current) onUpdate?.({ content: [{ type: "text", text: formatProgress(current, `Step ${index + 1}/${request.items.length} · `) }], details: makeDetails("chain")([...results, current]) }); }, makeDetails("chain"));
-					results.push(result); if (isFailedResult(result)) return { content: [{ type: "text", text: `Chain stopped at step ${index + 1} (${item.agent}): ${getResultOutput(result)}` }], details: makeDetails("chain")(results), usage: aggregateUsage(results) }; previous = getFinalOutput(result.messages);
+					const result = await runSingleAgent(ctx.cwd, defaults, discovery.agents, parentTools, item.agent, replacePreviousLiteral(item.task, previous), item.cwd, index + 1, PER_TASK_OUTPUT_CAP, limiter, signal, (partial) => { const current = partial.details?.results[0]; if (current) onUpdate?.({ content: [{ type: "text", text: formatProgress(current, `Step ${index + 1}/${request.items.length} · `) }], details: makeDetails("chain")([...results, current]) }); }, makeDetails("chain"));
+					results.push(result);
+					if (isFailedResult(result)) {
+						const prefix = `Chain stopped at step ${index + 1} (${truncateUtf8(item.agent, MAX_METADATA_BYTES)}): `;
+						const output = `${prefix}${formatResultOutput(result, Math.max(1, PER_TASK_OUTPUT_CAP - Buffer.byteLength(prefix, "utf8")))}`;
+						return { content: [{ type: "text", text: truncateUtf8(output, PER_TASK_OUTPUT_CAP) }], details: makeDetails("chain")(results), usage: aggregateUsage(results) };
+					}
+					previous = formatResultOutput(result);
 				}
-				return { content: [{ type: "text", text: getFinalOutput(results.at(-1)!.messages) || "(no output)" }], details: makeDetails("chain")(results), usage: aggregateUsage(results) };
+				return { content: [{ type: "text", text: formatResultOutput(results.at(-1)!) }], details: makeDetails("chain")(results), usage: aggregateUsage(results) };
 			}
+			const parallelBudget = Math.min(PER_TASK_OUTPUT_CAP, Math.max(1, Math.floor((TOTAL_PARALLEL_OUTPUT_CAP - PARALLEL_OUTPUT_OVERHEAD_RESERVE) / request.items.length)));
 			const all: SingleResult[] = request.items.map((item) => stateResult(undefined, item.agent, item.task, undefined, createRunnerState(), -1));
 			const emitParallel = () => onUpdate?.({ content: [{ type: "text", text: all.map((result, index) => formatProgress(result, `Lane ${index + 1}/${all.length} · `)).join("\n") }], details: makeDetails("parallel")([...all]) });
-			const results = await mapWithConcurrencyLimit(request.items, MAX_CONCURRENCY, async (item, index) => { const result = await runSingleAgent(ctx.cwd, defaults, discovery.agents, parentTools, item.agent, item.task, item.cwd, undefined, signal, (partial) => { if (partial.details?.results[0]) { all[index] = partial.details.results[0]; emitParallel(); } }, makeDetails("parallel")); all[index] = result; emitParallel(); return result; });
-			const summaries = results.map((result) => `### [${result.agent}] ${isFailedResult(result) ? "failed" : "completed"}\n\n${truncateOutput(getResultOutput(result))}`);
-			return { content: [{ type: "text", text: `Parallel: ${results.filter((result) => !isFailedResult(result)).length}/${results.length} succeeded\n\n${summaries.join("\n\n---\n\n")}` }], details: makeDetails("parallel")(results), usage: aggregateUsage(results) };
+			const results = await mapWithConcurrencyLimit(request.items, MAX_CONCURRENCY, async (item, index) => { const result = await runSingleAgent(ctx.cwd, defaults, discovery.agents, parentTools, item.agent, item.task, item.cwd, undefined, parallelBudget, limiter, signal, (partial) => { if (partial.details?.results[0]) { all[index] = partial.details.results[0]; emitParallel(); } }, makeDetails("parallel")); all[index] = result; emitParallel(); return result; });
+			const summaries = results.map((result) => `### [${result.agent}] ${isFailedResult(result) ? "failed" : "completed"}\n\n${formatResultOutput(result, parallelBudget)}`);
+			const combined = `Parallel: ${results.filter((result) => !isFailedResult(result)).length}/${results.length} succeeded\n\n${summaries.join("\n\n---\n\n")}`;
+			return { content: [{ type: "text", text: truncateUtf8(combined, TOTAL_PARALLEL_OUTPUT_CAP) }], details: makeDetails("parallel")(results), usage: aggregateUsage(results) };
 		},
 	});
 }

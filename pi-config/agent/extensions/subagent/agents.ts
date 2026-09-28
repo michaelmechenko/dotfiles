@@ -23,6 +23,22 @@ export interface AgentDiscoveryResult {
 	diagnostics: string[];
 }
 type AgentFrontmatter = { name?: unknown; description?: unknown; tools?: unknown; model?: unknown };
+const MAX_DIAGNOSTICS = 32;
+const MAX_DIAGNOSTIC_BYTES = 1024;
+const MAX_AGENT_NAME_BYTES = 128;
+const MAX_DESCRIPTION_BYTES = 2 * 1024;
+const MAX_MODEL_BYTES = 1024;
+
+function truncateUtf8(value: string, cap: number): string {
+	if (Buffer.byteLength(value, "utf8") <= cap) return value;
+	let clipped = value.slice(0, cap);
+	while (Buffer.byteLength(clipped, "utf8") > cap) clipped = clipped.slice(0, -1);
+	return clipped;
+}
+
+function addDiagnostic(diagnostics: string[], value: string): void {
+	if (diagnostics.length < MAX_DIAGNOSTICS) diagnostics.push(truncateUtf8(value, MAX_DIAGNOSTIC_BYTES));
+}
 
 function loadAgentsFromDir(dir: string, source: AgentConfig["source"], diagnostics: string[]): AgentConfig[] {
 	let entries: fs.Dirent[];
@@ -34,25 +50,25 @@ function loadAgentsFromDir(dir: string, source: AgentConfig["source"], diagnosti
 		try {
 			const { frontmatter, body } = parseFrontmatter<AgentFrontmatter>(fs.readFileSync(filePath, "utf8"));
 			if (typeof frontmatter.name !== "string" || !frontmatter.name.trim() || typeof frontmatter.description !== "string" || !frontmatter.description.trim()) {
-				diagnostics.push(`${filePath}: missing required name or description frontmatter`);
+				addDiagnostic(diagnostics, `${filePath}: missing required name or description frontmatter`);
 				continue;
 			}
 			const parsedTools = parseToolList(frontmatter.tools);
 			if (parsedTools.status === "invalid") {
-				diagnostics.push(`${filePath}: ${parsedTools.error}`);
+				addDiagnostic(diagnostics, `${filePath}: ${parsedTools.error}`);
 				continue;
 			}
 			agents.push({
-				name: frontmatter.name.trim(),
-				description: frontmatter.description.trim(),
+				name: truncateUtf8(frontmatter.name.trim(), MAX_AGENT_NAME_BYTES),
+				description: truncateUtf8(frontmatter.description.trim(), MAX_DESCRIPTION_BYTES),
 				tools: parsedTools.status === "valid" ? parsedTools.tools : undefined,
-				model: typeof frontmatter.model === "string" && frontmatter.model.trim() ? frontmatter.model.trim() : undefined,
+				model: typeof frontmatter.model === "string" && frontmatter.model.trim() ? truncateUtf8(frontmatter.model.trim(), MAX_MODEL_BYTES) : undefined,
 				systemPrompt: body,
 				source,
 				filePath,
 			});
 		} catch (error) {
-			diagnostics.push(`${filePath}: ${error instanceof Error ? error.message : String(error)}`);
+			addDiagnostic(diagnostics, `${filePath}: ${error instanceof Error ? error.message : String(error)}`);
 		}
 	}
 	return agents;

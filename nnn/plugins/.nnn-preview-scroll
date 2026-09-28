@@ -1,26 +1,24 @@
 #!/usr/bin/env sh
-# Shared helper for M-u/M-n while an nnn pane is focused: sends scroll keys to nnn's own preview
-# pane directly, since nnn and its pager (moor/less) don't understand M-u/M-n themselves. Only
-# invoked when the current pane's command is actually "nnn" (see tmux.conf's M-u/M-n bindings) -
-# never called while the preview pane itself is focused.
-# $1 = up|down
-dir="$1"
-self="$(tmux display-message -p '#{pane_id}')"
+# Send M-u/M-n scrolling to this nnn process's verified preview pane.
+dir=$1
+self=${TMUX_PANE:-$(tmux display-message -p '#{pane_id}')}
+[ -n "$self" ] || exit 0
+server_id=${TMUX#*,}; server_id=${server_id%%,*}
+map="${TMPDIR:-/tmp}/nnn-preview-panes/$server_id/$self"
+other=$(cat "$map" 2>/dev/null)
+[ -n "$other" ] || exit 0
 
-# preview-tui records origin-pane -> preview-pane at split time (see ../preview-tui's tmux
-# branch of start_preview()) - read that instead of guessing "any other pane in the window",
-# which breaks once a 3rd unrelated pane (e.g. a pi/claude pane) shares the same window.
-map="${TMPDIR:-/tmp}/nnn-preview-panes/$self"
-other="$(cat "$map" 2>/dev/null)"
+self_window=$(tmux display-message -p -t "$self" '#{window_id}' 2>/dev/null) || exit 0
+identity=$(tmux display-message -p -t "$other" '#{@nnn_preview}|#{window_id}' 2>/dev/null) || {
+    rm -f -- "$map"
+    exit 0
+}
+[ "$identity" = "1|$self_window" ] || {
+    rm -f -- "$map"
+    exit 0
+}
 
-# Fall back to the naive "other pane in the window" guess if there's no mapping yet, or the
-# mapped pane no longer exists (stale from a previous preview session).
-if [ -z "$other" ] || ! tmux list-panes -F '#{pane_id}' | grep -qx -- "$other"; then
-    other="$(tmux list-panes -F '#{pane_id}' | grep -v -- "$self" | head -1)"
-fi
-
-[ -z "$other" ] && exit 0
 case "$dir" in
-    up)   tmux send-keys -t "$other" -N 10 Up ;;
+    up) tmux send-keys -t "$other" -N 10 Up ;;
     down) tmux send-keys -t "$other" -N 10 Down ;;
 esac

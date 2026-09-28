@@ -1,26 +1,12 @@
 #!/usr/bin/env bash
-# M-P dispatch: prioritize an active Claude Code session in this pane (opens
-# its plan, unchanged); otherwise fall back to pi's last response.
+# Compatibility wrapper: M-P/M-S-P and existing sidebar callers open the exact
+# selected agent's plan. Missing Pi plans never fall back to responses.
 cur=${1:-$(tmux display -p '#{pane_id}')}
 expected_agent=${2:-}
 expected_session=${3:-}
-# Preserve the direct legacy <pane> <session> form. Sidebar actions use the
-# unambiguous <pane> <agent> <session> protocol.
-if [ -z "$expected_session" ] && [ -n "$expected_agent" ] && [ "$expected_agent" != "claude" ] && [ "$expected_agent" != "pi" ]; then
+# Preserve the legacy <pane> <session> form for direct Claude callers.
+if [ -z "$expected_session" ] && [ -n "$expected_agent" ] && [ "$expected_agent" != claude ] && [ "$expected_agent" != pi ]; then
   expected_session=$expected_agent
-  expected_agent=
+  expected_agent=claude
 fi
-row=$("$HOME/.config/tmux_scripts/tmux-claude-ls" | awk -F'\t' -v p="$cur" '$2==p{print; exit}')
-if [ -n "$row" ]; then
-  [ -z "$expected_agent" ] || [ "$expected_agent" = "claude" ] || {
-    tmux display-message "agent session changed"
-    exit 0
-  }
-  exec "$HOME/.config/tmux_scripts/tmux-claude-plan" "$cur" "$expected_session"
-else
-  [ -z "$expected_agent" ] || [ "$expected_agent" = "pi" ] || {
-    tmux display-message "agent session changed"
-    exit 0
-  }
-  exec "$HOME/.config/tmux_scripts/tmux-pi-last-response" "$cur" "$expected_session"
-fi
+exec "$HOME/.config/tmux_scripts/tmux-agent-action" plan "$cur" "$expected_agent" "$expected_session"

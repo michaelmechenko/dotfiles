@@ -18,6 +18,5 @@ target=$(cd "$target" 2>/dev/null && pwd) || exit 0
 quoted=$(printf '%s' "$target" | sed "s/'/'\\\\''/g")
 tmux send-keys -t "$NNN_ORIGIN_PANE" -l "cd -- '$quoted'"
 
-# Close the popup as M-d does — kill the session (detach-client leaves nnn alive and can
-# keep the popup open). Outer client lands on the origin pane with the text typed.
-tmux kill-session -t nnn 2>/dev/null
+# Close only the popup session that supplied this separate origin pane.
+"$(dirname "$0")/.nnn-popup-close"

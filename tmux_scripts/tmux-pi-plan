@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Open the exact live Pi process's current tracked plan snapshot.
+origin=${1:-$(tmux display -p '#{pane_id}')}
+expected_agent=${2:-}
+expected_session=${3:-}
+if [ -z "$expected_session" ] && [ -n "$expected_agent" ] && [ "$expected_agent" != pi ]; then
+  expected_session=$expected_agent
+  expected_agent=pi
+fi
+[ -z "$expected_agent" ] || [ "$expected_agent" = pi ] || {
+  tmux display-message "agent session changed"
+  exit 0
+}
+pane_pid=$(tmux display -p -t "$origin" '#{pane_pid}')
+info=$("$HOME/.config/tmux_scripts/tmux-pi-session" --exact "$pane_pid" 2>/dev/null) || {
+  tmux display-message "no pi session in this pane"
+  exit 0
+}
+pid=$(printf '%s' "$info" | awk -F '\t' '{print $1}')
+cwd=$(printf '%s' "$info" | awk -F '\t' '{print $2}')
+session_id=$(printf '%s' "$info" | awk -F '\t' '{print $4}')
+process_started_at=$(printf '%s' "$info" | awk -F '\t' '{print $5}')
+[ -z "$expected_session" ] || [ "$session_id" = "$expected_session" ] || {
+  tmux display-message "agent session changed"
+  exit 0
+}
+record="${PI_PLAN_STATE_DIR:-/tmp/pi-plan-state}/$pid.json"
+[ -f "$record" ] || { tmux display-message "no active pi plan"; exit 0; }
+out=$(mktemp "${TMPDIR:-/tmp}/pi-plan.XXXXXX") || {
+  tmux display-message "could not create plan file"
+  exit 1
+}
+if ! jq -er --argjson pid "$pid" --arg sid "$session_id" --arg cwd "$cwd" --arg started "$process_started_at" '
+  select(.version == 1 and .pid == $pid and .sessionId == $sid and .cwd == $cwd and .processStartedAt == $started)
+  | select((.markdown | type) == "string" and (.markdown | length) > 0)
+  | .markdown
+' "$record" >"$out" 2>/dev/null; then
+  rm -f -- "$out"
+  tmux display-message "no active pi plan"
+  exit 0
+fi
+"$HOME/.config/tmux_scripts/tmux-claude-open-split" --temporary "$out" "$origin" || rm -f -- "$out"

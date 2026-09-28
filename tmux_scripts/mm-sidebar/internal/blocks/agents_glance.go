@@ -711,8 +711,9 @@ func (b *AgentsGlance) Actions(index int) []nav.ContextAction {
 	return []nav.ContextAction{
 		{ID: "inspect", Label: "inspect agent", Local: nav.LocalEffectInspectAgent, Agent: r.Agent, AgentSessionID: r.SessionID},
 		{ID: "focus", Label: "focus agent", Kind: nav.ContextFocusPane, Pane: ref, PaneID: r.PaneID, Target: r.Target, Agent: r.Agent, AgentSessionID: r.SessionID},
+		{ID: "prompt", Label: "compose prompt", Kind: nav.ContextAgentPrompt, Pane: ref, Agent: r.Agent, AgentSessionID: r.SessionID},
 		{ID: "response", Label: "open last response", Kind: nav.ContextAgentResponse, Pane: ref, Agent: r.Agent, AgentSessionID: r.SessionID},
-		{ID: "plan", Label: "open plan / last response", Kind: nav.ContextAgentPlan, Pane: ref, Agent: r.Agent, AgentSessionID: r.SessionID},
+		{ID: "plan", Label: "open current plan", Kind: nav.ContextAgentPlan, Pane: ref, Agent: r.Agent, AgentSessionID: r.SessionID},
 		{ID: "copy-session", Label: "copy session ID", Kind: nav.ContextCopyText, Text: r.SessionID},
 	}
 }

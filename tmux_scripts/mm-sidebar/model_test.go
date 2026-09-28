@@ -353,7 +353,7 @@ func TestHistoricalAgentFocusRequiresCurrentAcceptedFacts(t *testing.T) {
 	if m.currentAgentFocus(historical) {
 		t.Fatal("historical focus action accepted a same-pane replacement agent")
 	}
-	for _, kind := range []nav.ContextActionKind{nav.ContextAgentResponse, nav.ContextAgentPlan} {
+	for _, kind := range []nav.ContextActionKind{nav.ContextAgentPrompt, nav.ContextAgentResponse, nav.ContextAgentPlan} {
 		action := historical
 		action.Kind = kind
 		if !m.currentAgentFocus(action) {

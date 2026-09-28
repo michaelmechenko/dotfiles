@@ -9,6 +9,7 @@ import { executionGuidance, renderExecutionContext } from "./execution-context.t
 import { candidateFor, createExecutionSettings, cycleExecutionSettingValue, defaultExecutionDestination, resolveExecutionSettings, retainSelectedExecutionRow, type ExecutionDestination, type ExecutionSettings, type ModelCandidate } from "./execution-settings.ts";
 import { canUpdateTrackedPlan, createInternalPlan, latestInternalPlan, resolvePlanUpdateScope, type InternalPlan } from "./internal-plan.ts";
 import { deletePlanFile, readPlanFile, writePlanFile } from "./plan-file.ts";
+import { publishLivePlan, removeLivePlan } from "./live-plan.ts";
 import { restorePlanLifecycle } from "./lifecycle.ts";
 import { applyPlanUpdate, canClosePlan, clonePlanState, createPlanState, enterRestrictedMode, isStepDone, leaveRestrictedMode, materializePlan, migratePlanState, pendingSteps, updatePlanStep, type ModelSnapshot, type PlanCloseout, type PlanState, type ThinkingLevel } from "./plan-state.ts";
 import { archiveCompletedPlan, completedPlanRecord, listCompletedPlansForSession, resolvePlanProject, watchCompletedPlans, type PlanProject } from "./plan-history.ts";
@@ -17,6 +18,7 @@ import { checkRestrictedToolCall, PLAN_EXECUTION_TOOLS, PLAN_UPDATE_TOOL, restri
 import { buildRecalibrationMessage, promptForRecalibration } from "./recalibration-editor.ts";
 import { renderExecutionSettingsHeader, renderPlanProgress } from "./tui-rendering.ts";
 import { parsePlanEditText, type TodoItem } from "./utils.ts";
+import { processStartToken } from "../session-state/process-identity.ts";
 
 const PLAN_STEP_TOOL = "plan_step";
 const PLAN_COMPLETE_TOOL = "plan_complete";
@@ -62,6 +64,8 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 	let state = createPlanState();
 	let internalPlan: InternalPlan | undefined;
 	let sessionId = "";
+	let sessionFile: string | undefined;
+	let sessionCwd = "";
 	let handledStoppedAssistantTimestamp: number | undefined;
 	let pendingCurrentPanePacket: { handoffPath: string; saveDefault: boolean } | undefined;
 	let project: PlanProject | undefined;
@@ -69,11 +73,17 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 	let closeHistoryWatcher: (() => void) | undefined;
 	let historyRefreshTimer: ReturnType<typeof setTimeout> | undefined;
 	const agentDir = getAgentDir();
+	const processStartedAt = processStartToken();
 
 	function availableTools(): string[] { return pi.getAllTools().map((tool) => tool.name); }
+	function syncLivePlan(): void {
+		if (!sessionId || !sessionCwd) return;
+		publishLivePlan({ pid: process.pid, sessionId, sessionFile, cwd: sessionCwd, processStartedAt }, state);
+	}
 	function persist(): void {
 		pi.appendEntry("plan-mode", clonePlanState(state));
 		if (state.steps.length && sessionId) writePlanFile(agentDir, sessionId, state.steps.map((step) => ({ ...step })));
+		syncLivePlan();
 	}
 	function setTools(names: string[]): void { pi.setActiveTools([...new Set(names)].filter((name) => availableTools().includes(name))); }
 	function applyRestrictedTools(): void { setTools(restrictedTools(state.accessMode, state.toolsBeforePlan ?? pi.getActiveTools(), availableTools())); }
@@ -444,6 +454,8 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 	});
 	pi.on("session_start", async (_event, ctx) => {
 		sessionId = ctx.sessionManager.getSessionId();
+		sessionFile = ctx.sessionManager.getSessionFile();
+		sessionCwd = ctx.cwd;
 		internalPlan = branchInternalPlan(ctx);
 		watchProjectHistory(ctx);
 		const packet = process.env.PI_PLAN_HANDOFF ? consumeExecutionPacket(agentDir, process.env.PI_PLAN_HANDOFF) : undefined;
@@ -455,15 +467,18 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 		if (state.planId && !priorPlanId) persist();
 		if (pi.getFlag("plan") === true && state.accessMode === "none") enterPlan(ctx);
 		refreshCompletedHistory(ctx);
+		syncLivePlan();
 		updateUi(ctx);
 	});
 	pi.on("session_tree", async (_event, ctx) => {
 		internalPlan = branchInternalPlan(ctx);
 		await activateRestoredState(ctx, branchPlanState(ctx) ?? createPlanState());
 		refreshCompletedHistory(ctx);
+		syncLivePlan();
 		updateUi(ctx);
 	});
 	pi.on("session_shutdown", async (_event, ctx) => {
+		removeLivePlan(process.pid, sessionId);
 		if (historyRefreshTimer) clearTimeout(historyRefreshTimer);
 		closeHistoryWatcher?.();
 		closeHistoryWatcher = undefined;

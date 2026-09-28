@@ -7,6 +7,7 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 TMP=$(mktemp -d "/tmp/tmux-snapshot-test.XXXXXX")
 SOCKET="tmux-snapshot-test-$$"
 REAL_TMUX=$(command -v tmux)
+ZSH=$(command -v zsh)
 cleanup() {
   "$REAL_TMUX" -L "$SOCKET" kill-server 2>/dev/null || true
   rm -rf "$TMP"
@@ -35,7 +36,7 @@ fi
 
 HOSTILE_CWD=$'cwd-\x1f-newline\n-tab\t-unicode-λ'
 mkdir -p "$TMP/$HOSTILE_CWD"
-"$REAL_TMUX" -L "$SOCKET" -f /dev/null new-session -d -s 'work space' -c "$TMP/$HOSTILE_CWD" /bin/zsh
+"$REAL_TMUX" -L "$SOCKET" -f /dev/null new-session -d -s 'work space' -c "$TMP/$HOSTILE_CWD" "$ZSH"
 PANE=$("$REAL_TMUX" -L "$SOCKET" display-message -p -t '=work space:' '#{pane_id}')
 TITLE="title ' ; \$ unicode-λ"
 LABEL=$'label\twith \x1f tab;$(touch nope)'

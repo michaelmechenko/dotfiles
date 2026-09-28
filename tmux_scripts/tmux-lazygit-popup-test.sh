@@ -21,7 +21,8 @@ exec zsh -c "$last"
 SH
 cat >"$TMP/bin/lazygit" <<'SH'
 #!/bin/sh
-printf '%s\n' "$@" >"$LAZYGIT_LOG"
+: >"$LAZYGIT_LOG"
+for arg do printf '%s\n' "$arg" >>"$LAZYGIT_LOG"; done
 SH
 chmod +x "$TMP/bin/tmux" "$TMP/bin/lazygit"
 
@@ -41,6 +42,16 @@ assert_line 'popup'
 assert_line '-E'
 assert_line '-d'
 assert_line '#{pane_current_path}'
+assert_line 'lazygit'
+if [ -s "$LAZYGIT_LOG" ]; then
+  echo 'missing config should launch lazygit without config arguments' >&2
+  exit 1
+fi
+
+mkdir -p "${config%/*}"
+printf 'gui: {}\n' >"$config"
+: >"$TMUX_LOG"
+"$SCRIPT"
 quoted=$(zsh -c 'print -r -- ${(q)1}' -- "$config")
 assert_line "lazygit --use-config-file $quoted"
 if ! grep -Fqx -- "$config" "$LAZYGIT_LOG"; then

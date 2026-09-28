@@ -7,6 +7,7 @@
 
 dir="$1"
 sel="$2"
+NNN_ORIGIN_PANE=${NNN_ORIGIN_PANE:-${TMUX_PANE:-}}
 [ -z "$NNN_ORIGIN_PANE" ] && exit 0
 
 # Full path of the hovered item ($2/sel is a basename; guard the / root case).
@@ -45,7 +46,5 @@ else
     tmux split-window "$@" -c "$PWD"
 fi
 
-# Close the explorer popup exactly as pressing M-d again does: kill the nnn session
-# (not just detach-client, which leaves nnn alive in a detached session and can keep
-# the popup open). The outer client lands on the new (active) split.
-tmux kill-session -t nnn 2>/dev/null
+# A plain `n` launch has no popup session and must not close an unrelated one.
+"$(dirname "$0")/.nnn-popup-close"

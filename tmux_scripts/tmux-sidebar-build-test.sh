@@ -15,20 +15,22 @@ mkdir -p "$(dirname "$MODULE")"
 cp -R "$ROOT/mm-sidebar" "$MODULE"
 rm -f "$MODULE/mm-sidebar" "$MODULE"/mm-sidebar.tmp.* "$MODULE"/mm-sidebar.probe.*
 
-BIN=$(HOME="$HOME_DIR" GOMODCACHE="$GOMODCACHE" GOCACHE="$GOCACHE" "$ROOT/tmux-sidebar-build")
+BIN=$(HOME="$HOME_DIR" MM_SIDEBAR_BIN= GOMODCACHE="$GOMODCACHE" GOCACHE="$GOCACHE" "$ROOT/tmux-sidebar-build")
 "$BIN" --help >/dev/null 2>&1
 
 # Replace the artifact with a deterministically unrunnable stand-in while keeping
 # it executable and newer than every source. This exercises the same missed state
 # as the stale invalid Mach-O that macOS killed before its first frame.
-cat >"$BIN" <<'BROKEN'
+cat >"$BIN.broken" <<'BROKEN'
 #!/bin/sh
 exit 70
 BROKEN
-chmod +x "$BIN"
+chmod +x "$BIN.broken"
+mv -f "$BIN.broken" "$BIN"
 BAD_HASH=$(shasum -a 256 "$BIN" | awk '{print $1}')
 
-REBUILT=$(HOME="$HOME_DIR" GOMODCACHE="$GOMODCACHE" GOCACHE="$GOCACHE" "$ROOT/tmux-sidebar-build")
+REBUILT=$(HOME="$HOME_DIR" MM_SIDEBAR_BIN= GOMODCACHE="$GOMODCACHE" GOCACHE="$GOCACHE" "$ROOT/tmux-sidebar-build")
+
 NEW_HASH=$(shasum -a 256 "$REBUILT" | awk '{print $1}')
 
 if [ "$NEW_HASH" = "$BAD_HASH" ]; then
@@ -45,7 +47,7 @@ sleep 1
 cat >"$MODULE/internal/freshness/deep/freshness.go" <<'SOURCE'
 package deep
 SOURCE
-NESTED_REBUILT=$(HOME="$HOME_DIR" GOMODCACHE="$GOMODCACHE" GOCACHE="$GOCACHE" "$ROOT/tmux-sidebar-build")
+NESTED_REBUILT=$(HOME="$HOME_DIR" MM_SIDEBAR_BIN= GOMODCACHE="$GOMODCACHE" GOCACHE="$GOCACHE" "$ROOT/tmux-sidebar-build")
 if [ "$NESTED_REBUILT" -ot "$MODULE/internal/freshness/deep/freshness.go" ]; then
     echo "tmux-sidebar-build ignored a nested Go source file" >&2
     exit 1

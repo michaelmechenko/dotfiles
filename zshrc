@@ -154,9 +154,9 @@ export NNN_BATTHEME=ansi
 export NNN_COLORS='63256325'
 export NNN_FCOLORS='060606020005030801050201'
 
-# in-nnn plugin keys (pressed as ;<key>): ;l horizontal split, ;j vertical split,
-# ;i send a cd command to the origin pane's prompt
-export NNN_PLUG='l:tmux-split-h;j:tmux-split-v;i:cd-origin;p:preview-tui;h:tmux-help'
+# In plain nnn, split actions target its own tmux pane. `cd-origin` is popup-only:
+# there is no separate origin prompt for a plain `n` process to receive the text.
+export NNN_PLUG='l:tmux-split-h;j:tmux-split-v;p:preview-tui;h:tmux-help'
 export NNN_SPLIT=v
 export NNN_SPLITSIZE=60
 

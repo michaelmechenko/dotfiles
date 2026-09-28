@@ -217,7 +217,7 @@ func TestAgentsGlanceExposesRegistryOwnedContextActions(t *testing.T) {
 		PaneID: "%1", Target: "sess:1", SessionID: "stable-session", Agent: agents.AgentPi,
 	}}})
 	actions := b.Actions(0)
-	if len(actions) != 5 || actions[0].ID != "inspect" || actions[1].ID != "focus" || actions[2].ID != "response" || actions[3].ID != "plan" || actions[4].Text != "stable-session" || actions[2].AgentSessionID != "stable-session" || actions[3].AgentSessionID != "stable-session" {
+	if len(actions) != 6 || actions[0].ID != "inspect" || actions[1].ID != "focus" || actions[2].ID != "prompt" || actions[3].ID != "response" || actions[4].ID != "plan" || actions[5].Text != "stable-session" || actions[2].AgentSessionID != "stable-session" || actions[4].AgentSessionID != "stable-session" {
 		t.Fatalf("agent actions = %#v", actions)
 	}
 	if got := b.Actions(1); got != nil {

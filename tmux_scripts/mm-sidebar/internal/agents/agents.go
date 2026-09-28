@@ -175,8 +175,9 @@ type Resolver struct {
 const nodeComm = "node"
 
 type piProc struct {
-	pid  int
-	comm string // argv[0] basename: "pi" on recent releases, "node" on older ones
+	pid       int
+	comm      string // argv[0] basename: "pi" on recent releases, "node" on older ones
+	startedAt string // normalized `LC_ALL=C ps -o lstart=` process-instance token
 }
 
 type piRecord struct {
@@ -184,6 +185,7 @@ type piRecord struct {
 	SessionID   string `json:"sessionId"`
 	SessionFile string `json:"sessionFile"`
 	Cwd         string `json:"cwd"`
+	StartedAt   string `json:"processStartedAt"`
 }
 
 // NewResolver builds a Resolver for the standalone `mm-sidebar agents` CLI.
@@ -480,7 +482,7 @@ func (r *Resolver) piRows(panes []tmuxio.PaneRow, records map[int]piRecord) []Ro
 			continue
 		}
 		record, exact := records[proc.pid]
-		if exact && r.cwdByPID[proc.pid] == record.Cwd {
+		if exact && r.cwdByPID[proc.pid] == record.Cwd && proc.startedAt == record.StartedAt {
 			rows = append(rows, Row{
 				SessionID: record.SessionID, PaneID: p.PaneID, Target: p.Target,
 				SessionName: p.SessionName, State: piState(p.Command, proc.comm),
@@ -554,7 +556,7 @@ func (r *Resolver) readPiRecords() map[int]piRecord {
 			continue
 		}
 		var record piRecord
-		if json.Unmarshal(data, &record) != nil || record.PID <= 0 || record.SessionID == "" || record.Cwd == "" || record.SessionFile == "" {
+		if json.Unmarshal(data, &record) != nil || record.PID <= 0 || record.SessionID == "" || record.Cwd == "" || record.SessionFile == "" || record.StartedAt == "" {
 			continue
 		}
 		if entry.Name() != strconv.Itoa(record.PID)+".json" || !strings.HasPrefix(record.SessionFile, r.piSessDir+string(filepath.Separator)) {
@@ -577,7 +579,7 @@ func piRecordsKey(records map[int]piRecord) string {
 	var b strings.Builder
 	for _, pid := range keys {
 		r := records[pid]
-		fmt.Fprintf(&b, "%d:%s:%s:%s\n", pid, r.SessionID, r.SessionFile, r.Cwd)
+		fmt.Fprintf(&b, "%d:%s:%s:%s:%s\n", pid, r.SessionID, r.SessionFile, r.Cwd, r.StartedAt)
 	}
 	return b.String()
 }
@@ -636,24 +638,27 @@ func (r *Resolver) refreshProcessTable(panes []tmuxio.PaneRow, sessions []claude
 	// terminal width and the /pi-coding-agent/dist/cli.js match silently fails
 	// on long command lines.
 	t := time.Now()
-	out, err := exec.Command("ps", "-eww", "-o", "pid=,ppid=,args=").Output()
+	cmd := exec.Command("ps", "-eww", "-o", "pid=,ppid=,lstart=,args=")
+	cmd.Env = append(os.Environ(), "LC_ALL=C")
+	out, err := cmd.Output()
 	trace.Phase("  ps-eww", t)
 	if err != nil {
 		return false
 	}
 
 	type proc struct {
-		ppid int
-		comm string
-		args string
+		ppid      int
+		comm      string
+		startedAt string
+		args      string
 	}
 	procs := map[int]proc{}
 	for _, line := range strings.Split(string(out), "\n") {
-		pid, ppid, args, ok := parsePSLine(line)
+		pid, ppid, startedAt, args, ok := parsePSLine(line)
 		if !ok {
 			continue
 		}
-		procs[pid] = proc{ppid: ppid, comm: argv0Base(args), args: args}
+		procs[pid] = proc{ppid: ppid, comm: argv0Base(args), startedAt: startedAt, args: args}
 	}
 
 	// ppid for every Claude session pid we still care about.
@@ -677,9 +682,9 @@ func (r *Resolver) refreshProcessTable(panes []tmuxio.PaneRow, sessions []claude
 			continue
 		}
 		if panePIDs[pid] {
-			nextPi[pid] = piProc{pid: pid, comm: p.comm}
+			nextPi[pid] = piProc{pid: pid, comm: p.comm, startedAt: p.startedAt}
 		} else if panePIDs[p.ppid] {
-			nextPi[p.ppid] = piProc{pid: pid, comm: p.comm}
+			nextPi[p.ppid] = piProc{pid: pid, comm: p.comm, startedAt: p.startedAt}
 		}
 	}
 	r.piByPanePID = nextPi
@@ -758,32 +763,25 @@ func (r *Resolver) refreshPiCwds() {
 	}
 }
 
-// parsePSLine splits "  <pid> <ppid> <args...>" from `ps -o pid=,ppid=,args=`.
-// args is taken as the whole remainder, so command lines containing spaces
-// survive intact.
-func parsePSLine(line string) (pid, ppid int, args string, ok bool) {
-	s := strings.TrimLeft(line, " ")
-	if s == "" {
-		return 0, 0, "", false
+// parsePSLine splits the locale-fixed output of
+// `ps -o pid=,ppid=,lstart=,args=`. lstart contributes exactly five fields
+// under LC_ALL=C; the normalized token matches session-state's record.
+func parsePSLine(line string) (pid, ppid int, startedAt, args string, ok bool) {
+	fields := strings.Fields(line)
+	if len(fields) < 8 {
+		return 0, 0, "", "", false
 	}
-	i := strings.IndexByte(s, ' ')
-	if i < 0 {
-		return 0, 0, "", false
-	}
-	pid, err := strconv.Atoi(s[:i])
+	pid, err := strconv.Atoi(fields[0])
 	if err != nil {
-		return 0, 0, "", false
+		return 0, 0, "", "", false
 	}
-	s = strings.TrimLeft(s[i:], " ")
-	i = strings.IndexByte(s, ' ')
-	if i < 0 {
-		return 0, 0, "", false
-	}
-	ppid, err = strconv.Atoi(s[:i])
+	ppid, err = strconv.Atoi(fields[1])
 	if err != nil {
-		return 0, 0, "", false
+		return 0, 0, "", "", false
 	}
-	return pid, ppid, strings.TrimLeft(s[i:], " "), true
+	startedAt = strings.Join(fields[2:7], " ")
+	args = strings.Join(fields[7:], " ")
+	return pid, ppid, startedAt, args, true
 }
 
 // argv0Base is the basename of argv[0] -- `ps -o args=` prints an absolute path

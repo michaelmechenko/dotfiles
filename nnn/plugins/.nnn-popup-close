@@ -1,0 +1,9 @@
+#!/usr/bin/env sh
+# Close only the uniquely marked popup session that launched this nnn process.
+# Plain nnn leaves these values unset and cannot affect another client/session.
+[ -n "${NNN_POPUP_SESSION:-}" ] || exit 0
+[ -n "${NNN_POPUP_TOKEN:-}" ] || exit 0
+[ -n "${TMUX_PANE:-}" ] || exit 0
+identity=$(tmux display-message -p -t "$TMUX_PANE" '#{session_name}|#{@nnn_popup_token}' 2>/dev/null) || exit 0
+[ "$identity" = "$NNN_POPUP_SESSION|$NNN_POPUP_TOKEN" ] || exit 0
+tmux kill-session -t "=$NNN_POPUP_SESSION" 2>/dev/null

@@ -473,6 +473,16 @@ func TestAgentScriptActionCarriesExpectedSessionBehindPaneGuard(t *testing.T) {
 	if len(calls) != 1 {
 		t.Fatalf("incomplete agent identity issued an action: %#v", calls)
 	}
+	client.RunAgentActionAtPane(ref, "/tmp/agent action", "plan", "pi", "pi-session")
+	if len(calls) != 2 {
+		t.Fatalf("named agent action calls = %#v", calls)
+	}
+	joined = strings.Join(calls[1], " ")
+	for _, want := range []string{"'plan'", "'%7'", "'pi'", "'pi-session'", "#{==:#{session_id},$4}"} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("named agent action lacks %q: %#v", want, calls[1])
+		}
+	}
 }
 
 func TestDisplayMessagePlacesAllOptionsBeforeMessage(t *testing.T) {

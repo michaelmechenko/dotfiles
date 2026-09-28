@@ -5,10 +5,10 @@
 # injection-safe opener tmux-open-target.
 sel="$1"
 line="$2"
+NNN_ORIGIN_PANE=${NNN_ORIGIN_PANE:-${TMUX_PANE:-}}
 [ -n "$sel" ] && [ -n "$NNN_ORIGIN_PANE" ] || exit 0
 case "$sel" in /*) t="$sel" ;; *) t="$PWD/$sel" ;; esac
 [ -f "$t" ] || exit 0
 TMUX_OPEN_PANE="$NNN_ORIGIN_PANE" "$HOME/.config/tmux_scripts/tmux-open-target" "$t" "$line"
-# Close the popup as M-d does — kill the session (detach-client leaves nnn alive and can
-# keep the popup open). Outer client lands on the new split.
-tmux kill-session -t nnn 2>/dev/null
+# Close only the popup session that launched this nnn process.
+"$(dirname "$0")/.nnn-popup-close"

@@ -1,29 +1,60 @@
 #!/usr/bin/env sh
-# nnn plugin (;g): live ripgrep across the current browse dir. The chosen match opens in an
-# nvim split in the origin window at the matched line, then the explorer popup closes.
-# Sibling to fzcd. Depends on rg + fzf + bat.
+# nnn plugin (;g): live ripgrep with opaque path transport. Display labels are
+# never parsed back into targets, so colons and control characters in filenames
+# cannot corrupt the selected path or line.
+
+base64_decode() {
+    if base64 --help 2>&1 | grep -q -- '--decode'; then
+        base64 --decode
+    else
+        base64 -D
+    fi
+}
+
+case ${1:-} in
+    --search)
+        shift
+        query=${1:-}
+        rg --json --smart-case -- "$query" 2>/dev/null | jq -r '
+          select(.type == "match") | .data as $d
+          | ($d.path.bytes // ($d.path.text | @base64)) as $encoded_path
+          | (($d.path.text // ($d.path.bytes | @base64d)) | gsub("[[:cntrl:]]"; "�")) as $display_path
+          | ($d.lines.text | gsub("[[:cntrl:]]"; " ")) as $text
+          | ($d.submatches[0] // {start: 0, end: 0}) as $match
+          | ($text[0:$match.start] + "\u001b[4m" + $text[$match.start:$match.end] + "\u001b[24m" + $text[$match.end:]) as $shown
+          | [$encoded_path, ($d.line_number | tostring), (($match.start + 1) | tostring), (($display_path | gsub("[\\r\\n\\t]"; " ")) + ":" + ($d.line_number | tostring) + ":" + (($match.start + 1) | tostring) + ":" + $shown)]
+          | @tsv
+        '
+        exit 0 ;;
+    --preview)
+        path=$(printf '%s' "$2" | base64_decode 2>/dev/null) || exit 0
+        line=$3
+        [ -f "$path" ] || exit 0
+        exec bat --color=always --style=numbers --theme=ansi --highlight-line "$line" -- "$path" ;;
+esac
+
+NNN_ORIGIN_PANE=${NNN_ORIGIN_PANE:-${TMUX_PANE:-}}
 [ -n "$NNN_ORIGIN_PANE" ] || exit 0
 type rg >/dev/null 2>&1 || { printf 'rg missing'; read -r _; exit 1; }
+type jq >/dev/null 2>&1 || { printf 'jq missing'; read -r _; exit 1; }
 
-# Zoom the nnn pane so fzf + preview fill the popup; restore on exit (mirrors fzcd).
 ZOOMED=""
 if [ -n "$TMUX" ] && [ "$(tmux display-message -p '#{window_zoomed_flag}' 2>/dev/null)" = "0" ]; then
     tmux resize-pane -Z 2>/dev/null && ZOOMED=1
     trap '[ -n "$ZOOMED" ] && tmux resize-pane -Z 2>/dev/null' EXIT INT HUP TERM
 fi
 
-RG='rg --column --line-number --no-heading --color=always --smart-case'
-: "${RG_COLORS:=match:fg:216,100,126:style:underline}"
-export RG_COLORS
-sel=$(fzf --ansi --disabled \
-    --bind "start:reload:$RG -- {q} || true" \
-    --bind "change:reload:sleep 0.1; $RG -- {q} || true" \
-    --bind "alt-q:abort,alt-j:down,alt-k:up,alt-n:preview-half-page-down,alt-u:preview-half-page-up,alt-g:reload:$RG -- {q} || true" \
-    --delimiter : \
-    --preview 'bat --color=always --style=numbers --theme=ansi --highlight-line {2} -- {1}' \
+SELF=$0
+sel=$(fzf --ansi --disabled --delimiter "$(printf '\t')" --with-nth=4.. \
+    --bind "start:reload:\"$SELF\" --search {q} || true" \
+    --bind "change:reload:sleep 0.1; \"$SELF\" --search {q} || true" \
+    --bind "alt-q:abort,alt-j:down,alt-k:up,alt-n:preview-half-page-down,alt-u:preview-half-page-up,alt-g:reload:\"$SELF\" --search {q} || true" \
+    --preview "\"$SELF\" --preview {1} {2}" \
     --preview-window 'up,60%,border-bottom,+{2}+3/3')
 [ -n "$sel" ] || exit 0
 
-f=$(printf '%s\n' "$sel" | cut -d: -f1)
-l=$(printf '%s\n' "$sel" | cut -d: -f2)
-"$(dirname "$0")/.nnn-open-origin" "$f" "$l"
+encoded=${sel%%	*}
+rest=${sel#*	}
+line=${rest%%	*}
+path=$(printf '%s' "$encoded" | base64_decode 2>/dev/null) || exit 0
+"$(dirname "$0")/.nnn-open-origin" "$path" "$line"

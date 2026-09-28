@@ -161,11 +161,11 @@ case "$mode" in
     ;;
 esac
 
-# Double-guard: the M-Tab bind already forwards raw inside popups/nnn, but a direct
-# invocation should no-op there rather than spawn a sidebar into a popup.
-session=$(tmux display-message -p "${TMUX_PANE:+-t}" ${TMUX_PANE:+"$TMUX_PANE"} '#{session_name}' 2>/dev/null || true)
+# Double-guard: the M-Tab bind already forwards raw inside popups/marked nnn,
+# but a direct invocation should no-op there rather than spawn a sidebar.
+nnn_popup=$(tmux display-message -p "${TMUX_PANE:+-t}" ${TMUX_PANE:+"$TMUX_PANE"} '#{@nnn_popup_token}' 2>/dev/null || true)
 popup=$(tmux display-message -p '#{popup_width}' 2>/dev/null || true)
-if [ -n "$popup" ] || [ "$session" = "nnn" ]; then
+if [ -n "$popup" ] || [ -n "$nnn_popup" ]; then
   exit 0
 fi
 

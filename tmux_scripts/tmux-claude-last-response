@@ -27,9 +27,22 @@ session_id=$(printf '%s' "$row" | cut -f1)
 transcript=$(printf '%s' "$row" | cut -f7)
 [ -f "$transcript" ] || { tmux display-message "no transcript for this session"; exit 0; }
 
-out="$(mktemp -t claude-resp).md"
-grep '"type":"assistant"' "$transcript" | tail -1 \
-  | jq -r '.message.content[] | select(.type=="text") | .text' 2>/dev/null > "$out"
+out=$(mktemp "${TMPDIR:-/tmp}/claude-resp.XXXXXX") || {
+  tmux display-message "could not create response file"
+  exit 1
+}
+if ! jq -rs '
+  [ .[]
+    | select(.type == "assistant" or (.type == "message" and .message.role == "assistant"))
+    | (.message // .)
+    | [ .content[]? | select(.type == "text") | .text ] | join("\n")
+    | select(length > 0)
+  ] | last // empty
+' "$transcript" > "$out" 2>/dev/null; then
+  rm -f -- "$out"
+  tmux display-message "could not read claude response"
+  exit 1
+fi
 [ -s "$out" ] || printf '(no text response found)\n' > "$out"
 
-"$HOME/.config/tmux_scripts/tmux-claude-open-split" "$out" "$cur"
+"$HOME/.config/tmux_scripts/tmux-claude-open-split" --temporary "$out" "$cur" || rm -f -- "$out"

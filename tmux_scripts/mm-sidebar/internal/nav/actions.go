@@ -58,6 +58,7 @@ const (
 	ContextCopyPath
 	ContextRevealPath
 	ContextOpenParent
+	ContextAgentPrompt
 	ContextAgentResponse
 	ContextAgentPlan
 	ContextCopyText
@@ -280,14 +281,12 @@ func (e ContextExecutor) Execute(client *tmuxio.Client, action ContextAction, co
 		}
 	case ContextOpenParent:
 		client.SplitAt(content, filepath.Dir(action.Path))
+	case ContextAgentPrompt:
+		client.RunAgentActionAtPane(action.Pane, scriptPath("tmux-agent-action"), "prompt", action.Agent, action.AgentSessionID)
 	case ContextAgentResponse:
-		name := "tmux-pi-last-response"
-		if action.Agent == "claude" {
-			name = "tmux-claude-last-response"
-		}
-		client.RunAgentScriptAtPane(action.Pane, scriptPath(name), action.Agent, action.AgentSessionID)
+		client.RunAgentActionAtPane(action.Pane, scriptPath("tmux-agent-action"), "response", action.Agent, action.AgentSessionID)
 	case ContextAgentPlan:
-		client.RunAgentScriptAtPane(action.Pane, scriptPath("tmux-M-P-dispatch"), action.Agent, action.AgentSessionID)
+		client.RunAgentActionAtPane(action.Pane, scriptPath("tmux-agent-action"), "plan", action.Agent, action.AgentSessionID)
 	case ContextCopyText:
 		copyText(action.Text)
 	case ContextOpenLazygit:

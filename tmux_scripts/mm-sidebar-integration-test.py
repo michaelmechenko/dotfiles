@@ -270,9 +270,9 @@ class Harness:
         config.write_text(
             "set-option -g extended-keys on\n"
             "set-option -g extended-keys-format csi-u\n"
-            "bind-key -n M-Tab if -F '#{||:#{popup_width},#{==:#{session_name},nnn}}' "
+            "bind-key -n M-Tab if -F '#{||:#{popup_width},#{@nnn_popup_token}}' "
             f'{{ send-keys M-Tab }} {{ run-shell "{command} --toggle-persistent" }}\n'
-            "bind-key -n M-BTab if -F '#{||:#{popup_width},#{==:#{session_name},nnn}}' "
+            "bind-key -n M-BTab if -F '#{||:#{popup_width},#{@nnn_popup_token}}' "
             f'{{ send-keys M-BTab }} {{ run-shell "{command} --focus" }}\n'
         )
         self.tmux("source-file", str(config))
@@ -445,6 +445,14 @@ class Harness:
     def close(self, pane: str) -> None:
         self.invoke_toggle(pane, "--close")
         self.wait("sidebar closes", lambda: not self.sidebar(pane))
+        # Pane death can become visible before the asynchronous run-shell even
+        # publishes, then releases, its socket-scoped lifecycle lock. Let that
+        # command cross the publication boundary before testing quiescence.
+        time.sleep(0.1)
+        self.wait(
+            "sidebar close lock release",
+            lambda: not list((self.tmp / "tmux").rglob(".mm-sidebar-toggle.*.lock")),
+        )
 
     def panes(self, pane: str) -> list[str]:
         return self.tmux("list-panes", "-t", self.window(pane), "-F", "#{pane_id}").splitlines()
@@ -840,7 +848,8 @@ def test_f13_f14_transport(h: Harness) -> None:
 
 
 def test_nnn_guard(h: Harness) -> None:
-    main = h.new_session("nnn")
+    main = h.new_session("nnn-popup-test")
+    h.tmux("set-option", "-q", "-t", main, "@nnn_popup_token", "test-owner")
     done = h.home / "nnn-guard-finished"
     h.shell(
         main,

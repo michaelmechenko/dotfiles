@@ -1,6 +1,6 @@
 #!/bin/sh
 # Resolve a pi process for a tmux pane.
-# Output: pid<TAB>cwd<TAB>transcript<TAB>session_id
+# Output: pid<TAB>cwd<TAB>transcript<TAB>session_id<TAB>process_started_at
 #
 # Exact resolution reads the PID-keyed registry published by pi's session-state
 # extension. Its session ID and transcript are authoritative even when several
@@ -37,16 +37,22 @@ process_cwd() {
     lsof -a -p "$1" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | tail -1
 }
 
+process_started_at() {
+    LC_ALL=C ps -o lstart= -p "$1" 2>/dev/null | awk '{$1=$1; print}'
+}
+
 exact_record() {
     candidate=$1
     cwd=$2
     record="$PI_STATE_DIR/$candidate.json"
     [ -f "$record" ] || return 1
+    started_at=$(process_started_at "$candidate")
+    [ -n "$started_at" ] || return 1
 
     # Do not read the transcript itself. The record must belong to this live
     # process and name an existing session file below pi's configured store.
-    parsed=$(jq -er --argjson pid "$candidate" --arg cwd "$cwd" --arg root "$PI_SESS_DIR/" '
-        select(.pid == $pid and .cwd == $cwd)
+    parsed=$(jq -er --argjson pid "$candidate" --arg cwd "$cwd" --arg started "$started_at" --arg root "$PI_SESS_DIR/" '
+        select(.pid == $pid and .cwd == $cwd and .processStartedAt == $started)
         | select((.sessionId | type) == "string" and (.sessionId | length) > 0)
         | select((.sessionFile | type) == "string" and (.sessionFile | startswith($root)))
         | [.sessionFile, .sessionId] | @tsv
@@ -55,7 +61,8 @@ exact_record() {
     session_id=${parsed#*	}
     [ "$transcript" != "$parsed" ] || return 1
     [ -f "$transcript" ] || return 1
-    printf '%s\t%s\t%s\t%s\n' "$candidate" "$cwd" "$transcript" "$session_id"
+        printf '%s\t%s\t%s\t%s\t%s\n' "$candidate" "$cwd" "$transcript" "$session_id" "$started_at"
+
 }
 
 legacy_record() {
@@ -67,7 +74,7 @@ legacy_record() {
     transcript=$( (set +f; ls -t "$sess_dir"/*.jsonl 2>/dev/null | head -1) )
     [ -f "$transcript" ] || return 1
     session_id=$(basename "$transcript" .jsonl | sed 's/^.*_//')
-    printf '%s\t%s\t%s\t%s\n' "$candidate" "$cwd" "$transcript" "$session_id"
+    printf '%s\t%s\t%s\t%s\t-\n' "$candidate" "$cwd" "$transcript" "$session_id"
 }
 
 # A pane can retain its shell (pi is a direct child) or exec-replace it (pi is

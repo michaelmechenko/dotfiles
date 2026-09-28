@@ -443,6 +443,16 @@ func (c *Client) RunAgentScriptAtPane(ref PaneRef, script, agent, sessionID stri
 	c.paneGuard(ref, "run-shell "+commandQuote(shell))
 }
 
+// RunAgentActionAtPane routes a named action through the shared identity-checked
+// agent boundary while retaining the same rendered-pane guard.
+func (c *Client) RunAgentActionAtPane(ref PaneRef, script, action, agent, sessionID string) {
+	if action == "" || agent == "" || sessionID == "" {
+		return
+	}
+	shell := strings.Join([]string{commandQuote(script), commandQuote(action), commandQuote(ref.PaneID), commandQuote(agent), commandQuote(sessionID)}, " ")
+	c.paneGuard(ref, "run-shell "+commandQuote(shell))
+}
+
 // paneGuard runs action only while the exact rendered pane is still in the
 // recorded session/window. if-shell evaluates its predicate and command in one
 // tmux server queue turn, closing the validation/action race for destructive

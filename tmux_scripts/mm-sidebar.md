@@ -252,8 +252,8 @@ Three pieces must stay aligned for `M-Tab` and `M-BTab`:
    existing `alt+enter=csi:13;3u`.
 2. **tmux**: `extended-keys on` + `extended-keys-format csi-u` (already set).
 3. **tmux binds**: both guarded with
-   `#{||:#{popup_width},#{==:#{session_name},nnn}}` so they forward raw inside
-   any popup or the `nnn` session, matching the `M-j`/`M-q` pattern.
+   `#{||:#{popup_width},#{@nnn_popup_token}}` so they forward raw inside native
+   popups or uniquely marked nnn popup sessions, matching `M-j`/`M-q`.
 
 > **The focus bind must be spelled `M-BTab`, never `M-S-Tab`.** tmux rewrites
 > Shift+Tab to Backtab on the **input** path (`tty-keys.c`,
@@ -616,9 +616,9 @@ tmux / ps / lsof stalled" should be an observation, not a guess.
   isn't reversible across path types.
 - **pi:** `extensions/session-state/` writes `/tmp/pi-session-state/<pid>.json`
   atomically on every session start/reload/new/resume/fork. It holds the exact
-  session ID, transcript path, and cwd. The resolver validates that the record's
-  PID is a live pi process, that its cwd still matches, and that its session file
-  is inside pi's session store. A pi process may equal `pane_pid` after shell
+  session ID, transcript path, cwd, and normalized OS process-start token. The
+  shared `ps` sweep carries the same `LC_ALL=C` token, so the resolver rejects
+  PID reuse as well as cwd/session-file mismatches. A pi process may equal `pane_pid` after shell
   `exec`, or be its direct child. Only unreloaded older pi instances use the
   marked compatibility fallback: cwd → pi's `--<cwd sans leading slash,
   remaining slashes as dashes>--` session directory → newest `*.jsonl`.
@@ -674,9 +674,10 @@ deliberately: the alternative is a second copy of the pi recipe in shell, which
 is the drift the wrapper exists to prevent. A missing pi row degrades a glance; a
 stale duplicate recipe silently reports wrong state.
 
-`tmux_scripts/tmux-claude-ls` keeps its own separate 9-field contract (ending in
-`statusUpdatedAt`, not an agent tag) and its own callers (`M-b`, `M-G`,
-`prefix .`) — untouched by this revision.
+`tmux_scripts/tmux-claude-ls` keeps its separate 9-field contract (ending in
+`statusUpdatedAt`, not an agent tag) for Claude discovery and `prefix .`.
+Cross-agent `M-b`, `M-G`, and `M-P` consume the combined `tmux-agent-ls` contract
+through `tmux-agent-action`, the same identity-checked boundary used here.
 
 ### Concurrency: the agent feed
 
@@ -732,7 +733,8 @@ track — both are background-weight surfaces, not text, so neither could reuse
 | Left/Right | Collapse/expand a cached top-level filetree directory |
 | Space | Explicit preview for the selected filetree path |
 | `h/p/R` | Filetree hidden / pin / reset |
-| `a` / `:` | Selected-row actions; long palettes follow the selection |
+| `a` / `:` | Selected-row actions; agent rows expose prompt, response, and current plan through the shared guarded boundary |
+| `M-p` / `M-P` / `M-G` | Run prompt / current-plan / last-response directly for the selected agent row |
 | `v` | Explicit views palette |
 | `r` | Force source refresh |
 | `w` | 30/36/44 width |
@@ -746,9 +748,11 @@ track — both are background-weight surfaces, not text, so neither could reuse
 shows all states; activity preserves guarded agent/worktree actions; system
 samples on open and only rearms its 5-second cadence while still open.
 
-The agent action palette starts with `inspect agent`. The inspector is a full
-surface; selection alone never reads transcript, plan, or Git. `r` forces a
-fresh inspection; Esc/q returns to agents.
+The agent action palette starts with `inspect agent`, then guarded focus,
+prompt, response, current plan, and copy-session actions. `M-p`/`M-P`/`M-G`
+invoke the same selected-row actions directly. The inspector is a full surface;
+selection alone never reads transcript, plan, or Git. `r` forces a fresh
+inspection; Esc/q returns to agents.
 
 ## Relationship to `M-d` and `M-b`
 

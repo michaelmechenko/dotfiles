@@ -2,14 +2,21 @@
 # Open a file in an nvim split, always to the right (never below):
 #   1 pane            -> new pane to the right.
 #   2+ panes          -> new pane above the rightmost pane (stacked atop the right column).
+temporary=false
+if [ "${1:-}" = "--temporary" ]; then
+  temporary=true
+  shift
+fi
 f="$1"
 origin=${2:-$(tmux display -p '#{pane_id}')}
 # tmux runs the split command via `sh -c`; shell-quote the path defensively.
 printf -v q '%q' "$f"
+cmd="nvim -- $q"
+$temporary && cmd="cleanup() { rm -f -- $q; }; trap cleanup EXIT; trap 'exit 129' HUP; trap 'exit 130' INT; trap 'exit 143' TERM; nvim -c 'setfiletype markdown' -- $q"
 panes=$(tmux display -p -t "$origin" '#{window_panes}')
 if [ "${panes:-1}" -le 1 ]; then
-  tmux split-window -h -t "$origin" "nvim -- $q"
+  tmux split-window -h -t "$origin" "$cmd"
 else
   rp=$(tmux list-panes -t "$origin" -F '#{pane_left} #{pane_id}' | sort -n | tail -1 | cut -d' ' -f2)
-  tmux split-window -v -b -t "$rp" "nvim -- $q"
+  tmux split-window -v -b -t "$rp" "$cmd"
 fi

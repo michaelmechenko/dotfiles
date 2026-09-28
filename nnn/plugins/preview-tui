@@ -198,9 +198,13 @@ start_preview() {
             # resolves to the window's currently *active* pane - not necessarily this one) is the
             # only reliable way to name the pane this script is actually running in.
             origin_pane="$TMUX_PANE"
+            server_id=${TMUX#*,}; server_id=${server_id%%,*}
+            preview_map="$TMPDIR/nnn-preview-panes/$server_id/$origin_pane"
+            ENVVARS+=("NNN_PREVIEW_MAP=$preview_map")
             new_pane="$(tmux split-window -l"$NNN_SPLITSIZE"% "${ENVVARS[@]}" -d"$split" -p"$NNN_SPLITSIZE" -P -F '#{pane_id}' "$0" "$1")"
-            mkdir -p "$TMPDIR/nnn-preview-panes" 2>/dev/null
-            printf '%s' "$new_pane" > "$TMPDIR/nnn-preview-panes/$origin_pane" 2>/dev/null ;;
+            mkdir -p "${preview_map%/*}" 2>/dev/null
+            printf '%s' "$new_pane" > "$preview_map" 2>/dev/null
+            tmux set-option -pt "$new_pane" @nnn_preview 1 2>/dev/null ;;
         kitty) # Setting the layout for the new window. It will be restored after the script ends.
             ENVVARS=("${ENVVARS[@]/#/--env=}")
             kitty @ goto-layout splits
@@ -594,7 +598,7 @@ if [ "$PREVIEW_MODE" -eq 1 ] 2>/dev/null; then
     printf "%s" "$!" > "$FIFOPID"
     printf "%s" "$PWD/$1" > "$CURSEL"
     trap 'winch_handler' WINCH
-    trap 'rm -- "$PREVIEWPID" "$PREVIEWFILE" "$CURSEL" "$FIFO_UEBERZUG" "$FIFOPID" "$POSOFFSET" 2>/dev/null' INT HUP EXIT
+    trap 'rm -- "$PREVIEWPID" "$PREVIEWFILE" "$CURSEL" "$FIFO_UEBERZUG" "$FIFOPID" "$POSOFFSET" ${NNN_PREVIEW_MAP:+"$NNN_PREVIEW_MAP"} 2>/dev/null' INT HUP EXIT
     while kill -s 0 $WAITPID; do
       wait $WAITPID 2>/dev/null
     done

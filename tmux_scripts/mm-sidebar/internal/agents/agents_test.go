@@ -142,6 +142,13 @@ func TestAgentRowsCarryPaneLabelsAndAppendTSV(t *testing.T) {
 	}
 }
 
+func TestParsePSLineCarriesStableProcessStart(t *testing.T) {
+	pid, ppid, started, args, ok := parsePSLine("  42  7 Mon Jan  1 00:00:00 2024 /opt/pi/bin/node cli.js --flag")
+	if !ok || pid != 42 || ppid != 7 || started != "Mon Jan 1 00:00:00 2024" || args != "/opt/pi/bin/node cli.js --flag" {
+		t.Fatalf("parsed = %d %d %q %q %v", pid, ppid, started, args, ok)
+	}
+}
+
 func TestReadPiRecordsRejectsInvalidFiles(t *testing.T) {
 	stateDir := t.TempDir()
 	sessionsDir := t.TempDir()
@@ -149,7 +156,7 @@ func TestReadPiRecordsRejectsInvalidFiles(t *testing.T) {
 	if err := os.WriteFile(valid, nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(stateDir, "10.json"), []byte(`{"pid":10,"sessionId":"exact","sessionFile":"`+valid+`","cwd":"/cwd"}`), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(stateDir, "10.json"), []byte(`{"pid":10,"sessionId":"exact","sessionFile":"`+valid+`","cwd":"/cwd","processStartedAt":"Mon Jan 1 00:00:00 2024"}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(stateDir, "11.json"), []byte(`{"pid":10,"sessionId":"wrong-name","sessionFile":"`+valid+`","cwd":"/cwd"}`), 0o600); err != nil {
@@ -161,6 +168,20 @@ func TestReadPiRecordsRejectsInvalidFiles(t *testing.T) {
 	records := (&Resolver{piStateDir: stateDir, piSessDir: sessionsDir}).readPiRecords()
 	if len(records) != 1 || records[10].SessionID != "exact" {
 		t.Fatalf("records = %#v", records)
+	}
+}
+
+func TestPiRowsRejectsMismatchedProcessStart(t *testing.T) {
+	r := &Resolver{
+		piByPanePID: map[int]piProc{100: {pid: 100, comm: AgentPi, startedAt: "new"}},
+		cwdByPID:    map[int]string{100: "/live"},
+		piSessDir:   t.TempDir(),
+	}
+	rows := r.piRows([]tmuxio.PaneRow{{PanePID: 100, Command: AgentPi}}, map[int]piRecord{
+		100: {PID: 100, SessionID: "stale", SessionFile: "/not-used.jsonl", Cwd: "/live", StartedAt: "old"},
+	})
+	if len(rows) != 0 {
+		t.Fatalf("PID-reused record produced rows: %#v", rows)
 	}
 }
 

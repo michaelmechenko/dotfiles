@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Identity-checked boundary for prompt, plan, and response actions.
+set -u
+action=${1:-}
+pane=${2:-$(tmux display -p '#{pane_id}')}
+expected_agent=${3:-}
+expected_session=${4:-}
+case "$action" in prompt|plan|response) ;; *) echo 'usage: tmux-agent-action prompt|plan|response [pane [agent session]]' >&2; exit 2 ;; esac
+
+row=$("$HOME/.config/tmux_scripts/tmux-agent-ls" | awk -F '\t' -v p="$pane" '$2 == p { print; exit }')
+session_id=$(printf '%s' "$row" | cut -f1)
+agent=$(printf '%s' "$row" | cut -f9)
+if [ -n "$expected_agent" ] && { [ "$agent" != "$expected_agent" ] || [ "$session_id" != "$expected_session" ]; }; then
+  tmux display-message "agent session changed"
+  exit 0
+fi
+
+if [ "$action" = prompt ]; then
+  # Preserve generic scratch prompting for non-agent panes, but pin a resolved
+  # agent identity so a replacement cannot receive the edited text.
+  exec "$HOME/.config/tmux_scripts/tmux-pi-prompt" "$pane" "$agent" "$session_id"
+fi
+[ -n "$row" ] || { tmux display-message "no agent session in this pane"; exit 0; }
+case "$action:$agent" in
+  plan:claude) exec "$HOME/.config/tmux_scripts/tmux-claude-plan" "$pane" "$session_id" ;;
+  plan:pi) exec "$HOME/.config/tmux_scripts/tmux-pi-plan" "$pane" pi "$session_id" ;;
+  response:claude) exec "$HOME/.config/tmux_scripts/tmux-claude-last-response" "$pane" claude "$session_id" ;;
+  response:pi) exec "$HOME/.config/tmux_scripts/tmux-pi-last-response" "$pane" pi "$session_id" ;;
+  *) tmux display-message "unsupported agent action" ;;
+esac

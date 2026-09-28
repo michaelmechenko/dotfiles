@@ -24,7 +24,8 @@ panes=$(tmux list-panes -a -F '#{pane_pid}|#{pane_id}|#{session_name}:#{window_i
 # Feed three tagged, tab-delimited streams to awk on stdin (passing the multi-line
 # pane map via -v breaks on BSD awk). T=transcript map, P=pane map, S=session.
 {
-  /usr/bin/find "$PROJ_DIR" -maxdepth 2 -name '*.jsonl' 2>/dev/null | while read -r p; do
+  for p in "$PROJ_DIR"/*.jsonl "$PROJ_DIR"/*/*.jsonl; do
+    [ -f "$p" ] || continue
     b=${p##*/}; b=${b%.jsonl}
     printf 'T\t%s\t%s\n' "$b" "$p"
   done

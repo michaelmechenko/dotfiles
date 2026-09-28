@@ -722,6 +722,14 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.actionPalette {
 		return m.handleActionKey(msg)
 	}
+	for _, shortcut := range []struct{ key, action string }{{"alt+p", "prompt"}, {"alt+P", "plan"}, {"alt+shift+p", "plan"}, {"alt+G", "response"}, {"alt+shift+g", "response"}} {
+		if key == shortcut.key {
+			if action, ok := m.selectedAction(shortcut.action); ok {
+				return m, m.runContextAction(action)
+			}
+			return m, nil
+		}
+	}
 	if m.surface != surfaceMain {
 		return m.handleSurfaceKey(msg)
 	}
@@ -1052,6 +1060,15 @@ func (m *model) selectedActions() []nav.ContextAction {
 		return nil
 	}
 	return rows[m.sel].Actions
+}
+
+func (m *model) selectedAction(id string) (nav.ContextAction, bool) {
+	for _, action := range m.selectedActions() {
+		if action.ID == id {
+			return action, true
+		}
+	}
+	return nav.ContextAction{}, false
 }
 
 func (m *model) selectedPreviewAction() (nav.ContextAction, bool) {

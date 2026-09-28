@@ -3,9 +3,8 @@
 # split (side placement via tmux-claude-open-split — generic despite the
 # name, it just opens a given file to the right).
 #
-# tmux-pi-session prefers pi's PID-keyed session-state registry, so it opens
-# the exact transcript for this process. Unreloaded older pi processes degrade
-# explicitly to its legacy cwd -> newest-transcript fallback.
+# tmux-pi-session resolves only Pi's PID-keyed session-state registry here, so
+# this action never guesses from cwd or a newest transcript shared by another process.
 
 origin=${1:-$(tmux display -p '#{pane_id}')}
 expected_agent=${2:-}
@@ -22,7 +21,7 @@ fi
 }
 pane_pid=$(tmux display -p -t "$origin" '#{pane_pid}')
 
-info=$($HOME/.config/tmux_scripts/tmux-pi-session "$pane_pid" 2>/dev/null) || {
+info=$("$HOME/.config/tmux_scripts/tmux-pi-session" --exact "$pane_pid" 2>/dev/null) || {
   tmux display-message "no pi session in this pane"
   exit 0
 }
@@ -39,9 +38,21 @@ esac
   exit 0
 }
 
-out="$(mktemp -t pi-resp).md"
-jq -c 'select(.type=="message" and .message.role=="assistant")' "$transcript" 2>/dev/null | tail -1 \
-  | jq -r '.message.content[]? | select(.type=="text") | .text' 2>/dev/null > "$out"
+out=$(mktemp "${TMPDIR:-/tmp}/pi-resp.XXXXXX") || {
+  tmux display-message "could not create response file"
+  exit 1
+}
+if ! jq -rs '
+  [ .[]
+    | select(.type == "message" and .message.role == "assistant")
+    | [ .message.content[]? | select(.type == "text") | .text ] | join("\n")
+    | select(length > 0)
+  ] | last // empty
+' "$transcript" > "$out" 2>/dev/null; then
+  rm -f -- "$out"
+  tmux display-message "could not read pi response"
+  exit 1
+fi
 [ -s "$out" ] || printf '(no text response found)\n' > "$out"
 
-"$HOME/.config/tmux_scripts/tmux-claude-open-split" "$out" "$origin"
+"$HOME/.config/tmux_scripts/tmux-claude-open-split" --temporary "$out" "$origin" || rm -f -- "$out"

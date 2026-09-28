@@ -1,32 +1,68 @@
 #!/usr/bin/env bash
-# M-p: compose a prompt in a scratch nvim split, then paste it back into the
-# originating pane as a single bracketed paste once the buffer is written and
-# closed (:wq / ZZ). Not pi-specific — works for any pane that accepts pasted
-# text (pi, Claude Code, opencode, a shell) — but modeled on pi's native
-# ctrl+g external-editor flow for cases where you want a full split instead
-# of taking over the pane. Nothing is sent back if the scratch file is left
-# empty (:q / :cq to cancel), mirroring pibuf.nvim's `:cq` semantics.
-#
-# Opens directly underneath the triggering pane (a horizontal split).
+# Compose text in a scratch nvim split, then bracket-paste it into the captured
+# pane without submitting. Works for Pi, Claude Code, other TUIs, and shells.
+set -u
 
-if [ "$1" = "--send-back" ]; then
-  tmp="$2"
-  origin="$3"
+session_matches() {
+  local pane=$1 agent=${2:-} session=${3:-} row actual_agent actual_session pane_pid info
+  if [ -z "$agent" ]; then
+    [ "$(tmux display -p -t "$pane" '#{pane_id}' 2>/dev/null)" = "$pane" ]
+    return
+  fi
+  if [ "$agent" = pi ]; then
+    pane_pid=$(tmux display -p -t "$pane" '#{pane_pid}' 2>/dev/null) || return 1
+    info=$("$HOME/.config/tmux_scripts/tmux-pi-session" --exact "$pane_pid" 2>/dev/null) || return 1
+    actual_session=$(printf '%s' "$info" | awk -F '\t' '{print $4}')
+    [ "$actual_session" = "$session" ]
+    return
+  fi
+  row=$("$HOME/.config/tmux_scripts/tmux-agent-ls" | awk -F '\t' -v p="$pane" '$2 == p { print; exit }')
+  actual_session=$(printf '%s' "$row" | cut -f1)
+  actual_agent=$(printf '%s' "$row" | cut -f9)
+  [ "$actual_agent" = "$agent" ] && [ "$actual_session" = "$session" ]
+}
+
+if [ "${1:-}" = --send-back ]; then
+  tmp=$2
+  origin=$3
+  buffer=$4
+  expected_agent=${5:-}
+  expected_session=${6:-}
   content=$(cat "$tmp" 2>/dev/null)
-  rm -f "$tmp"
+  rm -f -- "$tmp"
   [ -n "$content" ] || exit 0
-  printf '%s' "$content" | tmux load-buffer -b pi-prompt -
-  tmux paste-buffer -p -d -b pi-prompt -t "$origin"
+  session_matches "$origin" "$expected_agent" "$expected_session" || {
+    tmux display-message "agent session changed"
+    exit 0
+  }
+  printf '%s' "$content" | tmux load-buffer -b "$buffer" -
+  tmux paste-buffer -p -d -b "$buffer" -t "$origin"
   exit 0
 fi
 
-origin="$1"
-[ -n "$origin" ] || origin=$(tmux display -p '#{pane_id}')
+origin=${1:-$(tmux display -p '#{pane_id}')}
+expected_agent=${2:-}
+expected_session=${3:-}
+session_matches "$origin" "$expected_agent" "$expected_session" || {
+  tmux display-message "agent session changed"
+  exit 0
+}
 cwd=$(tmux display -p -t "$origin" '#{pane_current_path}')
-
-tmp=$(mktemp "${TMPDIR:-/tmp}/tmux-pi-prompt.XXXXXX.md")
+tmp=$(mktemp "${TMPDIR:-/tmp}/tmux-agent-prompt.XXXXXX") || {
+  tmux display-message "could not create prompt file"
+  exit 1
+}
+token=${tmp##*/}
+token=${token#tmux-agent-prompt.}
+buffer="agent-prompt-$token"
 printf -v qtmp '%q' "$tmp"
 printf -v qself '%q' "$0"
-cmd="nvim -- $qtmp; $qself --send-back $qtmp '$origin'"
-
-tmux split-window -v -t "$origin" -c "$cwd" "$cmd"
+printf -v qorigin '%q' "$origin"
+printf -v qbuffer '%q' "$buffer"
+printf -v qagent '%q' "$expected_agent"
+printf -v qsession '%q' "$expected_session"
+cmd="cleanup() { rm -f -- $qtmp; }; trap cleanup EXIT; trap 'exit 129' HUP; trap 'exit 130' INT; trap 'exit 143' TERM; if nvim -c 'setfiletype markdown' -- $qtmp; then $qself --send-back $qtmp $qorigin $qbuffer $qagent $qsession; fi"
+if ! tmux split-window -v -t "$origin" -c "$cwd" "$cmd"; then
+  rm -f -- "$tmp"
+  exit 1
+fi

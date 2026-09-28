@@ -399,20 +399,19 @@ Extract words/lines/URLs from pane content (default grab area = window full) int
 - **M-j/M-k** — navigate up/down
 - **M-q / M-K** — close
 
-### `M-b` — Claude Code session menu (`tmux-claude-menu`)
-Cross-tmux fzf menu of every Claude session, color-coded by state (permission/waiting = rose, thinking = dusty_pink, idle = inactive). **Rows are sorted actionable-first** (permission → waiting → thinking → idle) with a **relative activity age** per row (e.g. `2m`, `1h`). Preview shows prev response → your last message → latest response (+ plan excerpt if any), bat-highlighted.
+### `M-b` — Claude + Pi agent menu (`tmux-claude-menu`)
+Cross-tmux fzf menu of every detected Claude and Pi session, color-coded and sorted by state (permission → waiting → thinking → idle). Preview shows the selected agent's latest user/assistant text.
 - **enter** — focus that session's pane (across any tmux session)
-- **k** — approve **all** waiting/permission sessions (send Enter to each)
-- **ctrl-y** — approve the **selected** session (send Enter to its pane)
+- **M-p / M-P / M-G** — compose a prompt / open the current tracked plan / open the last textual response for the selected identity
 - **ctrl-s** — send a typed message to the selected session (`msg>` prompt in the popup)
-- **ctrl-x** — kill the selected session's pane (**destructive**)
+- **k / ctrl-y / ctrl-x** — Claude only: approve all / approve selected / kill selected pane
 - **esc / M-b** — close
 
-### `M-G` — Claude Code last response (`tmux-claude-last-response`)
-Opens the current pane's Claude session's last assistant text response in an nvim split (always to the right; placement via `tmux-claude-open-split`). Errors with a tmux message if no Claude session / transcript in this pane.
+### `M-G` — agent last response (`tmux-agent-action response`)
+Opens the current Claude or Pi session's last assistant text response in a temporary private nvim split. Tool-only assistant entries are skipped; the target process/session is revalidated.
 
-### `M-P` — Claude Code plan / pi last response (`tmux-M-P-dispatch`)
-Dispatches based on the current pane: if it's a live Claude Code session, opens its plan file (`claude/plans/*.md`, same as before — subagent plans `…-agent-<hash>.md` filtered out). Otherwise falls back to `tmux-pi-last-response`, which opens the pane's pi session's last assistant response instead. Both open in an nvim split, right-side placement via `tmux-claude-open-split`. Errors with a tmux message if neither applies.
+### `M-P` — agent current plan (`tmux-agent-action plan`)
+Opens the current Claude plan or Pi tracked-plan snapshot. Pi snapshots are PID/session/cwd-bound and contain goal, steps, criteria, follow-ups, and execution brief. Missing plans do not fall back to a response or another session.
 
 ### `prefix .` — Claude Code next permission (`tmux-claude-next-permission`)
 Cycle to the next Claude session needing user input (awaiting-permission / waiting), sorted ascending by target; wraps to the first. Switches client + selects the pane. Errors with a tmux message if none need input.
@@ -420,8 +419,8 @@ Cycle to the next Claude session needing user input (awaiting-permission / waiti
 ### `M-g` — lazygit popup (`tmux-lazygit-popup`)
 Full-screen `tmux popup` running `lazygit` in the pane's cwd. Border uses `@color-inactive`.
 
-### `M-p` — scratch prompt editor (`tmux-pi-prompt`)
-Opens an empty scratch buffer in an nvim split directly underneath the triggering pane (horizontal split). Not tool-specific — works for any pane that accepts pasted text (pi, Claude Code, opencode, a shell). Write and quit (`:wq` / `ZZ`) to paste the buffer's contents back into the pane that triggered `M-p`, as a single bracketed paste (populates the prompt/input — does not submit). Quit without writing (`:q` / `:cq`), or leave the buffer empty, and nothing is sent back.
+### `M-p` — scratch prompt editor (`tmux-agent-action prompt`)
+Opens an empty scratch buffer underneath the triggering or selected agent pane. Write and quit (`:wq` / `ZZ`) to paste once as a unique bracketed-paste buffer without submitting. Cancellation, an empty buffer, or a replaced agent identity sends nothing.
 
 ## tmux — nnn file explorer (`tmux-nnn-explorer`)
 nnn in a tmux popup; in-nnn plugins (pressed as `;<key>`) spawn splits back in the **origin window** via `NNN_ORIGIN_PANE`. Toggle: pressing the launch key from inside the explorer closes it. **Standard nnn keys apply throughout** (arrows/`h`/`j`/`k`/`l` navigate, `enter` opens, `/` search, `q` quit, etc.) — only the custom `;`-prefixed plugin keys are listed below.
@@ -429,7 +428,7 @@ nnn in a tmux popup; in-nnn plugins (pressed as `;<key>`) spawn splits back in t
 | Key | Action |
 | --- | --- |
 | `M-d` | Centred float popup (65% × 75%), start in origin pane cwd; panes stack top/bottom below 160 columns and sit side-by-side at 160+ (preview remains 70%) |
-| `M-B` | Overlay the launching pane (fills it instead of floating) |
+| `M-B` | Overlay the launching pane (fills it instead of floating; no prefix alias) |
 
 In-nnn plugin keys (`;` prefix — nnn requires it for plugins):
 | Key | Action |
@@ -493,7 +492,7 @@ row opens the full agents view when it fits. While help is open, `j/k`, arrows,
 
 | View | Behavior |
 | --- | --- |
-| agents | All permission/waiting/thinking/idle agents; Enter focuses; `a`/`:` includes explicit inspect, focus, response, plan, and copy-session actions |
+| agents | All permission/waiting/thinking/idle agents; Enter focuses; `a`/`:` includes explicit inspect, focus, prompt, response, plan, and copy-session actions; `M-p`/`M-P`/`M-G` run those actions directly on the selected row |
 | activity | Process-local transition history with guarded agent/worktree actions; no timer or persistent event store |
 | system | cpu/mem/disk gauges; sampling starts on open, continues only while this view is open, and stops after leaving |
 

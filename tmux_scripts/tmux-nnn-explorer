@@ -4,8 +4,13 @@ set -e
 
 # Private popup process: all caller-controlled values arrive as environment data,
 # then become individual new-session argv elements. The shell command stays fixed.
+if [ "${1:-}" = "--session" ]; then
+    tmux set-option -q -t "$TMUX_PANE" @nnn_popup_token "$NNN_POPUP_TOKEN"
+    exec nnn -aH -l 1 -P p
+fi
 if [ "${1:-}" = "--inner" ]; then
-    exec tmux new-session -s nnn \
+    SELF=${0:A}
+    exec tmux new-session -s "$NNN_POPUP_SESSION" \
         -e "NNN_ORIGIN_PANE=$NNN_ORIGIN_PANE" \
         -e "NNN_PLUG=$NNN_PLUG" \
         -e "NNN_SPLIT=$NNN_SPLIT" \
@@ -16,24 +21,28 @@ if [ "${1:-}" = "--inner" ]; then
         -e "NNN_FCOLORS=$NNN_FCOLORS" \
         -e "NNN_PAGER=$NNN_PAGER" \
         -e "NNN_MUTED_HEX=$NNN_MUTED_HEX" \
+        -e "NNN_POPUP_SESSION=$NNN_POPUP_SESSION" \
+        -e "NNN_POPUP_TOKEN=$NNN_POPUP_TOKEN" \
         -e "FZF_DEFAULT_OPTS=$FZF_DEFAULT_OPTS" \
         -e "RG_COLORS=$RG_COLORS" \
-        -c "$NNN_CWD" 'exec nnn -aH -l 1 -P p'
+        -c "$NNN_CWD" "${(q)SELF} --session"
 fi
 
 # Placement mode: float (M-d) is centred; pane (M-B) overlays the launcher.
 MODE="${1:-float}"
-if [ "$(tmux display-message -p '#{session_name}')" = "nnn" ]; then
-    tmux kill-session -t nnn
+ORIGIN_PANE="${2:-$(tmux display-message -p '#{pane_id}')}"
+ORIGIN_CLIENT="${3:-$(tmux display-message -p '#{client_name}')}"
+CURRENT_IDENTITY=$(tmux display-message -p -t "$ORIGIN_PANE" '#{session_name}|#{@nnn_popup_token}')
+CURRENT_SESSION=${CURRENT_IDENTITY%%|*}
+CURRENT_TOKEN=${CURRENT_IDENTITY#*|}
+if [ -n "$CURRENT_TOKEN" ]; then
+    tmux kill-session -t "=$CURRENT_SESSION"
     exit 0
 fi
 
-chmod +x "$HOME"/.config/nnn/plugins/* "$HOME"/.config/nnn/plugins/.nnn-tmux-split "$HOME"/.config/nnn/plugins/.nnn-open-origin 2>/dev/null
-
-ORIGIN_PANE="$(tmux display-message -p '#{pane_id}')"
-CWD="$(tmux display-message -p '#{pane_current_path}')"
-PANE_W="$(tmux display-message -p '#{pane_width}')"
-PANE_H="$(tmux display-message -p '#{pane_height}')"
+CWD="$(tmux display-message -p -t "$ORIGIN_PANE" '#{pane_current_path}')"
+PANE_W="$(tmux display-message -p -t "$ORIGIN_PANE" '#{pane_width}')"
+PANE_H="$(tmux display-message -p -t "$ORIGIN_PANE" '#{pane_height}')"
 BORDER_COLOR=$(tmux show-options -gqv @color-text-muted)
 BORDER_COLOR=${BORDER_COLOR:-"#a9b1d6"}
 PRIMARY_COLOR=$(tmux show-options -gqv @color-accent-primary)
@@ -48,7 +57,7 @@ COLORS='63256325'
 FCOLORS='060606020005030801050201'
 SPLITSIZE=70
 if [ "$MODE" = "float" ]; then
-    CLIENT_W="$(tmux display-message -p '#{client_width}')"
+    CLIENT_W="$(tmux display-message -p -t "$ORIGIN_CLIENT" '#{client_width}')"
     if [ "$CLIENT_W" -ge 160 ] 2>/dev/null; then NNN_SPLIT=v; else NNN_SPLIT=h; fi
 else
     NNN_SPLIT=v
@@ -69,8 +78,9 @@ if [ -z "$FZF_OPTS" ]; then
     FZF_OPTS=${FZF_OPTS#FZF_DEFAULT_OPTS=}
 fi
 RG_THEME_COLORS="${RG_COLORS:-match:fg:$(hex_rgb "$PRIMARY_COLOR"):style:underline}"
+POPUP_SESSION="nnn-popup-$$"
+POPUP_TOKEN="$POPUP_SESSION-$RANDOM"
 
-tmux kill-session -t nnn 2>/dev/null || true
 if [ "$MODE" = "pane" ]; then
     GEO=(-t "$ORIGIN_PANE" -x '#{popup_pane_left}' -y '#{popup_pane_bottom}' -w "$PANE_W" -h "$PANE_H")
 else
@@ -78,7 +88,7 @@ else
 fi
 
 SELF=${0:A}
-tmux popup "${GEO[@]}" -S "fg=$BORDER_COLOR" -E \
+tmux popup -c "$ORIGIN_CLIENT" "${GEO[@]}" -S "fg=$BORDER_COLOR" -E \
     -e "NNN_ORIGIN_PANE=$ORIGIN_PANE" \
     -e "NNN_CWD=$CWD" \
     -e "NNN_PLUG=$PLUG" \
@@ -90,6 +100,8 @@ tmux popup "${GEO[@]}" -S "fg=$BORDER_COLOR" -E \
     -e "NNN_FCOLORS=$FCOLORS" \
     -e "NNN_PAGER=$PAGER_CMD" \
     -e "NNN_MUTED_HEX=$BORDER_COLOR" \
+    -e "NNN_POPUP_SESSION=$POPUP_SESSION" \
+    -e "NNN_POPUP_TOKEN=$POPUP_TOKEN" \
     -e "FZF_DEFAULT_OPTS=$FZF_OPTS" \
     -e "RG_COLORS=$RG_THEME_COLORS" \
     "$SELF --inner" || true

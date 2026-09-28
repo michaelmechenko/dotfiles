@@ -76,7 +76,7 @@ in
   home = {
     packages = with pkgs; [
       tmux sidebar neovim vimPlugins.nvim-treesitter.withAllGrammars
-      git fzf ripgrep fd bat eza jq lazygit nnn moor
+      git fzf ripgrep fd bat eza jq lazygit nnn moor file
       zsh oh-my-zsh zsh-autosuggestions zsh-syntax-highlighting
       wl-clipboard xdg-utils bc coreutils gnused gawk findutils procps lsof
       python3 lua go gnumake gcc cargo nodejs

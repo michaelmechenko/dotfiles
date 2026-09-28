@@ -1,6 +1,7 @@
 import { chmod, mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { processStartToken } from "./process-identity.ts";
 
 const stateDir = "/tmp/pi-session-state";
 const stateFile = `${stateDir}/${process.pid}.json`;
@@ -10,18 +11,25 @@ type SessionState = {
 	sessionId: string;
 	sessionFile: string;
 	cwd: string;
+	processStartedAt: string;
 };
 
 async function publish(ctx: ExtensionContext): Promise<void> {
 	const sessionId = ctx.sessionManager.getSessionId();
 	const sessionFile = ctx.sessionManager.getSessionFile();
 	if (!sessionId || !sessionFile) return;
+	const startedAt = processStartToken();
+	if (!startedAt) {
+		await rm(stateFile, { force: true });
+		return;
+	}
 
 	const state: SessionState = {
 		pid: process.pid,
 		sessionId,
 		sessionFile: resolve(sessionFile),
 		cwd: resolve(ctx.sessionManager.getCwd()),
+		processStartedAt: startedAt,
 	};
 	await mkdir(stateDir, { recursive: true, mode: 0o700 });
 	await chmod(stateDir, 0o700);

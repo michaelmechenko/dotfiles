@@ -93,6 +93,7 @@ case "\$1" in split-window) echo forced nvim failure >&2; exit 43;; esac
 exec "$TMUX_BIN" -L "$SRV" "\$@"
 EOF
 chmod +x "$FAILBIN/open" "$FAILBIN/pbcopy" "$FAILBIN/tmux"
+ln -s open "$FAILBIN/xdg-open"
 for action in "open https://example.com" "copy https://example.com" "finder $TMP/dir" "nvim $TMP/notes.txt"; do
   set -- $action
   set +e

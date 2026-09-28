@@ -14,6 +14,9 @@ bash -n \
   "$ROOT/tmux_scripts/tmux-status-session-ls" \
   "$ROOT/tmux_scripts/tmux-status-pane-ls" \
   "$ROOT/tmux_scripts/tmux-claude-menu" \
+  "$ROOT/tmux_scripts/tmux-agent-action" \
+  "$ROOT/tmux_scripts/tmux-pi-plan" \
+  "$ROOT/tmux_scripts/tmux-pi-prompt" \
   "$ROOT/tmux_scripts/tmux-sidebar-toggle" \
   "$ROOT/tmux_scripts/tmux-open-target" \
   "$ROOT/tmux_scripts/tmux-session-snapshot-test.sh"
@@ -27,6 +30,7 @@ python3 -m py_compile \
 python3 "$ROOT/tmux_scripts/tmux-boundary-test.py"
 "$ROOT/tmux_scripts/tmux-session-snapshot-test.sh"
 "$ROOT/tmux_scripts/tmux-nnn-explorer-test.sh"
+"$ROOT/tmux_scripts/tmux-nnn-safety-test.sh"
 "$ROOT/tmux_scripts/tmux-open-target-test.sh"
 python3 "$ROOT/tmux_scripts/tmux-open-picker-test.py"
 python3 "$ROOT/tmux_scripts/tmux-open-picker-pty-test.py"
@@ -35,6 +39,11 @@ python3 "$ROOT/tmux_scripts/tmux-flash-jump-test.py"
 "$ROOT/tmux_scripts/tmux-lazygit-popup-test.sh"
 "$ROOT/tmux_scripts/tmux-pi-session-test.sh"
 "$ROOT/tmux_scripts/tmux-agent-action-protocol-test.sh"
+"$ROOT/tmux_scripts/tmux-agent-artifact-test.sh"
+"$ROOT/tmux_scripts/tmux-agent-menu-test.sh"
+"$ROOT/tmux_scripts/tmux-pi-plan-test.sh"
+"$ROOT/tmux_scripts/tmux-prompt-test.sh"
+"$ROOT/tmux_scripts/tmux-temporary-split-test.sh"
 "$ROOT/tmux_scripts/tmux-sidebar-build-test.sh"
 "$ROOT/tmux_scripts/tmux-sidebar-repin-test.sh"
 (

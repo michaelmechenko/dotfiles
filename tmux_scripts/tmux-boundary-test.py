@@ -76,23 +76,23 @@ else:
             plugin.open(payload)
         require(run.call_args.args[0] == ["/tmp/adapter", "--flag", payload], "Extrakto split selected text")
 
-        # Claude actions re-resolve both session and pane immediately before acting.
+        # Claude menu actions re-resolve both agent identity and pane immediately before acting.
         home_scripts = tmp / "home" / ".config" / "tmux_scripts"
         home_scripts.mkdir(parents=True)
         shutil.copy2(ROOT / "tmux_scripts" / "tmux-claude-menu", home_scripts / "tmux-claude-menu")
-        rows = tmp / "claude-rows"
-        ls = home_scripts / "tmux-claude-ls"
+        rows = tmp / "agent-rows"
+        ls = home_scripts / "tmux-agent-ls"
         ls.write_text(f"#!/bin/sh\ncat {rows!s}\n")
         ls.chmod(0o755)
-        rows.write_text("sid-1\t%7\ttarget\ts\twaiting\tname\t-\twin\t0\n")
+        rows.write_text("sid-1\t%7\ttarget\ts\twaiting\tname\t-\twin\tclaude\t/tmp\t-\n")
         claude_env = env | {"HOME": str(tmp / "home")}
         log.write_text("")
-        subprocess.run([str(home_scripts / "tmux-claude-menu"), "--act", "approve", "sid-1", "%7"], env=claude_env, check=True)
+        subprocess.run([str(home_scripts / "tmux-claude-menu"), "--act", "approve", "sid-1", "%7", "claude"], env=claude_env, check=True)
         require(any(call[:3] == ["send-keys", "-t", "%7"] for call in map(json.loads, log.read_text().splitlines())),
                 "live Claude approval was not dispatched")
         rows.write_text("")
         log.write_text("")
-        subprocess.run([str(home_scripts / "tmux-claude-menu"), "--act", "kill", "sid-1", "%7"], env=claude_env, check=True)
+        subprocess.run([str(home_scripts / "tmux-claude-menu"), "--act", "kill", "sid-1", "%7", "claude"], env=claude_env, check=True)
         require(log.read_text() == "", "stale Claude row acted on a replacement process")
 
         # cd-origin emits one literal, unsubmitted shell command for hostile paths.

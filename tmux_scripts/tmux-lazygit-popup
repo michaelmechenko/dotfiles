@@ -26,8 +26,12 @@ else
   popup+=(-d '#{pane_current_path}')
 fi
 popup+=(-xC -yC -w100% -h100% -S "fg=$BORDER_COLOR")
-# popup executes its final argument through a shell, so quote the config as a
-# command argument even when HOME itself contains shell punctuation.
-popup+=("lazygit --use-config-file ${(q)LAZYGIT_CONFIG}")
+# The generated theme exists on macOS after `theme switch`, but is not deployed
+# on NixOS. Fall back to lazygit's normal config instead of passing a dead path.
+if [[ -f "$LAZYGIT_CONFIG" ]]; then
+  popup+=("lazygit --use-config-file ${(q)LAZYGIT_CONFIG}")
+else
+  popup+=("lazygit")
+fi
 
 tmux "${popup[@]}"

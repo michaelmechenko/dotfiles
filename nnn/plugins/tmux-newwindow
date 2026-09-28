@@ -8,6 +8,7 @@
 # $1 = hovered basename; $PWD = current browse dir.
 
 sel="$1"
+NNN_ORIGIN_PANE=${NNN_ORIGIN_PANE:-${TMUX_PANE:-}}
 [ -n "$NNN_ORIGIN_PANE" ] || exit 0
 
 # Full path of the hovered item ($1 is a basename in $PWD; guard the / root case).
@@ -35,5 +36,5 @@ else
     tmux new-window -t "$sess:" -c "$PWD"
 fi
 
-# Close the explorer popup as M-d does (kill the session, not detach-client).
-tmux kill-session -t nnn 2>/dev/null
+# Close only the popup session that launched this nnn process.
+"$(dirname "$0")/.nnn-popup-close"

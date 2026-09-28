@@ -10,15 +10,25 @@ Structured planning and sequential execution with direct file mutations disabled
 none → plan → read-only → none
 ```
 
-- **plan** — preserves the active tool baseline except `write`, `edit`, and `apply_patch`, adds `plan_update`, and creates or revises the authoritative structured plan.
-- **read-only** — preserves the same baseline except those direct mutation tools and all plan tools.
-- **none** — restores the exact active-tool baseline captured before entering the restricted cycle. A preserved plan is shown as `none (plan paused)`, not as an active restriction.
+- **plan** — preserves the active tool baseline except `write`, `edit`, and `apply_patch`, adds `plan_update`, and creates or revises the authoritative tracked plan.
+- **read-only** — preserves the same baseline except direct mutation and tracked-execution tools. `plan_update` remains available for internal agent planning only.
+- **none** — restores the exact active-tool baseline captured before entering the restricted cycle. A preserved plan is shown as `none (plan paused)`, not as an active restriction; `plan_update` remains available when the user has not disabled it.
 
 Bash remains available in both restricted modes. Plan mode is not a shell sandbox: normal `permission-gate` and `protected-paths` safeguards remain independently active. Mode changes wait for Pi to be idle. Pressing `Ctrl+P` while an idle plan executes pauses it, restores the planning model, then enters plan mode.
 
+## Internal and tracked plans
+
+`plan_update` accepts an optional `scope`:
+
+- `internal` replaces an agent-only coordination plan. It works in every access mode and tracked-plan phase, is restored branch-locally from the tool result, and never changes tracked state, plan files/history, models, footer/widgets, review dialogs, or execution handoffs.
+- `tracked` revises the authoritative execution plan and is accepted only in explicit plan mode or active tracked execution. Read-only mode rejects it.
+- An omitted scope selects `tracked` only in explicit plan mode or active tracked execution. It selects `internal` everywhere else, including read-only mode.
+
+Internal plans remain ordinary session tool-result data; “internal” means outside the tracked workflow, not absent from the transcript. They have no promotion action, execution engine, history archive, or separate UI. `plan_step` and `plan_complete` remain tracked-execution-only. A user-disabled `plan_update` remains disabled.
+
 ## Workflow and history
 
-1. `/plan` enters structured planning. The agent investigates, asks focused questions when needed, then calls `plan_update` with a goal, top-level steps, verification criteria, follow-up work, and a required execution brief.
+1. `/plan` enters structured tracked planning. The agent investigates, asks focused questions when needed, then calls `plan_update` with a goal, top-level steps, verification criteria, follow-up work, and a required execution brief.
 2. A ready plan can be reviewed with `/plan-review`. The settings screen uses Up/Down to select a row; Tab/Right advances and Shift+Tab/Left reverses each multi-value row with wraparound. Enter/Space still advances, while Execute and Cancel remain explicit action rows.
 3. Execution tracks terminal steps with `plan_step`; `plan_complete` records outcome, end state, verification, deviations, and next steps.
 4. Each materialized plan receives a stable ID and creation timestamp. Only completed plans are archived, atomically, as individual private records under `agent/plan-history/<project-hash>/`; discarded plans are not retained. One session executes one plan at a time, then can start its next plan.

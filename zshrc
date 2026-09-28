@@ -249,8 +249,7 @@ alias tf="terraform"
 # folders
 alias main="cd ~/_main"
 alias config="cd ~/.config"
-alias smap="cd ~/.config/smap/"
-alias msg="cd ~/_main/msg"
+alias dot="cd ~/.dotfiles"
 
 # mkdir and cd into
 mkcd () {

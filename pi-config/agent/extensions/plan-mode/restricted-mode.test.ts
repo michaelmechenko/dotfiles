@@ -7,11 +7,13 @@ const available = [...baseline, "plan_step", "plan_complete"];
 
 test("plan mode preserves the active baseline except direct file mutations", () => {
 	assert.deepEqual(restrictedTools("plan", baseline, available), ["read", "bash", "grep", "project_inspector", "plan_update"]);
+	assert.deepEqual(restrictedTools("plan", baseline.filter((name) => name !== "plan_update"), available), ["read", "bash", "grep", "project_inspector"]);
 });
 
-test("read-only mode preserves bash and project tools but removes plan tools", () => {
-	assert.deepEqual(restrictedTools("read-only", baseline, available), ["read", "bash", "grep", "project_inspector"]);
-	assert.match(checkRestrictedToolCall("read-only", "plan_update") ?? "", /blocks plan tools/);
+test("read-only mode preserves internal planning but removes tracked execution tools", () => {
+	assert.deepEqual(restrictedTools("read-only", baseline, available), ["read", "bash", "grep", "project_inspector", "plan_update"]);
+	assert.equal(checkRestrictedToolCall("read-only", "plan_update"), undefined);
+	assert.match(checkRestrictedToolCall("read-only", "plan_step") ?? "", /tracked execution tools/);
 	assert.equal(checkRestrictedToolCall("read-only", "bash"), undefined);
 	assert.equal(checkRestrictedToolCall("read-only", "project_inspector"), undefined);
 });
@@ -27,4 +29,5 @@ test("restricted modes block only direct file mutation tools", () => {
 test("guidance explains direct mutation restrictions without restricting bash", () => {
 	assert.match(restrictionGuidance("plan") ?? "", /including with bash/);
 	assert.match(restrictionGuidance("read-only") ?? "", /Do not use write, edit, or apply_patch/);
+	assert.match(restrictionGuidance("read-only") ?? "", /internal agent plan/);
 });

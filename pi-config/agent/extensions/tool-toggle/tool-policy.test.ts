@@ -12,3 +12,9 @@ test("plan and read-only restricted baselines remain authoritative", () => {
 	assert.deepEqual(resolveToolSelection(["read", "write"], ["read"], ["read"], true), []);
 	assert.deepEqual(resolveToolSelection(["read", "write", "new_tool"], ["read"], [], false), ["read", "write", "new_tool"]);
 });
+
+test("internal planning availability respects an explicit user-disabled delta", () => {
+	assert.deepEqual(resolveToolSelection(["read", "write", "plan_update"], ["read", "plan_update"], [], true), ["read", "plan_update"]);
+	assert.deepEqual(resolveToolSelection(["read", "write", "plan_update"], ["read", "plan_update"], ["plan_update"], true), ["read"]);
+	assert.deepEqual(resolveToolSelection(["read", "write", "plan_update"], ["read"], ["plan_update"], false), ["read", "write"]);
+});

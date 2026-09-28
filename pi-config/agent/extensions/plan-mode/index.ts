@@ -7,6 +7,7 @@ import { inspectSavedExecutionModel, isModelSnapshot, loadPlanModeConfig, savePl
 import { acknowledgeExecutionPacket, buildTmuxDetachedPaneArgs, buildTmuxNewWindowArgs, cancelUnclaimedExecutionPacket, consumeExecutionPacket, deleteExecutionPacket, renderPlanMarkdown, waitForExecutionAcknowledgement, type TmuxTarget, writeExecutionPacket } from "./execution-handoff.ts";
 import { executionGuidance, renderExecutionContext } from "./execution-context.ts";
 import { candidateFor, createExecutionSettings, cycleExecutionSettingValue, defaultExecutionDestination, resolveExecutionSettings, retainSelectedExecutionRow, type ExecutionDestination, type ExecutionSettings, type ModelCandidate } from "./execution-settings.ts";
+import { canUpdateTrackedPlan, createInternalPlan, latestInternalPlan, resolvePlanUpdateScope, type InternalPlan } from "./internal-plan.ts";
 import { deletePlanFile, readPlanFile, writePlanFile } from "./plan-file.ts";
 import { restorePlanLifecycle } from "./lifecycle.ts";
 import { applyPlanUpdate, canClosePlan, clonePlanState, createPlanState, enterRestrictedMode, isStepDone, leaveRestrictedMode, materializePlan, migratePlanState, pendingSteps, updatePlanStep, type ModelSnapshot, type PlanCloseout, type PlanState, type ThinkingLevel } from "./plan-state.ts";
@@ -26,6 +27,7 @@ const PlanStepParams = Type.Object({
 	step: Type.Optional(Type.Integer({ minimum: 1 })),
 });
 const PlanUpdateParams = Type.Object({
+	scope: Type.Optional(StringEnum(["internal", "tracked"] as const)),
 	goal: Type.String({ minLength: 1 }), steps: Type.Array(Type.String({ minLength: 1 }), { minItems: 1 }),
 	criteria: Type.Optional(Type.Array(Type.String({ minLength: 1 }))), followUps: Type.Optional(Type.Array(Type.String({ minLength: 1 }))),
 	executionBrief: Type.Object({ summary: Type.String({ minLength: 1 }), findings: Type.Array(Type.String({ minLength: 1 })), decisions: Type.Array(Type.String({ minLength: 1 })), relevantFiles: Type.Array(Type.Object({ path: Type.String({ minLength: 1 }), note: Type.String({ minLength: 1 }) })), constraints: Type.Array(Type.String({ minLength: 1 })) }),
@@ -58,6 +60,7 @@ export async function setSessionModel(pi: ExtensionAPI, ctx: ExtensionContext, m
 
 export default function planModeExtension(pi: ExtensionAPI): void {
 	let state = createPlanState();
+	let internalPlan: InternalPlan | undefined;
 	let sessionId = "";
 	let handledStoppedAssistantTimestamp: number | undefined;
 	let pendingCurrentPanePacket: { handoffPath: string; saveDefault: boolean } | undefined;
@@ -137,6 +140,9 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 	function branchPlanState(ctx: ExtensionContext): PlanState | undefined {
 		const entry = [...ctx.sessionManager.getBranch()].reverse().find((item) => item.type === "custom" && item.customType === "plan-mode") as { data?: unknown } | undefined;
 		return migratePlanState(entry?.data);
+	}
+	function branchInternalPlan(ctx: ExtensionContext): InternalPlan | undefined {
+		return latestInternalPlan(ctx.sessionManager.getBranch().flatMap((entry) => entry.type === "message" && entry.message.role === "toolResult" && entry.message.toolName === PLAN_UPDATE_TOOL ? [entry.message.details] : []));
 	}
 	async function activateRestoredState(ctx: ExtensionContext, restored: PlanState): Promise<void> {
 		const activation = restorePlanLifecycle(state, restored, pi.getActiveTools(), availableTools());
@@ -408,7 +414,20 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 	pi.registerShortcut(Key.ctrlAlt("p"), { description: "Toggle collapsed plan progress", handler: async (ctx) => { state = { ...state, widgetCollapsed: !state.widgetCollapsed }; persist(); updateUi(ctx); } });
 	pi.registerShortcut(Key.ctrlAlt("t"), { description: "Toggle collapsed plan progress", handler: async (ctx) => { state = { ...state, widgetCollapsed: !state.widgetCollapsed }; persist(); updateUi(ctx); } });
 
-	pi.registerTool({ name: PLAN_UPDATE_TOOL, label: "Plan Update", description: "Create or revise the structured active plan.", promptSnippet: "Create or revise the structured active plan", promptGuidelines: ["Call plan_update after planning and when scope or blockers change pending work."], parameters: PlanUpdateParams, async execute(_id, params, _signal, _update, ctx) { if (state.accessMode !== "plan" && state.phase !== "executing") throw new Error("plan_update requires planning or execution."); state = materializePlan(applyPlanUpdate(state, params)); if (state.phase === "revising" && state.resumeAfterRevision) { const model = state.executionModel ?? loadPlanModeConfig(agentDir).executionModel ?? snapshotModel(ctx); persist(); if (!model || !(await beginExecution(ctx, model))) throw new Error("No valid execution model is available."); } else { persist(); updateUi(ctx); } return { content: [{ type: "text", text: `Plan updated with ${state.steps.length} step(s).\n${planContext()}` }], details: { state } }; } });
+	pi.registerTool({ name: PLAN_UPDATE_TOOL, label: "Plan Update", description: "Create or revise an internal agent plan or the explicit tracked execution plan.", promptSnippet: "Create or revise an internal or tracked structured plan", promptGuidelines: ["Call plan_update after planning and when scope or blockers change pending work. Use scope=internal for agent-only coordination; omit scope only in explicit plan mode or tracked execution when the tracked plan should change."], parameters: PlanUpdateParams, async execute(_id, params, _signal, _update, ctx) {
+		const { scope: requestedScope, ...payload } = params;
+		const scope = resolvePlanUpdateScope(requestedScope, state.accessMode, state.phase);
+		if (scope === "internal") {
+			const action = internalPlan ? "replaced" : "created";
+			internalPlan = createInternalPlan(payload);
+			return { content: [{ type: "text", text: `Internal plan ${action} with ${internalPlan.steps.length} step(s).` }], details: { scope: "internal" as const, internalPlan } };
+		}
+		if (!canUpdateTrackedPlan(state.accessMode, state.phase)) throw new Error("Tracked plan updates require explicit plan mode or active tracked execution.");
+		state = materializePlan(applyPlanUpdate(state, payload));
+		if (state.phase === "revising" && state.resumeAfterRevision) { const model = state.executionModel ?? loadPlanModeConfig(agentDir).executionModel ?? snapshotModel(ctx); persist(); if (!model || !(await beginExecution(ctx, model))) throw new Error("No valid execution model is available."); }
+		else { persist(); updateUi(ctx); }
+		return { content: [{ type: "text", text: `Tracked plan updated with ${state.steps.length} step(s).\n${planContext()}` }], details: { scope: "tracked" as const, state } };
+	} });
 	pi.registerTool({ name: PLAN_STEP_TOOL, label: "Plan Step", description: "Track an approved plan step during execution.", promptSnippet: "Mark an executing plan step complete or skipped", promptGuidelines: ["Call plan_step immediately after each executed or skipped step."], parameters: PlanStepParams, async execute(_id, params, _signal, _update, ctx) { if (state.phase !== "executing") throw new Error("plan_step is available only while executing."); if (params.action === "list") return { content: [{ type: "text", text: formatSteps(state.steps) }], details: { state: clonePlanState(state) } }; if (params.step === undefined) throw new Error("plan_step requires a valid step."); state = updatePlanStep(state, params.step, params.action); const step = state.steps.find((item) => item.step === params.step)!; persist(); updateUi(ctx); return { content: [{ type: "text", text: `Step ${step.step} marked ${params.action}: ${step.text}` }], details: { state: clonePlanState(state) } }; } });
 	pi.registerTool({ name: PLAN_COMPLETE_TOOL, label: "Plan Complete", description: "Record the final plan outcome.", promptSnippet: "Record the final plan outcome and next steps", promptGuidelines: ["Call plan_complete after every plan step is terminal."], parameters: PlanCompleteParams, async execute(_id, params, _signal, _update, ctx) { if (!canClosePlan(state)) throw new Error("plan_complete requires every plan step to be terminal."); const closeout: PlanCloseout = { goal: state.goal, ...params, deviations: params.deviations ?? [], nextSteps: params.nextSteps ?? [] }; await closePlan(ctx, closeout); return { content: [{ type: "text", text: "Plan closeout recorded." }], details: { closeout } }; } });
 
@@ -425,6 +444,7 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 	});
 	pi.on("session_start", async (_event, ctx) => {
 		sessionId = ctx.sessionManager.getSessionId();
+		internalPlan = branchInternalPlan(ctx);
 		watchProjectHistory(ctx);
 		const packet = process.env.PI_PLAN_HANDOFF ? consumeExecutionPacket(agentDir, process.env.PI_PLAN_HANDOFF) : undefined;
 		if (packet) { state = { ...packet.plan, version: 6, phase: "executing", accessMode: "none", executionSource: packet.source, planningModel: snapshotModel(ctx), toolsBeforePlan: pi.getActiveTools().filter((name) => !PLAN_EXECUTION_TOOLS.includes(name)) }; state = materializePlan(state); executionTools(); persist(); updateUi(ctx); if (!acknowledgeExecutionPacket(agentDir, process.env.PI_PLAN_HANDOFF!)) ctx.ui.notify("Execution claimed the handoff but could not record readiness.", "warning"); pi.sendMessage({ customType: "plan-execution-kickoff", content: renderExecutionContext(state, packet.source), display: true }, { triggerTurn: true, deliverAs: "followUp" }); return; }
@@ -438,6 +458,7 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 		updateUi(ctx);
 	});
 	pi.on("session_tree", async (_event, ctx) => {
+		internalPlan = branchInternalPlan(ctx);
 		await activateRestoredState(ctx, branchPlanState(ctx) ?? createPlanState());
 		refreshCompletedHistory(ctx);
 		updateUi(ctx);

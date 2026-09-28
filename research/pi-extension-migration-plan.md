@@ -1,6 +1,6 @@
 # Pi extension migration: review and implementation plan
 
-Status: implemented. The reviewed forks were published, the Lens/BTW Nix closure was activated, live Pi settings/package state was migrated with a rollback backup, and the feature branch was merged into `main`. The combined post-merge closure has been built but intentionally not activated.
+Status: migration implemented and merged; finalization fixes verified and activated. The combined tmux/nnn, Lens config-path, and default-model closure was activated by the user with Home Manager reporting success. The approved scoped live-settings update sets `openai-codex/gpt-6-astra` and removes the stale Ollama filter; Home Manager only seeds absent settings.
 
 ## Implementation outcome
 
@@ -9,7 +9,9 @@ Status: implemented. The reviewed forks were published, the Lens/BTW Nix closure
 - Dotfiles feature commits: `28bf0b0` (Lens/BTW migration), `1d180cf` (subagent transport), and `64c0d1d` (durable tmux completion), merged into `main` by `729a86b` after the existing agent-action work was committed as `7e84238`.
 - Live Pi resolves store-backed Lens and BTW with package skills disabled, retains `pi-ast-grep` and `pi-mcp-adapter`, and no longer loads pi-lsp, lsp-startup, protected-paths, or permission-gate. The pre-migration public settings/npm workspace is retained at `~/.local/state/pi-migrations/20260928T145812Z`.
 - Final integration verification passed 45 plan-mode tests, 32 subagent/tmux tests, all focused tmux/nnn protocol tests, `go test -race ./...` for mm-sidebar, the Pi configuration audit, syntax checks, and a full NixOS closure build at `/nix/store/fsd64gr37xnj3dsd2050s0jnfgz6dnnh-nixos-system-nixos-26.05.20260921.1e8bc65`.
-- `tmux-status-render-test.py` still has its pre-existing blank-stripe mismatch and remains outside this migration. The unrelated deletion of `pi-config/agent/models.json` also remains deliberately unresolved.
+- `tmux-status-render-test.py` still has its pre-existing blank-stripe mismatch and remains outside this migration. Commit `78a1397` subsequently removed the tracked `pi-config/agent/models.json`; commit `57adb81` removed Ollama Cloud from tracked enabled models. The approved live settings update changed only `defaultModel` and `enabledModels`, preserving the other 13 fields and a mode-0600 backup at `~/.local/state/pi-migrations/settings-astra-20260928T195636Z.json`.
+
+Finalization verification passed 80 focused Pi Node tests, Go race tests, 38 sidebar lifecycle checks, the Pi audit, the nnn producer/ownership tests, and Linux/simulated-macOS reload permission tests. The user built and activated `/nix/store/9y2sbwaqhgj7m1ix49wrwvn505897j6y-nixos-system-nixos-26.05.20260921.1e8bc65`, passed `nix/check.sh`, and confirmed tmux reload, Pi, Alt+g, and nnn work. Claude end-to-end testing remains unavailable without the binary; this smoke report does not establish every agent-action shortcut or native macOS behavior.
 
 The sections below preserve the source-linked review and rationale that led to the implementation.
 
@@ -46,7 +48,7 @@ Verification performed during review:
 - Two research children wrote their briefs, but their tool invocations failed with `Subagent emitted 1 malformed or oversized JSONL record(s).` The actual rejected records were not retained, so their precise cause is not proven.
 - A synthetic, valid `agent_end` JSON event containing twenty 60 KB tool results is **1,201,234 bytes**, and the current decoder rejects it at its **1 MiB** record cap. Pi's documented `agent_end.messages` aggregates the run's messages; this is a concrete failure mode to fix, not a reason to discard all protocol validation.
 
-Unrelated dirty files appeared during review, including the pre-existing deletion of `pi-config/agent/models.json` and concurrent terminal/tmux edits. They are outside this plan.
+Unrelated dirty files appeared during the original review, including a then-uncommitted deletion of `pi-config/agent/models.json` and concurrent terminal/tmux edits. The model-file deletion was later committed in `78a1397`; this paragraph records historical review context, not a current unresolved deletion.
 
 ## Upstream assessment
 

@@ -13,6 +13,7 @@ The full Mac tmux/sidebar and Neovim plugin configuration is not enabled here.
 | `Super-Enter` | Open Ghostty |
 | `Super-Space` | Search/launch applications with fuzzel |
 | `Super-e` / `Super-b` | Open Dolphin / Helium |
+| `Super-Ctrl-a/z/s/x` | Focus Helium / Ghostty / Dolphin / Obsidian if open on any workspace; otherwise launch it |
 | `Super-q` | Close focused window |
 | `Super-f` | Toggle fullscreen |
 | `Super-Shift-Space` | Toggle floating |
@@ -25,6 +26,7 @@ The full Mac tmux/sidebar and Neovim plugin configuration is not enabled here.
 | `Print` | Select screenshot region and copy image to clipboard; Escape cancels |
 | Volume/mute and play/next/previous media keys | Audio and MPRIS controls |
 | `Ctrl-Shift-r` inside Ghostty | Reload Ghostty configuration |
+| `Ctrl-Shift-v` inside Ghostty | Paste system clipboard (Ctrl-v remains available to terminal apps) |
 
 Linux tmux uses `Ctrl-Space` as prefix; prefix `r` reloads its Home Manager config;
 prefix `c` creates a window in the current directory. `Alt-h/j/k/l` select panes,

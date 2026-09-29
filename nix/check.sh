@@ -19,10 +19,11 @@ sessions=$(nix_eval services.displayManager.sessionData.desktops)
 export PATH="$home_path/bin:$PWD/result/sw/bin:$PATH"
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 files="$home_package/home-files"
-# The pixel theme must be complete before any GTK/KDE settings are activated.
-pixel_icons=$(nix_eval home-manager.users.mishka.gtk.iconTheme.package)
-python3 nix/packages/pixel-icons-check.py "$pixel_icons" nix/packages/pixel-icons-mapping.json
+# The selected icon theme must be available before GTK/KDE settings are activated.
+[[ $(nix_eval home-manager.users.mishka.gtk.iconTheme.name) == breeze-dark ]]
 test -f "$home_path/share/icons/breeze-dark/index.theme"
+test -x "$home_path/bin/app-focus"
+python3 nix/home/app-focus-test.py
 test -x "$home_path/bin/blender"
 test -x "$home_path/bin/obsidian"
 test -f "$home_path/share/applications/blender.desktop"

@@ -11,7 +11,7 @@ is pinned in `flake.nix`; `flake.lock` also pins Home Manager.
 - `modules/desktop.nix`: NixOS Hyprland/UWSM/portal/PAM/hardware integration.
 - `home/desktop.nix`: Hyprland Lua, Waybar, launcher, notifications, lock/idle.
 - `home/apps.nix`: Blender, Obsidian, Sidra, Helium, Legcord, Dolphin and MIME defaults.
-- `home/icons.nix`: HackerNoon pixel theme selection; targeted GTK/KDE icon settings.
+- `home/icons.nix`: Breeze Dark selection; targeted GTK/KDE icon settings.
 - `home/terminal.nix`: shared Ghostty, zsh, prompt, tmux/sidebar, nnn, and Neovim.
 - `home/pi.nix`: Pi runtime, public resources, pinned dependencies, and writable seeds.
 - `home/palette.nix`: consumes canonical `theme/palettes/vague.json` roles,
@@ -54,8 +54,8 @@ bootstrap; harden it separately after verifying persistent key access.
   gnome-keyring, and its polkit agent. UWSM owns their lifetime; they must not
   follow the user back into Plasma or replace Plasma's wallet.
 
-The bar is a clickable taskbar, not a macOS global File/Edit menu or an
-animated auto-hiding dock. A separate dock can be chosen after the baseline works.
+The bar is a clickable running-window taskbar, not a pinned-app dock. A separate
+dock can be chosen later; none is installed by this profile.
 
 ## Applications and shared workflows
 
@@ -94,59 +94,28 @@ and caches remain writable in `~/.config/pi-config/agent`. Home Manager seeds
 settings, keybindings, and the npm workspace only when absent; it never deploys
 Mac auth/session/cache state. The active generated theme is store-backed.
 
-## Pixel desktop icons
+## Desktop icons and shortcuts
 
-`packages/pixel-icons.nix` builds a curated **HackerNoonPixel** icon theme from
-Pixel Icon Library by [HackerNoon](https://github.com/hackernoon/pixel-icon-library).
-The original artwork is kept outside Git. Download the free ZIP from
-<https://pixeliconlibrary.com/> and import it before building on a new machine:
+Breeze Dark is selected for GTK 3/4, Dolphin/KDE, Fuzzel, GNOME dconf and the
+20px Waybar running-window taskbar. Home Manager changes only the GTK icon keys
+in the existing writable settings files, the KDE `Icons/Theme` key and the dconf
+icon-theme key; other fonts, cursors, colors and widget settings are preserved.
+Application icons use their native desktop-entry artwork when available. The
+HackerNoonPixel build sources under `packages/pixel-icons*` are retained for
+reference but are not installed, selected or required to build the desktop.
+Waybar's text-only controls and active/inactive/hover palette styling are unchanged.
 
-```sh
-sha256sum ~/Downloads/pixel-icon-library-by-hackernoon.zip
-# Expected: 42cf4f81d6a6ccd661a238c1a63e511670eaf7e88e42051280221604e832020d
-nix-store --add-fixed sha256 ~/Downloads/pixel-icon-library-by-hackernoon.zip
-```
+Hyprland sets keyboard repeat to 50 repeats/second after a 250ms delay. Super-Ctrl
++A/Z/S/X runs `app-focus` to focus the most recently used mapped window of Helium,
+Ghostty, Dolphin or Obsidian across workspaces/monitors, or launches the application
+through UWSM if no window exists. The existing Super-B/E/Return launchers still
+open new windows. The helper does not launch on Hyprland query failure and retries
+a stale window address once. Ctrl-Shift-V remains Ghostty's clipboard paste key.
 
-`requireFile` pins those exact bytes; moving/removing Downloads afterward does
-not affect an installed generation. Keep a private copy for future builds after
-store garbage collection. A changed upstream archive needs deliberate checksum
-and asset validation, not an automatic hash update.
-
-Artwork is credited as **CC BY 4.0**, not the repository's non-artwork MIT license:
-<https://creativecommons.org/licenses/by/4.0/>. The generated theme includes
-`ATTRIBUTION`; changes are curation, aliases, palette recoloring and normalization
-of a few non-square upstream PNG canvases. The publisher also describes a
-standalone-redistribution restriction on its [license page](https://pixeliconlibrary.com/license/).
-Do not publish the ZIP/artwork/standalone generated theme without resolving that
-wording; this repository contains only build code and mappings.
-
-`pixel-icons-mapping.json` lists every alias. Folders, common MIME types, navigation
-and a few applications get pixel artwork; Blender, Obsidian and unmatched brands
-keep their original icons through `breeze-dark,breeze,hicolor` inheritance.
-The package includes native 16/24/48px PNGs and scalable SVG fallbacks. Foregrounds
-use `text` for general artwork and `accent-secondary` for folders, both resolved
-from the canonical palette.
-
-Fuzzel, the 24px Waybar taskbar, GTK 3/4 and Dolphin/KDE share this theme. Because
-Plasma already maintains writable GTK files, Home Manager updates only their
-`gtk-icon-theme-name` keys via its KConfig writer, plus `kdeglobals`'s `Icons/Theme`
-and the GNOME dconf icon-theme key. Existing fonts, cursors, dark preferences,
-widget themes and KDE colors are preserved; Qt's platform theme is not changed.
-
-Waybar's Apps, Session, volume, network and Bluetooth controls are text-only,
-including muted/unmuted audio and Wi-Fi/Ethernet/offline states. Apps/Session use
-10px horizontal padding; volume/network use 6px, with no reserved icon slots.
-Native state colors, click/scroll actions and tooltips are unchanged. Taskbar and
-tray icons remain visible. Tray-provided pixmaps,
-absolute-path icons (including Helium's desktop entry) and app-internal artwork
-may bypass the theme. These are not claimed as replaced.
-
-After activation, reopen Dolphin/Fuzzel and reload Waybar to clear icon caches.
-Check native sizes, launcher/folder selection, active/inactive taskbar entries,
-muted/unmuted audio and connection states. Do not disconnect networking merely
-to test the bar: use an isolated state fixture. Launch both new apps without
-opening private files/vaults. The build also includes the committed Pi fenced-code
-background fix; run `/reload` in Pi after activation to pick it up.
+After approved activation, reopen Dolphin/Fuzzel and restart Waybar to clear icon
+caches. Check folder/launcher icons and active, inactive and hovered taskbar icons
+on both monitors; verify live repeat settings and test each shortcut with an open
+window on another workspace and with no matching window.
 
 ## Configuration ownership
 

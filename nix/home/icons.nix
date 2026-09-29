@@ -1,16 +1,12 @@
-{ config, lib, pkgs, ... }:
-let
-  inherit (import ./palette.nix { inherit lib; }) roles;
-  pixelIcons = pkgs.callPackage ../packages/pixel-icons.nix { inherit roles; };
-in
+{ config, pkgs, ... }:
 {
   # Shared theme declaration. Deliberately do not enable GTK's whole-file
   # management: Plasma already owns populated, writable GTK settings files.
   gtk.iconTheme = {
-    name = "HackerNoonPixel";
-    package = pixelIcons;
+    name = "breeze-dark";
+    package = pkgs.kdePackages.breeze-icons;
   };
-  home.packages = [ pixelIcons pkgs.kdePackages.breeze-icons ];
+  home.packages = [ pkgs.kdePackages.breeze-icons ];
 
   # The pinned Home Manager KConfig writer changes only these INI keys,
   # preserving existing GTK fonts, cursor, dark preference and KDE colors.

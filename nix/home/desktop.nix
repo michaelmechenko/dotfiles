@@ -14,6 +14,10 @@ let
       grim -g "$geometry" - | wl-copy --type image/png
     '';
   };
+  appFocus = pkgs.writeScriptBin "app-focus" ''
+    #!${pkgs.python3}/bin/python3
+    ${builtins.readFile ./app-focus.py}
+  '';
   sessionMenu = pkgs.writeShellApplication {
     name = "desktop-session-menu";
     runtimeInputs = [
@@ -41,6 +45,7 @@ in
     pkgs.libsecret
     screenshot
     sessionMenu
+    appFocus
   ];
 
   wayland.windowManager.hyprland = {
@@ -64,7 +69,7 @@ in
         },
         decoration = { rounding = 8, blur = { enabled = false }, shadow = { enabled = false } },
         animations = { enabled = true },
-        input = { kb_layout = "us", follow_mouse = 0 },
+        input = { kb_layout = "us", follow_mouse = 0, repeat_rate = 50, repeat_delay = 250 },
         misc = {
           vrr = 2, -- Adaptive sync only while a fullscreen window is present.
           disable_hyprland_logo = true,
@@ -87,6 +92,9 @@ in
       hl.bind("SUPER + Space", launch("fuzzel"))
       hl.bind("SUPER + E", launch("dolphin"))
       hl.bind("SUPER + B", launch("helium"))
+      for key, app in pairs({ A = "helium", Z = "ghostty", S = "dolphin", X = "obsidian" }) do
+        hl.bind("SUPER + CTRL + " .. key, hl.dsp.exec_cmd("app-focus " .. app))
+      end
       hl.bind("SUPER + Q", hl.dsp.window.close())
       hl.bind("SUPER + F", hl.dsp.window.fullscreen())
       hl.bind("SUPER + SHIFT + Space", hl.dsp.window.float({ action = "toggle" }))
@@ -220,7 +228,7 @@ in
       };
       "wlr/taskbar" = {
         format = "{icon}";
-        icon-size = 24;
+        icon-size = 20;
         icon-theme = config.gtk.iconTheme.name;
         tooltip-format = "{title}";
         on-click = "activate";

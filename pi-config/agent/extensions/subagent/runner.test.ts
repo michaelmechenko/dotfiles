@@ -99,10 +99,22 @@ test("runner bounds adversarial metadata and ignores invalid usage numbers", () 
 	assert.deepEqual(state.usage, { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, contextTokens: 0, turns: 1 });
 });
 
+test("nested tool usage is included without counting an extra assistant turn", () => {
+	const state = createRunnerState();
+	reduceEvent(state, { type: "message_end", message: { role: "toolResult", usage: { input: 12, output: 8, cost: { total: 0.5 } } } });
+	assert.equal(state.usage.input, 12);
+	assert.equal(state.usage.output, 8);
+	assert.equal(state.usage.cost, 0.5);
+	assert.equal(state.usage.turns, 0);
+});
+
 test("UTF-8 output truncation preserves its byte bound", () => {
 	const result = truncateUtf8("é".repeat(100), 101);
 	assert.ok(Buffer.byteLength(result) <= 101);
 	assert.ok(result.length > 0);
+	assert.equal(truncateUtf8("😀😀", 3), "");
+	assert.equal(truncateUtf8("😀😀", 4), "😀");
+	assert.ok(truncateUtf8("界".repeat(100_000), 50 * 1024).isWellFormed());
 });
 
 test("stderr retains a bounded useful tail", () => {
@@ -128,6 +140,13 @@ test("spawn errors preserve the useful diagnostic", async () => {
 	const result = await runSpawnedJsonl({ command: "/definitely/not/a/pi-subagent", args: [], cwd: process.cwd(), timeoutMs: 5000, onEvent() {} });
 	assert.equal(result.exitCode, 1);
 	assert.match(result.spawnError || "", /ENOENT/);
+});
+
+test("runner forwards an explicit child-policy environment", async () => {
+	let inherited: unknown;
+	const result = await runSpawnedJsonl({ command: process.execPath, args: ["-e", "console.log(JSON.stringify({type:'policy',mode:process.env.PI_SUBAGENT_ACCESS_MODE,tools:process.env.PI_SUBAGENT_ALLOWED_TOOLS}));console.log(JSON.stringify({type:'agent_end'}))"], cwd: process.cwd(), env: { ...process.env, PI_SUBAGENT_ACCESS_MODE: "read-only", PI_SUBAGENT_ALLOWED_TOOLS: '["read"]' }, onEvent(event) { if ((event as { type?: string }).type === "policy") inherited = event; } });
+	assert.equal(result.protocolError, undefined);
+	assert.deepEqual(inherited, { type: "policy", mode: "read-only", tools: '["read"]' });
 });
 
 test("owned child is terminated on timeout", async () => {

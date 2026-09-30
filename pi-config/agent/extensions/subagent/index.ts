@@ -4,11 +4,13 @@ import * as path from "node:path";
 import type { AgentToolResult, ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { Message } from "@earendil-works/pi-ai";
 import { StringEnum } from "@earendil-works/pi-ai";
-import { CONFIG_DIR_NAME, type ExtensionAPI, getAgentDir } from "@earendil-works/pi-coding-agent";
+import { type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { type AgentConfig, type AgentScope, discoverAgents } from "./agents.ts";
+import { type AgentConfig, type AgentScope, discoverAgents, requireProjectApproval } from "./agents.ts";
 import { MAX_CONCURRENCY, normalizeDelegationRequest, replacePreviousLiteral, resolveChildTools, SharedConcurrencyLimiter } from "./delegation.ts";
 import { prepareOutputCapture, type ResultArtifact } from "./result-artifacts.ts";
+import { accessModeFrom, childToolRestriction } from "./execution-policy.ts";
+import type { AccessMode } from "../plan-mode/plan-state.ts";
 import { createRunnerState, MAX_ERROR_BYTES, MAX_METADATA_BYTES, reduceEvent, runSpawnedJsonl, truncateUtf8, type RunnerState, type UsageStats } from "./runner.ts";
 const PER_TASK_OUTPUT_CAP = 50 * 1024;
 const TOTAL_PARALLEL_OUTPUT_CAP = 100 * 1024;
@@ -59,7 +61,7 @@ function aggregateUsage(results: SingleResult[]) {
 }
 
 type OnUpdateCallback = (partial: AgentToolResult<SubagentDetails>) => void;
-interface DispatchDefaults { model?: string; thinkingLevel?: ThinkingLevel }
+interface DispatchDefaults { model?: string; thinkingLevel?: ThinkingLevel; accessMode: AccessMode }
 
 function isFailedResult(result: SingleResult): boolean {
 	return result.exitCode !== 0 || result.state === "failed" || result.state === "aborted" || result.state === "timed_out" || result.stopReason === "error" || result.stopReason === "aborted";
@@ -176,7 +178,9 @@ async function runSingleAgent(defaultCwd: string, defaults: DispatchDefaults, ag
 		args.push("Read the attached private task file and complete it.", `@${files.taskPath}`);
 		const invocation = getPiInvocation(args);
 		emit(true);
-		const spawned = await runSpawnedJsonl({ command: invocation.command, args: invocation.args, cwd: cwd ?? defaultCwd, signal, onEvent(event) { if (reduceEvent(state, event)) emit(); } });
+		const childTools = resolveChildTools(agent, parentTools);
+		const { PI_PLAN_HANDOFF: _planHandoff, PI_PLAN_PROVIDER: _planProvider, PI_PLAN_MODEL: _planModel, PI_PLAN_THINKING: _planThinking, ...environment } = process.env;
+		const spawned = await runSpawnedJsonl({ command: invocation.command, args: invocation.args, cwd: cwd ?? defaultCwd, env: { ...environment, PI_SUBAGENT_ACCESS_MODE: defaults.accessMode, PI_SUBAGENT_ALLOWED_TOOLS: JSON.stringify(childTools) }, signal, onEvent(event) { if (reduceEvent(state, event)) emit(); } });
 		if (spawned.reason === "aborted") { state.state = "aborted"; state.errorMessage = "Subagent was aborted."; }
 		if (spawned.reason === "timed_out") { state.state = "timed_out"; state.errorMessage = "Subagent timed out after 30 minutes."; }
 		if (spawned.spawnError) { state.state = "failed"; state.errorMessage = `Could not start subagent: ${spawned.spawnError}`; }
@@ -198,10 +202,26 @@ async function runSingleAgent(defaultCwd: string, defaults: DispatchDefaults, ag
 const TaskItem = Type.Object({ agent: Type.String({ description: "Name of the agent to invoke" }), task: Type.String({ description: "Task to delegate to the agent" }), cwd: Type.Optional(Type.String({ description: "Working directory for the agent process" })) });
 const ChainItem = Type.Object({ agent: Type.String({ description: "Name of the agent to invoke" }), task: Type.String({ description: "Task with optional {previous} placeholder for prior output" }), cwd: Type.Optional(Type.String({ description: "Working directory for the agent process" })) });
 const AgentScopeSchema = StringEnum(["user", "project", "both"] as const, { description: 'Which agent directories to use. Default: "user". Use "both" to include project-local agents.', default: "user" });
-const SubagentParams = Type.Object({ agent: Type.Optional(Type.String({ description: "Name of the agent to invoke (for single mode)" })), task: Type.Optional(Type.String({ description: "Task to delegate (for single mode)" })), tasks: Type.Optional(Type.Array(TaskItem, { description: "Array of {agent, task} for parallel execution" })), chain: Type.Optional(Type.Array(ChainItem, { description: "Array of {agent, task} for sequential execution" })), agentScope: Type.Optional(AgentScopeSchema), confirmProjectAgents: Type.Optional(Type.Boolean({ description: "Prompt before running project-local agents. Default: true.", default: true })), cwd: Type.Optional(Type.String({ description: "Working directory for the agent process (single mode)" })) });
+const SubagentParams = Type.Object({ agent: Type.Optional(Type.String({ description: "Name of the agent to invoke (for single mode)" })), task: Type.Optional(Type.String({ description: "Task to delegate (for single mode)" })), tasks: Type.Optional(Type.Array(TaskItem, { description: "Array of {agent, task} for parallel execution" })), chain: Type.Optional(Type.Array(ChainItem, { description: "Array of {agent, task} for sequential execution" })), agentScope: Type.Optional(AgentScopeSchema), cwd: Type.Optional(Type.String({ description: "Working directory for the agent process (single mode)" })) });
 
 export default function(pi: ExtensionAPI) {
 	const limiter = new SharedConcurrencyLimiter(MAX_CONCURRENCY);
+	const childAccessMode = accessModeFrom(process.env.PI_SUBAGENT_ACCESS_MODE);
+	let childAllowedTools: Set<string> | undefined;
+	if (process.env.PI_SUBAGENT_ALLOWED_TOOLS !== undefined) {
+		try {
+			const names = JSON.parse(process.env.PI_SUBAGENT_ALLOWED_TOOLS);
+			childAllowedTools = new Set(Array.isArray(names) && names.every((name) => typeof name === "string") ? names : []);
+		} catch { childAllowedTools = new Set(); }
+	}
+	if (childAllowedTools) pi.on("before_agent_start", (event) => {
+		event.systemPromptOptions.selectedTools = event.systemPromptOptions.selectedTools.filter((name) => childAllowedTools!.has(name));
+	});
+	if (childAllowedTools || childAccessMode !== "none") pi.on("tool_call", (event) => {
+		if (childAllowedTools && !childAllowedTools.has(event.toolName)) return { block: true, reason: `Subagent parent policy disabled tool '${event.toolName}'.` };
+		const reason = childToolRestriction(childAccessMode, event.toolName, event.input);
+		return reason ? { block: true, reason } : undefined;
+	});
 	pi.on("session_shutdown", async () => { limiter.close(); });
 	// AgentToolResult has no isError field. Patch the completed tool result through
 	// Pi's supported event seam while retaining structured details and usage.
@@ -221,14 +241,26 @@ export default function(pi: ExtensionAPI) {
 			const agentScope: AgentScope = params.agentScope ?? "user";
 			const discovery = discoverAgents(ctx.cwd, agentScope);
 			const parentTools = pi.getActiveTools();
-			const defaults: DispatchDefaults = { model: ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : undefined, thinkingLevel: ctx.thinkingLevel };
+			let accessMode: AccessMode = childAccessMode;
+			pi.events.emit("plan-mode:access-policy", (mode: AccessMode) => { accessMode = mode; });
+			const defaults: DispatchDefaults = { model: ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : undefined, thinkingLevel: ctx.thinkingLevel, accessMode };
+			if (ctx.scopedModels?.length) {
+				const permitted = new Set(ctx.scopedModels.map((item) => `${item.model.provider}/${item.model.id}`));
+				for (const item of request.items) {
+					const agentModel = discovery.agents.find((candidate) => candidate.name === item.agent)?.model;
+					if (agentModel && !permitted.has(agentModel)) throw new Error(`Agent '${item.agent}' model is outside the parent model scope.`);
+				}
+			}
 			const makeDetails = (mode: SubagentDetails["mode"]) => (results: SingleResult[]): SubagentDetails => ({ mode, agentScope, projectAgentsDir: discovery.projectAgentsDir, diagnostics: [...discovery.diagnostics], results });
 			const mode = request.mode;
-			if ((params.confirmProjectAgents ?? true) && (agentScope === "project" || agentScope === "both")) {
+			if (agentScope === "project" || agentScope === "both") {
 				const names = request.items.map((item) => item.agent);
 				const project = names.map((name) => discovery.agents.find((item) => item.name === name)).filter((item): item is AgentConfig => item?.source === "project");
-				if (project.length && !ctx.hasUI) throw new Error("Project-local agents require interactive approval. Set confirmProjectAgents=false only after independently trusting them.");
-				if (project.length && !(await ctx.ui.confirm("Run project-local agents?", `Agents: ${project.map((item) => item.name).join(", ")}\nSource: ${discovery.projectAgentsDir}\n\nProject agents are repo-controlled.`))) return { content: [{ type: "text", text: "Canceled: project-local agents not approved." }], details: makeDetails(mode)([]) };
+				if (project.length) {
+					requireProjectApproval(ctx.hasUI);
+					const description = project.map((item) => `${item.name}: ${item.model ?? defaults.model ?? "current model"}; tools: ${resolveChildTools(item, parentTools).join(", ") || "none"}`).join("\n");
+					if (!(await ctx.ui.confirm("Run project-local agents?", `Source: ${discovery.projectAgentsDir}\n${description}\n\nProject agents are repo-controlled.`))) return { content: [{ type: "text", text: "Canceled: project-local agents not approved." }], details: makeDetails(mode)([]) };
+				}
 			}
 			if (mode === "single") {
 				const item = request.items[0];

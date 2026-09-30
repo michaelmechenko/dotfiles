@@ -3,6 +3,8 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import type { OutputCapture, ResultArtifact } from "./result-artifacts.ts";
+import { truncateUtf8 } from "./utf8.ts";
+export { truncateUtf8 } from "./utf8.ts";
 
 export const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000;
 export const MAX_EVENT_LINE_BYTES = 1024 * 1024;
@@ -149,8 +151,9 @@ function assistantOutput(message: any): string {
 }
 
 function updateUsage(state: RunnerState, message: any) {
-	if (message?.role !== "assistant") return;
-	const output = assistantOutput(message);
+	if (message?.role !== "assistant" && message?.role !== "toolResult") return;
+	if (message.role === "toolResult" && !message.usage) return;
+	const output = message.role === "assistant" ? assistantOutput(message) : "";
 	if (output) {
 		const captured = state.captureOutput?.(output) ?? { preview: truncateUtf8(output, MAX_MESSAGE_BYTES), truncated: Buffer.byteLength(output, "utf8") > MAX_MESSAGE_BYTES };
 		state.finalOutput = captured.preview;
@@ -158,7 +161,7 @@ function updateUsage(state: RunnerState, message: any) {
 		state.outputArtifact = captured.artifact;
 		state.outputArtifactError = captured.artifactError;
 	}
-	state.usage.turns++;
+	if (message.role === "assistant") state.usage.turns++;
 	const usage = message.usage;
 	if (usage && typeof usage === "object") {
 		state.usage.input += boundedNumber(usage.input);
@@ -412,13 +415,6 @@ export class JsonlDecoder {
 	}
 }
 
-export function truncateUtf8(text: string, cap: number): string {
-	if (Buffer.byteLength(text, "utf8") <= cap) return text;
-	let clipped = text.slice(0, cap);
-	while (Buffer.byteLength(clipped, "utf8") > cap) clipped = clipped.slice(0, -1);
-	return clipped;
-}
-
 export function appendOutputBounded(current: string, chunk: Buffer, cap = MAX_STDERR_BYTES): string {
 	const prefix = "[stderr truncated]\n";
 	const combined = current + chunk.toString("utf8");
@@ -441,6 +437,7 @@ export interface SpawnedRun {
 	command: string;
 	args: string[];
 	cwd: string;
+	env?: NodeJS.ProcessEnv;
 	signal?: AbortSignal;
 	timeoutMs?: number;
 	killGraceMs?: number;
@@ -469,7 +466,7 @@ export async function runSpawnedJsonl(options: SpawnedRun): Promise<SpawnedResul
 			}
 			options.onEvent(event);
 		};
-		const proc = spawn(options.command, options.args, { cwd: options.cwd, shell: false, detached: process.platform !== "win32", stdio: ["ignore", "pipe", "pipe"] });
+		const proc = spawn(options.command, options.args, { cwd: options.cwd, env: options.env, shell: false, detached: process.platform !== "win32", stdio: ["ignore", "pipe", "pipe"] });
 		const terminate = (why: NonNullable<SpawnedResult["reason"]>) => {
 			if (finished || reason) return;
 			reason = why;
@@ -485,6 +482,8 @@ export async function runSpawnedJsonl(options: SpawnedRun): Promise<SpawnedResul
 		proc.stderr.on("data", (chunk: Buffer) => { stderr = appendOutputBounded(stderr, chunk); });
 		proc.on("error", (error) => finish(1, error.message));
 		proc.on("close", (code) => {
+			// A descendant may outlive the group leader; stop it before retiring the escalation timer.
+			if (!finished && reason && killTimer) terminateProcessTree(proc.pid, "SIGKILL");
 			decoder.finish().forEach(acceptEvent);
 			finish(code ?? 1);
 		});
@@ -492,7 +491,7 @@ export async function runSpawnedJsonl(options: SpawnedRun): Promise<SpawnedResul
 			if (finished) return;
 			finished = true;
 			clearTimeout(timeout);
-			if (killTimer && !reason) clearTimeout(killTimer);
+			if (killTimer) { clearTimeout(killTimer); killTimer = undefined; }
 			options.signal?.removeEventListener("abort", abortListener);
 			let protocolError: string | undefined;
 			if (!reason && !spawnError && exitCode === 0) {

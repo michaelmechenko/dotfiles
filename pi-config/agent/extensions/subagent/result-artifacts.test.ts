@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -45,6 +46,25 @@ test("retention stays at 64 and one capture keeps only its latest oversized turn
 		if (previous === undefined) delete process.env.XDG_STATE_HOME;
 		else process.env.XDG_STATE_HOME = previous;
 		await rm(stateHome, { recursive: true, force: true });
+	}
+});
+
+test("a stale historical lock does not block retained output", async () => {
+	const dir = mkdtempSync(path.join(os.tmpdir(), "pi-subagent-retention-"));
+	const before = process.env.XDG_STATE_HOME;
+	process.env.XDG_STATE_HOME = dir;
+	try {
+		const root = path.join(dir, "pi", "subagent-results");
+		mkdirSync(root, { recursive: true });
+		writeFileSync(path.join(root, ".retention.lock"), "dead owner", { mode: 0o600 });
+		const capture = await prepareOutputCapture("scout", 4);
+		const result = capture("a longer answer");
+		assert.equal(result.truncated, true);
+		assert.ok(result.artifact?.path);
+	} finally {
+		if (before === undefined) delete process.env.XDG_STATE_HOME;
+		else process.env.XDG_STATE_HOME = before;
+		rmSync(dir, { recursive: true, force: true });
 	}
 });
 

@@ -14,7 +14,7 @@ none → plan → read-only → none
 - **read-only** — preserves the same baseline except direct mutation and tracked-execution tools. `plan_update` remains available for internal agent planning only.
 - **none** — restores the exact active-tool baseline captured before entering the restricted cycle. A preserved plan is shown as `none (plan paused)`, not as an active restriction; `plan_update` remains available when the user has not disabled it.
 
-Bash remains available in both restricted modes. Plan mode is not a shell sandbox; project trust and the mode's active-tool restrictions remain independent boundaries. Mode changes wait for Pi to be idle. Pressing `Ctrl+P` while an idle plan executes pauses it, restores the planning model, then enters plan mode.
+Bash remains available in both restricted modes. Plan mode is not a shell sandbox; project trust and the mode's active-tool restrictions remain independent boundaries. Mode changes and state-changing plan commands wait for Pi to be idle. Entering either restricted mode during execution first pauses it and restores the planning model. A handed-off plan cannot be paused, edited, discarded, or executed in its source session.
 
 ## Internal and tracked plans
 
@@ -33,7 +33,7 @@ Internal plans remain ordinary session tool-result data; “internal” means ou
 3. Execution tracks terminal steps with `plan_step`; `plan_complete` records outcome, end state, verification, deviations, and next steps.
 4. Each materialized plan receives a stable ID and creation timestamp. Only completed plans are archived, atomically, as individual private records under `agent/plan-history/<project-hash>/`; discarded plans are not retained. One session executes one plan at a time, then can start its next plan.
 
-Project identity is the canonical Git common directory (so worktrees share history), or the canonical cwd outside Git. A scoped filesystem watcher updates a source session when a detached tmux execution archives its completed plan, releasing that source session for its next sequential plan.
+Project identity is the canonical Git common directory (so worktrees share history), or the canonical cwd outside Git. A scoped filesystem watcher updates a source session when a detached tmux execution archives its completed plan, releasing that source session for its next sequential plan. If the owner exits without archiving, `/plan-recover` can explicitly reclaim a process-instance-verified dead handoff after a confirmation; the user must inspect any work the child may have performed. Live or unverifiable owners cannot be reclaimed.
 
 `/read-only` enters standalone inspection mode. `/mode` cycles the three access modes. `/plan-edit`, `/todos`, `/pause`, and `/plan-widget` retain their existing roles.
 
@@ -63,7 +63,7 @@ The footer's plan status is derived from the active plan and completed history f
 
 ## Tmux handoff
 
-Tmux is offered only inside a resolved tmux pane. Detached handoffs write a mode-`0600` packet under `agent/plan-handoffs/`, then invoke detached `tmux new-window` or `tmux split-window` below/right of the source with argv and handoff/model environment variables only; plan text is never interpolated into shell source. Every spawned Pi command falls through to the pane's login shell on exit. The child atomically claims the durable packet, persists execution state, then acknowledges readiness. An unclaimed timeout leaves the source ready; a live claimed timeout leaves ownership with the child so the source cannot create a duplicate executor. The current-pane replacement uses the same claim path through `/plan-review` in the fresh extension instance.
+Tmux is offered only inside a resolved tmux pane. Detached handoffs write a mode-`0600` packet under `agent/plan-handoffs/`, then invoke detached `tmux new-window` or `tmux split-window` below/right of the source with argv and handoff/model environment variables only; plan text is never interpolated into shell source. Every spawned Pi command falls through to the pane's login shell on exit. The child atomically claims the durable packet with PID and OS process-start identity, persists execution state, then acknowledges readiness. The source records the packet before waiting; an unclaimed timeout leaves the source ready, while a claimed timeout leaves ownership with the child. Late acknowledgements remain inspectable until the completed archive releases the source. No automatic takeover of unarchived child work occurs. The current-pane replacement uses the same claim path through `/plan-review` in the fresh extension instance.
 
 Completed-plan archive retries compare stable plan and closeout content while retaining the first completion timestamp. Clipboard export includes the full execution brief as well as the plan and verification sections.
 

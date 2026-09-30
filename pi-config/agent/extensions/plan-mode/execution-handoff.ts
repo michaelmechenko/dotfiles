@@ -1,4 +1,5 @@
 import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import { processStartToken } from "../session-state/process-identity.ts";
 import { basename, dirname, join, resolve } from "node:path";
 import type { ModelSnapshot, PlanState } from "./plan-state.ts";
 import { isPlanState, migratePlanState } from "./plan-state.ts";
@@ -38,7 +39,7 @@ export function consumeExecutionPacket(agentDir: string, handoffPath: string): E
 	if (!isPrivatePath(agentDir, claim)) return undefined;
 	let ownsClaim = false;
 	try {
-		writeFileSync(claim, `${JSON.stringify({ pid: process.pid, claimedAt: new Date().toISOString() })}\n`, { encoding: "utf8", mode: 0o600, flag: "wx" });
+		writeFileSync(claim, `${JSON.stringify({ pid: process.pid, processStartedAt: processStartToken(), claimedAt: new Date().toISOString() })}\n`, { encoding: "utf8", mode: 0o600, flag: "wx" });
 		ownsClaim = true;
 		const stat = lstatSync(handoffPath);
 		if (!stat.isFile() || (stat.mode & 0o077) !== 0) throw new Error("Unsafe handoff packet permissions.");
@@ -57,6 +58,40 @@ export function acknowledgeExecutionPacket(agentDir: string, handoffPath: string
 	try { writeFileSync(path, "consumed\n", { encoding: "utf8", mode: 0o600, flag: "wx" }); return true; } catch { return false; }
 }
 export type ExecutionAcknowledgement = "ready" | "claimed" | "unclaimed";
+export type ExecutionOwner = "ready" | "live" | "dead" | "unknown";
+/** A dead owner may be reclaimed only by an explicit user-confirmed operation. */
+export function executionOwner(agentDir: string, handoffPath: string): ExecutionOwner {
+	if (!isPrivatePath(agentDir, handoffPath)) return "unknown";
+	const claim = claimPath(handoffPath);
+	try {
+		const stat = lstatSync(claim);
+		if (!stat.isFile() || (stat.mode & 0o077) !== 0) return "unknown";
+		const { pid, processStartedAt, cancelled } = JSON.parse(readFileSync(claim, "utf8"));
+		if (cancelled || !Number.isInteger(pid) || pid <= 0 || typeof processStartedAt !== "string" || !processStartedAt) return "unknown";
+		const instance = claimInstance(pid, processStartedAt);
+		if (instance === "live") return validAcknowledgement(acknowledgementPath(handoffPath)) ? "ready" : "live";
+		return instance;
+	} catch { return "unknown"; }
+}
+/** Fenced unlink: another source cannot simultaneously reclaim the same claim. */
+export function reclaimDeadExecutionPacket(agentDir: string, handoffPath: string): boolean {
+	if (executionOwner(agentDir, handoffPath) !== "dead") return false;
+	const tombstone = `${handoffPath}.reclaiming`;
+	try {
+		// Keep the dead claim in place. Renaming the packet fences every child
+		// consumer, and the stable tombstone survives an interrupted recovery.
+		if (existsSync(handoffPath)) renameSync(handoffPath, tombstone);
+		if (!existsSync(tombstone)) return false;
+		return executionOwner(agentDir, handoffPath) === "dead";
+	} catch { return false; }
+}
+/** Call only after the source's paused state has been persisted. */
+export function finishRecoveredExecutionPacket(agentDir: string, handoffPath: string): void {
+	if (!isPrivatePath(agentDir, handoffPath) || !existsSync(`${handoffPath}.reclaiming`)) return;
+	for (const path of [`${handoffPath}.reclaiming`, claimPath(handoffPath), acknowledgementPath(handoffPath)]) {
+		try { unlinkSync(path); } catch { /* best effort: interrupted cleanup is harmless */ }
+	}
+}
 /** Atomically fence a not-yet-claimed packet before returning ownership to the source. */
 export function cancelUnclaimedExecutionPacket(agentDir: string, handoffPath: string): boolean {
 	const claim = claimPath(handoffPath);
@@ -76,12 +111,16 @@ export async function waitForExecutionAcknowledgement(agentDir: string, handoffP
 	return liveClaim(claimPath(handoffPath)) ? "claimed" : "unclaimed";
 }
 function validAcknowledgement(path: string): boolean { try { const stat = lstatSync(path); return stat.isFile() && (stat.mode & 0o077) === 0 && readFileSync(path, "utf8") === "consumed\n"; } catch { return false; } }
+function claimInstance(pid: number, startedAt: string): "live" | "dead" | "unknown" {
+	try { process.kill(pid, 0); } catch (error) { return (error as NodeJS.ErrnoException).code === "ESRCH" ? "dead" : "unknown"; }
+	const current = processStartToken(pid);
+	return current ? current === startedAt ? "live" : "dead" : "unknown";
+}
 function liveClaim(path: string): boolean {
 	try {
 		const stat = lstatSync(path); if (!stat.isFile() || (stat.mode & 0o077) !== 0) return false;
-		const pid = JSON.parse(readFileSync(path, "utf8")).pid;
-		if (!Number.isInteger(pid) || pid <= 0) return false;
-		process.kill(pid, 0); return true;
+		const { pid, processStartedAt } = JSON.parse(readFileSync(path, "utf8"));
+		return Number.isInteger(pid) && pid > 0 && Boolean(processStartedAt) && claimInstance(pid, processStartedAt) === "live";
 	} catch { return false; }
 }
 function claimPath(handoffPath: string): string { return `${handoffPath}.claim`; }

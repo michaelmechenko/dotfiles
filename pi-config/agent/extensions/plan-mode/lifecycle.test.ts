@@ -19,9 +19,16 @@ test("branch restoration swaps execution tools/model and restores the prior base
 	const active = restorePlanLifecycle(createPlanState(), executing, ["read"], available);
 	assert.deepEqual(active.tools, ["read", "bash", "write", "plan_step", "plan_complete"]);
 	assert.deepEqual(active.model, executionModel);
-	const left = restorePlanLifecycle(executing, createPlanState(), active.tools, available);
-	assert.deepEqual(left.tools, ["read", "bash", "write"]);
-	assert.deepEqual(left.model, planningModel);
+	const left = restorePlanLifecycle(executing, createPlanState(), ["read"], available);
+	assert.deepEqual(left.tools, ["read"]);
+	assert.equal(left.model, undefined);
+});
+
+test("an unrelated branch never inherits tools or model from the abandoned execution", () => {
+	const prior = { ...createPlanState(), phase: "executing" as const, toolsBeforePlan: ["read", "write"], planningModel, executionModel };
+	const restored = restorePlanLifecycle(prior, createPlanState(), ["read"], available);
+	assert.deepEqual(restored.tools, ["read"]);
+	assert.equal(restored.model, undefined);
 });
 
 test("normal and read-only restoration retain internal planning without execution tools", () => {

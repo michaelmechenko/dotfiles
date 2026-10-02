@@ -120,8 +120,8 @@ in
       hl.on("hyprland.start", function()
         hl.exec_cmd("uwsm finalize")
         hl.exec_cmd("uwsm app -- waybar")
-        -- One moving dock, with bottom hotspots on every output.
-        hl.exec_cmd("uwsm app -- nwg-dock-hyprland -d -p bottom -a center -i 40 -mb 8 -nolauncher")
+        -- One moving dock; -hd 0 reveals it even on slow bottom-edge approaches.
+        hl.exec_cmd("uwsm app -- nwg-dock-hyprland -d -p bottom -a center -i 40 -mb 8 -hd 0 -nolauncher")
         hl.exec_cmd("uwsm app -s b -- mako")
         hl.exec_cmd("uwsm app -s b -- hypridle")
         -- Hyprland gets a Secret Service provider without replacing Plasma's wallet.

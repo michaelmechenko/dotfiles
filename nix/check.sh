@@ -35,7 +35,7 @@ for alias in md.obsidian.Obsidian dolphin; do
   rg -q '^Exec=' "$entry"
   rg -q '^Icon=' "$entry"
 done
-[[ $(rg -c 'uwsm app -- nwg-dock-hyprland -d -p bottom -a center -i 40 -mb 8 -nolauncher' "$files/.config/hypr/hyprland.lua") == 1 ]]
+[[ $(rg -c 'uwsm app -- nwg-dock-hyprland -d -p bottom -a center -i 40 -mb 8 -hd 0 -nolauncher' "$files/.config/hypr/hyprland.lua") == 1 ]]
 test -x "$home_path/bin/blender"
 test -x "$home_path/bin/obsidian"
 test -f "$home_path/share/applications/blender.desktop"

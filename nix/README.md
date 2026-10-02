@@ -132,7 +132,10 @@ window on another workspace and with no matching window.
 0.55 Lua dispatcher compatibility. Hyprland starts one UWSM-owned instance after
 session finalization: bottom, centered, 40px native-color icons, 8px bottom margin,
 autohiding, with no extra launcher or permanently reserved bottom space. Bottom
-hotspots on both outputs reveal the same dock on the hovered monitor. Native
+hotspots on both outputs reveal the same dock on the hovered monitor. `-hd 0`
+disables the upstream 20ms approach-speed gate: reaching the centered 2px bottom
+hotspot reveals the dock even when the pointer approaches slowly. The hotspot
+remains dock-width, not monitor-wide; visible dock geometry is unchanged. Native
 running/multiple-window indicators remain; upstream disables its focused-window
 underline in autohide mode. The top Waybar layout and existing shortcuts remain.
 

@@ -8,10 +8,8 @@
       url = "github:nix-community/home-manager/release-26.05";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    # Newer user tools only. NixOS modules continue to use the installed pin.
-    nixpkgs-tools.url = "github:NixOS/nixpkgs/7bcd8b4473002e4804c92bd7798a4f736e0eb09e";
-    # Pi moves faster than the OS pin; isolate it to a package-only revision.
-    nixpkgs-pi.url = "github:NixOS/nixpkgs/6774f7bc253789b113a4f39285dc0fa100abeacc";
+    nixpkgs-tools.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs-pi.url = "github:NixOS/nixpkgs/nixos-unstable";
     sidra.url = "github:wimpysworld/sidra";
   };
 

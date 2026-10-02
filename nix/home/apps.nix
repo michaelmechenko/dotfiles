@@ -3,6 +3,7 @@ let
   system = pkgs.stdenv.hostPlatform.system;
   grimoire = pkgs.callPackage ../packages/grimoire.nix { };
   helium = pkgs.callPackage ../packages/helium.nix { };
+  legcord = pkgs.callPackage ../packages/legcord.nix { };
   sidra = inputs.sidra.packages.${system}.sidra;
 in
 {

@@ -64,6 +64,12 @@ provides pinned applications at the bottom edge (see below).
   sandbox intact. Grimoire Mod Manager uses the pinned official 1.28.1 AppImage;
   update its version, URL, and hash together in `nix/packages/grimoire.nix`.
   Legcord, Dolphin/Ark, Steam, Gamescope, and Gamemode are Nix-owned.
+  `packages/legcord.nix` replaces only Legcord's packaged desktop/window and fixed
+  Discord tray icons with `assets/discordlogo.png`; it does not change the version.
+  Legcord's mutable `storage/settings.json` uses `tray = "dsc-tray"` (not dynamic)
+  and `customIcon` pointing at the supplied logo. Preferences remain app-owned,
+  not whole-file managed by Nix. Fully quit/reopen Legcord after activation;
+  restart the dock/Waybar if they retain cached icons. Waybar remains grayscale.
   Plasma's settings app is available for shared/KDE settings; `wdisplays` owns live
   monitor layout changes in Hyprland because KDE's display KCM requires KWin.
   Likewise, KDE's mouse KCM cannot query Hyprland input devices: Piper/ratbagd owns

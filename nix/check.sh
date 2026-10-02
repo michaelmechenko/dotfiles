@@ -40,6 +40,25 @@ test -x "$home_path/bin/blender"
 test -x "$home_path/bin/obsidian"
 test -f "$home_path/share/applications/blender.desktop"
 test -f "$home_path/share/applications/obsidian.desktop"
+# The desktop icon and both packaged Legcord icon assets must match the supplied logo.
+python3 - "$home_path" "$PWD/nix/assets/discordlogo.png" <<'PY'
+import json
+from pathlib import Path
+import struct
+import sys
+home = Path(sys.argv[1])
+expected = Path(sys.argv[2]).read_bytes()
+assert (home / "share/icons/hicolor/256x256/apps/legcord.png").read_bytes() == expected
+assert "Icon=legcord\n" in (home / "share/applications/legcord.desktop").read_text()
+with (home / "share/lib/legcord/resources/app.asar").open("rb") as archive:
+    _, header_size, _, json_size = struct.unpack("<4I", archive.read(16))
+    assets = json.loads(archive.read(json_size))["files"]["assets"]["files"]
+    for name in ("desktop.png", "dsc-tray.png"):
+        entry = assets[name]
+        archive.seek(8 + header_size + int(entry["offset"]))
+        assert archive.read(entry["size"]) == expected, name
+print("Legcord: desktop/window/fixed tray logo bytes match.")
+PY
 configured_home=$(nix_eval home-manager.users.mishka.home.homeDirectory)
 [[ $HOME == "$configured_home" ]] || { echo 'Run this check as the configured user.' >&2; exit 1; }
 live_paths=(

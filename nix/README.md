@@ -154,18 +154,20 @@ parsing. Log out into Plasma and check that neither dock nor Waybar remains.
 
 ## Monitor-owned workspaces
 
-`home/workspaces.lua` binds persistent `1*..9*` workspaces to Samsung DP-1 and
+`home/workspaces.lua` binds on-demand `1*..9*` workspaces to Samsung DP-1 and
 `1^..9^` to Acer DP-2. `1*` and `1^` are their fresh-login defaults. Super-number
 focuses a primary workspace; Super-Ctrl-number focuses a secondary workspace.
-Adding Shift moves the focused window there and follows it. Super-Shift-W moves
-only the focused window to DP-2's currently active workspace and follows it; it
-is not a monitor toggle. These bindings no-op when the target output is absent.
+Adding Shift moves the focused window there and follows it. Super-Shift-W toggles
+only the focused window between DP-1 and DP-2, using the destination's currently
+active workspace, and follows it. It no-ops without a focused window or when its
+output is not DP-1/DP-2. These bindings no-op when the target output is absent.
 The existing physical Super+left/right drag/resize bindings remain unchanged;
 middle-mouse remapping is deferred.
 
 Existing numeric workspaces and windows are not renamed or relocated on reload.
-Each Waybar shows its output's nine named workspaces in name order plus existing
-legacy workspaces. Move old windows gradually using the new bindings; the bar
+Each Waybar shows only its output's populated or active workspaces in name order,
+including legacy workspaces; empty inactive workspaces have no persistent buttons.
+Move old windows gradually using the new bindings; the bar
 keeps numeric workspaces accessible until they are emptied. Monitor reconnection
 can cause Hyprland to reassign monitor-bound workspaces; test this explicitly.
 
@@ -179,9 +181,10 @@ it when Waybar is upgraded. Existing grayscale patches remain separate.
 
 Build-time tests cover numeric/named/empty-placeholder/special selectors,
 move-to-current-monitor semantics and hostile-name escaping. Lua tests cover all
-37 bindings, monitor guards and rules. After activation approval, click empty
-and populated named buttons on both bars, verify focused workspace names/monitor
-ownership, and test window moves, disconnected outputs and fresh-login defaults.
+37 bindings, bidirectional moves, monitor guards and nonpersistent rules. After
+activation approval, verify that empty inactive buttons disappear and populated
+inactive buttons remain; click named buttons on both bars and verify monitor
+ownership, both move directions, disconnected outputs and fresh-login defaults.
 Parsing and fixture tests alone do not establish actual rendered click behavior.
 
 ## Configuration ownership

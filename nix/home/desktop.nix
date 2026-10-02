@@ -243,11 +243,8 @@ in
         all-outputs = false;
         move-to-monitor = false;
         sort-by = "name";
-        # Retain legacy numeric workspaces while their windows are migrated.
-        persistent-workspaces = {
-          "DP-1" = lib.genList (i: "${toString (i + 1)}*") 9;
-          "DP-2" = lib.genList (i: "${toString (i + 1)}^") 9;
-        };
+        # Show only existing (populated or active) workspaces on this output.
+        # Do not create persistent placeholders for the named workspace bindings.
       };
       "wlr/taskbar" = {
         format = "{icon}";

@@ -10,13 +10,28 @@ end
 for i = 1, 9 do
   local primary = "name:" .. i .. "*"
   local secondary = "name:" .. i .. "^"
-  hl.workspace_rule({ workspace = primary, monitor = "DP-1", persistent = true, default = i == 1 })
-  hl.workspace_rule({ workspace = secondary, monitor = "DP-2", persistent = true, default = i == 1 })
+  hl.workspace_rule({ workspace = primary, monitor = "DP-1", persistent = false, default = i == 1 })
+  hl.workspace_rule({ workspace = secondary, monitor = "DP-2", persistent = false, default = i == 1 })
   hl.bind("SUPER + " .. i, on_monitor("DP-1", hl.dsp.focus({ workspace = primary })))
   hl.bind("SUPER + CTRL + " .. i, on_monitor("DP-2", hl.dsp.focus({ workspace = secondary })))
   hl.bind("SUPER + SHIFT + " .. i, on_monitor("DP-1", hl.dsp.window.move({ workspace = primary, follow = true })))
   hl.bind("SUPER + CTRL + SHIFT + " .. i, on_monitor("DP-2", hl.dsp.window.move({ workspace = secondary, follow = true })))
 end
 
--- Resolve DP-2's active workspace at dispatch time, not a cached workspace ID.
-hl.bind("SUPER + SHIFT + W", on_monitor("DP-2", hl.dsp.window.move({ monitor = "DP-2", follow = true })))
+-- Toggle the focused window between outputs, using the destination's active workspace.
+hl.bind("SUPER + SHIFT + W", function()
+  local window = hl.get_active_window()
+  local monitor = window and window.monitor
+  if not monitor then return end
+  local target
+  if monitor.name == "DP-1" then
+    target = "DP-2"
+  elseif monitor.name == "DP-2" then
+    target = "DP-1"
+  else
+    return
+  end
+  if hl.get_monitor(target) then
+    return hl.dispatch(hl.dsp.window.move({ monitor = target, follow = true }))
+  end
+end)

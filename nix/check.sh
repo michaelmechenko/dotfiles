@@ -93,10 +93,8 @@ assert workspaces['all-outputs'] is False
 assert workspaces['move-to-monitor'] is False
 assert workspaces['sort-by'] == 'name'
 assert not workspaces.get('persistent-only', False)
-assert workspaces['persistent-workspaces'] == {
-    'DP-1': [f'{i}*' for i in range(1, 10)],
-    'DP-2': [f'{i}^' for i in range(1, 10)],
-}
+assert not workspaces.get('persistent-workspaces')
+assert not workspaces.get('active-only', False)  # Keep populated inactive workspaces visible.
 PY
 ghostty +validate-config --config-file="$files/.config/ghostty/config"
 zsh -n "$files/.config/zsh/.zshrc"

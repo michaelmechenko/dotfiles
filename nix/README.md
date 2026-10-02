@@ -66,8 +66,11 @@ provides pinned applications at the bottom edge (see below).
   Legcord, Dolphin/Ark, Steam, Gamescope, and Gamemode are Nix-owned.
   `packages/legcord.nix` replaces only Legcord's packaged desktop/window and fixed
   Discord tray icons with `assets/discordlogo.png`; it does not change the version.
-  Legcord's mutable `storage/settings.json` uses `tray = "dsc-tray"` (not dynamic)
-  and `customIcon` pointing at the supplied logo. Preferences remain app-owned,
+  This copy trims the supplied PNG's large transparent margins and retains a 2%
+  inset, so the artwork fills roughly 96% of the icon instead of 60%. The original
+  `~/Documents/discordlogo.png` is unchanged. Legcord's mutable
+  `storage/settings.json` uses `tray = "dsc-tray"` (not dynamic) and `customIcon`
+  pointing at `~/.dotfiles/nix/assets/discordlogo.png`. Preferences remain app-owned,
   not whole-file managed by Nix. Fully quit/reopen Legcord after activation;
   restart the dock/Waybar if they retain cached icons. Waybar remains grayscale.
   Plasma's settings app is available for shared/KDE settings; `wdisplays` owns live

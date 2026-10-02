@@ -106,10 +106,7 @@ in
       for key, direction in pairs({ H = "left", J = "down", K = "up", L = "right" }) do
         hl.bind("SUPER + " .. key, hl.dsp.focus({ direction = direction }))
       end
-      for i = 1, 9 do
-        hl.bind("SUPER + " .. i, hl.dsp.focus({ workspace = i }))
-        hl.bind("SUPER + SHIFT + " .. i, hl.dsp.window.move({ workspace = i }))
-      end
+      ${builtins.readFile ./workspaces.lua}
       hl.bind("SUPER + mouse:272", hl.dsp.window.drag(), { mouse = true })
       hl.bind("SUPER + mouse:273", hl.dsp.window.resize(), { mouse = true })
       hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+"), { locked = true, repeating = true })
@@ -242,8 +239,15 @@ in
       };
       "hyprland/workspaces" = {
         format = "{name}";
-        on-click = "activate";
         disable-scroll = true;
+        all-outputs = false;
+        move-to-monitor = false;
+        sort-by = "name";
+        # Retain legacy numeric workspaces while their windows are migrated.
+        persistent-workspaces = {
+          "DP-1" = lib.genList (i: "${toString (i + 1)}*") 9;
+          "DP-2" = lib.genList (i: "${toString (i + 1)}^") 9;
+        };
       };
       "wlr/taskbar" = {
         format = "{icon}";

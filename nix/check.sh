@@ -24,6 +24,7 @@ files="$home_package/home-files"
 test -f "$home_path/share/icons/breeze-dark/index.theme"
 test -x "$home_path/bin/app-focus"
 python3 nix/home/app-focus-test.py
+lua nix/home/workspaces-test.lua
 [[ $("$home_path/bin/nwg-dock-hyprland" -v) == 'nwg-dock-hyprland version 0.4.11' ]]
 bash nix/home/dock-seed-test.sh
 # Alias desktop entries must be hidden from launchers but usable by the dock.
@@ -80,6 +81,23 @@ done
 test -f "$sessions/share/wayland-sessions/plasma.desktop"
 test -f "$sessions/share/wayland-sessions/hyprland-uwsm.desktop"
 Hyprland --verify-config -c "$files/.config/hypr/hyprland.lua"
+python3 - "$files/.config/waybar/config" <<'PY'
+import json
+import sys
+with open(sys.argv[1]) as source:
+    bars = json.load(source)
+bar = bars[0] if isinstance(bars, list) else bars
+workspaces = bar['hyprland/workspaces']
+assert 'on-click' not in workspaces
+assert workspaces['all-outputs'] is False
+assert workspaces['move-to-monitor'] is False
+assert workspaces['sort-by'] == 'name'
+assert not workspaces.get('persistent-only', False)
+assert workspaces['persistent-workspaces'] == {
+    'DP-1': [f'{i}*' for i in range(1, 10)],
+    'DP-2': [f'{i}^' for i in range(1, 10)],
+}
+PY
 ghostty +validate-config --config-file="$files/.config/ghostty/config"
 zsh -n "$files/.config/zsh/.zshrc"
 zsh -n "$files/.config/zshrc"

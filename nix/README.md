@@ -154,9 +154,16 @@ parsing. Log out into Plasma and check that neither dock nor Waybar remains.
 
 ## Monitor-owned workspaces
 
-`home/workspaces.lua` binds on-demand `1*..9*` workspaces to Samsung DP-1 and
-`1^..9^` to Acer DP-2. `1*` and `1^` are their fresh-login defaults. Super-number
-focuses a primary workspace; Super-Ctrl-number focuses a secondary workspace.
+`home/workspaces.lua` binds on-demand numeric workspace IDs `101..109` to Samsung
+DP-1 and `201..209` to Acer DP-2. Waybar displays these as `1*..9*` and `1^..9^`
+using `format-icons`; Hyprland keeps their numeric names. IDs `101` and `201`
+(labels `1*` and `1^`) are the fresh-login defaults. Super-number focuses a
+primary workspace; Super-Ctrl-number focuses a secondary workspace.
+
+Hyprland chooses slide direction by internal ID, not the displayed label. The
+ordered positive IDs make a higher index enter from the right and a lower index
+enter from the left, regardless of creation order. Workspace wraparound is
+explicitly disabled so it cannot reverse the end-to-end transition.
 Adding Shift moves the focused window there and follows it. Super-Shift-W toggles
 only the focused window between DP-1 and DP-2, using the destination's currently
 active workspace, and follows it. It no-ops without a focused window or when its
@@ -164,12 +171,16 @@ output is not DP-1/DP-2. These bindings no-op when the target output is absent.
 The existing physical Super+left/right drag/resize bindings remain unchanged;
 middle-mouse remapping is deferred.
 
-Existing numeric workspaces and windows are not renamed or relocated on reload.
-Each Waybar shows only its output's populated or active workspaces in name order,
-including legacy workspaces; empty inactive workspaces have no persistent buttons.
-Move old windows gradually using the new bindings; the bar
-keeps numeric workspaces accessible until they are emptied. Monitor reconnection
-can cause Hyprland to reassign monitor-bound workspaces; test this explicitly.
+Existing named/numeric workspaces and windows are not renamed or relocated on
+reload. Each Waybar shows only its output's populated or active workspaces in ID
+order; empty inactive workspaces have no persistent buttons. Unmapped legacy
+names remain readable and clickable, but their negative IDs retain the old
+animation ordering. Old named workspaces and new numeric workspaces can temporarily
+show identical labels. Move old windows manually using the Shift-number bindings;
+the bar keeps legacy workspaces accessible until they are emptied. Super-Shift-W
+continues to use the destination's active workspace, including a legacy one.
+Monitor reconnection can cause Hyprland to reassign monitor-bound workspaces;
+test this explicitly.
 
 `packages/waybar-hyprland-lua.patch` repairs built-in workspace clicks for the
 Lua-configured Hyprland 0.55 session. Waybar 0.15's old `dispatch workspace 1`
@@ -181,10 +192,13 @@ it when Waybar is upgraded. Existing grayscale patches remain separate.
 
 Build-time tests cover numeric/named/empty-placeholder/special selectors,
 move-to-current-monitor semantics and hostile-name escaping. Lua tests cover all
-37 bindings, bidirectional moves, monitor guards and nonpersistent rules. After
-activation approval, verify that empty inactive buttons disappear and populated
-inactive buttons remain; click named buttons on both bars and verify monitor
-ownership, both move directions, disconnected outputs and fresh-login defaults.
+37 bindings, ordered numeric IDs, bidirectional moves, monitor guards and
+nonpersistent rules. After activation approval, verify incoming/outgoing slides
+for higher/lower indices on both outputs, including `1` to `9` and back. Verify
+that empty inactive buttons disappear, populated inactive and empty active
+buttons remain, and labels match their numeric click targets. Check monitor
+ownership, all shortcuts, both move directions, disconnected outputs and
+fresh-login defaults. Do not migrate live windows automatically.
 Parsing and fixture tests alone do not establish actual rendered click behavior.
 
 ## Configuration ownership

@@ -18,10 +18,10 @@ The full Mac tmux/sidebar and Neovim plugin configuration is not enabled here.
 | `Super-f` | Toggle fullscreen |
 | `Super-Shift-Space` | Toggle floating |
 | `Super-h/j/k/l` | Focus left/down/up/right |
-| `Super-1..9` | Focus primary DP-1 workspace `1*..9*` |
-| `Super-Ctrl-1..9` | Focus secondary DP-2 workspace `1^..9^` |
-| `Super-Shift-1..9` | Move focused window to primary `1*..9*` and follow it |
-| `Super-Ctrl-Shift-1..9` | Move focused window to secondary `1^..9^` and follow it |
+| `Super-1..9` | Focus primary DP-1 workspace IDs `101..109` (labels `1*..9*`) |
+| `Super-Ctrl-1..9` | Focus secondary DP-2 workspace IDs `201..209` (labels `1^..9^`) |
+| `Super-Shift-1..9` | Move focused window to primary IDs `101..109` (labels `1*..9*`) and follow it |
+| `Super-Ctrl-Shift-1..9` | Move focused window to secondary IDs `201..209` (labels `1^..9^`) and follow it |
 | `Super-Shift-w` | Move focused window between DP-1 and DP-2, using the destination's active workspace, and follow it |
 | `Super` + left/right mouse drag | Move/resize window |
 | `Super-Ctrl-l` | Lock session |

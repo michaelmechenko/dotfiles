@@ -1,4 +1,5 @@
--- Named workspaces are monitor-owned; never create them on a missing output.
+-- Ordered numeric IDs drive animations; decorated labels belong to Waybar.
+-- Workspaces are monitor-owned; never create them on a missing output.
 local function on_monitor(monitor, action)
   return function()
     if hl.get_monitor(monitor) then
@@ -8,10 +9,10 @@ local function on_monitor(monitor, action)
 end
 
 for i = 1, 9 do
-  local primary = "name:" .. i .. "*"
-  local secondary = "name:" .. i .. "^"
-  hl.workspace_rule({ workspace = primary, monitor = "DP-1", persistent = false, default = i == 1 })
-  hl.workspace_rule({ workspace = secondary, monitor = "DP-2", persistent = false, default = i == 1 })
+  local primary = 100 + i
+  local secondary = 200 + i
+  hl.workspace_rule({ workspace = tostring(primary), monitor = "DP-1", persistent = false, default = i == 1 })
+  hl.workspace_rule({ workspace = tostring(secondary), monitor = "DP-2", persistent = false, default = i == 1 })
   hl.bind("SUPER + " .. i, on_monitor("DP-1", hl.dsp.focus({ workspace = primary })))
   hl.bind("SUPER + CTRL + " .. i, on_monitor("DP-2", hl.dsp.focus({ workspace = secondary })))
   hl.bind("SUPER + SHIFT + " .. i, on_monitor("DP-1", hl.dsp.window.move({ workspace = primary, follow = true })))

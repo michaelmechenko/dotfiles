@@ -91,7 +91,12 @@ workspaces = bar['hyprland/workspaces']
 assert 'on-click' not in workspaces
 assert workspaces['all-outputs'] is False
 assert workspaces['move-to-monitor'] is False
-assert workspaces['sort-by'] == 'name'
+assert workspaces['sort-by'] == 'id'
+assert workspaces['format'] == '{icon}'
+assert workspaces['format-icons'] == {
+    **{str(100 + i): f'{i}*' for i in range(1, 10)},
+    **{str(200 + i): f'{i}^' for i in range(1, 10)},
+}  # No state/default override may mask labels of legacy workspaces.
 assert not workspaces.get('persistent-only', False)
 assert not workspaces.get('persistent-workspaces')
 assert not workspaces.get('active-only', False)  # Keep populated inactive workspaces visible.

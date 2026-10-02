@@ -11,6 +11,10 @@ int main() {
   assert(!waybar::util::workspace_id("1^"));
   assert(!waybar::util::workspace_id("name:1*"));
   assert(workspace_dispatch(3, "3", false, false) == "dispatch hl.dsp.focus({ workspace = 3 })");
+  // Display labels must never replace the underlying positive-ID click target.
+  assert(workspace_dispatch(101, "1*", false, false) == "dispatch hl.dsp.focus({ workspace = 101 })");
+  assert(workspace_dispatch(201, "1^", false, false) == "dispatch hl.dsp.focus({ workspace = 201 })");
+  assert(workspace_dispatch(109, "9*", false, true) == "dispatch hl.dsp.focus({ workspace = 109, on_current_monitor = true })");
   assert(workspace_dispatch(-2, "1*", false, false) == "dispatch hl.dsp.focus({ workspace = \"name:1*\" })");
   assert(workspace_dispatch(0, "1^", false, false) == "dispatch hl.dsp.focus({ workspace = \"name:1^\" })");
   assert(workspace_dispatch(3, "3", false, true) == "dispatch hl.dsp.focus({ workspace = 3, on_current_monitor = true })");

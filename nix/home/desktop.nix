@@ -69,7 +69,7 @@ in
           },
         },
         decoration = { rounding = 8, blur = { enabled = false }, shadow = { enabled = false } },
-        animations = { enabled = true },
+        animations = { enabled = true, workspace_wraparound = false },
         input = { kb_layout = "us", follow_mouse = 0, repeat_rate = 50, repeat_delay = 250 },
         misc = {
           vrr = 2, -- Adaptive sync only while a fullscreen window is present.
@@ -238,13 +238,19 @@ in
         tooltip = false;
       };
       "hyprland/workspaces" = {
-        format = "{name}";
+        format = "{icon}";
+        format-icons = builtins.listToAttrs (
+          lib.concatMap (i: [
+            { name = toString (100 + i); value = "${toString i}*"; }
+            { name = toString (200 + i); value = "${toString i}^"; }
+          ]) (lib.range 1 9)
+        );
         disable-scroll = true;
         all-outputs = false;
         move-to-monitor = false;
-        sort-by = "name";
+        sort-by = "id";
         # Show only existing (populated or active) workspaces on this output.
-        # Do not create persistent placeholders for the named workspace bindings.
+        # Unmapped legacy names retain their labels; do not create placeholders.
       };
       "wlr/taskbar" = {
         format = "{icon}";

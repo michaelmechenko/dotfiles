@@ -21,11 +21,14 @@ local count = 0
 for _ in pairs(bindings) do count = count + 1 end
 assert(count == 37)
 for i = 1, 9 do
-  for side, suffix in ipairs({"*", "^"}) do
+  for side = 1, 2 do
     local monitor = "DP-" .. side
-    local name = "name:" .. i .. suffix
+    local id = side * 100 + i
     local rule = rules[(i - 1) * 2 + side]
-    assert(rule.workspace == name and rule.monitor == monitor)
+    assert(rule.workspace == tostring(id) and rule.monitor == monitor)
+    if i > 1 then
+      assert(tonumber(rules[(i - 2) * 2 + side].workspace) < id)
+    end
     assert(not rule.persistent and rule.default == (i == 1))
     local modifiers = side == 1 and "SUPER" or "SUPER + CTRL"
     for _, moving in ipairs({false, true}) do
@@ -33,7 +36,7 @@ for i = 1, 9 do
       bindings[key]()
       local last = dispatched[#dispatched]
       assert(last.kind == (moving and "move" or "focus"))
-      assert(last.options.workspace == name)
+      assert(type(last.options.workspace) == "number" and last.options.workspace == id)
       if moving then assert(last.options.follow == true) end
       connected[monitor] = nil
       local before = #dispatched
@@ -62,4 +65,12 @@ for _, window in ipairs({false, {}, {monitor = {}}, {monitor = {name = "HDMI-A-1
   bindings["SUPER + SHIFT + W"]()
   assert(#dispatched == before)
 end
-print("Workspace Lua: nonpersistent rules, defaults, all 37 bindings, bidirectional moves and guards passed.")
+-- Select in reverse/mixed creation order: dispatch identities must stay ordered.
+for _, side in ipairs({1, 2}) do
+  local modifiers = side == 1 and "SUPER" or "SUPER + CTRL"
+  for _, i in ipairs({9, 1, 7, 2, 8, 3, 6, 4, 5}) do
+    bindings[modifiers .. " + " .. i]()
+    assert(dispatched[#dispatched].options.workspace == side * 100 + i)
+  end
+end
+print("Workspace Lua: ordered numeric IDs, nonpersistent rules, defaults, all 37 bindings, bidirectional moves and guards passed.")

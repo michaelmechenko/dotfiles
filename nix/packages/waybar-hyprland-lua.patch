@@ -1,0 +1,103 @@
+--- /dev/null
++++ b/include/util/hyprland_lua_dispatch.hpp
+@@ -0,0 +1,44 @@
++#pragma once
++
++#include <string>
++#include <optional>
++
++namespace waybar::util {
++inline std::optional<int> workspace_id(const std::string& name) {
++  if (name == "special") return -99;
++  try {
++    size_t consumed = 0;
++    const int id = std::stoi(name, &consumed);
++    if (consumed == name.size()) return id;
++  } catch (const std::exception&) {}
++  return std::nullopt;
++}
++
++inline std::string lua_quote(const std::string& value) {
++  std::string result = "\"";
++  for (unsigned char c : value) {
++    if (c == '"' || c == '\\') {
++      result += '\\';
++      result += c;
++    } else if (c < 32 || c == 127) {
++      result += '\\';
++      result += char('0' + c / 100);
++      result += char('0' + (c / 10) % 10);
++      result += char('0' + c % 10);
++    } else {
++      result += c;
++    }
++  }
++  return result + "\"";
++}
++
++inline std::string workspace_dispatch(int id, const std::string& name,
++                                      bool special, bool move_to_monitor) {
++  if (special) {
++    return "dispatch hl.dsp.workspace.toggle_special(" + lua_quote(id == -99 ? "" : name) + ")";
++  }
++  const auto selector = id > 0 ? std::to_string(id) : lua_quote("name:" + name);
++  return "dispatch hl.dsp.focus({ workspace = " + selector +
++         (move_to_monitor ? ", on_current_monitor = true" : "") + " })";
++}
++}  // namespace waybar::util
+--- a/src/modules/hyprland/workspace.cpp
++++ b/src/modules/hyprland/workspace.cpp
+@@ -1,3 +1,4 @@
++#include "util/hyprland_lua_dispatch.hpp"
+ #include <json/value.h>
+ #include <spdlog/spdlog.h>
+
+@@ -69,22 +70,11 @@
+ bool Workspace::handleClicked(GdkEventButton* bt) const {
+   if (bt->type == GDK_BUTTON_PRESS) {
+     try {
+-      if (id() > 0) {  // normal
+-        if (m_workspaceManager.moveToMonitor()) {
+-          m_ipc.getSocket1Reply("dispatch focusworkspaceoncurrentmonitor " + std::to_string(id()));
+-        } else {
+-          m_ipc.getSocket1Reply("dispatch workspace " + std::to_string(id()));
+-        }
+-      } else if (!isSpecial()) {  // named (this includes persistent)
+-        if (m_workspaceManager.moveToMonitor()) {
+-          m_ipc.getSocket1Reply("dispatch focusworkspaceoncurrentmonitor name:" + name());
+-        } else {
+-          m_ipc.getSocket1Reply("dispatch workspace name:" + name());
+-        }
+-      } else if (id() != -99) {  // named special
+-        m_ipc.getSocket1Reply("dispatch togglespecialworkspace " + name());
+-      } else {  // special
+-        m_ipc.getSocket1Reply("dispatch togglespecialworkspace");
++      const auto reply = m_ipc.getSocket1Reply(waybar::util::workspace_dispatch(
++          id(), name(), isSpecial(), m_workspaceManager.moveToMonitor()));
++      if (reply != "ok" && reply != "ok\n") {
++        spdlog::error("Failed to dispatch workspace: {}", reply);
++        return false;
+       }
+       return true;
+     } catch (const std::exception& e) {
+--- a/src/modules/hyprland/workspaces.cpp
++++ b/src/modules/hyprland/workspaces.cpp
+@@ -1,3 +1,4 @@
++#include "util/hyprland_lua_dispatch.hpp"
+ #include "modules/hyprland/workspaces.hpp"
+
+ #include <json/value.h>
+@@ -1143,12 +1144,7 @@
+ }
+
+ std::optional<int> Workspaces::parseWorkspaceId(std::string const& workspaceIdStr) {
+-  try {
+-    return workspaceIdStr == "special" ? -99 : std::stoi(workspaceIdStr);
+-  } catch (std::exception const& e) {
+-    spdlog::debug("Workspace \"{}\" is not bound to an id: {}", workspaceIdStr, e.what());
+-    return std::nullopt;
+-  }
++  return waybar::util::workspace_id(workspaceIdStr);
+ }
+
+ }  // namespace waybar::modules::hyprland

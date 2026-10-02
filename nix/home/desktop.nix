@@ -201,12 +201,19 @@ in
   programs.waybar = {
     enable = true;
     package = pkgs.waybar.overrideAttrs (old: {
-      patches = (old.patches or [ ]) ++ [ ../packages/waybar-grayscale.patch ];
+      patches = (old.patches or [ ]) ++ [
+        ../packages/waybar-grayscale.patch
+        ../packages/waybar-hyprland-lua.patch
+      ];
+      nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [ pkgs.lua ];
       postBuild = (old.postBuild or "") + ''
         $CXX $(pkg-config --cflags gtkmm-3.0) -I../include \
           ${../packages/waybar-grayscale-test.cpp} \
           $(pkg-config --libs gtkmm-3.0) -o grayscale-icon-test
         ./grayscale-icon-test
+        $CXX -std=c++17 -I../include ${../packages/waybar-hyprland-lua-test.cpp} -o lua-dispatch-test
+        ./lua-dispatch-test > lua-dispatch-test.lua
+        lua lua-dispatch-test.lua
       '';
     });
     systemd.enable = false;

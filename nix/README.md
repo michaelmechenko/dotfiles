@@ -54,8 +54,8 @@ bootstrap; harden it separately after verifying persistent key access.
   gnome-keyring, and its polkit agent. UWSM owns their lifetime; they must not
   follow the user back into Plasma or replace Plasma's wallet.
 
-The bar is a clickable running-window taskbar, not a pinned-app dock. A separate
-dock can be chosen later; none is installed by this profile.
+Waybar retains its running-window taskbar. A separate nwg-dock-hyprland dock
+provides pinned applications at the bottom edge (see below).
 
 ## Applications and shared workflows
 
@@ -116,6 +116,41 @@ After approved activation, reopen Dolphin/Fuzzel and restart Waybar to clear ico
 caches. Check folder/launcher icons and active, inactive and hovered taskbar icons
 on both monitors; verify live repeat settings and test each shortcut with an open
 window on another workspace and with no matching window.
+
+## Autohiding dock and grayscale Waybar icons
+
+`home/dock.nix` installs locally pinned nwg-dock-hyprland 0.4.11 for Hyprland
+0.55 Lua dispatcher compatibility. Hyprland starts one UWSM-owned instance after
+session finalization: bottom, centered, 40px native-color icons, 8px bottom margin,
+autohiding, with no extra launcher or permanently reserved bottom space. Bottom
+hotspots on both outputs reveal the same dock on the hovered monitor. Native
+running/multiple-window indicators remain; upstream disables its focused-window
+underline in autohide mode. The top Waybar layout and existing shortcuts remain.
+
+Activation seeds Helium, Ghostty, Dolphin and Obsidian only when
+`$XDG_CACHE_HOME/nwg-dock-pinned` (default `~/.cache/nwg-dock-pinned`) is absent.
+The file stays writable: right-click pin/unpin changes survive rebuilds. Existing
+files and symlinks are never replaced. Hidden desktop aliases resolve Obsidian's
+and Dolphin's window classes without duplicating launcher entries. Validate
+Dolphin's live Wayland class and pin association when first testing the dock.
+
+The local `packages/waybar-grayscale.patch` desaturates private pixbuf copies in
+Waybar's taskbar loader and SNI tray image updater before Cairo rendering. This
+covers theme icons, absolute paths and app-provided tray pixmaps in the current
+layout, including later updates. Shape, alpha and icon sizes are retained; text,
+hover/active backgrounds and urgent colors are unchanged. GTK3's CSS icon effects
+cannot provide this guarantee. Breeze Dark folders, launcher icons and dock icons
+remain colored; this is not a global icon-theme change. Review the patch when
+Waybar is updated or new image modules are enabled. A build-time RGB/RGBA fixture
+tests the shared conversion helper, including alpha and source-copy preservation.
+
+Build and run `bash nix/check.sh` before activation. After separate approval,
+verify colored dock pins in closed/running/multiple-window/hover states, reveal and
+hide on both outputs, menus, cross-workspace activation, fullscreen and monitor
+reconnection. Inspect Waybar named/path/pixmap/attention/fallback icons and
+active/inactive/hover states on both outputs using isolated colored test icons;
+check grayscale RGB channels and transparent edges rather than relying on CSS
+parsing. Log out into Plasma and check that neither dock nor Waybar remains.
 
 ## Configuration ownership
 

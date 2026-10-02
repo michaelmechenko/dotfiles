@@ -24,6 +24,17 @@ files="$home_package/home-files"
 test -f "$home_path/share/icons/breeze-dark/index.theme"
 test -x "$home_path/bin/app-focus"
 python3 nix/home/app-focus-test.py
+[[ $("$home_path/bin/nwg-dock-hyprland" -v) == 'nwg-dock-hyprland version 0.4.11' ]]
+bash nix/home/dock-seed-test.sh
+# Alias desktop entries must be hidden from launchers but usable by the dock.
+for alias in md.obsidian.Obsidian dolphin; do
+  entry="$files/.local/share/applications/$alias.desktop"
+  [[ -f "$entry" ]]
+  rg -q '^NoDisplay=true$' "$entry"
+  rg -q '^Exec=' "$entry"
+  rg -q '^Icon=' "$entry"
+done
+[[ $(rg -c 'uwsm app -- nwg-dock-hyprland -d -p bottom -a center -i 40 -mb 8 -nolauncher' "$files/.config/hypr/hyprland.lua") == 1 ]]
 test -x "$home_path/bin/blender"
 test -x "$home_path/bin/obsidian"
 test -f "$home_path/share/applications/blender.desktop"
@@ -57,7 +68,7 @@ for directory, directories, files in os.walk(root, followlinks=False):
 assert actual == expected, f'Unexpected live-link set: missing={expected - actual}, extra={actual - expected}'
 PY
 # These must remain store-backed, not acquire a second live dependency model.
-for relative in ghostty/config oh-my-posh/config.json theme/active/tmux/colors.conf \
+for relative in nwg-dock-hyprland/style.css ghostty/config oh-my-posh/config.json theme/active/tmux/colors.conf \
     tmux_scripts tmux_plugins nnn/plugins pi-config/agent/extensions \
     pi-config/agent/themes/active.json; do
   [[ $(readlink -e "$files/.config/$relative") == /nix/store/* ]]
@@ -114,7 +125,10 @@ output=$(env -i HOME="$test_home" PATH="$home_path/bin:/usr/bin:/bin" \
 [[ -z $output ]]
 [[ ! -d "$test_home/data/nvim/lazy" ]]
 
-[[ $(pi --version) == 0.86.1 ]]
+expected_pi=$(nix --extra-experimental-features 'nix-command flakes' eval --raw \
+  .#nixosConfigurations.nixos.config.home-manager.users.mishka.home.packages \
+  --apply 'packages: (builtins.head (builtins.filter (package: (package.pname or "") == "pi-coding-agent") packages)).version')
+[[ $(pi --version) == "$expected_pi" ]]
 for extension in ask-user diff pretty web-tools; do
   test -d "$files/.config/pi-config/agent/extensions/$extension/node_modules"
 done

@@ -38,6 +38,7 @@ let
   };
 in
 {
+  imports = [ ./dock.nix ];
   home.packages = [
     pkgs.mako
     pkgs.hypridle
@@ -122,6 +123,8 @@ in
       hl.on("hyprland.start", function()
         hl.exec_cmd("uwsm finalize")
         hl.exec_cmd("uwsm app -- waybar")
+        -- One moving dock, with bottom hotspots on every output.
+        hl.exec_cmd("uwsm app -- nwg-dock-hyprland -d -p bottom -a center -i 40 -mb 8 -nolauncher")
         hl.exec_cmd("uwsm app -s b -- mako")
         hl.exec_cmd("uwsm app -s b -- hypridle")
         -- Hyprland gets a Secret Service provider without replacing Plasma's wallet.
@@ -197,6 +200,15 @@ in
 
   programs.waybar = {
     enable = true;
+    package = pkgs.waybar.overrideAttrs (old: {
+      patches = (old.patches or [ ]) ++ [ ../packages/waybar-grayscale.patch ];
+      postBuild = (old.postBuild or "") + ''
+        $CXX $(pkg-config --cflags gtkmm-3.0) -I../include \
+          ${../packages/waybar-grayscale-test.cpp} \
+          $(pkg-config --libs gtkmm-3.0) -o grayscale-icon-test
+        ./grayscale-icon-test
+      '';
+    });
     systemd.enable = false;
     settings.main = {
       layer = "top";

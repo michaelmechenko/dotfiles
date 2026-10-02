@@ -23,7 +23,12 @@ inactive borders use `divider-subtle`; Waybar/launcher/notifications use
 the resolved roles injected as its palette. Linux selects Breeze Dark desktop
 icons; the retained HackerNoonPixel build sources are inactive. Waybar's
 Apps/Session/volume/network controls are text-only; their text-state colors and
-active/inactive taskbar highlighting remain palette-aligned.
+active/inactive taskbar highlighting remain palette-aligned. Waybar taskbar and
+tray images are desaturated within Waybar only, retaining their alpha and shape;
+text and state backgrounds keep their palette colors. nwg-dock-hyprland retains
+native-color icons with `surface-chrome`/`divider-subtle` chrome, `text`/`text-ui`
+labels and `surface-highlight` hover backgrounds; its optional active underline
+uses `accent-secondary` (upstream omits it in the selected autohide mode).
 
 Linux currently selects Vague declaratively at rebuild time. The macOS live
 `theme switch` command is not deployed by this bootstrap; changing the canonical

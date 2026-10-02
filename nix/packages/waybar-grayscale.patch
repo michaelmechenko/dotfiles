@@ -1,0 +1,47 @@
+--- /dev/null
++++ b/include/util/grayscale_icon.hpp
+@@ -0,0 +1,13 @@
++#pragma once
++
++#include <gdkmm/pixbuf.h>
++
++namespace waybar::util {
++// Work on a private copy: GTK theme and SNI pixbufs may be cached/shared.
++inline Glib::RefPtr<Gdk::Pixbuf> grayscale_icon(const Glib::RefPtr<Gdk::Pixbuf>& source) {
++  if (!source) return {};
++  auto result = source->copy();
++  gdk_pixbuf_saturate_and_pixelate(source->gobj(), result->gobj(), 0.0f, FALSE);
++  return result;
++}
++}  // namespace waybar::util
+--- a/src/util/icon_loader.cpp
++++ b/src/util/icon_loader.cpp
+@@ -1,3 +1,4 @@
++#include "util/grayscale_icon.hpp"
+ #include "util/icon_loader.hpp"
+
+ #include "util/string.hpp"
+@@ -139,6 +140,7 @@
+   }
+
+   if (pixbuf) {
++    pixbuf = waybar::util::grayscale_icon(pixbuf);
+     if (pixbuf->get_width() != scaled_icon_size) {
+       int width = scaled_icon_size * pixbuf->get_width() / pixbuf->get_height();
+       pixbuf = pixbuf->scale_simple(width, scaled_icon_size, Gdk::InterpType::INTERP_BILINEAR);
+--- a/src/modules/sni/item.cpp
++++ b/src/modules/sni/item.cpp
+@@ -1,3 +1,4 @@
++#include "util/grayscale_icon.hpp"
+ #include "modules/sni/item.hpp"
+
+ #include <gdkmm/general.h>
+@@ -364,7 +365,7 @@
+ }
+
+ void Item::updateImage() {
+-  auto pixbuf = getIconPixbuf();
++  auto pixbuf = waybar::util::grayscale_icon(getIconPixbuf());
+   auto scaled_icon_size = getScaledIconSize();
+
+   // If the loaded icon is not square, assume that the icon height should match the

@@ -64,6 +64,18 @@ class AppFocusTests(unittest.TestCase):
         self.assertEqual(len(ipc.commands), 2)
         self.assertEqual(ipc.launches, [])
 
+    def test_scratch_does_not_win_normal_ghostty_focus(self):
+        ipc = IPC([[window("com.mitchellh.ghostty.scratch", "0x111", 0),
+                    window("com.mitchellh.ghostty", "0x222", 4)]])
+        app_focus.focus_or_launch("ghostty", ipc.run, ipc.start)
+        self.assertIn("address:0x222", ipc.commands[-1][2])
+        self.assertEqual(ipc.launches, [])
+
+    def test_only_scratch_still_launches_normal_ghostty(self):
+        ipc = IPC([[window("com.mitchellh.ghostty.scratch")]])
+        app_focus.focus_or_launch("ghostty", ipc.run, ipc.start)
+        self.assertEqual(ipc.launches[0][0], ["uwsm", "app", "--", "ghostty"])
+
     def test_failed_query_never_launches(self):
         ipc = IPC([subprocess.CalledProcessError(1, "hyprctl")])
         with self.assertRaises(subprocess.CalledProcessError):

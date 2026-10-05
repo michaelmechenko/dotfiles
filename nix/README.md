@@ -141,6 +141,36 @@ caches. Check folder/launcher icons and active, inactive and hovered taskbar ico
 on both monitors; verify live repeat settings and test each shortcut with an open
 window on another workspace and with no matching window.
 
+## Floating scratch terminal
+
+`home/scratch-terminal.lua` binds Super-Shift-F to one native Hyprland special
+workspace, `special:terminal`. First use launches Ghostty through UWSM with the
+separate `com.mitchellh.ghostty.scratch` app ID, floating and centered at 70% of
+the initial monitor's width and height. It reuses the existing desktop styling.
+Later presses hide/show the same terminal; its shell, cwd, scrollback and jobs
+remain alive while hidden. Invoking it on the other focused monitor transfers
+that terminal there instead of creating a second one. Geometry is set on initial
+mapping, not recalculated for differently sized monitors after transfer.
+
+Silent placement and a small in-process Lua launch guard preserve the latest
+show/hide request during startup without launching twice when an empty hidden
+workspace is recreated. There is no polling or additional service. Ordinary
+Ghostty launch/focus shortcuts remain separate. Closing the window or exiting
+its shell discards that state; a later invocation launches a fresh terminal.
+Logout/reboot persistence is not provided. If the launch command fails before a
+window maps, correct the launch failure and reload the Hyprland configuration
+before retrying; the guard deliberately does not retry a possibly slow launch.
+Do not reload while its first launch is pending, since configuration-local state
+is reset on reload.
+
+The Lua fixtures exercise configuration and delayed-map toggle sequences without
+touching the desktop. After approved activation, verify real focus and initial
+geometry, shell-variable/cwd/job retention across hide/show, restoration of the
+underlying workspace, both monitor directions, workspace switching, fullscreen
+interaction, rapid first-use double/triple presses, and close/crash recovery.
+Confirm only one scratch client exists and normal Super-Return/Super-Ctrl-Z still
+operate on ordinary Ghostty windows. Fixture success is not live acceptance.
+
 ## Autohiding dock and grayscale Waybar icons
 
 `home/dock.nix` installs locally pinned nwg-dock-hyprland 0.4.11 for Hyprland

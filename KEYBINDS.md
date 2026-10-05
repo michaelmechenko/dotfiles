@@ -16,6 +16,7 @@ The full Mac tmux/sidebar and Neovim plugin configuration is not enabled here.
 | `Super-Ctrl-a/z/s/x` | Focus Helium / Ghostty / Dolphin / Obsidian if open on any workspace; otherwise launch it |
 | `Super-q` | Close focused window |
 | `Super-f` | Toggle fullscreen |
+| `Super-Shift-f` | Show/focus or hide the shared floating Ghostty scratch terminal; hidden shell/jobs stay alive |
 | `Super-Shift-Space` | Toggle floating |
 | `Super-h/j/k/l` | Focus left/down/up/right |
 | `Super-1..9` | Focus primary DP-1 workspace IDs `101..109` (labels `1*..9*`) |

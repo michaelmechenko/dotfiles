@@ -115,6 +115,7 @@ in
         hl.bind("SUPER + " .. key, hl.dsp.focus({ direction = direction }))
       end
       ${builtins.readFile ./workspaces.lua}
+      ${builtins.readFile ./scratch-terminal.lua}
       hl.bind("SUPER + mouse:272", hl.dsp.window.drag(), { mouse = true })
       hl.bind("SUPER + mouse:273", hl.dsp.window.resize(), { mouse = true })
       hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+"), { locked = true, repeating = true })

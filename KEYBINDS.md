@@ -251,9 +251,12 @@ Entered via `M-u`/`M-U` or mouse scroll. `setw -g mode-keys vi`.
 | --- | --- | --- |
 | `v` | copy-mode | Begin selection |
 | `V` | copy-mode | Select line |
-| `y` | copy-mode | Copy selection → `pbcopy`, exit |
-| `MouseDragEnd1Pane` | copy-mode | Copy → `pbcopy`; cancel if at live bottom, else stay in copy mode |
+| `y` | copy-mode | Remove shared leading indentation; copy to system clipboard and tmux buffer, exit |
+| `Enter` / `Ctrl-j` | copy-mode | Copy selection unchanged to system clipboard and tmux buffer, exit |
+| `MouseDragEnd1Pane` | copy-mode | Copy unchanged to system clipboard; cancel if at live bottom, else stay in copy mode |
 | `S` | copy-mode | flash.nvim-style jump (`tmux-flash-jump.py`) — see below |
+
+`y` removes the longest shared literal spaces/tabs prefix from nonblank selected lines, preserving relative indentation, trailing whitespace, and line endings. A single line loses all leading spaces/tabs. Blank lines do not constrain indentation; empty/all-whitespace selections stay unchanged. Enter and mouse copying remain raw. If clipboard delivery fails, a concise message appears and the processed tmux buffer remains available.
 
 #### `S` — flash jump (`tmux-flash-jump.py`)
 Type a query; every matching substring in the popup's visible content rows gets a single-key label (closest to the cursor gets the easiest/home-row label). The popup's bottom row is the search prompt, so it is not a target row. Press a label, or `Enter` for the nearest match, to move the copy-mode cursor there — a jump, not a copy. Normal copy-mode operations (`v`, `y`, more movement) continue from the new position. Labels replace the first cell of their match, preserving alignment for adjacent matches.

@@ -1,5 +1,6 @@
-import { formatSize } from "@earendil-works/pi-coding-agent";
 import { StringEnum } from "@earendil-works/pi-ai";
+import { Text, type Component } from "@earendil-works/pi-tui";
+import { areToolCallsExpanded } from "../tool-display/state.js";
 import { Type } from "typebox";
 import { FetchPage, type FetchPageError } from "./fetch-page.ts";
 import { createOperationSignal, FetchPublicWebClient, isOperationTimeoutError } from "./network.ts";
@@ -12,7 +13,7 @@ import {
 	type ToolOutputStoreError,
 	type WebFetchDetails,
 } from "./tool-output.ts";
-import { redactUrlCredentialsForDisplay, type ParsePublicHttpUrlError, type WebFetchFormat, type WebToolsSettings } from "./types.ts";
+import { redactUrlCredentialsForDisplay, type ParsePublicHttpUrlError, type WebToolsSettings } from "./types.ts";
 import { parseWebFetchToolParams } from "./webfetch-input.ts";
 
 export {
@@ -35,6 +36,7 @@ export function createWebFetchTool(composition?: WebFetchToolComposition) {
 	return {
 		name: "webfetch",
 		label: "Web Fetch",
+		renderCall: renderWebFetchCall,
 		description:
 			"Fetch a single URL and return readable markdown, text, raw HTML/source, or an inline raster image.",
 		promptSnippet: "Fetch one public URL as markdown, text, html, or an inline raster image",
@@ -182,4 +184,47 @@ function renderSafeWebFetchError(error: WebFetchBoundaryError): string {
 
 function textContent(text: string) {
 	return { type: "text" as const, text };
+}
+
+type CallTheme = { fg(name: "toolTitle" | "accent" | "muted", text: string): string; bold(text: string): string };
+
+/** Display-only: never use the sanitized address as a fetch target. */
+export function displayFetchUrl(input: unknown): string {
+	if (typeof input !== "string" || !input.trim()) return "(waiting for URL)";
+	const clean = input.replace(/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g, "").trim();
+	try {
+		const url = new URL(clean);
+		if (url.protocol !== "http:" && url.protocol !== "https:") return "(invalid URL)";
+		if (url.username || url.password) return redactUrlCredentialsForDisplay(clean);
+		for (const key of new Set(url.searchParams.keys())) {
+			if (/(?:token|secret|password|passphrase|credential|signature|authorization|api[_-]?key)/i.test(key) || /^(?:key|auth|sig)$/i.test(key)) {
+				url.searchParams.set(key, "[redacted]");
+			}
+		}
+		// Fragments never reach the server and may contain OAuth credentials.
+		if (url.hash) url.hash = "[redacted]";
+		return url.toString();
+	} catch {
+		// Incomplete/malformed arguments may include unfinished credentials.
+		return "(invalid URL)";
+	}
+}
+
+/** The shared default shell still owns status, backgrounds, and result rendering. */
+export function renderWebFetchCall(args: { url?: unknown; format?: unknown; timeout?: unknown }, theme: CallTheme): Component {
+	return {
+		invalidate() {},
+		render(width) {
+			const title = theme.fg("toolTitle", theme.bold("Web Fetch"));
+			const target = theme.fg("accent", displayFetchUrl(args.url));
+			const lines = [`${title} ${target}`];
+			if (areToolCallsExpanded()) {
+				const format = ["markdown", "text", "html"].includes(String(args.format)) ? args.format : "default";
+				const timeout = typeof args.timeout === "number" && Number.isFinite(args.timeout) ? `${args.timeout}s` : "default";
+				lines.push(theme.fg("muted", `format: ${format} · timeout: ${timeout}`));
+			}
+			// Keep the complete safe URL readable at every width, even in compact mode.
+			return new Text(lines.join("\n"), 0, 0).render(Math.max(1, width));
+		},
+	};
 }

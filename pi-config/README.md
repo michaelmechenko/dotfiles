@@ -398,8 +398,10 @@ uses the official structured APIs instead and retains caller-owned credentials:
 - `settings.ts` separates fetch and search defaults, supports documented `WEB_TOOLS_*` endpoint and
   behavior overrides, and models provider configuration as a redacted discriminated union.
 - `providers/http.ts` is the shared bounded JSON transport. Both providers cap responses at 1 MB and
-  return normalized results. The extension still has no custom renderer: `tool-display/` owns the
-  shared presentation.
+  return normalized results. `webfetch` owns only its URL call header; `tool-display/` still owns
+  the shared frame, and Pi owns results/images. The safe URL remains visible before/after execution
+  and wraps at narrow widths; `ctrl+shift+o` adds format/timeout detail. Credentials, common secret
+  query values, fragments, and terminal controls are hidden in that display only.
 
 The extension declares matching Pi/TypeBox peers plus local dev dependencies; run `npm install` and
 `npm run check` in `extensions/web-tools/` after dependency changes. See its README and
@@ -425,7 +427,8 @@ Run the network-free configuration audit after changing Pi resources or filters:
 node ~/.config/pi-config/check.mjs
 ```
 
-Then run affected extension tests (`node --experimental-strip-types --no-warnings --test ...`), `npm run check` for `extensions/web-tools/`, and `git diff --check`.
+Then run affected extension tests (`node --experimental-strip-types --no-warnings --test ...`), `npm run check` for `extensions/web-tools/`, and `git diff --check`. Test actual host fetch cards with
+`node --test pi-config/agent/extensions/web-tools/test/rendering.test.mjs`.
 With a built npm workspace and a Chromium-compatible browser, run
 `PI_TEST_BROWSER_EXECUTABLE=/path/to/browser node pi-config/runtime-check.mjs /path/to/npm-workspace`
 for isolated native MCP/search/codemode and two-session Intercom messaging checks. The check uses

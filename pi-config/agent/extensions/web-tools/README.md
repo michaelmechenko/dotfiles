@@ -5,7 +5,9 @@ Pi extension that registers two public-web tools:
 - `webfetch` — fetch one public URL as markdown, text, html, or an inline raster image
 - `websearch` — search the public web through an explicitly selected provider
 
-Tool output uses Pi's default shell and the shared `tool-display/` decorator. This extension does not own a renderer.
+Tool output uses Pi's default shell and the shared `tool-display/` decorator. `webfetch` owns only its call header: the safe target URL stays visible before/after execution and wraps at narrow widths. Ctrl+Shift+O adds format/timeout detail. Userinfo credentials, common secret query values, fragments, and terminal controls are hidden in the display only. Pi still owns result previews, expansion, and images; fetching and model-facing output are unchanged.
+
+Actual-host rendering coverage: from the repository root, run `node --test pi-config/agent/extensions/web-tools/test/rendering.test.mjs`.
 
 ## `webfetch`
 

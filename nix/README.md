@@ -143,8 +143,29 @@ hotspots on both outputs reveal the same dock on the hovered monitor. `-hd 0`
 disables the upstream 20ms approach-speed gate: reaching the centered 2px bottom
 hotspot reveals the dock even when the pointer approaches slowly. The hotspot
 remains dock-width, not monitor-wide; visible dock geometry is unchanged. Native
-running/multiple-window indicators remain; upstream disables its focused-window
+running/multiple-window indicators sit above the icons: one lavender dot for
+one open window and two for multiple windows. Closed pins retain a transparent
+indicator row above the icon, preserving alignment. A small local package patch
+moves the bottom-dock row; the SVG fill comes from `accent-secondary`, preserving
+its shape/outline and other dock placements. Upstream disables its focused-window
 underline in autohide mode. The top Waybar layout and existing shortcuts remain.
+
+The dock panel, right-click menus/submenus and tooltips share the desktop's
+opaque `surface-chrome`, 2px `divider-subtle` borders, 8px corners and Waybar's
+13px Lilex font. Only `#box` paints the panel: top-level reveal detector windows
+stay transparent. Hover/pressed states use `surface-highlight`; an inset lavender
+outline marks keyboard focus without changing button size. Menu selection uses
+lavender text. No blur, shadows, gradients or icon desaturation are added.
+`nix/check.sh` runs `home/dock-style-test.py` under isolated GTK3/Xvfb using a
+pinned Nix test environment, generated CSS, the canonical palette, a temporary
+render directory and packaged icon/indicator paths. It checks widget colors,
+state allocations, transparent detectors, 16px menu images and rasterized SVG
+indicators: zero/one/two dots, lavender pixels above the button, and unchanged
+icon alignment through closed/single/multiple-window transitions. It saves
+representative dock/menu/tooltip renders. After approved
+activation and dock restart, compare idle/hover/focus, single/multiple-window,
+menu/submenu and tooltip states on both monitors; verify slow edge reveal and
+that hidden detectors draw nothing. These fixtures do not replace live checks.
 
 Activation seeds Helium, Ghostty, Dolphin and Obsidian only when
 `$XDG_CACHE_HOME/nwg-dock-pinned` (default `~/.cache/nwg-dock-pinned`) is absent.

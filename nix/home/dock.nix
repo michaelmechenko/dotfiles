@@ -31,17 +31,71 @@ in
     "applications/dolphin.desktop".source = "${aliases}/dolphin.desktop";
   };
   xdg.configFile."nwg-dock-hyprland/style.css".text = ''
+    /* Layer-shell namespaces are not CSS IDs. Only #box is the dock panel;
+       the other top-level windows are invisible reveal detectors. */
     window {
+      background: transparent;
+      color: ${roles.text};
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
+    }
+    #box {
+      background: ${roles.surface-chrome};
+      border: 2px solid ${roles.divider-subtle};
+      border-radius: 8px;
+      padding: 6px;
+    }
+    * { font-family: "Lilex Nerd Font", sans-serif; font-size: 13px; }
+    button, image { background: none; border: none; box-shadow: none; }
+    #box button {
+      padding: 4px;
+      margin: 0 3px;
+      color: ${roles.text-ui};
+      border-radius: 4px;
+      /* An inset outline keeps focus visible without changing allocation. */
+      outline: 1px solid transparent;
+      outline-offset: -1px;
+      transition: none;
+    }
+    #box button:hover, #box button:active, #box button:checked {
+      background: ${roles.surface-highlight};
+      color: ${roles.text};
+    }
+    #box button:focus {
+      outline-color: ${roles.accent-secondary};
+      color: ${roles.accent-secondary};
+    }
+    /* Upstream sets this name only outside autohide mode. */
+    #active { border-bottom: 1px solid ${roles.accent-secondary}; }
+    menu, tooltip {
       background: ${roles.surface-chrome};
       color: ${roles.text};
-      border: 1px solid ${roles.divider-subtle};
+      border: 2px solid ${roles.divider-subtle};
       border-radius: 8px;
+      padding: 4px;
+      box-shadow: none;
     }
-    #box { padding: 6px; }
-    button, image { background: none; border: none; box-shadow: none; }
-    button { padding: 4px; margin: 0 3px; color: ${roles.text-ui}; }
-    button:hover { background: ${roles.surface-highlight}; border-radius: 4px; }
-    button:focus { box-shadow: none; }
-    #active { border-bottom: 1px solid ${roles.accent-secondary}; }
+    menu menuitem {
+      background: none;
+      color: ${roles.text-ui};
+      border: none;
+      border-radius: 4px;
+      padding: 4px 8px;
+      transition: none;
+    }
+    menu menuitem:hover, menu menuitem:active, menu menuitem:selected {
+      background: ${roles.surface-highlight};
+      color: ${roles.accent-secondary};
+    }
+    menu menuitem:disabled { color: ${roles.text-muted}; }
+    menu separator {
+      background: ${roles.divider-subtle};
+      min-height: 1px;
+      margin: 4px 8px;
+      padding: 0;
+      border: none;
+    }
+    tooltip label { color: ${roles.text}; padding: 2px 4px; }
   '';
 }

@@ -27,7 +27,13 @@ active/inactive taskbar highlighting remain palette-aligned. Waybar taskbar and
 tray images are desaturated within Waybar only, retaining their alpha and shape;
 text and state backgrounds keep their palette colors. nwg-dock-hyprland retains
 native-color icons with `surface-chrome`/`divider-subtle` chrome, `text`/`text-ui`
-labels and `surface-highlight` hover backgrounds; its optional active underline
+labels and `surface-highlight` hover/pressed backgrounds. Its visible panel,
+menus and tooltips use 2px subtle borders and 8px corners; reveal detector windows
+remain transparent. Keyboard focus uses an inset `accent-secondary` outline;
+menu selection uses the same accent. Typography matches Waybar (Lilex, 13px).
+The bottom dock's running indicators sit above app icons and use
+`accent-secondary`: one dot for one window, two for multiple windows, and a
+transparent reserved row for closed pins. Its optional active underline also
 uses `accent-secondary` (upstream omits it in the selected autohide mode).
 
 Linux currently selects Vague declaratively at rebuild time. The macOS live

@@ -27,6 +27,13 @@ python3 nix/home/app-focus-test.py
 lua nix/home/workspaces-test.lua
 [[ $("$home_path/bin/nwg-dock-hyprland" -v) == 'nwg-dock-hyprland version 0.4.11' ]]
 bash nix/home/dock-seed-test.sh
+# The painted panel is separate from the transparent layer-shell detectors.
+dock_css="$files/.config/nwg-dock-hyprland/style.css"
+rg -q '^#box \{' "$dock_css"
+rg -q 'background: transparent;' "$dock_css"
+rg -q 'border: 2px solid' "$dock_css"
+rg -q 'outline-offset: -1px;' "$dock_css"
+rg -q '^menu, tooltip \{' "$dock_css"
 # Alias desktop entries must be hidden from launchers but usable by the dock.
 for alias in md.obsidian.Obsidian dolphin; do
   entry="$files/.local/share/applications/$alias.desktop"
@@ -135,6 +142,27 @@ test_home=$(mktemp -d)
 trap 'rm -rf "$test_home"' EXIT
 mkdir -p "$test_home/.config" "$test_home/runtime" "$test_home/tmp"
 chmod 700 "$test_home/runtime"
+# Build only the pinned native test environment; the fixture is read from this
+# checkout, so newly added tests need not be staged for flakes to include them.
+dock_fixture=$(nix --extra-experimental-features 'nix-command flakes' build \
+  --impure --no-link --print-out-paths --expr '
+  let
+    p = (builtins.getFlake (toString ./.)).nixosConfigurations.nixos.pkgs;
+    python = p.python3.withPackages (x: [ x.pygobject3 x.pillow ]);
+    paths = p.lib.makeSearchPath "lib/girepository-1.0" (map p.lib.getLib [
+      p.gtk3 p.gdk-pixbuf p.pango p.at-spi2-core p.gobject-introspection
+      p.harfbuzz p.glib
+    ]);
+  in p.writeShellScript "dock-gtk-fixture" "
+    export GI_TYPELIB_PATH=${paths}
+    export GDK_BACKEND=x11
+    exec ${p.xvfb-run}/bin/xvfb-run -a ${python}/bin/python3 \"$@\" ${p.hicolor-icon-theme}/share/icons
+  "')
+HOME="$test_home" XDG_CONFIG_HOME="$test_home/.config" \
+  XDG_CACHE_HOME="$test_home/cache" XDG_RUNTIME_DIR="$test_home/runtime" \
+  "$dock_fixture" nix/home/dock-style-test.py "$dock_css" \
+    theme/palettes/vague.json "$test_home/dock-renders" \
+    "$home_path/share/nwg-dock-hyprland/images" "$home_path/share/icons"
 ln -s "$files/.config/tmux.conf" "$test_home/.config/tmux.conf"
 ln -s "$files/.config/theme" "$test_home/.config/theme"
 ln -s "$files/.config/tmux_scripts" "$test_home/.config/tmux_scripts"

@@ -7,7 +7,7 @@ is not used here.
 Everything under `agent/` is auto-discovered by pi except where noted. After changing extensions,
 agents, or prompts, run `/reload` inside a pi session to pick up changes without restarting.
 
-On NixOS, `nix/home/pi.nix` installs pinned Pi 0.86.1 and deploys only public resources. Settings,
+On NixOS, `nix/home/pi.nix` installs pinned Pi 0.99.2 and deploys only public resources. Settings,
 keybindings, package state, toggles, credentials, sessions, and caches remain writable under this
 same `PI_CODING_AGENT_DIR`; Home Manager seeds settings/keybindings/package dependencies only when
 absent. Local dependency-bearing extensions, the two npm packages, and the reviewed Lens/BTW fork
@@ -212,13 +212,13 @@ collide with core defaults, so `keybindings.json` frees those keys up:
 Pinned npm and git package sources (`pi update --extensions` reconciles without moving immutable refs):
 
 <!-- inventory:packages -->
-`npm:pi-ast-grep`, `npm:pi-mcp-adapter`, `git:github.com/michaelmechenko/pi-lens@5e27080a3855dba5a2263f7e3b043e8d7385c3a5`, `git:github.com/michaelmechenko/pi-btw@3241ec5f541367e17bff3d5ccf0c9cbca71a04ea`
+`npm:pi-ast-grep`, `npm:pi-intercom@0.16.0`, `git:github.com/michaelmechenko/pi-lens@5e27080a3855dba5a2263f7e3b043e8d7385c3a5`, `git:github.com/michaelmechenko/pi-btw@3241ec5f541367e17bff3d5ccf0c9cbca71a04ea`
 <!-- /inventory:packages -->
 
 | Package | Purpose |
 |---|---|
 | `pi-ast-grep` | Generic AST search — one `ast_grep` tool wrapping the `ast-grep` CLI (`run`/`scan`). **Read-only in v0**, no rewrite mode. For structural rewrites, invoke the `ast-grep` CLI directly via `bash` (`ast-grep run -p '<pattern>' -r '<rewrite>' -U`) |
-| `pi-mcp-adapter` | Installed but intentionally unconfigured pending a separate keep/configure/remove decision. |
+| `pi-intercom` | Pinned `0.16.0`: direct session messaging with an auto-started local broker; upstream extension and bundled skill enabled. |
 | `michaelmechenko/pi-lens` | Pinned fork: diagnostics, LSP navigation, and structural tools under hard operator mutation/install/context boundaries. Package skills disabled. |
 | `michaelmechenko/pi-btw` | Pinned fork: side conversation whose child tools never exceed the parent's active tool boundary. Package skills disabled. |
 
@@ -234,8 +234,39 @@ clones them on initial macOS reconciliation and does not move pinned refs during
 
 Installed package sources live under `agent/npm/node_modules/` (gitignored — see `agent/npm/.gitignore`
 and the repo-root `.gitignore` entry for `agent/extensions/*/node_modules`). NixOS seeds exact versions
-`pi-ast-grep@0.1.0` and `pi-mcp-adapter@2.36.0` into this writable workspace;
-subsequent user package-management changes are not overwritten.
+`pi-ast-grep@0.1.0` and `pi-intercom@0.16.0` into this writable workspace;
+subsequent user package-management changes are not overwritten. Existing installations require
+separate, backed-up reconciliation of their writable settings/npm workspace; a rebuild alone
+neither removes retired packages nor adds new ones.
+
+### Native MCP
+
+Pi's built-in MCP support owns `/mcp`, `pi mcp`, `tool_search`, and `codemode`.
+User servers live in `$PI_CODING_AGENT_DIR/mcp.json`; keep machine-specific paths and credentials
+out of git. Project servers use `.pi/mcp.json` and require project trust. Removing the old adapter
+is necessary: its `/mcp` registration otherwise replaces the built-in implementation.
+
+For adapter migrations, preserve server commands, arguments, environment, and native fields;
+remove adapter-only `settings` and `lifecycle`, and translate `directTools` into exact
+`toolExposure` entries with `"direct"` values. Remaining tools use `"exposure": "codemode"`.
+Native tools are named `mcp__<server>__<tool>`; the adapter's `mcp`/`mcpScript` gateway is gone.
+Native enabled servers connect in the background at session start, not on the adapter's lazy
+lifecycle. Validate with `pi mcp list`, then restart Pi or `/reload`.
+
+### Intercom
+
+[`pi-intercom`](https://pi.dev/packages/pi-intercom) loads its upstream extension and bundled skill.
+`alt+m` / `/intercom` opens session messaging; `/intercom-id`, `/alias`, and `/handover` manage
+identity/alias/handover. The model gets the `intercom` tool. Runtime state and optional config
+live in `$PI_CODING_AGENT_DIR/intercom`, not `~/.pi`; the broker auto-starts locally and exits
+five seconds after its last client disconnects.
+
+Upstream defaults are intentional: `confirmSend: false`, `inboundTrigger: "always"`,
+`busyDelivery: "steer"`. Incoming messages may start or steer a model turn; sending requires no
+confirmation. No global stable ID, custom scope, cross-machine setup, or orchestration bridge
+is configured. Messaging does not grant concurrent write ownership: the existing one-writer
+rule and subagent/tmux boundaries still apply. Child agents can inherit `intercom` when it is
+in the parent's active tool set; it is not a parent-only or consent-gated capability.
 
 ## Agents & Prompts
 
@@ -379,7 +410,7 @@ The extension declares matching Pi/TypeBox peers plus local dev dependencies; ru
 Every entry in `agent/extensions/` is `<name>/index.ts` — a directory, never a bare `<name>.ts` file,
 and never prefixed with `pi-`. This applies to locally vendored/forked extensions only; npm-managed
 packages in the `packages` array (see below) keep their real upstream package names
-(`pi-ast-grep`, `pi-mcp-adapter`) since those are fixed identifiers pi itself tracks for `pi
+(`pi-ast-grep`, `pi-intercom`) since those are fixed identifiers pi itself tracks for `pi
 update`/`pi list` — renaming them isn't possible without forking them too.
 
 ## Emoji policy
@@ -394,7 +425,13 @@ Run the network-free configuration audit after changing Pi resources or filters:
 node ~/.config/pi-config/check.mjs
 ```
 
-Then run affected extension tests (`node --experimental-strip-types --no-warnings --test ...`), `npm run check` for `extensions/web-tools/`, and `git diff --check`. Use a fresh interactive Pi session to verify footer context states, tool error cards, title changes, and narrow/wide rendering; no check reads credentials or session artifacts.
+Then run affected extension tests (`node --experimental-strip-types --no-warnings --test ...`), `npm run check` for `extensions/web-tools/`, and `git diff --check`.
+With a built npm workspace and a Chromium-compatible browser, run
+`PI_TEST_BROWSER_EXECUTABLE=/path/to/browser node pi-config/runtime-check.mjs /path/to/npm-workspace`
+for isolated native MCP/search/codemode and two-session Intercom messaging checks. The check uses
+in-memory dummy auth and a mock model transport, so incoming automatic turns cannot incur model
+costs or reach ordinary sessions. Browser MCP may resolve its pinned npm server through `npx`.
+Use a fresh interactive Pi session to verify footer context states, tool error cards, title changes, and narrow/wide rendering; no check reads credentials or session artifacts.
 
 ## Maintenance
 

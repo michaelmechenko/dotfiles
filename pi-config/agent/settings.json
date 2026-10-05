@@ -13,7 +13,7 @@
   "defaultProjectTrust": "ask",
   "packages": [
     "npm:pi-ast-grep",
-    "npm:pi-mcp-adapter",
+    "npm:pi-intercom@0.16.0",
     {
       "source": "git:github.com/michaelmechenko/pi-lens@5e27080a3855dba5a2263f7e3b043e8d7385c3a5",
       "skills": []

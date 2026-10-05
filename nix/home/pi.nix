@@ -16,7 +16,7 @@ let
     lastChangelogVersion = piPkgs.pi-coding-agent.version;
     packages = [
       "npm:pi-ast-grep@0.1.0"
-      "npm:pi-mcp-adapter@2.36.0"
+      "npm:pi-intercom@0.16.0"
       { source = "${piLens}"; skills = [ ]; }
       { source = "${piBtw}"; skills = [ ]; }
     ];

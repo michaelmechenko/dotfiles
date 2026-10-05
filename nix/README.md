@@ -89,9 +89,9 @@ provides pinned applications at the bottom edge (see below).
 - Neovim uses the shared Lua configuration with a Nix-owned plugin tree, parsers,
   language servers, formatters, and native build dependencies. Lazy cannot install
   missing plugins and Mason/parser auto-install is disabled on NixOS.
-- Pi 0.86.1 is a narrow package-only pin. All extensions and their dependencies
+- Pi 0.99.2 is a narrow package-only pin. All extensions and their dependencies
   are Nix-owned; guidance resources use the live links described below. The pinned
-  pi-ast-grep and pi-mcp-adapter workspace is seeded locally, while reviewed
+  pi-ast-grep and pi-intercom@0.16.0 workspace is seeded locally, while reviewed
   `michaelmechenko/pi-lens` and `michaelmechenko/pi-btw` revisions are fixed-output
   package directories in the generated settings. Their optional skills are not
   loaded. Lens grammars and runtime dependencies are store-backed, install/refresh
@@ -101,7 +101,10 @@ provides pinned applications at the bottom edge (see below).
 Pi settings, keybindings, extension/skill toggles, auth, sessions, package state,
 and caches remain writable in `~/.config/pi-config/agent`. Home Manager seeds
 settings, keybindings, and the npm workspace only when absent; it never deploys
-Mac auth/session/cache state. The active generated theme is store-backed.
+Mac auth/session/cache state. The active generated theme is store-backed. Existing writable
+Pi settings/npm state needs a separate, backed-up package migration; rebuilding does not
+replace it. MCP uses Pi's built-in `$PI_CODING_AGENT_DIR/mcp.json` support, not an adapter.
+Intercom retains upstream automatic incoming-turn/steering and no-send-confirmation defaults.
 
 ## Desktop icons and shortcuts
 

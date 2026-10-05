@@ -43,6 +43,13 @@ checkInventory("skills", readdirSync(join(agent, "skills")).filter((name) => exi
 checkInventory("prompts", readdirSync(join(agent, "prompts")).filter((name) => name.endsWith(".md")));
 const packageSources = (settings.packages ?? []).map((entry) => typeof entry === "string" ? entry : entry.source);
 checkInventory("packages", packageSources);
+check(packageSources.includes("npm:pi-intercom@0.16.0"), "Intercom must be pinned to the reviewed version");
+check(!packageSources.some((source) => source.startsWith("npm:pi-mcp-adapter")), "native MCP must not be replaced by the adapter");
+const runtimePackages = JSON.parse(read("../nix/packages/pi-runtime/package.json")).dependencies;
+check(runtimePackages["pi-intercom"] === "0.16.0" && !runtimePackages["pi-mcp-adapter"], "Nix runtime package migration drifted");
+const runtimeLock = JSON.parse(read("../nix/packages/pi-runtime/package-lock.json")).packages;
+check(runtimeLock[""].dependencies["pi-intercom"] === "0.16.0" && runtimeLock["node_modules/pi-intercom"]?.version === "0.16.0", "Nix runtime lockfile Intercom pin drifted");
+check(!runtimeLock[""].dependencies["pi-mcp-adapter"] && !runtimeLock["node_modules/pi-mcp-adapter"], "Nix runtime lockfile retains the adapter");
 check(readme.includes(`\`${settings.defaultProvider}\` / \`${settings.defaultModel}\``), "README default provider/model differs from settings.json");
 for (const pattern of settings.enabledModels ?? []) check(readme.includes(`\`${pattern}\``), `README enabled-model inventory missing: ${pattern}`);
 

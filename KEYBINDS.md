@@ -67,6 +67,9 @@ whole autosuggestion (Ghostty transports it through F13).
 | `ctrl+g` | In the plan-mode TUI recalibration editor, open the configured external editor |
 | `/read-only` / `/mode` | Enter standalone read-only mode / cycle the three plan-mode access states |
 | `/rename [name]` | Rename the current live pi session; omit `name` to open a prompt |
+| `alt+m` / `/intercom` | Open pi-intercom session messaging |
+| `/intercom-id` / `/alias` / `/handover` | Show Intercom identity / manage aliases / hand over context |
+| `/mcp` | Inspect/configure Pi's native MCP connections and tool exposure |
 
 ## AeroSpace — main mode
 

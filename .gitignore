@@ -96,6 +96,10 @@ __pycache__/
 /pi-config/agent/pi-crash.log
 /pi-config/agent/mcp-onboarding.json
 /pi-config/agent/mcp-cache.json
+/pi-config/agent/mcp.json
+/pi-config/agent/mcp-auth.json
+/pi-config/agent/mcp.log*
+/pi-config/agent/intercom
 /pi-config/agent/plan-mode.json
 /pi-config/agent/plan-handoffs
 /pi-config/agent/plan-parallel

@@ -3,7 +3,7 @@ buildNpmPackage {
   pname = "pi-linux-packages";
   version = "1.0.0";
   src = ./pi-runtime;
-  npmDepsHash = "sha256-pM1gsQeNiQvxnKyzd91RYVyLyjiXYMIsCR6AWh1R6zA=";
+  npmDepsHash = "sha256-kW5ixzLMCxSs5tS0Bb1Wn8YwAhR4AmagLzRbtRlZ5GM=";
   npmFlags = [ "--legacy-peer-deps" ];
   npmInstallFlags = [ "--ignore-scripts" ];
   dontNpmBuild = true;

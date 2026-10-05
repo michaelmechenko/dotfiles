@@ -39,6 +39,14 @@ let
 in
 {
   imports = [ ./dock.nix ];
+
+  # Hyprland does not select KDE's platform theme automatically. Without it,
+  # Dolphin's item labels retain Qt's black text despite its dark KDE view.
+  qt = {
+    enable = true;
+    platformTheme.name = "kde";
+  };
+
   home.packages = [
     pkgs.mako
     pkgs.hypridle

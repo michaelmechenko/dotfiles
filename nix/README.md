@@ -121,6 +121,14 @@ HackerNoonPixel build sources under `packages/pixel-icons*` are retained for
 reference but are not installed, selected or required to build the desktop.
 Waybar's text-only controls and active/inactive/hover palette styling are unchanged.
 
+Home Manager enables KDE's Qt platform integration (`QT_QPA_PLATFORMTHEME=kde`)
+for shell and systemd/UWSM application launches. This makes Dolphin's file and
+folder labels follow the existing Breeze Dark palette instead of Qt's default
+black text; it does not replace writable KDE/GTK color or widget preferences.
+After approved activation, start a fresh Hyprland session and fully close/reopen
+Dolphin so launchers and application processes inherit the setting. Opening another
+window in an old Dolphin process is insufficient.
+
 Hyprland sets keyboard repeat to 50 repeats/second after a 250ms delay. Super-Ctrl
 +A/Z/S/X runs `app-focus` to focus the most recently used mapped window of Helium,
 Ghostty, Dolphin or Obsidian across workspaces/monitors, or launches the application

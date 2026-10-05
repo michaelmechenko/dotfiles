@@ -67,7 +67,11 @@ provides pinned applications at the bottom edge (see below).
   `packages/legcord.nix` replaces only Legcord's packaged desktop/window and fixed
   Discord tray icons with `assets/discordlogo.png`; it does not change the version.
   This copy trims the supplied PNG's large transparent margins and retains a 2%
-  inset, so the artwork fills roughly 96% of the icon instead of 60%. The original
+  inset, so the artwork fills roughly 96% of the icon instead of 60%. Theme icons
+  are resampled to their declared `16x16` through `512x512` sizes; window/tray assets
+  retain the full-resolution source. A native GTK menu test prevents oversized
+  dock context-menu images caused by a high-resolution PNG in a `256x256` folder.
+  The original
   `~/Documents/discordlogo.png` is unchanged. Legcord's mutable
   `storage/settings.json` uses `tray = "dsc-tray"` (not dynamic) and `customIcon`
   pointing at `~/.dotfiles/nix/assets/discordlogo.png`. Preferences remain app-owned,

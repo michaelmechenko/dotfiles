@@ -40,7 +40,7 @@ test -x "$home_path/bin/blender"
 test -x "$home_path/bin/obsidian"
 test -f "$home_path/share/applications/blender.desktop"
 test -f "$home_path/share/applications/obsidian.desktop"
-# The desktop icon and both packaged Legcord icon assets must match the supplied logo.
+# Theme icon dimensions must match their directories; ASAR assets retain the full logo.
 python3 - "$home_path" "$PWD/nix/assets/discordlogo.png" <<'PY'
 import json
 from pathlib import Path
@@ -48,7 +48,10 @@ import struct
 import sys
 home = Path(sys.argv[1])
 expected = Path(sys.argv[2]).read_bytes()
-assert (home / "share/icons/hicolor/256x256/apps/legcord.png").read_bytes() == expected
+for size in (16, 22, 24, 32, 48, 64, 128, 256, 512):
+    data = (home / f"share/icons/hicolor/{size}x{size}/apps/legcord.png").read_bytes()
+    assert data[:8] == b"\x89PNG\r\n\x1a\n"
+    assert struct.unpack(">2I", data[16:24]) == (size, size)
 assert "Icon=legcord\n" in (home / "share/applications/legcord.desktop").read_text()
 with (home / "share/lib/legcord/resources/app.asar").open("rb") as archive:
     _, header_size, _, json_size = struct.unpack("<4I", archive.read(16))
@@ -57,7 +60,7 @@ with (home / "share/lib/legcord/resources/app.asar").open("rb") as archive:
         entry = assets[name]
         archive.seek(8 + header_size + int(entry["offset"]))
         assert archive.read(entry["size"]) == expected, name
-print("Legcord: desktop/window/fixed tray logo bytes match.")
+print("Legcord: correctly sized theme icons and full-resolution window/tray assets passed.")
 PY
 configured_home=$(nix_eval home-manager.users.mishka.home.homeDirectory)
 [[ $HOME == "$configured_home" ]] || { echo 'Run this check as the configured user.' >&2; exit 1; }

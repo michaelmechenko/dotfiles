@@ -36,13 +36,33 @@ rg -q 'border: 2px solid' "$dock_css"
 rg -q 'outline-offset: -1px;' "$dock_css"
 rg -q '^menu, tooltip \{' "$dock_css"
 # Alias desktop entries must be hidden from launchers but usable by the dock.
-for alias in md.obsidian.Obsidian dolphin; do
+for alias in md.obsidian.Obsidian dolphin com.mitchellh.ghostty.scratch; do
   entry="$files/.local/share/applications/$alias.desktop"
   [[ -f "$entry" ]]
   rg -q '^NoDisplay=true$' "$entry"
   rg -q '^Exec=' "$entry"
   rg -q '^Icon=' "$entry"
 done
+scratch_entry="$files/.local/share/applications/com.mitchellh.ghostty.scratch.desktop"
+normal_ghostty_entry="$home_path/share/applications/com.mitchellh.ghostty.desktop"
+test -f "$normal_ghostty_entry"
+test -f "$home_path/share/icons/breeze-dark/apps/48/yakuake.svg"
+python3 - "$scratch_entry" "$normal_ghostty_entry" <<'PY'
+import configparser
+import sys
+def entry(path):
+    parser = configparser.ConfigParser(interpolation=None)
+    parser.read(path)
+    return parser["Desktop Entry"]
+scratch, normal = map(entry, sys.argv[1:])
+assert scratch["Type"] == "Application" and scratch["Name"] == "Scratch Terminal"
+assert scratch["Icon"] == "yakuake" and scratch["StartupWMClass"] == "com.mitchellh.ghostty.scratch"
+assert scratch["NoDisplay"] == "true" and scratch["Terminal"] == "false"
+assert scratch["Exec"] == "ghostty --class=com.mitchellh.ghostty.scratch --gtk-single-instance=true"
+assert "Actions" not in scratch
+assert normal["Icon"] != scratch["Icon"]
+assert "com.mitchellh.ghostty.scratch" not in normal["Exec"]
+PY
 [[ $(rg -c 'uwsm app -- nwg-dock-hyprland -d -p bottom -a center -i 40 -mb 8 -hd 0 -nolauncher' "$files/.config/hypr/hyprland.lua") == 1 ]]
 test -x "$home_path/bin/blender"
 test -x "$home_path/bin/obsidian"
@@ -161,6 +181,7 @@ dock_fixture=$(nix --extra-experimental-features 'nix-command flakes' build \
   "')
 HOME="$test_home" XDG_CONFIG_HOME="$test_home/.config" \
   XDG_CACHE_HOME="$test_home/cache" XDG_RUNTIME_DIR="$test_home/runtime" \
+  SCRATCH_DESKTOP_ENTRY="$scratch_entry" NORMAL_GHOSTTY_DESKTOP_ENTRY="$normal_ghostty_entry" \
   "$dock_fixture" nix/home/dock-style-test.py "$dock_css" \
     theme/palettes/vague.json "$test_home/dock-renders" \
     "$home_path/share/nwg-dock-hyprland/images" "$home_path/share/icons"

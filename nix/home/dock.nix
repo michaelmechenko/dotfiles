@@ -13,9 +13,20 @@ let
     mkdir -p "$out"
     cp ${pkgs.obsidian}/share/applications/obsidian.desktop "$out/md.obsidian.Obsidian.desktop"
     cp ${pkgs.kdePackages.dolphin}/share/applications/org.kde.dolphin.desktop "$out/dolphin.desktop"
+    cat > "$out/com.mitchellh.ghostty.scratch.desktop" <<'EOF'
+    [Desktop Entry]
+    Type=Application
+    Name=Scratch Terminal
+    Exec=ghostty --class=com.mitchellh.ghostty.scratch --gtk-single-instance=true
+    Icon=yakuake
+    StartupWMClass=com.mitchellh.ghostty.scratch
+    NoDisplay=true
+    Terminal=false
+    EOF
     chmod u+w "$out/"*.desktop
     for entry in "$out/"*.desktop; do
       desktop-file-edit --set-key=NoDisplay --set-value=true "$entry"
+      desktop-file-validate "$entry"
     done
   '';
 in
@@ -29,6 +40,7 @@ in
   xdg.dataFile = {
     "applications/md.obsidian.Obsidian.desktop".source = "${aliases}/md.obsidian.Obsidian.desktop";
     "applications/dolphin.desktop".source = "${aliases}/dolphin.desktop";
+    "applications/com.mitchellh.ghostty.scratch.desktop".source = "${aliases}/com.mitchellh.ghostty.scratch.desktop";
   };
   xdg.configFile."nwg-dock-hyprland/style.css".text = ''
     /* Layer-shell namespaces are not CSS IDs. Only #box is the dock panel;

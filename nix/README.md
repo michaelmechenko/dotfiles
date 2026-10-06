@@ -152,6 +152,17 @@ remain alive while hidden. Invoking it on the other focused monitor transfers
 that terminal there instead of creating a second one. Geometry is set on initial
 mapping, not recalculated for differently sized monitors after transfer.
 
+A Home Manager-owned hidden desktop entry matches that scratch app ID and uses
+Breeze's installed `yakuake` SVG icon. The scratch terminal has distinct artwork
+in the dock and Waybar; ordinary Ghostty keeps its original icon. The dock keeps
+native colors and Waybar retains its grayscale rendering. No Yakuake package,
+new launcher entry or default dock pin is added. After approved activation,
+refresh the dock/Waybar if they cached the old icon; do not close or restart the
+scratch terminal to refresh it, since that would discard its running state.
+The isolated GTK fixture resolves and renders the icon at 20px and 40px; verify
+actual dock/taskbar matching, active/inactive/hover states and unchanged normal
+Ghostty icons on both monitors after activation.
+
 Silent placement and a small in-process Lua launch guard preserve the latest
 show/hide request during startup without launching twice when an empty hidden
 workspace is recreated. There is no polling or additional service. Ordinary

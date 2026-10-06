@@ -5,6 +5,7 @@ DOCK_IMAGES contains the packaged SVGs, not synthetic text indicators.
 The optional icon paths exercise packaged Legcord at GTK's menu size.
 """
 import json
+import os
 from pathlib import Path
 import sys
 import time
@@ -13,7 +14,7 @@ import gi
 
 gi.require_version("Gtk", "3.0")
 gi.require_version("Gdk", "3.0")
-from gi.repository import Gdk, GdkPixbuf, Gtk
+from gi.repository import Gdk, GdkPixbuf, Gio, Gtk
 from PIL import Image
 
 Gtk.init([])
@@ -43,6 +44,32 @@ settings.set_property("gtk-enable-animations", False)
 if len(sys.argv) == 7:
     Gtk.IconTheme.get_default().set_search_path(sys.argv[5:7])
     settings.set_property("gtk-icon-theme-name", "hicolor")
+
+
+# Resolve desktop identity and real SVG artwork through GTK's installed theme,
+# independently of the hicolor menu fixture. Do not launch either application.
+if os.environ.get("SCRATCH_DESKTOP_ENTRY"):
+    scratch = Gio.DesktopAppInfo.new_from_filename(os.environ["SCRATCH_DESKTOP_ENTRY"])
+    normal = Gio.DesktopAppInfo.new_from_filename(os.environ["NORMAL_GHOSTTY_DESKTOP_ENTRY"])
+    assert scratch and normal
+    assert scratch.get_startup_wm_class() == "com.mitchellh.ghostty.scratch"
+    assert not scratch.should_show()
+    theme = Gtk.IconTheme.new()
+    theme.set_search_path(sys.argv[5:7])
+    theme.set_custom_theme("breeze-dark")
+    for size in (20, 40):
+        info = theme.lookup_by_gicon(scratch.get_icon(), size, Gtk.IconLookupFlags.FORCE_SIZE)
+        normal_info = theme.lookup_by_gicon(normal.get_icon(), size, Gtk.IconLookupFlags.FORCE_SIZE)
+        assert info and normal_info
+        assert Path(info.get_filename()).suffix == ".svg"
+        assert info.get_filename() != normal_info.get_filename()
+        pixbuf = info.load_icon()
+        assert (pixbuf.get_width(), pixbuf.get_height()) == (size, size)
+        path = output / f"scratch-icon-{size}.png"
+        pixbuf.savev(str(path), "png", [], [])
+        pixels = Image.open(path).convert("RGBA")
+        assert any(a and (r != g or g != b) for r, g, b, a in pixels.get_flattened_data())
+        print(f"Scratch icon: {size}px resolved to {info.get_filename()}")
 
 
 def flush():

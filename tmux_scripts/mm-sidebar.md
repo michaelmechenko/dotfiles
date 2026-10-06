@@ -180,6 +180,14 @@ The sidebar is opened only by an explicit local gesture. `M-BTab` / `prefix BTab
 opens or closes the current window's sidebar; `M-Tab` / `prefix Tab` is the
 three-state focus switch. Neither gesture creates a sidebar elsewhere.
 
+The far-right status button `-*-` also toggles visibility like `M-BTab`: left-click
+opens without moving focus or closes this window's sidebar. Right-click does
+nothing. The button remains visible in both status tiers (`m* [ * * ] -*-` or
+`m* -*-`); session-name/star left/right clicks retain previous/next session cycling.
+Its independent control range begins before the separating space because tmux
+3.7 closes the preceding range one cell past that boundary, leaving all three
+button cells clickable without changing the session hit region.
+
 | Key | State | Result |
 | --- | --- | --- |
 | `M-BTab` / `prefix BTab` | closed | open this window's right sidebar without moving focus |

@@ -173,12 +173,15 @@ def verify_status_click(width: int) -> None:
         tty = os.ttyname(slave)
         wait_for(lambda: tty in run("list-clients", "-F", "#{client_tty}"),
                  f"{width}-column click client did not attach")
+        target_text = re.sub(r"#\[[^]]*\]", "", run(
+            "display-message", "-p", "-t", "=click-test:2", "#{E:window-status-format}"))
+        target_bytes = target_text.encode()
         rendered = b""
         end = time.time() + 3
-        while time.time() < end and b"click-target" not in rendered:
+        while time.time() < end and target_bytes not in rendered:
             if select.select([master], [], [], 0.1)[0]:
                 rendered += os.read(master, 65536)
-        if b"click-target" not in rendered:
+        if target_bytes not in rendered:
             raise AssertionError(f"{width}-column status did not finish its initial redraw")
 
         def plain(value: str) -> str:
@@ -238,7 +241,8 @@ def verify_status_stripe_layouts() -> None:
         def capture_status_redraw() -> tuple[list[str], list[str | None]]:
             while select.select([master], [], [], 0)[0]:
                 os.read(master, 65536)
-            run("refresh-client", "-t", tty, "-S")
+            # Force an actual frame: -S can emit nothing when status is unchanged.
+            run("refresh-client", "-t", tty)
             data = b""
             deadline = time.time() + 1
             quiet_since: float | None = None
@@ -629,13 +633,43 @@ def main() -> int:
         resize(12)
         narrow = tmux("display-message", "-p", "-c", client_name, "-t", "=alpha:", "#{E:status-right}")
         plain = re.sub(r"#\[[^]]*\]", "", narrow)
-        if plain != "alpha":
+        if plain != "alpha -*-":
             raise AssertionError(f"narrow status tier = {plain!r}")
 
         resize(220)
         wide = tmux("display-message", "-p", "-c", client_name, "-t", "=alpha:", "#{E:status-right}")
         if "[" not in wide or "#[underscore]" not in wide:
             raise AssertionError(f"wide status tier missing session stars: {wide!r}")
+        if not re.sub(r"#\[[^]]*\]", "", wide).endswith(" -*-"):
+            raise AssertionError("wide status tier lacks sidebar suffix")
+        for option, form in (("@m-rshort", "@sr-short-form"), ("@m-rfull", "@sr-full-form")):
+            measured = int(tmux("display-message", "-p", "-c", client_name,
+                                "#{E:#{" + option + "}}"))
+            rendered = tmux("display-message", "-p", "-c", client_name,
+                            "#{E:#{" + form + "}}")
+            if measured != len(re.sub(r"#\[[^]]*\]", "", rendered)):
+                raise AssertionError("status measurement does not include button")
+        # Check both content-measured tier boundaries on a real attached frame.
+        for measure in ("@m-rshort", "@m-rfull"):
+            boundary = int(tmux("display-message", "-p", "-c", client_name,
+                                "#{e|+:#{E:#{@m-listfull}},#{e|+:#{E:#{" + measure +
+                                "}},#{e|+:#{E:#{@m-left}},#{@sl-gap}}}}"))
+            for width in (boundary - 1, boundary, boundary + 1):
+                resize(width)
+                while select.select([master], [], [], 0)[0]:
+                    os.read(master, 65536)
+                tmux("refresh-client", "-t", tty)
+                frame = b""
+                while select.select([master], [], [], 0.15)[0]:
+                    frame += os.read(master, 65536)
+                chars, _ = render_terminal(frame, 40, width)
+                if not "".join(chars[0]).endswith("-*-"):
+                    raise AssertionError(f"button missing at tier boundary {width}")
+                expanded = tmux("display-message", "-p", "-c", client_name,
+                                "#{E:status-right}")
+                if measure == "@m-rfull" and ("#[underscore]" in expanded) != (width >= boundary):
+                    raise AssertionError("star block did not switch at measured boundary")
+        resize(220)
         before_active = wide[:wide.find("#[underscore]")]
         if before_active.count(" * ") != 1:
             raise AssertionError("only the exact float session should precede the active non-float session")
@@ -643,7 +677,7 @@ def main() -> int:
         def click_status_right(button: int, expected_session: str) -> None:
             tmux("switch-client", "-c", client_name, "-t", "=alpha")
             wait_for(lambda: client_state()[0] == "alpha", "client did not reset to alpha")
-            os.write(master, f"\x1b[<{button};220;1M".encode())
+            os.write(master, f"\x1b[<{button};215;1M".encode())
             wait_for(
                 lambda: client_state()[0] == expected_session,
                 f"status-right button {button} did not switch to {expected_session}",

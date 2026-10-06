@@ -1502,6 +1502,89 @@ def test_explicit_targeting(h: Harness) -> None:
     )
 
 
+def test_status_sidebar_button(h: Harness) -> None:
+    # Load the production config only after the other lifecycle fixtures. All
+    # helpers/theme resources remain private or read-only; no live server is used.
+    from importlib.util import spec_from_file_location, module_from_spec
+    spec = spec_from_file_location("status_render", ROOT / "tmux-status-render-test.py")
+    assert spec and spec.loader
+    render = module_from_spec(spec)
+    spec.loader.exec_module(render)
+    theme = h.home / ".config/theme"
+    theme.mkdir()
+    (theme / "active").symlink_to(ROOT.parent / "theme/bundles/vague", target_is_directory=True)
+    main = h.new_session("sidebar-button")
+    h.split(main, "-h", "-l", "55")
+    h.tmux("select-pane", "-t", main)
+    other = h.new_session("sidebar-button-other")
+    h.tmux("source-file", str(ROOT.parent / "tmux.conf"))
+    client = h.attach("sidebar-button")
+    second_client = h.attach("sidebar-button-other")
+    h.tmux("switch-client", "-c", client.tty, "-t", main)
+    h.tmux("switch-client", "-c", second_client.tty, "-t", other)
+    original_other = h.client_state(second_client)
+    muted = h.tmux("show-options", "-gqv", "@color-text-muted")
+
+    def resize(width: int) -> None:
+        fcntl.ioctl(client.master, termios.TIOCSWINSZ, struct.pack("HHHH", 50, width, 0, 0))
+        client.process.send_signal(signal.SIGWINCH)
+        h.wait("button client resize", lambda: h.tmux(
+            "display-message", "-p", "-c", client.tty, "#{client_width}") == str(width))
+
+    def paint(width: int) -> None:
+        client.clear_capture()
+        h.tmux("refresh-client", "-t", client.tty)
+        time.sleep(0.15)
+        client.drain()
+        chars, colors = render.render_terminal(bytes(client.captured), 50, width)
+        row = "".join(chars[0])
+        h.require(row.endswith("-*-"), f"rendered sidebar button missing: {row!r}")
+        h.require(colors[0][-3:] == [muted] * 3, "button does not use muted foreground")
+        h.require(not h.sidebar(other), "click created sidebar in another window")
+        h.require(h.client_state(second_client) == original_other, "click affected second client")
+
+    def click(width: int, column: int, button: int = 0) -> None:
+        client.send(f"\x1b[<{button};{column};1M\x1b[<{button};{column};1m".encode())
+
+    # Exercise each cell, narrow/wide tiers, labeled and zoomed content, and a
+    # focused sidebar. Actual terminal cells and raw SGR clicks are authoritative.
+    for width, offset, zoom, label, focus in (
+        (180, 2, False, "", False),
+        (180, 1, False, "label", True),
+        (180, 0, True, "label", False),
+        (60, 1, False, "", False),
+    ):
+        resize(width)
+        h.tmux("select-pane", "-t", main)
+        h.tmux("set-option", "-p", "-t", main, "@pane-label", label)
+        if zoom:
+            h.tmux("resize-pane", "-Z", "-t", main)
+        before = h.layout(main)
+        paint(width)
+        click(width, width - offset)
+        h.wait("status button opens sidebar", lambda: bool(h.sidebar(main)))
+        h.require(h.active_pane(main) == main, "button stole content focus")
+        paint(width)
+        sidebar = h.sidebar(main)
+        if focus:
+            h.tmux("select-pane", "-t", sidebar)
+            paint(width)
+        click(width, width - offset, 2)
+        time.sleep(0.15)
+        h.require(h.sidebar(main) == sidebar, "right button unexpectedly toggled sidebar")
+        h.require(h.client_state(client)[0] == "sidebar-button", "right button switched session")
+        click(width, width - offset)
+        h.wait("status button closes sidebar", lambda: not h.sidebar(main))
+        h.wait("status button close lock released", lambda: not list(
+            (h.tmp / "tmux").rglob(".mm-sidebar-toggle.*.lock")))
+        h.require(h.layout(main) == before, "button close did not restore layout")
+        h.require(h.fmt(main, "#{window_zoomed_flag}") == ("1" if zoom else "0"),
+                  "button close did not restore zoom")
+        paint(width)
+        if zoom:
+            h.tmux("resize-pane", "-Z", "-t", main)
+
+
 def main() -> int:
     h = Harness()
     try:
@@ -1546,6 +1629,7 @@ def main() -> int:
         h.run("obsolete ensure never opens", lambda: test_obsolete_ensure_never_opens(h))
         h.run("independent local closes", lambda: test_window_closes_are_independent(h))
         h.run("explicit inactive-pane targeting", lambda: test_explicit_targeting(h))
+        h.run("attached sidebar status button", lambda: test_status_sidebar_button(h))
         print(f"ok: {h.passed} lifecycle checks")
         return 0
     except (Failure, subprocess.SubprocessError, OSError) as error:

@@ -103,25 +103,24 @@ func renderSemanticRow(row nav.Row, width int, selected bool, th theme.Theme) st
 		}
 	}
 	indent := strings.Repeat("│ ", p.Depth)
-	plain := indent
-	if marker != "" {
-		plain += marker + " "
-	}
-	plain += p.Label
-	for _, fact := range p.Facts {
-		if fact.Text != "" {
-			plain += " · " + fact.Text
-		}
-	}
 	if selected {
-		line := ansi.Truncate(plain, width-1, "…")
-		line = " " + line
+		// Keep semantic foregrounds inside the selected fill: the outer Selected
+		// style supplies a full-width surface-highlight background while the inner
+		// label/fact styles reassert Git's amber/pink/rose state colors.
+		line := " " + semanticLine(indent, marker, p, width-1, th)
+		line = clip(line, width)
 		if pad := width - ansi.StringWidth(line); pad > 0 {
 			line += strings.Repeat(" ", pad)
 		}
 		return th.Selected.Render(line)
 	}
+	return clip(semanticLine(indent, marker, p, width, th), width)
+}
 
+// RenderDetail renders source-owned cached selection context within its granted
+// height. The first line is an integrated divider/title; hints are packed only
+// when they fit and otherwise occupy one line each.
+func semanticLine(indent, marker string, p nav.Presentation, width int, th theme.Theme) string {
 	line := indent
 	if marker != "" {
 		line += th.Accent.Render(marker) + " "
@@ -137,12 +136,9 @@ func renderSemanticRow(row nav.Row, width int, selected bool, th theme.Theme) st
 		}
 		line = candidate
 	}
-	return clip(line, width)
+	return line
 }
 
-// RenderDetail renders source-owned cached selection context within its granted
-// height. The first line is an integrated divider/title; hints are packed only
-// when they fit and otherwise occupy one line each.
 func RenderDetail(detail nav.Detail, width, height int, th theme.Theme) []string {
 	if height <= 0 || detail.Title == "" {
 		return nil
@@ -187,6 +183,8 @@ func styleFor(th theme.Theme, tone nav.Tone) lipgloss.Style {
 		return th.Urgent
 	case nav.ToneBusy:
 		return th.Busy
+	case nav.ToneChanged:
+		return th.Changed
 	default:
 		return th.Text
 	}

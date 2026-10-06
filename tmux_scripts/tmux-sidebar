@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tmux-sidebar -- the neo-tree-like left sidebar dispatcher TUI.
+# tmux-sidebar -- the neo-tree-like right sidebar dispatcher TUI.
 # Runs inside the sidebar pane created by tmux-sidebar-toggle. Renders a stack
 # of vertical blocks as ANSI text: header (2 lines) -> navigator (flexible,
 # tab-switchable) -> docked blocks (fixed height, bottom, in
@@ -107,17 +107,17 @@ content_pane() {
   if [ -n "$cp" ] && tmux display-message -p -t "$cp" '#{pane_id}' >/dev/null 2>&1; then
     printf '%s' "$cp"; return
   fi
-  # Fallback: the pane immediately to the right of this one by pane_left geometry.
+  # Fallback: the nearest non-sidebar pane to the left by pane_left geometry.
   local self_id left
   self_id="${TMUX_PANE:-}"
   [ -n "$self_id" ] || return
   left=$(tmux display-message -p -t "$self_id" '#{pane_left}')
-  cp=$(tmux list-panes -t "$self_id" -F '#{pane_left} #{pane_id}' 2>/dev/null \
-    | awk -v l="$left" '$1 > l { print $2; exit }')
+  cp=$(tmux list-panes -t "$self_id" -F '#{pane_left} #{pane_id} #{@sidebar_pane}' 2>/dev/null \
+    | awk -v l="$left" '$3 != 1 && $1 < l && $1 > best { best=$1; pane=$2 } END { print pane }')
   if [ -n "$cp" ]; then set_opt @sidebar_content_pane "$cp"; printf '%s' "$cp"; fi
 }
 
-current_source() { get_opt @sidebar_source || printf sessions; }
+current_source() { get_opt @sidebar_source || printf filetree; }
 set_source() { set_opt @sidebar_source "$1"; sel=0; dirty=1; }
 
 # ---- focus helper (keeps the row's target argument for payload compatibility) --
@@ -618,7 +618,6 @@ fi
 # EXIT cannot enqueue duplicate close jobs (which used to race direct option
 # cleanup against the launcher).
 _closing=0
-_user_dismiss=0
 cleanup() {
   local status="${1:-0}" self="${TMUX_PANE:-}"
   [ "$_closing" -eq 0 ] || return
@@ -626,23 +625,11 @@ cleanup() {
   trap - EXIT
   trap '' INT TERM HUP
   [ -n "$_orig_stty" ] && stty "$_orig_stty" 2>/dev/null || true
-  if [ "$_user_dismiss" = 1 ]; then
-    # Clear desired state before the fallback process exits and emits lifecycle
-    # hooks; the canonical dismiss script below then closes all owners.
-    tmux set-option -gu @sidebar_persistent 2>/dev/null || true
-  fi
   if [ -n "$self" ]; then
     # Keep this dispatcher alive until the server-owned close has resolved its
     # window. A background job can start after this pane exits, leaving
     # TMUX_PANE dead and losing the saved zoom/layout context.
-    close_mode=--close
-    [ "$_user_dismiss" = 1 ] && close_mode=--dismiss
-    if [ "$_user_dismiss" = 1 ]; then
-      # A globally scoped job survives this dispatcher's imminent pane exit.
-      tmux run-shell -b "TMUX_PANE=$(printf '%q' "$self") MM_SIDEBAR_EXPECTED_PANE=$(printf '%q' "$self") MM_SIDEBAR_EXPECTED_WINDOW=$(printf '%q' "${MM_SIDEBAR_OWNER_WINDOW:-}") $(printf '%q' "$TOGGLE") $close_mode" 2>/dev/null || true
-    else
-      tmux run-shell -t "$self" "TMUX_PANE=$(printf '%q' "$self") MM_SIDEBAR_EXPECTED_PANE=$(printf '%q' "$self") MM_SIDEBAR_EXPECTED_WINDOW=$(printf '%q' "${MM_SIDEBAR_OWNER_WINDOW:-}") $(printf '%q' "$TOGGLE") $close_mode" 2>/dev/null || true
-    fi
+    tmux run-shell -t "$self" "TMUX_PANE=$(printf '%q' "$self") MM_SIDEBAR_EXPECTED_PANE=$(printf '%q' "$self") MM_SIDEBAR_EXPECTED_WINDOW=$(printf '%q' "${MM_SIDEBAR_OWNER_WINDOW:-}") $(printf '%q' "$TOGGLE") --close" 2>/dev/null || true
   fi
   exit "$status"
 }
@@ -658,7 +645,7 @@ handle_key() {
   case "$k" in
     j|$'\e[B')       move 1;;
     k|$'\e[A')       move -1;;
-    q|$'\e')         _user_dismiss=1; cleanup;;
+    q|$'\e')         cleanup;;
     r)               dirty=1;;
     '?')             show_help=$((1-show_help));;
     1)               set_source sessions;;

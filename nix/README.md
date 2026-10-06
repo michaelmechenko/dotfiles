@@ -360,7 +360,11 @@ A source edit, branch switch, or Git update is immediately visible through these
 links, even before a build. Review updates first. Reload tmux with its existing
 reload binding, open a new shell for zsh, and restart Neovim/Pi as appropriate.
 The compiled sidebar and Pi extension code are deliberately **not** live-linked.
-Pi settings and keybindings remain local seeded copies, not source links.
+On macOS, `tmux-sidebar-build` recompiles `mm-sidebar` on demand after a Go source
+change. On NixOS, `MM_SIDEBAR_BIN` points at the store-built package instead: edit,
+rebuild, run `nix/check.sh`, then activate only after approval before expecting the
+new binary in tmux. Reloading tmux alone cannot replace that store binary. Pi
+settings and keybindings remain local seeded copies, not source links.
 
 ## Build and activate
 

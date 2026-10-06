@@ -75,9 +75,11 @@ type model struct {
 	contentCwd   string
 	sidebarWidth int // persisted @sidebar_width; zero means use the launch fallback
 
-	// Navigator. srcIdx indexes nav.Sources -- the registry is the only place
-	// tabs are enumerated, so there is no tab enum to keep in sync.
-	srcIdx int
+	// Navigator keeps a per-sidebar copy of the declarative registry. Filetree
+	// is replaced with a runtime instance so hierarchy/cache state never leaks
+	// across sidebar panes.
+	sources []nav.Source
+	srcIdx  int
 	// sourceGeneration invalidates refreshes started before a local tab choice.
 	// The persisted tmux option is authoritative only for generation zero (the
 	// initial load); after that, an in-process choice must win over an older
@@ -91,9 +93,11 @@ type model struct {
 	sel           int // index into navigatorRows(), never the unfiltered source slice
 	// selectionID keeps the navigator cursor attached to its source-local Row.ID
 	// when a refresh reorders rows or a query narrows and widens the view.
-	selectionID    string
-	vpStart        int             // first visible filtered row index
-	expandedGroups map[string]bool // process-local disclosure; absence means collapsed
+	selectionID     string
+	pendingSelectID string
+	pendingChildOf  string
+	vpStart         int             // first visible filtered row index
+	expandedGroups  map[string]bool // process-local disclosure; absence means collapsed
 	// queryActive owns the inline filter focus. A query line is rendered while it
 	// is active; Esc clears it and returns to normal navigator keys before a
 	// later Esc can close the sidebar.
@@ -111,6 +115,8 @@ type model struct {
 	previewOpen       bool
 	previewLoading    bool
 	previewGeneration uint64
+	previewCancel     context.CancelFunc
+	previewContext    context.Context
 	previewTitle      string
 	previewLines      []string
 	previewEmpty      string
@@ -224,6 +230,7 @@ func newModelWithContext(parent context.Context, client *tmuxio.Client) *model {
 		blockVisible:  make(map[string]bool),
 		feed:          feed,
 		fileWatch:     newFiletreeWatch(ctx),
+		sources:       modelSources(),
 		sourceLoading: true,
 		focusBlock:    -1,
 	}
@@ -235,8 +242,47 @@ func newModelWithContext(parent context.Context, client *tmuxio.Client) *model {
 
 // Close stops all process-lifetime work. It is idempotent because HUP, q, and
 // Bubble Tea errors can all converge on the same shutdown path.
+func modelSources() []nav.Source {
+	sources := append([]nav.Source(nil), nav.Sources...)
+	for i, source := range sources {
+		if source.ID() == "filetree" {
+			sources[i] = nav.NewFiletree()
+		}
+	}
+	return sources
+}
+
+func (m *model) sourceCount() int {
+	if len(m.sources) != 0 {
+		return len(m.sources)
+	}
+	return len(nav.Sources)
+}
+
+func (m *model) sourceAt(index int) nav.Source {
+	if index < 0 || index >= m.sourceCount() {
+		return nil
+	}
+	// Production initializes sources in newModelWithContext. This lazy path
+	// keeps direct model literals in focused tests equally per-model.
+	if len(m.sources) == 0 {
+		m.sources = modelSources()
+	}
+	return m.sources[index]
+}
+
+func (m *model) sourceIndex(id string) int {
+	for i := 0; i < m.sourceCount(); i++ {
+		if source := m.sourceAt(i); source != nil && source.ID() == id {
+			return i
+		}
+	}
+	return nav.DefaultSource
+}
+
 func (m *model) Close() {
 	m.close.Do(func() {
+		m.cancelPathPreviewRequest()
 		m.cancel()
 		m.feed.Close()
 		m.fileWatch.Close()
@@ -296,6 +342,32 @@ type previewMsg struct {
 	empty      string
 	truncated  bool
 	err        error
+}
+
+// pathPreviewIdentity binds asynchronous popup work to the source root and
+// selected row that requested it. Tmux preflight may run in the background, but
+// only Update can accept it and authorize display-popup.
+type pathPreviewIdentity struct {
+	generation       uint64
+	sourceGeneration uint64
+	ownerWindow      string
+	root             string
+	selectionID      string
+	path             string
+	label            string
+}
+
+type pathPreviewPreparedMsg struct {
+	identity pathPreviewIdentity
+	plan     tmuxio.PreviewPopupPlan
+	fallback bool
+	err      error
+}
+
+type pathPreviewLaunchedMsg struct {
+	identity pathPreviewIdentity
+	fallback bool
+	err      error
 }
 
 // contextActionMsg is the generic completion channel for source-owned palette
@@ -391,11 +463,15 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.fileWatch == nil {
 			return m, nil
 		}
-		if m.srcIdx < 0 || m.srcIdx >= len(nav.Sources) {
+		if m.srcIdx < 0 || m.srcIdx >= m.sourceCount() {
 			return m, m.fileWatch.wait()
 		}
-		if _, ok := nav.Sources[m.srcIdx].(nav.Watchable); !ok {
+		source := m.sourceAt(m.srcIdx)
+		if _, ok := source.(nav.WatchPathsProvider); !ok {
 			return m, m.fileWatch.wait()
+		}
+		if invalidatable, ok := source.(nav.Invalidatable); ok {
+			invalidatable.Invalidate()
 		}
 		return m, tea.Batch(m.refreshState(true), m.fileWatch.wait())
 
@@ -455,6 +531,33 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.previewLines = previewLines(msg.body)
 		}
 		m.previewLoading, m.previewOpen = false, true
+		return m, nil
+
+	case pathPreviewPreparedMsg:
+		if !m.pathPreviewCurrent(msg.identity) {
+			return m, nil
+		}
+		if msg.err != nil {
+			m.showPreviewError(msg.err)
+			return m, nil
+		}
+		if msg.fallback {
+			return m, m.renderPathPreview(msg.identity)
+		}
+		return m, m.launchPathPreview(msg.identity, msg.plan)
+
+	case pathPreviewLaunchedMsg:
+		if !m.pathPreviewCurrent(msg.identity) {
+			return m, nil
+		}
+		if msg.err != nil {
+			m.showPreviewError(msg.err)
+			return m, nil
+		}
+		if msg.fallback {
+			return m, m.renderPathPreview(msg.identity)
+		}
+		m.cancelPathPreviewRequest()
 		return m, nil
 
 	case localContextActionMsg:
@@ -543,6 +646,13 @@ func (m *model) refreshState(force bool) tea.Cmd {
 	lastKey := m.fetchKey
 	th := m.theme
 	client := m.client
+	// Copy the registry slice before starting the Cmd. The closure must not read
+	// model state; only the contained source instance is shared and Filetree
+	// protects its runtime with its own lock.
+	sources := append([]nav.Source(nil), m.sources...)
+	if len(sources) == 0 {
+		sources = append([]nav.Source(nil), nav.Sources...)
+	}
 	m.stateSeq++
 	stateSeq := m.stateSeq
 	return func() tea.Msg {
@@ -560,6 +670,10 @@ func (m *model) refreshState(force bool) tea.Cmd {
 		if sourceGeneration == 0 && snap.Source != "" {
 			srcIdx = nav.SourceByID(snap.Source)
 		}
+		if srcIdx < 0 || srcIdx >= len(sources) {
+			return stateMsg{srcIdx: srcIdx, sourceGeneration: sourceGeneration, stateSeq: stateSeq, stateErr: fmt.Errorf("invalid source index %d", srcIdx), elapsed: time.Since(started)}
+		}
+		source := sources[srcIdx]
 
 		panes := world.PaneSet()
 		content := resolveContentPane(client, world)
@@ -567,7 +681,6 @@ func (m *model) refreshState(force bool) tea.Cmd {
 		if cwd == "" {
 			cwd = homeDir()
 		}
-		source := nav.Sources[srcIdx]
 		ctx := nav.Ctx{
 			Theme: th, Cwd: cwd, ContentPane: content, Root: root, RootPane: rootPane,
 			RootPinned: rootPinned, ShowHidden: showHidden, World: world,
@@ -670,6 +783,7 @@ func (m *model) applyState(msg stateMsg) {
 		}
 	}
 	m.clampSel()
+	m.applyPendingNavigatorSelection()
 	// WindowSizeMsg is the normal source of geometry, but the very first render
 	// can land before it arrives; the snapshot has the same numbers.
 	if m.height == 0 {
@@ -678,20 +792,20 @@ func (m *model) applyState(msg stateMsg) {
 }
 
 // resolveContentPane keeps @sidebar_content_pane pointing at a live pane. If the
-// recorded pane is gone, the pane immediately right of the sidebar is the content
-// area by construction (the sidebar is always leftmost and full height) -- the
-// neo-tree "don't lose track of the target window" guarantee.
+// recorded pane is gone, the nearest non-sidebar pane left of the right-hand
+// sidebar is the content area by construction -- the neo-tree "don't lose
+// track of the target window" guarantee.
 func resolveContentPane(client *tmuxio.Client, world tmuxio.World) string {
 	snap, panes := world.Snapshot, world.PaneSet()
 	if pane, ok := panes[snap.ContentPane]; ok && pane.SessionID == snap.SessionID && pane.WindowIndex == snap.WindowIndex {
 		return snap.ContentPane
 	}
-	bestLeft, found := 0, ""
+	bestLeft, found := -1, ""
 	for _, pane := range world.Panes() {
-		if pane.SessionID != snap.SessionID || pane.WindowIndex != snap.WindowIndex || pane.PaneLeft <= snap.PaneLeft {
+		if pane.SessionID != snap.SessionID || pane.WindowIndex != snap.WindowIndex || pane.Sidebar || pane.PaneLeft >= snap.PaneLeft {
 			continue
 		}
-		if found == "" || pane.PaneLeft < bestLeft {
+		if found == "" || pane.PaneLeft > bestLeft {
 			bestLeft, found = pane.PaneLeft, pane.PaneID
 		}
 	}
@@ -736,7 +850,21 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.queryActive {
 		return m.handleQueryKey(msg)
 	}
-	if controller, ok := nav.Sources[m.srcIdx].(nav.SourceController); ok {
+	source := m.sourceAt(m.srcIdx)
+	if key == "P" {
+		if action, ok := m.selectedPreviewAction(); ok {
+			return m, m.runContextAction(action)
+		}
+		return m, nil
+	}
+	if controller, ok := source.(nav.RowController); ok {
+		if row, ok := m.selectedNavigatorRow(); ok {
+			if control, handled := controller.HandleRowKey(key, row, m.navCtx()); handled {
+				return m, m.applySourceControl(control)
+			}
+		}
+	}
+	if controller, ok := source.(nav.SourceController); ok {
 		if control, handled := controller.HandleSourceKey(key, m.navCtx()); handled {
 			return m, m.applySourceControl(control)
 		}
@@ -749,11 +877,6 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.syncBlockVisibility()
 	case "a", ":":
 		m.openActionPalette()
-		return m, nil
-	case "space", " ":
-		if action, ok := m.selectedPreviewAction(); ok {
-			return m, m.runContextAction(action)
-		}
 		return m, nil
 	// Lowercase movement stays in the current focus region. Region rotation is
 	// explicit so a long navigator list cannot accidentally enter an agent row.
@@ -814,7 +937,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// so indexing key[0] there panics on an empty KeyMsg.String() and takes the
 		// whole sidebar down.
 		if len(key) == 1 {
-			if d := int(key[0] - '0'); d >= 1 && d <= len(nav.Sources) {
+			if d := int(key[0] - '0'); d >= 1 && d <= m.sourceCount() {
 				return m, m.setSource(d - 1)
 			}
 		}
@@ -1045,6 +1168,14 @@ func (m *model) ensureActionVisible() {
 	}
 }
 
+func (m *model) selectedNavigatorRow() (nav.Row, bool) {
+	rows := m.navigatorRows()
+	if m.focusRegion != focusNavigator || m.sel < 0 || m.sel >= len(rows) {
+		return nav.Row{}, false
+	}
+	return rows[m.sel], true
+}
+
 func (m *model) selectedActions() []nav.ContextAction {
 	if m.focusRegion == focusBlock {
 		if m.focusBlock < 0 || m.focusBlock >= len(m.docked) {
@@ -1081,6 +1212,7 @@ func (m *model) selectedPreviewAction() (nav.ContextAction, bool) {
 }
 
 func (m *model) beginPreview(title string) uint64 {
+	m.cancelPathPreviewRequest()
 	m.previewGeneration++
 	m.previewOpen, m.previewLoading = true, true
 	m.previewTitle, m.previewLines, m.previewEmpty, m.previewErr = title, nil, "", nil
@@ -1089,10 +1221,48 @@ func (m *model) beginPreview(title string) uint64 {
 }
 
 func (m *model) closePreview() {
+	m.cancelPathPreviewRequest()
 	m.previewGeneration++
 	m.previewOpen, m.previewLoading = false, false
 	m.previewLines, m.previewEmpty, m.previewErr = nil, "", nil
 	m.previewTruncated = false
+}
+
+func (m *model) cancelPathPreviewRequest() {
+	if m.previewCancel != nil {
+		m.previewCancel()
+		m.previewCancel = nil
+	}
+	m.previewContext = nil
+}
+
+func (m *model) invalidatePathPreviewRequest() {
+	m.cancelPathPreviewRequest()
+	m.previewGeneration++
+}
+
+func (m *model) previewSelectionID() string {
+	if row, ok := m.selectedNavigatorRow(); ok {
+		return row.ID
+	}
+	return m.selectionID
+}
+
+func (m *model) pathPreviewCurrent(identity pathPreviewIdentity) bool {
+	return identity.generation == m.previewGeneration &&
+		identity.sourceGeneration == m.sourceGeneration &&
+		identity.ownerWindow == m.winTarget &&
+		identity.root == m.sourceRoot &&
+		identity.selectionID == m.previewSelectionID() &&
+		identity.path != ""
+}
+
+func (m *model) showPreviewError(err error) {
+	m.cancelPathPreviewRequest()
+	m.previewLoading, m.previewOpen = false, true
+	m.previewTitle = "preview unavailable"
+	m.previewLines = []string{display.Sanitize(err.Error())}
+	m.previewEmpty, m.previewTruncated, m.previewErr = "", false, err
 }
 
 func (m *model) runContextAction(action nav.ContextAction) tea.Cmd {
@@ -1119,20 +1289,80 @@ func (m *model) runContextAction(action nav.ContextAction) tea.Cmd {
 		}
 	}
 	if action.Kind == nav.ContextPreviewPath {
-		generation := m.beginPreview(action.Label)
-		return func() tea.Msg {
-			result, err := pathpreview.Render(action.Path, pathpreview.Limits{})
-			title := result.Title
-			if title == "" {
-				title = action.Label
-			}
-			return previewMsg{generation: generation, title: title, lines: result.Lines, empty: result.Empty, truncated: result.Truncated, err: err}
-		}
+		return m.runPathPreview(action)
 	}
 	content := m.contentRef
 	return func() tea.Msg {
 		result, err := nav.ExecuteContextAction(m.client, action, content)
 		return contextActionMsg{result: result, err: err}
+	}
+}
+
+// runPathPreview starts only a cancellable tmux preflight. The model accepts
+// that completion against the original root and row identity before it grants
+// the separate display-popup side effect. No filesystem or tmux I/O occurs on
+// the input path.
+func (m *model) runPathPreview(action nav.ContextAction) tea.Cmd {
+	m.cancelPathPreviewRequest()
+	m.previewGeneration++
+	identity := pathPreviewIdentity{
+		generation: m.previewGeneration, sourceGeneration: m.sourceGeneration,
+		ownerWindow: m.winTarget, root: m.sourceRoot, selectionID: m.previewSelectionID(),
+		path: action.Path, label: action.Label,
+	}
+	parent := m.ctx
+	if parent == nil {
+		parent = context.Background()
+	}
+	ctx, cancel := context.WithCancel(parent)
+	m.previewContext, m.previewCancel = ctx, cancel
+	client := m.client
+	return func() tea.Msg {
+		binary, err := os.Executable()
+		if err != nil {
+			return pathPreviewPreparedMsg{identity: identity, err: err}
+		}
+		plan, result, err := client.PreparePathPreview(ctx, tmuxio.PreviewPopupRequest{OwnerWindow: identity.ownerWindow, Binary: binary, Path: identity.path})
+		if ctx.Err() != nil {
+			return nil
+		}
+		return pathPreviewPreparedMsg{identity: identity, plan: plan, fallback: result.Fallback, err: err}
+	}
+}
+
+func (m *model) launchPathPreview(identity pathPreviewIdentity, plan tmuxio.PreviewPopupPlan) tea.Cmd {
+	ctx := m.previewContext
+	if ctx == nil {
+		return nil
+	}
+	client := m.client
+	return func() tea.Msg {
+		result, err := client.LaunchPathPreview(ctx, plan)
+		if ctx.Err() != nil {
+			return nil
+		}
+		return pathPreviewLaunchedMsg{identity: identity, fallback: result.Fallback, err: err}
+	}
+}
+
+func (m *model) renderPathPreview(identity pathPreviewIdentity) tea.Cmd {
+	ctx := m.previewContext
+	if ctx == nil {
+		return nil
+	}
+	return func() tea.Msg {
+		if ctx.Err() != nil {
+			return nil
+		}
+		result, err := pathpreview.Render(identity.path, pathpreview.Limits{})
+		if ctx.Err() != nil {
+			return nil
+		}
+		title := result.Title
+		if title == "" {
+			title = identity.label
+		}
+		return previewMsg{generation: identity.generation, title: title, lines: result.Lines, empty: result.Empty, truncated: result.Truncated, err: err}
 	}
 }
 
@@ -1142,8 +1372,8 @@ func (m *model) runContextAction(action nav.ContextAction) tea.Cmd {
 func (m *model) applyContextEffect(action nav.ContextAction) (tea.Cmd, bool) {
 	switch action.Local {
 	case nav.LocalEffectSource:
-		idx := nav.SourceByID(action.SourceID)
-		if idx < 0 || idx >= len(nav.Sources) || nav.Sources[idx].ID() != action.SourceID {
+		idx := m.sourceIndex(action.SourceID)
+		if idx < 0 || idx >= m.sourceCount() || m.sourceAt(idx).ID() != action.SourceID {
 			return nil, true
 		}
 		control := action.SourceControl
@@ -1252,6 +1482,7 @@ func (m *model) handleQueryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) beginQuery() {
+	m.invalidatePathPreviewRequest()
 	m.rememberNavigatorSelection()
 	// A query filters navigator rows, so it cannot retain a docked block's
 	// selection-scoped work. Clear it before switching regions rather than
@@ -1267,6 +1498,7 @@ func (m *model) beginQuery() {
 }
 
 func (m *model) clearQuery() {
+	m.invalidatePathPreviewRequest()
 	m.rememberNavigatorSelection()
 	m.queryActive, m.query = false, ""
 	m.clampSel()
@@ -1276,6 +1508,7 @@ func (m *model) clearQuery() {
 // control to one terminal line. Control characters cannot match a source's
 // sanitized SearchText or render safely, so normalize them to spaces.
 func (m *model) appendQuery(text string) {
+	m.invalidatePathPreviewRequest()
 	m.rememberNavigatorSelection()
 	text = strings.Map(func(r rune) rune {
 		if unicode.IsControl(r) {
@@ -1294,6 +1527,7 @@ func (m *model) deleteQueryRune() {
 	if m.query == "" {
 		return
 	}
+	m.invalidatePathPreviewRequest()
 	m.rememberNavigatorSelection()
 	_, size := utf8.DecodeLastRuneInString(m.query)
 	m.query = m.query[:len(m.query)-size]
@@ -1335,6 +1569,7 @@ func (m *model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		if line < len(m.lineRow) {
 			// Navigator: either line of a two-line row selects that row.
 			if m.lineRow[line] >= 0 {
+				m.invalidatePathPreviewRequest()
 				m.setFocusTarget(focusTarget{block: navigatorTarget})
 				m.sel = m.lineRow[line]
 				m.rememberNavigatorSelection()
@@ -1424,11 +1659,13 @@ func (m *model) wheel(delta, y int) {
 	}
 	m.vpStart = start
 	if m.sel < start {
+		m.invalidatePathPreviewRequest()
 		m.sel = start
 		m.rememberNavigatorSelection()
 		return
 	}
 	if last := m.lastVisibleRow(start, avail); m.sel > last {
+		m.invalidatePathPreviewRequest()
 		m.sel = last
 		m.rememberNavigatorSelection()
 	}
@@ -1469,6 +1706,7 @@ func (m *model) maxScrollStart(avail int) int {
 }
 
 func (m *model) move(delta int) {
+	m.invalidatePathPreviewRequest()
 	rows := m.navigatorRows()
 	if len(rows) == 0 {
 		m.sel = 0
@@ -1725,6 +1963,7 @@ func (m *model) focusFirst() {
 	}
 	first := regions[0]
 	if first.block == navigatorTarget {
+		m.invalidatePathPreviewRequest()
 		m.sel = 0
 		m.rememberNavigatorSelection()
 		m.setFocusTarget(first)
@@ -1742,6 +1981,7 @@ func (m *model) focusLast() {
 	}
 	last := regions[len(regions)-1]
 	if last.block == navigatorTarget {
+		m.invalidatePathPreviewRequest()
 		m.sel = len(m.navigatorRows()) - 1
 		m.rememberNavigatorSelection()
 	} else if n, ok := m.dockedBlockNav(last.block); ok {
@@ -1788,6 +2028,7 @@ func (m *model) setDisclosure(expand bool) {
 		return
 	}
 	if row.GroupHeading && row.Collapsible {
+		m.invalidatePathPreviewRequest()
 		if m.expandedGroups == nil {
 			m.expandedGroups = make(map[string]bool)
 		}
@@ -1796,6 +2037,7 @@ func (m *model) setDisclosure(expand bool) {
 		return
 	}
 	if !expand && m.expandedGroups[group] {
+		m.invalidatePathPreviewRequest()
 		m.expandedGroups[group] = false
 		collapsed := m.navigatorRows()
 		for i, candidate := range collapsed {
@@ -1811,6 +2053,9 @@ func (m *model) setDisclosure(expand bool) {
 func (m *model) filteredNavigatorRows() []nav.Row {
 	if m.query == "" {
 		return m.rows
+	}
+	if filter, ok := m.sourceAt(m.srcIdx).(nav.RowFilter); ok {
+		return filter.FilterRows(m.rows, m.query)
 	}
 	needle := strings.ToLower(m.query)
 	matchingHeading := make(map[string]bool)
@@ -1911,9 +2156,10 @@ func (m *model) dockedBlockNav(index int) (blocks.Navigable, bool) {
 }
 
 func (m *model) setSource(idx int) tea.Cmd {
-	if idx == m.srcIdx || idx < 0 || idx >= len(nav.Sources) {
+	if idx == m.srcIdx || idx < 0 || idx >= m.sourceCount() {
 		return nil
 	}
+	m.invalidatePathPreviewRequest()
 	m.srcIdx = idx
 	m.sourceGeneration++
 	m.sel = 0
@@ -1960,7 +2206,7 @@ func (m *model) persistSource(idx int) tea.Cmd {
 	if m.winTarget == "" {
 		return nil
 	}
-	target, id := m.winTarget, nav.Sources[idx].ID()
+	target, id := m.winTarget, m.sourceAt(idx).ID()
 	return func() tea.Msg {
 		m.client.SetWinOpt(target, "@sidebar_source", id)
 		return nil
@@ -1968,13 +2214,35 @@ func (m *model) persistSource(idx int) tea.Cmd {
 }
 
 func (m *model) cycleTab(delta int) tea.Cmd {
-	n := len(nav.Sources)
+	n := m.sourceCount()
 	return m.setSource(((m.srcIdx+delta)%n + n) % n)
 }
 
 // applySourceControl projects an optional source's key result into generic
 // source state. There is intentionally no source ID or control-key branch here.
+func (m *model) applyPendingNavigatorSelection() {
+	if m.pendingSelectID != "" {
+		m.selectionID = m.pendingSelectID
+		m.pendingSelectID = ""
+		m.clampSel()
+	}
+	if m.pendingChildOf != "" {
+		parent := m.pendingChildOf
+		m.pendingChildOf = ""
+		for _, row := range m.navigatorRows() {
+			if row.ParentID == parent {
+				m.selectionID = row.ID
+				m.clampSel()
+				return
+			}
+		}
+	}
+}
+
 func (m *model) applySourceControl(control nav.SourceControl) tea.Cmd {
+	if control.SetRoot || control.Refresh {
+		m.invalidatePathPreviewRequest()
+	}
 	if control.SetRoot {
 		m.sourceRoot, m.sourceRootPane = control.Root, control.RootPane
 	}
@@ -1984,12 +2252,25 @@ func (m *model) applySourceControl(control nav.SourceControl) tea.Cmd {
 	if control.SetShowHidden {
 		m.showHidden = control.ShowHidden
 	}
+	if control.SelectID != "" {
+		m.pendingSelectID = control.SelectID
+	}
+	if control.SelectFirstChildOf != "" {
+		m.pendingChildOf = control.SelectFirstChildOf
+	}
 	if !control.Refresh {
+		m.applyPendingNavigatorSelection()
 		return nil
 	}
-	m.sel, m.selectionID = 0, ""
+	// A local source control changes source-owned state while an older refresh
+	// can still be running. Advance the generation before queuing work so that
+	// completion cannot restore stale rows/root/hidden state.
+	m.sourceGeneration++
+	if control.Loading {
+		m.sourceLoading = true
+	}
 	m.syncSourceWatch()
-	return m.refreshState(false)
+	return m.refreshState(true)
 }
 
 // navCtx builds the Source context from current model state. refreshState builds
@@ -2052,17 +2333,22 @@ func (m *model) shouldFetchBlock(b blocks.Block) bool {
 }
 
 func (m *model) syncSourceWatch() {
-	if m.fileWatch == nil || m.srcIdx < 0 || m.srcIdx >= len(nav.Sources) {
+	if m.fileWatch == nil || m.srcIdx < 0 || m.srcIdx >= m.sourceCount() {
 		m.watchRoot = ""
 		return
 	}
-	if watchable, ok := nav.Sources[m.srcIdx].(nav.Watchable); ok {
-		m.watchRoot = watchable.WatchRoot(m.navCtx())
-		m.fileWatch.SetRoot(m.watchRoot)
+	if watchable, ok := m.sourceAt(m.srcIdx).(nav.WatchPathsProvider); ok {
+		paths := watchable.WatchPaths(m.navCtx())
+		if len(paths) > 0 {
+			m.watchRoot = paths[0]
+		} else {
+			m.watchRoot = ""
+		}
+		m.fileWatch.SetPaths(paths)
 		return
 	}
 	m.watchRoot = ""
-	m.fileWatch.SetRoot("")
+	m.fileWatch.SetPaths(nil)
 }
 
 // act runs the selected row's action. ActionEditFile is special: it suspends the
@@ -2104,34 +2390,13 @@ func (m *model) act() tea.Cmd {
 	}
 }
 
-// quit is an explicit user dismissal: it hands the global persistence shutdown
-// to tmux-sidebar-toggle, which closes every owner transactionally.
-//
-// This used to clear the options and select the content pane inline, which meant
-// `q` skipped the ONE thing the script's close path does that this can't: replaying
-// @sidebar_saved_layout to undo the pane squeeze the full-height split caused. So
-// closing with M-Tab restored the window's geometry and closing with q silently
-// didn't, and left the saved layout behind as a stale option. Duplicating that
-// replay here would be a second copy of logic with a documented
-// allowed-to-fail contract, so the script stays the single owner of it.
-//
-// `run-shell -b` is what makes this safe: it runs as a child of the tmux SERVER,
-// not of this pane, so it survives the kill-pane it is about to issue. The script
-// then owns global desired-state removal plus each local kill + select-layout +
-// focus transaction. tea.Quit still follows, so the TUI releases the terminal
-// even if the script never lands.
-//
-// @sidebar_source is deliberately left set (by the script), so re-opening the
-// sidebar in this window restores the tab that was active.
+// quit is a local user dismissal. tmux-sidebar-toggle owns the one close
+// transaction that can replay @sidebar_saved_layout, restore zoom, and return
+// focus without touching a sidebar in another window.
 func (m *model) quit() tea.Cmd {
-	// Clear desired state while this pane is still alive. Otherwise pane-exited
-	// can launch an ensure job that observed persistent mode before the async
-	// dismiss script gets a server turn.
-	m.client.RunQuiet("set-option", "-gu", "@sidebar_persistent")
-	// Run synchronously while this pane is still alive. Bubble Tea may tear down
-	// queued commands after a quit, but the final local kill must happen only
-	// after every other owner has completed its close transaction.
-	_ = exec.Command("/bin/sh", "-c", dismissScript(m.selfPane)).Run()
+	// Run while this pane is still alive: Bubble Tea can tear down queued commands
+	// after quitting, but the local close needs this pane's immutable owner context.
+	_ = exec.Command("/bin/sh", "-c", closeScript(m.selfPane)).Run()
 	return tea.Quit
 }
 
@@ -2149,17 +2414,6 @@ func closeScript(paneID string) string {
 		command += " MM_SIDEBAR_EXPECTED_WINDOW=" + shellQuote(ownerWindow)
 	}
 	return command + " " + shellQuote(path) + " --close"
-}
-
-// dismissScript uses the same immutable owner context but intentionally clears
-// global persistent mode before canonical close-all.
-func dismissScript(paneID string) string {
-	path := filepath.Join(homeDir(), ".config", "tmux_scripts", "tmux-sidebar-toggle")
-	command := "TMUX_PANE=" + shellQuote(paneID) + " MM_SIDEBAR_EXPECTED_PANE=" + shellQuote(paneID)
-	if ownerWindow := os.Getenv("MM_SIDEBAR_OWNER_WINDOW"); ownerWindow != "" {
-		command += " MM_SIDEBAR_EXPECTED_WINDOW=" + shellQuote(ownerWindow)
-	}
-	return command + " " + shellQuote(path) + " --dismiss"
 }
 
 func shellQuote(s string) string {
@@ -2305,7 +2559,8 @@ func (m *model) explicitBlockView() string {
 
 func (m *model) headerLines() []string {
 	strip := ""
-	for i, s := range nav.Sources {
+	for i := 0; i < m.sourceCount(); i++ {
+		s := m.sourceAt(i)
 		if i > 0 {
 			strip += " "
 		}
@@ -2316,8 +2571,8 @@ func (m *model) headerLines() []string {
 			strip += m.theme.Chrome.Render(chip)
 		}
 	}
-	context := nav.Sources[m.srcIdx].Title()
-	if provider, ok := nav.Sources[m.srcIdx].(nav.ContextProvider); ok {
+	context := m.sourceAt(m.srcIdx).Title()
+	if provider, ok := m.sourceAt(m.srcIdx).(nav.ContextProvider); ok {
 		if value := provider.Context(m.navCtx(), m.rows); value != "" {
 			context = value
 		}
@@ -2335,8 +2590,8 @@ func (m *model) diagnosticsView() string {
 	m.lineRow = m.lineRow[:0]
 	m.blockLines = m.blockLines[:0]
 	name := "-"
-	if m.srcIdx >= 0 && m.srcIdx < len(nav.Sources) {
-		name = nav.Sources[m.srcIdx].ID()
+	if m.srcIdx >= 0 && m.srcIdx < m.sourceCount() {
+		name = m.sourceAt(m.srcIdx).ID()
 	}
 	root := m.sourceRoot
 	if root == "" {
@@ -2369,7 +2624,7 @@ func (m *model) diagnosticsView() string {
 	}
 	lines := []string{
 		"▸ diagnostics/help",
-		"source: " + name + fmt.Sprintf(" (%d/%d)", m.srcIdx+1, len(nav.Sources)),
+		"source: " + name + fmt.Sprintf(" (%d/%d)", m.srcIdx+1, m.sourceCount()),
 		"root: " + root + fmt.Sprintf("  pinned=%t hidden=%t", m.rootPinned, m.showHidden),
 		"filter: " + filter + "  watch: " + watch,
 		"visible: " + strings.Join(visible, ","),
@@ -2488,8 +2743,8 @@ func (m *model) moveHelp(delta int) {
 
 func (m *model) helpEntries() []string {
 	entries := make([]string, 0, len(globalKeyActions)+8)
-	if m.srcIdx >= 0 && m.srcIdx < len(nav.Sources) {
-		if provider, ok := nav.Sources[m.srcIdx].(nav.ActionProvider); ok {
+	if m.srcIdx >= 0 && m.srcIdx < m.sourceCount() {
+		if provider, ok := m.sourceAt(m.srcIdx).(nav.ActionProvider); ok {
 			for _, action := range provider.KeyActions() {
 				entries = append(entries, action.Key+"  "+action.Summary)
 			}
@@ -2504,8 +2759,8 @@ func (m *model) helpEntries() []string {
 func (m *model) helpView() string {
 	m.lineRow, m.blockLines = m.lineRow[:0], m.blockLines[:0]
 	title := "help"
-	if m.srcIdx >= 0 && m.srcIdx < len(nav.Sources) {
-		title += " · " + nav.Sources[m.srcIdx].Title()
+	if m.srcIdx >= 0 && m.srcIdx < m.sourceCount() {
+		title += " · " + m.sourceAt(m.srcIdx).Title()
 	}
 	lines := []string{clipLine(m.theme.Accent.Render("▸ "+title), m.width)}
 	entries := m.helpEntries()
@@ -2604,8 +2859,8 @@ var globalKeyActions = []nav.KeyAction{
 // dedicated help surface without teaching model.go that source's identity.
 func (m *model) registeredKeyActions() []nav.KeyAction {
 	actions := append([]nav.KeyAction(nil), globalKeyActions...)
-	if m.srcIdx >= 0 && m.srcIdx < len(nav.Sources) {
-		if provider, ok := nav.Sources[m.srcIdx].(nav.ActionProvider); ok {
+	if m.srcIdx >= 0 && m.srcIdx < m.sourceCount() {
+		if provider, ok := m.sourceAt(m.srcIdx).(nav.ActionProvider); ok {
 			actions = append(actions, provider.KeyActions()...)
 		}
 	}
@@ -2632,9 +2887,9 @@ func (m *model) navLines(avail int) []string {
 		label := "(empty)"
 		switch {
 		case m.sourceLoading:
-			label = "loading " + nav.Sources[m.srcIdx].Title() + "…"
+			label = "loading " + m.sourceAt(m.srcIdx).Title() + "…"
 		case m.lastStateErr != "" || m.lastFetchErr != "":
-			label = nav.Sources[m.srcIdx].Title() + " unavailable · r retry"
+			label = m.sourceAt(m.srcIdx).Title() + " unavailable · r retry"
 		case m.query != "" && len(m.rows) > 0:
 			label = "(no matches)"
 		}

@@ -42,7 +42,7 @@ func TestClientScopesSnapshotOptionsAndGeometryToSidebarPane(t *testing.T) {
 				}
 				return "$0" + fieldSep + "0" + fieldSep + "%sidebar" + fieldSep + "0" + fieldSep + "36" + fieldSep + "50" + fieldSep + "2" + fieldSep + "%content" + fieldSep + "sessions" + fieldSep + fieldSep + "@0", nil
 			case "list-panes":
-				return "0" + fieldSep + "%sidebar\n36" + fieldSep + "%content", nil
+				return "0" + fieldSep + "%sidebar" + fieldSep + "1\n36" + fieldSep + "%content" + fieldSep + "0", nil
 			}
 			return "", nil
 		},
@@ -59,8 +59,8 @@ func TestClientScopesSnapshotOptionsAndGeometryToSidebarPane(t *testing.T) {
 	if got, err := client.Opts("@color-canvas", "@sidebar_source"); err != nil || len(got) != 2 {
 		t.Fatalf("option result = %#v, %v", got, err)
 	}
-	if got, err := client.RightOfPane(0); err != nil || got != "%content" {
-		t.Fatalf("right pane = %q, %v; want %%content", got, err)
+	if got, err := client.LeftOfPane(99); err != nil || got != "%content" {
+		t.Fatalf("left pane = %q, %v; want %%content", got, err)
 	}
 
 	for _, call := range calls {
@@ -421,7 +421,7 @@ func TestMalformedTransportReturnsErrorsInsteadOfShifting(t *testing.T) {
 	if _, err := client.ListPanes(); err == nil {
 		t.Fatal("malformed list-panes row succeeded")
 	}
-	if _, err := client.RightOfPane(0); err == nil {
+	if _, err := client.LeftOfPane(99); err == nil {
 		t.Fatal("malformed geometry row succeeded")
 	}
 }

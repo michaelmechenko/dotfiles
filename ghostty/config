@@ -170,7 +170,7 @@ keybind = ctrl+enter=csi:13;5u
 
 # alt+tab / alt+shift+tab: CSI-u for the two mm-sidebar gestures (9 = HT keycode;
 # CSI-u modifier is 1 + shift(1) + alt(2), so Alt = 3 and Alt+Shift = 4). M-Tab
-# opens/closes the sidebar, M-S-Tab switches focus without killing the pane.
+# focuses or opens the local sidebar; M-BTab opens/closes the local sidebar.
 keybind = alt+tab=csi:9;3u
 keybind = alt+shift+tab=csi:9;4u
 

@@ -7,8 +7,8 @@
 >
 > Renamed from `mega-michael-sidebar` in revision 3.
 
-A leftmost, full-window-height tmux pane toggled by `M-Tab`, running a compiled
-Go/Bubble Tea TUI. Its normal surface is an adaptive hybrid workspace cockpit:
+A rightmost, full-window-height tmux pane opened manually in one tmux window,
+running a compiled Go/Bubble Tea TUI. Its normal surface is an adaptive hybrid workspace cockpit:
 a 2-line header, a tab-switchable navigator (sessions / panes / projects /
 filetree / scratch), urgent agent blockers, cached selected-item context, and—
 only when the full navigator fits—thinking agents plus recent activity. Idle
@@ -53,8 +53,8 @@ Attention is permission-first, waiting-second, capped at four agent rows when
 space permits and degraded to at least one blocker beside the minimum navigator.
 A `+N more · v agents` row opens the full roster when it fits. `v` opens full
 agents, activity-history, and system-health views.
-`Esc`/`q` returns from those views to normal; on normal it retains the existing
-global sidebar dismissal.
+`Esc`/`q` returns from those views to normal; on main it follows the local
+sidebar close path.
 
 The pane defaults to **36 columns** with window-local 30/36/44 presets. Every
 surface emits exactly `pane_height` lines and derives mouse hit maps from that
@@ -67,8 +67,8 @@ inventory rather than temporarily claiming `(empty)`.
 | Path | Role |
 | --- | --- |
 | `tmux_scripts/mm-sidebar/` | The Go module. `go.mod`/`go.sum` tracked; the architecture-specific binary is generated on demand and ignored. |
-| `tmux_scripts/tmux-sidebar-toggle` | Persistent-mode toggle, local focus switch, and owner-safe pane lifecycle. |
-| `tmux_scripts/tmux-sidebar-sync` | Hook-driven reconciler: ensures the selected window has one sidebar while persistent mode is enabled. |
+| `tmux_scripts/tmux-sidebar-toggle` | Window-local open/close and focus switch, with owner-safe lifecycle recovery. |
+| `tmux_scripts/tmux-sidebar-sync` | Disabled compatibility shim for the retired synchronized-sidebar lifecycle. |
 | `tmux_scripts/tmux-sidebar-build` | Builds or repairs the binary on demand; prints its path, or exits 1 so callers can fall back. |
 | `tmux_scripts/tmux-sidebar-repin` | Restores every sidebar pane to its configured width after a resize. |
 | `tmux_scripts/tmux-agent-ls` | Thin wrapper over `mm-sidebar agents` (the only copy of the join). |
@@ -89,7 +89,7 @@ inventory rather than temporarily claiming `(empty)`.
 | `internal/blocks` | Agent roster/attention, activity history, system sampling, and explicit-view interaction. |
 | `internal/projectcatalog` | Persistent XDG-backed repository identity/inventory: canonical common dirs, pinned/recent retention, validated roots, flocked schema-v1 state. |
 | `internal/worktrunk` | Optional bounded Worktrunk schema-2 list/switch adapter; Git remains discovery authority. |
-| `internal/preview` | Bounded native-Go regular-file/directory previews with binary and special-file rejection. |
+| `internal/preview` | Bounded regular-file/directory snapshots used by the in-sidebar fallback and explicit popup pager. |
 | `internal/trace` | `MMS_TRACE=1` per-phase timing, shared by every package. |
 
 Within `internal/nav`: `source.go` is the contract plus the `Sources` registry,
@@ -97,45 +97,43 @@ one file per source (`sessions.go`, `windows.go`, `projects.go`, `filetree.go`, 
 `act.go` performs an ordinary Enter action, `actions.go` owns row context-action descriptors and dispatch, and
 `keys.go` defines the optional source key-action contract used by help.
 
-## State (global desired state + window-local owners)
+## State (window-local owners)
 
-`@sidebar_persistent` is a global desired-state option. When it is set, indexed
-selection/layout hooks ensure one sidebar per selected window/session; each is a
-separate window-owned pane and is never moved between windows. All owner state
-below is `setw -w`, so each window remembers its own tab, width, content target,
-and lifecycle transaction.
+Every sidebar is an independent, window-local pane. Opening one never creates a
+sidebar in another window or session. Its owner state is `setw -w`, so a window
+retains its source, width preference, content target, and close transaction.
 
 | Option | Meaning |
 | --- | --- |
-| `@sidebar_persistent` | Global desired state (`1` while synchronized sidebars are enabled). |
 | `@sidebar_pane_id` | This window's sidebar pane. Unset when closed. |
-| `@sidebar_content_pane` | The pane the sidebar navigates/opens into. Retargeted to whichever pane you `M-BTab` *from*. |
-| `@sidebar_source` | Active tab — any `nav.Source`'s `ID()` (`sessions`\|`windows`\|`projects`\|`filetree`\|`scratch`). **Deliberately not cleared on close**, so re-opening restores your tab. An unrecognized value falls back to the first registered source. |
-| `@sidebar_width` | Width preference for this window. `w` cycles 30/36/44; unset falls back to `TMUX_SIDEBAR_WIDTH` then 36. |
-| `@sidebar_saved_layout` | The window's `window_layout` from just before the sidebar opened, replayed on close to undo the squeeze. Cleared on close, including when the replay is rejected as stale. |
+| `@sidebar_content_pane` | The pane the sidebar navigates and opens into. Retargeted from the content pane when focus enters the sidebar. |
+| `@sidebar_source` | Active tab — any `nav.Source` ID (`sessions`\|`windows`\|`projects`\|`filetree`\|`scratch`). It is deliberately retained across a close. Empty or unknown values fall back to filetree. |
+| `@sidebar_width` | Window-local width preference. `w` cycles 30/36/44; unset falls back to `TMUX_SIDEBAR_WIDTH`, then 36. |
+| `@sidebar_saved_layout` | The pre-open layout, replayed after close to undo the full-height split squeeze when still valid. |
 
 Per-pane marker: `@sidebar_pane 1` + pane title `sidebar`, so `tsave`, border
-coloring, automatic rename, and all navigator sources can identify infrastructure
+coloring, automatic rename, and navigator sources can identify infrastructure
 panes. `tmuxio.World` carries this marker; sessions/panes exclude every marked
-pane, including sidebars belonging to other windows or sessions.
+sidebar, including sidebars in other windows or sessions.
 
-`internal/tmuxio` reads all of these through `#{@user_option}` inside the single
-per-tick `display-message -p` — that format resolves window-scoped options with
-normal option-scope fallback and yields an empty field when unset (verified
-live), so no separate `show-options` forks are needed.
+`internal/tmuxio` reads the window options through `#{@user_option}` inside the
+single per-tick `display-message -p`; no separate `show-options` forks are needed.
 
 ### Content-pane tracking
 
-`@sidebar_content_pane` is verified every refresh. If the recorded pane is dead,
-it is recomputed as "the pane immediately right of the sidebar by `pane_left`
-geometry" (the sidebar is always leftmost and full height, so that is the content
-area by construction) and re-stored — the neo-tree "don't lose track of the
-target window" guarantee.
+`@sidebar_content_pane` is verified every refresh. If it is dead, the model
+chooses the nearest ordinary pane **to the left** of the right sidebar by
+`pane_left` geometry and stores it. That keeps filetree roots and split actions
+attached to content rather than infrastructure. `tmux-claude-open-split` and
+`tmux-open-target` exclude `@sidebar_pane` when counting ordinary panes and when
+selecting the rightmost split target; keep that exclusion so a sidebar never
+changes content-pane placement.
 
-The optional `RootSynchronizer` owns a source browse root. Filetree re-derives
-its root from the content cwd only when that pane changes and the root is not
-pinned; `p` pins it, `R` resets and unpins it, and Backspace ascent therefore survives later
-polls. The model does not name filetree for any of these controls.
+The optional `RootSynchronizer` owns a source browse root. Filetree derives its
+root from the content cwd until the user pins it with `p`; `R` resets and unpins
+it. Backspace ascends from the current root without changing its pin state. A
+content-pane change updates an unpinned root only; filtering changes neither root
+nor selection identity.
 
 ### Cached diagnostics and dedicated help (phase 10+)
 
@@ -149,7 +147,7 @@ command; it is a view of state already collected by the normal refresh.
 combines registered global actions with the active source's optional
 `ActionProvider` descriptors and clears navigator/block mouse maps while open.
 A source that accepts local keys must advertise them there (filetree advertises
-Space, Left/Right, `h`, `p`, `R`, and Backspace), so adding a source extension
+Space, `P`, Left/Right, `h`, `p`, `R`, and Backspace), so adding a source extension
 cannot leave help stale. `Esc`/`q` closes help; `d`, Esc, `q`, Enter, or Space
 closes diagnostics.
 
@@ -167,80 +165,47 @@ completions. Only one World/source refresh runs per sidebar: timer, fsnotify, an
 action triggers received in flight collapse into one follow-up, preserving a forced
 refresh. `r` forces a fetch. On projects it is the deliberate Git/Worktrunk
 metadata refresh, because recurring external polling is forbidden. Filetree changes arrive via
-its scoped two-level fsnotify watcher. Rename/remove events also invalidate the
-in-process watch mirror, allowing a recreated root or child to be reattached on
-the next World refresh. Pane liveness/cwd and content retargeting
-come from `World.PaneSet`, with no per-pane query path.
+its scoped fsnotify watcher: the root, materialized/expanded directories, and a
+bounded worktree/common-Git metadata set (index, HEAD, packed refs, and ref
+directories) are watched. Rename/remove events also invalidate the in-process
+watch mirror, allowing a recreated root or child to be reattached on the next
+World refresh. Collapsed descendants are intentionally unwatched and unread;
+enter the root, expand the directory, or press `r` for a fresh snapshot. Pane
+liveness/cwd and content retargeting come from `World.PaneSet`, with no per-pane
+query path.
 
-## `M-Tab` / `M-BTab`: persistent mode and local focus
+## `M-Tab` / `M-BTab`: local focus and visibility
 
-`M-Tab` / `prefix Tab` dispatch `--toggle-persistent`: if off, they set global
-`@sidebar_persistent=1` and ensure the current owner without moving focus; if on,
-they clear it and close all marked sidebars through their individual canonical
-close transactions. `tmux-sidebar-sync` is invoked only by indexed tmux
-selection/layout lifecycle hooks, never by a recurring poll. It chooses a stable
-non-sidebar content pane and calls idempotent `--ensure`.
+The sidebar is opened only by an explicit local gesture. `M-BTab` / `prefix BTab`
+opens or closes the current window's sidebar; `M-Tab` / `prefix Tab` is the
+three-state focus switch. Neither gesture creates a sidebar elsewhere.
 
 | Key | State | Result |
 | --- | --- | --- |
-| `M-Tab` / `prefix Tab` | persistence off | enable and ensure current window — **focus does not move** |
-| `M-Tab` / `prefix Tab` | persistence on | disable and close all sidebar owners, restoring geometry/zoom |
-| `M-BTab` / `prefix BTab` | no sidebar in this window | open **and** focus this window's sidebar |
-| `M-BTab` / `prefix BTab` | open, sidebar not active | retarget `@sidebar_content_pane` at this pane, focus the sidebar |
-| `M-BTab` / `prefix BTab` | open, sidebar active | focus the window's **last active pane** — sidebar stays open |
+| `M-BTab` / `prefix BTab` | closed | open this window's right sidebar without moving focus |
+| `M-BTab` / `prefix BTab` | open | close this window's sidebar, restoring layout/zoom when possible |
+| `M-Tab` / `prefix Tab` | closed | open and focus this window's sidebar |
+| `M-Tab` / `prefix Tab` | focused sidebar | return to the window's last active content pane |
+| `M-Tab` / `prefix Tab` | focused content | retarget content to that pane, then focus the sidebar |
 
-The `-d` split keeps focus in content on an ensure/open; `--focus` explicitly
-selects afterwards. `select-pane -T` only sets the title and does not activate the
-pane. While a marked sidebar is focused, `automatic-rename-format` preserves the
-current window name; content-pane Claude/command auto-renaming is unchanged.
+The `-d` split preserves content focus for a plain open; `--focus` selects the
+sidebar explicitly. Returning focus uses tmux's `#{pane_last}` first, then the
+recorded content pane, then another ordinary pane. While a marked sidebar is
+focused, `automatic-rename-format` preserves the window name.
 
-Handing focus back targets tmux's own **last active pane** (`#{pane_last}`), not
-`@sidebar_content_pane`. Those differ whenever focus bounced between content panes
-before entering the sidebar — `content_pane` is the navigate/open-into target,
-which is a separate question from where focus came from. Falls back to
-`content_pane`, then any other pane in the window. Closing from inside the sidebar
-resolves the same way, so focus is never left nowhere.
-
-Outside filters and modals, `q` and `Esc` clear `@sidebar_persistent` before
-calling `--dismiss`: every other owner closes first and the invoking pane closes
-last, preserving every layout/zoom/focus transaction. `Esc` still clears an active
-filter first. `--close` remains unbound and deliberately local for signal/failure
-cleanup; it must not clear global desired state, so hook-driven recovery can repair
-that one crashed owner.
-
-**Why both, rather than one gesture doing everything.** They have different costs.
-Open/close pays a full process respawn on every re-open — that cost was the entire
-justification for the old stash-via-`break-pane` follow-up (tabby's trick:
-`break-pane -d` into a hidden holding session so the renderer keeps running),
-which needed an AeroSpace exclusion for the holding session's window and was never
-solved. `--focus` sidesteps it: "peek at the tree and go back" never kills the
-pane, so the respawn is only paid when the intent is genuinely to dismiss the
-sidebar. That retires the follow-up rather than working around it.
-
-Persistent mode supersedes the former window-local M-Tab open/close behavior:
-M-Tab now controls desired state across visited windows, while M-BTab remains the
-local focus gesture.
+`q` or Esc closes only the local sidebar after an active filter/modal has handled
+its own Esc first. `--close` is the same local lifecycle cleanup path. The obsolete
+`--toggle-persistent` and `--ensure` names remain harmless compatibility aliases;
+`tmux-sidebar-sync` is an intentionally disabled shim, not a lifecycle hook.
 
 Implementation notes:
 
-- **Atomic socket-scoped ownership files with pid staleness guards.** A fully
-  initialized candidate is hard-linked into place, eliminating the `mkdir` → pid
-  publication gap. Locks live beside the tmux socket, so same-server callers share
-  them regardless of `TMPDIR`; the socket basename distinguishes sibling servers. `run-shell` is asynchronous, so a fast
-  double-press can start two invocations before either writes
-  `@sidebar_pane_id`; both would take the open path. Dead owners and the narrower
-  crash window before the pid file is written are reclaimed after a bounded
-  grace period. Separate tmux sockets never suppress one another. A global
-  dismissal retries each canonical close once and reports any owner that remains
-  instead of silently treating partial cleanup as success.
-- **The acting pane comes from `$TMUX_PANE`, not `display-message -p
-  '#{pane_id}'`.** The latter resolves to the *currently active* pane per the
-  attached client, which is not necessarily the pane an invocation belongs to —
-  the same trap documented for `nnn/plugins/.nnn-preview-scroll`. tmux exports
-  `TMUX_PANE` to `run-shell` with the target pane.
-- **Deterministic focus on close.** Each local owner computes its return pane
-  before clearing state, so global dismissal restores every window without
-  leaving focus to tmux's arbitrary redistribution.
+- The ownership lock is socket- and window-scoped. It prevents a fast double press
+  from publishing two panes in one window without coupling independent windows.
+- The acting pane comes from `$TMUX_PANE`, not `display-message -p '#{pane_id}'`;
+  client-active focus can be a different pane.
+- Open is transactional. It marks/titles the split before publishing ownership;
+  a moved or failed child is rolled back without touching another window.
 
 ### Reachability
 
@@ -255,7 +220,7 @@ Three pieces must stay aligned for `M-Tab` and `M-BTab`:
    `#{||:#{popup_width},#{@nnn_popup_token}}` so they forward raw inside native
    popups or uniquely marked nnn popup sessions, matching `M-j`/`M-q`.
 
-> **The focus bind must be spelled `M-BTab`, never `M-S-Tab`.** tmux rewrites
+> **The visibility gesture must be spelled `M-BTab`, never `M-S-Tab`.** tmux rewrites
 > Shift+Tab to Backtab on the **input** path (`tty-keys.c`,
 > `tty_keys_extended_key`):
 >
@@ -282,14 +247,14 @@ Three pieces must stay aligned for `M-Tab` and `M-BTab`:
 fallbacks.** The `M-` forms exist only because of (1); from another emulator, or
 over SSH from a machine without those mappings, they silently do nothing. The
 prefix table needs no terminal cooperation, so the sidebar is never unreachable.
-`Tab` maps to the persistent-mode toggle and `BTab` (tmux's name for Shift-Tab)
-to the focus switch — two distinct, intentional behaviors.
+`Tab` maps to the local focus switch and `BTab` (tmux's name for Shift-Tab)
+to local open/close — two distinct, intentional behaviors.
 
 Note the sidebar's own `Tab`/`S-Tab` (cycle navigator tabs) don't collide: those
 are unmodified keys delivered to the focused pane, while `M-Tab`/`M-BTab` are
 root-table binds tmux consumes before the pane ever sees them.
 
-### Pane geometry: the sidebar squeezes its neighbors
+### Pane geometry: the right sidebar squeezes its neighbors
 
 The open split uses `-f` (full window height), which makes it a **whole-window
 geometry event**, not a split of one pane: tmux reflows every pane in the window
@@ -378,7 +343,8 @@ of the model. A source fetch must return stable row IDs, real action payloads, a
 `Row.Presentation` data. `internal/navview` centrally owns clipping, hierarchy,
 full-row selection styling, selected detail, viewport starts, and hit maps;
 legacy pre-styled `Row.Lines` remain only as compatibility fallback. Display
-strings are never scraped back into paths or tmux identities.
+strings are never scraped back into paths or tmux identities. Empty or unknown
+persisted source IDs resolve to filetree, so the initial tree tab stays valid.
 
 ### Explicit view/block contract
 
@@ -414,8 +380,8 @@ how to add one.
 **The `panes` tab's `ID()` is still `"windows"`, deliberately.** It emits one row
 per *pane* (a 3-pane window yields three rows sharing a `sid:win` target), so the
 label was corrected — but the id is the value persisted in `@sidebar_source`, and
-`SourceByID` falls back to the first source on an unknown id. Renaming it would
-silently reset every window's remembered tab to `sessions`. Label is cosmetic;
+`SourceByID` falls back to filetree on an unknown id. Renaming it would
+silently reset every window's remembered tab to filetree. Label is cosmetic;
 id is state.
 
 | Tab | Data source | `Enter` action | Extra keys |
@@ -423,7 +389,7 @@ id is state.
 | sessions | shared `tmuxio.World` sessions + panes | heading focuses the session; child focuses its pane | — |
 | panes (id `windows`) | shared `tmuxio.World` panes | identity-guarded pane focus | — |
 | projects | Persistent catalog observed from live pane cwds; optional bounded Worktrunk schema-2 `wt list --branches`, with per-repository Git porcelain fallback | heading toggles local disclosure; child focuses/opens a worktree; branch-only palette materializes it with `wt switch --no-cd` | pin/unpin; confirmed forget only when non-live; no recurring Git/Worktrunk polling |
-| filetree | cached `os.ReadDir`, 2 levels, over the content pane's cwd | dir → `split-window -h -c <dir>` in the content pane; file → `tmux-open-target` | Left/Right local disclosure; Space bounded preview; `h` hidden, `p` pin, `R` reset/unpin, `Backspace` up |
+| filetree | bounded lazy `os.ReadDir` hierarchy plus one cached bounded Git porcelain snapshot per worktree root | dir/file Enter opens through the content pane; `P` requests a preview | Space toggles a directory (no-op on files); Left/Right disclosure; `P` preview; `h` hidden, `p` pin, `R` reset/unpin, `Backspace` up |
 | scratch | `~/.config/tmux_scratch/{global,<slug>}.md` | `tea.ExecProcess(nvim)` | — |
 
 ### sessions / panes
@@ -448,18 +414,37 @@ silently resolved every row to the tree root, so `Enter` on a nested directory
 opened a pane in the wrong place. Verified live after the rewrite: `Enter` on a
 nested row opens a pane at that exact path.
 
-Directories precede files at each level and retain a trailing `/`. Top-level
-directories start collapsed; Right/Left expands/collapses only rows already in
-the cached two-level result and performs no filesystem read. Filtering
-transparently reveals matching children. Enter still opens the selected
-directory rather than changing disclosure. Symlinks are classified by target.
+Directories precede files at each level and retain a trailing `/`. They start
+collapsed. Expanding reads only that directory; at most 512 entries per directory,
+256 cached directories, depth 64, and 64 watches are materialized. Collapsed
+descendants are not read or watched. Space toggles the selected directory (and is
+a deliberate no-op for a file); Left/Right collapse, expand, or move to parent/
+first child. Enter opens the selected path through the content pane. Filtering
+reveals only already-materialized matching rows plus their ancestors; it does not
+crawl the tree, change the root, or invent selection targets. Symlinks are
+classified by target. Enter/re-enter, expansion, a relevant filesystem event, or
+`r` refreshes an otherwise unwatched descendant.
 
-Space or the row's first context action opens an exact-height in-sidebar preview.
-Only that explicit activation starts I/O. `internal/preview` follows symlinks,
-reads bounded bytes/lines or directory entries, rejects binary and special files,
-repairs invalid UTF-8, escapes terminal controls, and returns asynchronously with
-generation-based stale-result rejection. It launches no popup, pane, or external
-`bat`/`eza`/`file` process.
+Each root gets one bounded, read-only `git status --porcelain=v1 -z` snapshot per
+gated filetree refresh, never one command per row. NUL parsing preserves hostile
+filenames and rename endpoints. Directory state aggregates descendants in priority
+order: conflict, deleted, changed, added/untracked, ignored, clean. Rows have text
+badges and selected detail retains staged/unstaged facts. Git metadata watches
+cover bounded root/expanded directories plus linked-worktree/common-dir index,
+HEAD, packed refs, and ref directories. A failed status refresh retains the last
+good snapshot and labels it stale; with no prior snapshot it reports unavailable.
+Non-Git roots remain ordinary trees. There is no periodic Git poll: fsnotify,
+state invalidation, root/option changes, and explicit `r` gate refreshes.
+
+`P` or the row's preview action is explicit. It first attempts a safe modal tmux
+popup immediately **left** of the right sidebar; a narrow client, zoomed window,
+already-open popup, stale owner, or unsuitable geometry falls back to the bounded
+in-sidebar preview. The popup renders a private sanitized snapshot, uses `bat`
+with `--theme=ansi` when available (plain text otherwise), then pages with `moor`
+or `less`; `q` exits either pager; moor handles Esc and less maps Esc to quit privately. Previewing never
+automatically opens media, a pane, or an external viewer. Path reads follow
+symlinks, bound bytes/lines/entries, reject binary and special files, repair invalid
+UTF-8, escape controls, and reject stale asynchronous results.
 
 ### projects
 
@@ -542,29 +527,13 @@ list data.
 
 ## The agent join (`internal/agents`)
 
-This is the performance story, and it is the reason the rewrite happened.
-
-**The shell version cost 1.26–1.44s.** It forked `tmux-pi-session` once per pane,
-and each probe forked `pgrep` + `ps` ×2 + `lsof` + `sed` + `ls` + `basename` — on
-a 20-pane machine roughly a second of that was spent proving that panes are *not*
-running pi. Worse, the bash dispatcher's key loop was a single blocking `read`,
-so a keypress landing inside a sweep waited for the whole thing. Revision 2's
-fetch/paint split fixed lag *between* polls; it never decoupled the poll.
-
-**Steady-state cost now, per resolve:**
-
-| Phase | Cost |
-| --- | --- |
-| `tmux list-panes -a` | 1 fork, ~13–15ms |
-| Claude status | 0 forks — direct JSON reads |
-| transcripts | 0 forks — cached |
-| **total** | **~14ms** |
-
-`ps -eww -o pid=,ppid=,args=` (1 fork, ~65ms — 260ms measured on a loaded machine)
-and the batched `lsof -a -d cwd -Fn -p <csv>` (1 fork) run **only** when the
-pane-set fingerprint changes or an agent identity isn't cached — i.e. when a pane
-or agent actually appears or disappears. pi processes don't chdir, so pid→cwd is
-cached for the process lifetime; pid→ppid likewise.
+The join is centralized here so the sidebar, `tmux-agent-ls`, and agent menu
+share one Claude/Pi identity model. It batches global pane observation, reads
+Claude status directly, and only invokes the process/cwd discovery path when the
+pane-set fingerprint changes or an identity is unknown. pid→cwd and pid→ppid are
+cached for the process lifetime. Run the current `MMS_TRACE=1` baseline before
+making performance claims; this document does not treat historical timings as a
+standing guarantee.
 
 **A pane's `pane_pid` is its shell's, which is why pi needs a third trigger
 (`piSetChanged`).** Launching pi inside an already-open pane changes no pane pid,
@@ -583,26 +552,11 @@ row up just as long. Both directions are now caught without a fork:
 - **gone** — a cached pi pid failing `kill(pid, 0)`, a syscall rather than a
   process, so probing every known pi pane costs nothing measurable.
 
-Verified live with a fake pi (real `node` running a path containing
-`/pi-coding-agent/dist/cli.js`, launched as a child of an existing pane's shell):
-the row appears one tick after launch and disappears one tick after `C-c`, each
-costing **exactly one** extra `ps` sweep with no thrash on the ticks between.
-
-Measured with `MMS_TRACE=1` over ~9s: 5 resolves, **1** paid the `ps` sweep
-(104ms cold), the other 4 were 13.6–15.7ms. Output is byte-identical to the shell
-version, including a session with no discoverable transcript and one in each of
-the four states.
-
-**Use `MMS_TRACE=1` before theorizing about a slow anything.** It logs per-phase
-timings to stderr. It lives in `internal/trace` (`trace.Enabled` / `trace.Phase`)
-rather than inside `internal/agents`, where it started — and that placement is
-precisely why the ungated navigator poll above went unnoticed for two revisions:
-the agent sweep was the only thing instrumented, so it was the only thing anyone
-measured. Phases now cover `refresh-total`, `tmux-query`, `tmux-list-panes`,
-`source-fetch:<id>` / `source-skipped`, and the resolver's own. It exists because a 1.3s outlier appeared in 8 runs (and once,
-on a heavily loaded machine, an unreproducible 62s) — the sweep being off the
-input path means an outlier costs freshness, never responsiveness, but "which of
-tmux / ps / lsof stalled" should be an observation, not a guess.
+**Use `MMS_TRACE=1` before diagnosing a slow refresh.** It logs per-phase timings
+to stderr from `internal/trace` (`trace.Enabled` / `trace.Phase`), including
+`refresh-total`, `tmux-query`, `tmux-list-panes`, `source-fetch:<id>` /
+`source-skipped`, and resolver phases. A slow collection affects freshness rather
+than the input path; identify the stalled phase before changing the design.
 
 ### Recipes (ported, not redesigned)
 
@@ -693,7 +647,7 @@ entirely off the input path.
 ## Colors
 
 See `COLORS.md`'s "mm-sidebar integration" section for the full table. The rule:
-**no hex literals in the sidebar.** `internal/theme` resolves seven `@color-*`
+**no hex literals in the sidebar.** `internal/theme` resolves ten `@color-*`
 tmux options at startup; the hexes in that file are *fallbacks only*, for when
 the binary runs outside a tmux server (`mm-sidebar agents` from a plain shell).
 The `roles` map there is the single enumeration of the palette — both the batch's
@@ -702,10 +656,8 @@ in the other.
 
 **The palette is read in ONE tmux fork** (`tmuxio.GlobalOpts`, the same
 `#{@user_option}` token/separator pattern `Query` uses). One `show -gqv` per role
-measured **20ms each, 112ms for the set** — paid before Bubble Tea starts, i.e. as
-a blank pane, on every `M-Tab` open. That is the same gesture whose respawn cost
-justified splitting `M-BTab` out, so seven forks was the worst possible place to
-spend them.
+would cost one process per role before Bubble Tea starts. The single batched
+query keeps palette lookup bounded to one tmux invocation on every sidebar open.
 
 The active-tab chip sets fg and bg **explicitly** (canvas on lavender, bold) and
 never uses reverse video — reverse swaps in whatever the terminal treats as its
@@ -714,8 +666,8 @@ pager use `--statusbar=plain` instead of the default `inverse`. Explicit
 canvas-on-accent also matches the documented lualine convention. `@color-canvas`
 was added to `tmux.conf` for this.
 
-`@color-divider` (`divider-subtle`, already defined in `tmux.conf`) is the sixth
-option, added by the density pass for the block dividers and the unfilled gauge
+`@color-divider` (`divider-subtle`, already defined in `tmux.conf`) is one of
+the runtime options, added by the density pass for the block dividers and the unfilled gauge
 track — both are background-weight surfaces, not text, so neither could reuse
 `text-muted` without competing with the content in front of them.
 
@@ -730,8 +682,9 @@ track — both are background-weight surfaces, not text, so neither could reuse
 | `J/K`, F13/F14 | Rotate navigator ↔ attention without acting |
 | `g/G`, Enter | First / last / activate |
 | `/`, Backspace | Filter; filetree parent when not filtering |
-| Left/Right | Collapse/expand a cached top-level filetree directory |
-| Space | Explicit preview for the selected filetree path |
+| Left/Right | Collapse/expand materialized filetree directories; select parent/first child |
+| Space | Toggle selected filetree directory; no-op for a file |
+| `P` | Explicit selected filetree path preview (popup when suitable; otherwise in-sidebar) |
 | `h/p/R` | Filetree hidden / pin / reset |
 | `a` / `:` | Selected-row actions; agent rows expose prompt, response, and current plan through the shared guarded boundary |
 | `M-p` / `M-P` / `M-G` | Run prompt / current-plan / last-response directly for the selected agent row |
@@ -739,7 +692,7 @@ track — both are background-weight surfaces, not text, so neither could reuse
 | `r` | Force source refresh |
 | `w` | 30/36/44 width |
 | `?`, `d` | Scrollable help / cached diagnostics |
-| `q`, Esc | Dismiss all sidebars; Esc clears filter first |
+| `q`, Esc | Close this window's sidebar; Esc clears filter first |
 
 ### Explicit views
 
@@ -756,9 +709,10 @@ inspection; Esc/q returns to agents.
 
 ## Relationship to `M-d` and `M-b`
 
-- The sidebar **filetree** is the quick-nav variant with a bounded plain-text/
-  directory preview. `M-d` (`tmux-nnn-explorer`) remains the rich popup explorer
-  with syntax/media/paged preview plus fzf/fzrg. They coexist; don't collapse them.
+- The sidebar **filetree** is quick navigation with an explicit bounded path
+  preview. `M-d` (`tmux-nnn-explorer`) remains the richer nnn popup explorer with
+  its own preview/fzf workflow. They coexist; neither preview launches media
+  automatically.
 - Main-surface **attention** is the blocker-only quick glance; `v` → agents is
   the complete sidebar roster with focus/actions/explicit inspection. `M-b`
   remains the richer cross-session picker with transcript preview and bulk
@@ -809,18 +763,21 @@ of `ansi.Style` signature errors. Pin `x/ansi v0.10.1`, and leave
 **v1.3.10** — the v1 `KeyMsg` API, not v2.
 
 `tmux-sidebar-build` swallows compiler output so a broken tree can't break
-`M-Tab`. The architecture-specific `mm-sidebar` binary is not tracked and is
-ignored by `.gitignore`; the helper rebuilds it on demand. Run `go build ./...`
-in the module directly to see errors. Its freshness
-gate also runs `mm-sidebar --help`: executable mode and mtimes alone do not prove
-a Mach-O is runnable. A stale binary with an invalid `LC_CODE_SIGNATURE` passes
-both checks, then macOS kills the sidebar with `SIGKILL` before its first frame.
-The helper rebuilds that artifact and health-checks the temporary output before
-publishing it via atomic rename.
+`M-Tab`. On macOS it owns the generated, ignored architecture-specific binary and
+rebuilds it on demand; run `go build ./...` in the module to see errors. Its
+freshness gate also runs `mm-sidebar --help`: executable mode and mtimes alone do
+not prove a Mach-O is runnable. A stale binary with an invalid `LC_CODE_SIGNATURE`
+passes both checks, then macOS kills the sidebar with `SIGKILL` before its first
+frame. The helper rebuilds that artifact and health-checks the temporary output
+before publishing it via atomic rename.
 
-## Phase 1–10 verification map
+On NixOS, `MM_SIDEBAR_BIN` selects the store-built binary instead. Changes require
+a rebuild, `bash nix/check.sh`, and an approved activation; reloading tmux alone
+does not replace it.
 
-| Phase | Verified contract |
+## Phase 1–10 coverage map
+
+| Phase | Intended contract |
 | --- | --- |
 | 1 | Isolated real-tmux lifecycle/key/zoom/fallback harness. |
 | 2 | Immutable pane/client context and explicit tmux targets. |
@@ -831,7 +788,7 @@ publishing it via atomic rename.
 | 7 | Order-preserving Unicode/paste filter with exact-height query/mouse layout. |
 | 8 | Pane labels, guarded action palette, alert badges, window-local width presets. |
 | 9 | Projects, filetree controls, guarded on-demand pane preview, reused agent dispatchers. |
-| 10 | Cached `d` diagnostics/help, registry-derived help, full verification and canonical docs. |
+| 10 | Cached `d` diagnostics/help, registry-derived help, and canonical docs. |
 
 ## Tests
 
@@ -881,10 +838,9 @@ not an end-to-end terminal interaction.
 3. **More dock blocks.** The `Block` interface is deliberately generic, so a
    git-status glance or a scratch preview is one type plus one slice entry. Append
    to the end of the slice for "drop first" degradation priority.
-4. **`tload` doesn't restore sidebar panes.** `tsave` filters them out. Enable
-   persistent mode with `M-Tab` after restore (or select each restored window
-   while it is already enabled); synchronization creates fresh owner-safe panes
-   rather than replaying saved sidebar processes.
+4. **`tload` doesn't restore sidebar panes.** `tsave` filters them out. Open a
+   restored window's sidebar explicitly with `M-BTab` (or focus/open it with
+   `M-Tab`); no synchronization recreates it.
 
 ## Stash-via-`break-pane`: closed, not deferred
 
@@ -894,6 +850,6 @@ instant. It was deferred because the holding session's window gets tiled by
 AeroSpace, needing an autohide/floating workspace or an AeroSpace exclusion.
 
 **It is no longer wanted.** Its only purpose was hiding the respawn cost of
-kill-on-close, and `M-BTab` (the focus switch) means the sidebar isn't killed
+kill-on-close, and `M-Tab` (the focus switch) means the sidebar isn't killed
 incidentally in the first place — the respawn is only paid on a deliberate
-`M-Tab` dismissal. Don't reintroduce it.
+local close. Don't reintroduce it.

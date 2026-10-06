@@ -1,9 +1,10 @@
-// mm-sidebar -- the neo-tree-like left tmux sidebar.
+// mm-sidebar -- the neo-tree-like right tmux sidebar.
 //
 // Two entry points:
 //
 //	mm-sidebar              run the sidebar TUI (inside the sidebar pane)
 //	mm-sidebar agents       print the agent rows as TSV and exit
+//	mm-sidebar preview      safely page the popup-supplied filesystem snapshot
 //
 // The `agents` subcommand is the single implementation of the Claude+pi pane
 // join; tmux_scripts/tmux-agent-ls is a thin wrapper over it, so shell callers
@@ -35,6 +36,8 @@ func main() {
 		switch os.Args[1] {
 		case "agents":
 			os.Exit(runAgents())
+		case "preview":
+			os.Exit(runPreview())
 		case "-h", "--help", "help":
 			usage()
 			return
@@ -52,6 +55,7 @@ func usage() {
 
   (no command)  run the sidebar TUI in the current pane
   agents        print one TSV row per live agent pane (11 fields) and exit
+  preview       render MM_SIDEBAR_PREVIEW_PATH in a popup-safe pager
 `)
 }
 

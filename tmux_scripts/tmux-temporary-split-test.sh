@@ -4,13 +4,13 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
-export PATH="$TMP/bin:$PATH" CMD_LOG="$TMP/cmd" NVIM_LOG="$TMP/nvim"
+export PATH="$TMP/bin:$PATH" CMD_LOG="$TMP/cmd" SPLIT_LOG="$TMP/split" NVIM_LOG="$TMP/nvim"
 mkdir -p "$TMP/bin"
 cat >"$TMP/bin/tmux" <<'SH'
 #!/bin/sh
 case "$1" in
-  display) printf '1\n' ;;
-  split-window) for arg do cmd=$arg; done; printf '%s' "$cmd" >"$CMD_LOG" ;;
+  list-panes) printf '0\t%%1\t\n50\t%%2\t1\n' ;;
+  split-window) printf '%s\n' "$*" >>"$SPLIT_LOG"; for arg do cmd=$arg; done; printf '%s' "$cmd" >"$CMD_LOG" ;;
   *) exit 1 ;;
 esac
 SH
@@ -23,6 +23,7 @@ chmod +x "$TMP/bin/tmux" "$TMP/bin/nvim"
 artifact="$TMP/response with quote'.tmp"
 printf 'private response' >"$artifact"
 "$ROOT/tmux_scripts/tmux-claude-open-split" --temporary "$artifact" %1
+grep -F -- "split-window -h -t %1" "$SPLIT_LOG" >/dev/null || { echo "sidebar changed split placement" >&2; exit 1; }
 cmd=$(cat "$CMD_LOG")
 case "$cmd" in *'trap cleanup EXIT;'*"trap 'exit 143' TERM"*) ;; *) echo 'temporary split lacks terminating signal cleanup traps' >&2; exit 1 ;; esac
 bash -c "$cmd"

@@ -30,8 +30,10 @@ type Theme struct {
 	Text lipgloss.Style
 	// Urgent: accent-primary rose (@color-accent-primary) -- awaiting-permission/waiting.
 	Urgent lipgloss.Style
-	// Busy: accent-tertiary dusty pink (@color-accent-tertiary) -- thinking.
+	// Busy: accent-tertiary dusty pink (@color-accent-tertiary) -- thinking and Git additions.
 	Busy lipgloss.Style
+	// Changed: accent-amber (@color-accent-amber) -- Git modifications/renames/type changes.
+	Changed lipgloss.Style
 	// Divider: divider-subtle (@color-divider) -- the horizontal rules between
 	// the navigator and each docked block, and the unfilled gauge track.
 	Divider lipgloss.Style
@@ -65,6 +67,7 @@ var roles = map[string]string{
 	"@color-accent-highlight":  "#bebedb",
 	"@color-accent-primary":    "#d8647e",
 	"@color-accent-tertiary":   "#bb9dbd",
+	"@color-accent-amber":      "#f3be7c",
 	"@color-divider":           "#383848",
 }
 
@@ -126,6 +129,7 @@ func Load(client *tmuxio.Client) Theme {
 	text := opt("@color-accent-highlight")
 	rose := opt("@color-accent-primary")
 	pink := opt("@color-accent-tertiary")
+	amber := opt("@color-accent-amber")
 	divider := opt("@color-divider")
 
 	return Theme{
@@ -134,6 +138,7 @@ func Load(client *tmuxio.Client) Theme {
 		Text:     lipgloss.NewStyle().Foreground(lipgloss.Color(text)),
 		Urgent:   lipgloss.NewStyle().Foreground(lipgloss.Color(rose)),
 		Busy:     lipgloss.NewStyle().Foreground(lipgloss.Color(pink)),
+		Changed:  lipgloss.NewStyle().Foreground(lipgloss.Color(amber)),
 		Divider:  lipgloss.NewStyle().Foreground(lipgloss.Color(divider)),
 		Chrome:   lipgloss.NewStyle().Foreground(lipgloss.Color(chrome)),
 		Selected: lipgloss.NewStyle().Foreground(lipgloss.Color(text)).Background(lipgloss.Color(selected)).Bold(true),

@@ -67,12 +67,14 @@ nvim_split() {
   cwd=$(pane_cwd "$pane") || { die "invalid pane: $pane"; return 1; }
   printf -v quoted '%q' "$target"
   if [ -n "$line" ]; then command="nvim +$line -- $quoted"; else command="nvim -- $quoted"; fi
-  npanes=$(tmux display -p -t "$pane" '#{window_panes}') || { die "invalid pane: $pane"; return 1; }
-  if [ "${npanes:-1}" -le 1 ]; then
+  local pane_rows
+  pane_rows=$(tmux list-panes -t "$pane" -F $'#{pane_left}\t#{pane_id}\t#{@sidebar_pane}') || { die "invalid pane: $pane"; return 1; }
+  npanes=$(printf '%s\n' "$pane_rows" | awk -F '\t' '$3 != 1 && $2 != "" { count++ } END { print count + 0 }')
+  if [ "${npanes:-0}" -le 1 ]; then
     if dry; then printf 'split-window -h -t %s -c %q %s\n' "$pane" "$cwd" "$command"; return; fi
     tmux split-window -h -t "$pane" -c "$cwd" "$command"
   else
-    rightmost=$(tmux list-panes -t "$pane" -F '#{pane_left} #{pane_id}' | sort -n | tail -1 | cut -d' ' -f2) || return
+    rightmost=$(printf '%s\n' "$pane_rows" | awk -F '\t' '$3 != 1 && $1 >= best { best=$1; pane=$2 } END { print pane }')
     [ -n "$rightmost" ] || { die "cannot locate split target"; return 1; }
     if dry; then printf 'split-window -v -b -t %s -c %q %s\n' "$rightmost" "$cwd" "$command"; return; fi
     tmux split-window -v -b -t "$rightmost" -c "$cwd" "$command"

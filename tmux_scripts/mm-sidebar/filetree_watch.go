@@ -10,14 +10,14 @@ import (
 	"github.com/fsnotify/fsnotify"
 )
 
-// filetreeWatch owns the filesystem watches for the two-level filetree view.
-// fsnotify is directory-scoped, so it watches the root (first-level entries)
-// plus every immediate child directory (second-level entries). It deliberately
-// does not recurse farther: those changes cannot alter the rendered rows.
+// filetreeWatch owns bounded watches for the materialized filetree. fsnotify is
+// directory-scoped; Filetree supplies the root plus expanded directories only.
+// The worker coalesces events into one mailbox so a write storm creates at most
+// one pending model refresh.
 type filetreeWatch struct {
 	ctx context.Context
 
-	roots      chan string
+	paths      chan []string
 	events     chan struct{}
 	configured chan struct{} // testable acknowledgement; never blocks production
 	start      sync.Once
@@ -28,7 +28,7 @@ type filetreeWatch struct {
 func newFiletreeWatch(ctx context.Context) *filetreeWatch {
 	return &filetreeWatch{
 		ctx:        ctx,
-		roots:      make(chan string, 1),
+		paths:      make(chan []string, 1),
 		events:     make(chan struct{}, 1),
 		configured: make(chan struct{}, 1),
 	}
@@ -41,12 +41,20 @@ func (w *filetreeWatch) Start() {
 	})
 }
 
-// SetRoot is safe on Bubble Tea's update path: it only replaces a one-element
-// desired-root mailbox. The worker owns all fsnotify mutation and OS calls.
-func (w *filetreeWatch) SetRoot(root string) {
-	root = filepath.Clean(root)
-	if root == "." {
-		root = ""
+// SetPaths is safe on Bubble Tea's update path: it only replaces a one-element
+// desired-path mailbox. The worker owns all fsnotify mutation and OS calls.
+func (w *filetreeWatch) SetPaths(paths []string) {
+	clean := make([]string, 0, len(paths))
+	seen := make(map[string]struct{}, len(paths))
+	for _, path := range paths {
+		path = filepath.Clean(path)
+		if path == "." || path == "" {
+			continue
+		}
+		if _, ok := seen[path]; !ok {
+			seen[path] = struct{}{}
+			clean = append(clean, path)
+		}
 	}
 	select {
 	case <-w.ctx.Done():
@@ -54,14 +62,17 @@ func (w *filetreeWatch) SetRoot(root string) {
 	default:
 	}
 	select {
-	case <-w.roots:
+	case <-w.paths:
 	default:
 	}
 	select {
-	case w.roots <- root:
+	case w.paths <- clean:
 	case <-w.ctx.Done():
 	}
 }
+
+// SetRoot preserves the narrow test/helper API while production uses SetPaths.
+func (w *filetreeWatch) SetRoot(root string) { w.SetPaths(filetreeWatchDirs(root)) }
 
 func (w *filetreeWatch) wait() tea.Cmd {
 	return func() tea.Msg {
@@ -87,9 +98,9 @@ func (w *filetreeWatch) loop() {
 	defer watcher.Close()
 
 	watched := map[string]struct{}{}
-	setRoot := func(root string) {
-		desired := make(map[string]struct{})
-		for _, path := range filetreeWatchDirs(root) {
+	setPaths := func(paths []string) {
+		desired := make(map[string]struct{}, len(paths))
+		for _, path := range paths {
 			desired[path] = struct{}{}
 			if _, ok := watched[path]; ok {
 				continue
@@ -113,8 +124,8 @@ func (w *filetreeWatch) loop() {
 		select {
 		case <-w.ctx.Done():
 			return
-		case root := <-w.roots:
-			setRoot(root)
+		case paths := <-w.paths:
+			setPaths(paths)
 			select {
 			case w.configured <- struct{}{}:
 			default:
@@ -129,15 +140,23 @@ func (w *filetreeWatch) loop() {
 			if event.Op&(fsnotify.Remove|fsnotify.Rename) != 0 {
 				delete(watched, filepath.Clean(event.Name))
 			}
-			select {
-			case w.events <- struct{}{}:
-			default: // the model already has a forced refresh pending
-			}
+			w.invalidate()
 		case _, ok := <-watcher.Errors:
 			if !ok {
 				return
 			}
+			// A backend error means the observed filesystem state is no longer
+			// trustworthy. Treat it exactly like an event so the source rebuilds its
+			// snapshot and watch set instead of silently remaining stale.
+			w.invalidate()
 		}
+	}
+}
+
+func (w *filetreeWatch) invalidate() {
+	select {
+	case w.events <- struct{}{}:
+	default: // the model already has a forced refresh pending
 	}
 }
 

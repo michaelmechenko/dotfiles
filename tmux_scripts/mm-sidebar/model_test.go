@@ -236,15 +236,22 @@ func TestDiagnosticsViewIsExactHeightAndUsesCachedState(t *testing.T) {
 func TestMovedContentPaneIsRejectedAndRecomputedInOwnerWindow(t *testing.T) {
 	client := tmuxio.NewClient("%sidebar", "")
 	world := tmuxio.NewWorld(
-		tmuxio.Snapshot{SessionID: "$1", WindowIndex: 0, PaneID: "%sidebar", ContentPane: "%moved", PaneLeft: 0},
+		tmuxio.Snapshot{SessionID: "$1", WindowIndex: 0, PaneID: "%sidebar", ContentPane: "%moved", PaneLeft: 100},
 		nil,
 		[]tmuxio.PaneRow{
 			{PaneID: "%moved", SessionID: "$2", WindowIndex: 0, PaneLeft: 40},
-			{PaneID: "%right", SessionID: "$1", WindowIndex: 0, PaneLeft: 36},
+			{PaneID: "%left", SessionID: "$1", WindowIndex: 0, PaneLeft: 64},
+			{PaneID: "%other-sidebar", SessionID: "$1", WindowIndex: 0, PaneLeft: 90, Sidebar: true},
 		},
 	)
-	if got := resolveContentPane(client, world); got != "%right" {
-		t.Fatalf("moved content pane resolved to %q, want owner-window %%right", got)
+	if got := resolveContentPane(client, world); got != "%left" {
+		t.Fatalf("moved content pane resolved to %q, want nearest owner-window left pane", got)
+	}
+}
+
+func TestDefaultSourceIsFiletree(t *testing.T) {
+	if got := nav.SourceByID(""); got != nav.DefaultSource || nav.Sources[got].ID() != "filetree" {
+		t.Fatalf("default source = %d/%q, want filetree", got, nav.Sources[got].ID())
 	}
 }
 
@@ -432,14 +439,19 @@ func TestPanePreviewSanitizesCaptureAndPreservesExactHeight(t *testing.T) {
 	}
 }
 
-func TestSpacePreviewsOnlyFiletreePaths(t *testing.T) {
-	pane := &model{rows: []nav.Row{{ID: "pane", Lines: []string{"pane"}, Actions: []nav.ContextAction{{Kind: nav.ContextPreviewPane}}}}}
-	if _, cmd := pane.handleKey(tea.KeyMsg{Type: tea.KeySpace}); cmd != nil || pane.previewOpen {
-		t.Fatal("Space exposed pane capture outside the action palette")
+func TestPreviewKeysKeepSpaceForSourceNavigation(t *testing.T) {
+	for _, action := range []nav.ContextAction{
+		{Kind: nav.ContextPreviewPane},
+		{Kind: nav.ContextPreviewPath, Path: "/missing"},
+	} {
+		m := &model{rows: []nav.Row{{ID: "row", Lines: []string{"row"}, Actions: []nav.ContextAction{action}}}}
+		if _, cmd := m.handleKey(tea.KeyMsg{Type: tea.KeySpace}); cmd != nil || m.previewOpen {
+			t.Fatalf("Space launched preview action %#v", action)
+		}
 	}
 	path := &model{rows: []nav.Row{{ID: "file", Lines: []string{"file"}, Actions: []nav.ContextAction{{Kind: nav.ContextPreviewPath, Path: "/missing"}}}}}
-	if _, cmd := path.handleKey(tea.KeyMsg{Type: tea.KeySpace}); cmd == nil || !path.previewOpen {
-		t.Fatal("Space did not start an explicit path preview")
+	if _, cmd := path.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'P'}}); cmd == nil || path.previewOpen {
+		t.Fatal("P did not asynchronously launch the path preview")
 	}
 }
 
@@ -452,6 +464,24 @@ func TestPreviewRejectsStaleAsyncCompletion(t *testing.T) {
 	m.Update(previewMsg{generation: 2, title: "new", lines: []string{"fresh"}})
 	if len(m.previewLines) != 1 || m.previewLines[0] != "fresh" {
 		t.Fatalf("current preview was not applied: %#v", m.previewLines)
+	}
+}
+
+func TestPathPreviewPreflightRejectsLateSourceRootOrSelection(t *testing.T) {
+	m := &model{previewGeneration: 2, sourceGeneration: 4, winTarget: "@owner", sourceRoot: "/root", selectionID: "file:/root/a", rows: []nav.Row{{ID: "file:/root/a", Path: "/root/a"}}}
+	identity := pathPreviewIdentity{generation: 2, sourceGeneration: 4, ownerWindow: "@owner", root: "/root", selectionID: "file:/root/a", path: "/root/a", label: "safe"}
+	if _, cmd := m.Update(pathPreviewPreparedMsg{identity: pathPreviewIdentity{generation: 2, sourceGeneration: 3, ownerWindow: "@owner", root: "/root", selectionID: "file:/root/a", path: "/root/a"}, fallback: true}); cmd != nil {
+		t.Fatal("stale source completion returned a command")
+	}
+	m.sourceRoot = "/other"
+	if _, cmd := m.Update(pathPreviewPreparedMsg{identity: identity, fallback: true}); cmd != nil {
+		t.Fatal("stale root completion returned a command")
+	}
+	m.sourceRoot = "/root"
+	m.rows = []nav.Row{{ID: "file:/root/b", Path: "/root/b"}}
+	m.selectionID = "file:/root/b"
+	if _, cmd := m.Update(pathPreviewPreparedMsg{identity: identity, fallback: true}); cmd != nil {
+		t.Fatal("stale selection completion returned a command")
 	}
 }
 
@@ -781,6 +811,17 @@ func TestStateRefreshCoalescesAndPreservesForce(t *testing.T) {
 	}
 }
 
+func TestFiletreeWatchErrorInvalidationUsesRefreshMailbox(t *testing.T) {
+	watch := &filetreeWatch{ctx: context.Background(), events: make(chan struct{}, 1)}
+	// loop routes fsnotify.Errors through this same invalidation path; the
+	// mailbox must wake the model even when no filesystem event accompanies it.
+	watch.invalidate()
+	msg := watch.wait()()
+	if _, ok := msg.(filetreeChangedMsg); !ok {
+		t.Fatalf("error invalidation message = %T, want filetreeChangedMsg", msg)
+	}
+}
+
 func TestFiletreeWatchCoversTwoLevelViewAndStops(t *testing.T) {
 	root := t.TempDir()
 	sub := filepath.Join(root, "sub")
@@ -938,7 +979,7 @@ func TestHostileFiletreeRowsKeepHeightMouseMapAndActionTarget(t *testing.T) {
 	if err := os.WriteFile(path, []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	rows, err := (nav.Filetree{}).Fetch(nav.Ctx{Root: root, Theme: theme.Theme{}})
+	rows, err := nav.NewFiletree().Fetch(nav.Ctx{Root: root, Theme: theme.Theme{}})
 	if err != nil {
 		t.Fatal(err)
 	}

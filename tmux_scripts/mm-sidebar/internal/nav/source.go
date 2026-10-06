@@ -12,7 +12,7 @@
 //
 //	sessions / windows -> immutable tmuxio.World (keeps float-first session and
 //	                      window/pane ordering without another tmux query)
-//	filetree           -> os.ReadDir, two levels
+//	filetree           -> bounded lazy os.ReadDir hierarchy + gated Git snapshot
 //	scratch            -> ~/.config/tmux_scratch/{global,<slug>}.md
 //	file opens         -> tmux-open-target (same nvim-split placement as
 //	                      extrakto / tmux-fzf-url / shell Ctrl-T)
@@ -117,6 +117,35 @@ type SourceControl struct {
 	ShowHidden     bool
 	SetShowHidden  bool
 	Refresh        bool
+	// Loading lets a source disclose an asynchronous expansion immediately.
+	Loading bool
+	// Selection directives are resolved after refreshed rows arrive.
+	SelectID           string
+	SelectFirstChildOf string
+}
+
+// RowController is the optional local tree/navigation seam. The model passes
+// the selected materialized row; sources retain their hierarchy state.
+type RowController interface {
+	HandleRowKey(key string, row Row, c Ctx) (SourceControl, bool)
+}
+
+// RowFilter optionally filters already-materialized rows. It must never read
+// the filesystem; Filetree uses it to retain matching ancestors.
+type RowFilter interface {
+	FilterRows(rows []Row, query string) []Row
+}
+
+// WatchPathsProvider provides the bounded directories that affect the current
+// materialized view. It supersedes the root-only Watchable contract.
+type WatchPathsProvider interface {
+	WatchPaths(Ctx) []string
+}
+
+// Invalidatable marks source-owned cached data stale after an external watch
+// event. It is called on the Bubble Tea update path, never from a watcher.
+type Invalidatable interface {
+	Invalidate()
 }
 
 // Watchable is the optional filesystem-watch half of Source. The model owns the
@@ -136,19 +165,18 @@ type FetchKeyer interface {
 // Sources is every tab, in display order. This slice IS the tab configuration:
 // the order is the 1..N key order and the strip order.
 //
-// Keep sessions first -- tmux-sidebar-toggle seeds @sidebar_source with
-// "sessions" on a window's first open, and DefaultSource is the fallback for an
-// unrecognized value.
+// Keep the registry order stable: numeric shortcuts and persisted tab IDs depend on it.
+// The launcher defaults to Filetree while DefaultSource handles empty/unknown state.
 var Sources = []Source{
 	Sessions{},
 	Windows{},
 	Projects{},
-	Filetree{},
+	filetreeTemplate{},
 	Scratch{},
 }
 
 // DefaultSource is the index used when @sidebar_source is empty or unknown.
-const DefaultSource = 0
+const DefaultSource = 3
 
 // SourceByID maps a persisted @sidebar_source value back to its index,
 // falling back to DefaultSource. Replaces the old ParseTab.
@@ -186,6 +214,8 @@ const (
 	ToneAccent
 	ToneUrgent
 	ToneBusy
+	// ToneChanged is Git's changed/renamed/type state (accent-amber).
+	ToneChanged
 )
 
 // Fact is one compact list-row fact. Sources order facts by importance; navview
@@ -241,7 +271,13 @@ type Row struct {
 	// ID is a stable source-local identity for future selection retention.
 	// SearchText is the unstyled searchable representation for future filtering.
 	// Neither changes current rendering or action behavior.
-	ID         string
+	ID string
+	// ParentID is source-local hierarchy metadata. Flat/grouped sources leave it
+	// empty; Filetree uses it for ancestor-preserving filters and arrow keys.
+	ParentID string
+	// TreeCycle marks a symlinked directory whose resolved target is already an
+	// ancestor. It remains openable with Enter but cannot be expanded.
+	TreeCycle  bool
 	SearchText string
 	Lines      []string
 	Kind       ActionKind

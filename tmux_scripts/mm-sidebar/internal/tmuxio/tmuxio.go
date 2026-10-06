@@ -7,6 +7,7 @@
 package tmuxio
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -24,9 +25,15 @@ const fieldSep = "\x1f"
 // Client to assert exact tmux argv without making command execution a public
 // dependency or a second production abstraction.
 type commandRunner func(args ...string) (string, error)
+type contextCommandRunner func(context.Context, ...string) (string, error)
 
 func runTmux(args ...string) (string, error) {
 	out, err := exec.Command("tmux", args...).Output()
+	return strings.TrimRight(string(out), "\n"), err
+}
+
+func runTmuxContext(ctx context.Context, args ...string) (string, error) {
+	out, err := exec.CommandContext(ctx, "tmux", args...).Output()
 	return strings.TrimRight(string(out), "\n"), err
 }
 
@@ -38,12 +45,13 @@ type Client struct {
 	paneID       string
 	originClient string
 	run          commandRunner
+	runContext   contextCommandRunner
 }
 
 // NewClient constructs the production tmux context. Empty values are allowed
 // for commands such as `mm-sidebar agents`, which need no sidebar scope.
 func NewClient(paneID, originClient string) *Client {
-	return &Client{paneID: paneID, originClient: originClient, run: runTmux}
+	return &Client{paneID: paneID, originClient: originClient, run: runTmux, runContext: runTmuxContext}
 }
 
 // PaneID is the sidebar pane seeded from TMUX_PANE before Bubble Tea starts.
@@ -64,6 +72,30 @@ func (c *Client) command(args ...string) (string, error) {
 		return runTmux(args...)
 	}
 	return c.run(args...)
+}
+
+func (c *Client) commandContext(ctx context.Context, args ...string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	var out string
+	var err error
+	if c == nil || c.runContext == nil {
+		if c != nil && c.run != nil {
+			out, err = c.run(args...)
+		} else {
+			out, err = runTmuxContext(ctx, args...)
+		}
+	} else {
+		out, err = c.runContext(ctx, args...)
+	}
+	if err != nil {
+		return out, err
+	}
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	return out, nil
 }
 
 // RunQuiet executes a best-effort tmux command.
@@ -830,10 +862,10 @@ func (c *Client) Opts(names ...string) (map[string]string, error) {
 	return vals, nil
 }
 
-// RightOfPane finds the pane immediately right of paneLeft, scoped to the
-// sidebar's window with an explicit pane target.
-func (c *Client) RightOfPane(paneLeft int) (string, error) {
-	format := "#{q/a:pane_left}" + fieldSep + "#{q/a:pane_id}"
+// LeftOfPane finds the nearest non-sidebar pane left of paneLeft, scoped to
+// the sidebar's window with an explicit pane target.
+func (c *Client) LeftOfPane(paneLeft int) (string, error) {
+	format := "#{q/a:pane_left}" + fieldSep + "#{q/a:pane_id}" + fieldSep + "#{q/a:@sidebar_pane}"
 	out, err := c.command("list-panes", "-t", c.paneID, "-F", format)
 	if err != nil {
 		return "", err
@@ -844,7 +876,7 @@ func (c *Client) RightOfPane(paneLeft int) (string, error) {
 		if line == "" {
 			continue
 		}
-		f, err := decodeFields(line, 2)
+		f, err := decodeFields(line, 3)
 		if err != nil {
 			return "", fmt.Errorf("tmuxio: pane geometry row %d: %w", lineNo+1, err)
 		}
@@ -852,7 +884,7 @@ func (c *Client) RightOfPane(paneLeft int) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("tmuxio: pane geometry row %d: %w", lineNo+1, err)
 		}
-		if left > paneLeft && (best == -1 || left < best) {
+		if f[2] != "1" && left < paneLeft && (best == -1 || left > best) {
 			best, bestID = left, f[1]
 		}
 	}

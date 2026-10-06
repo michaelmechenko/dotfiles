@@ -10,8 +10,8 @@
 #   tmux-open-target <sel>                              legacy (1 arg) backward-compat open
 set -u
 
-CONF="$HOME/.config/tmux_scripts"
-TARGET="$CONF/tmux-open-target"
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+TARGET="$ROOT/tmux_scripts/tmux-open-target"
 SRV="openpickertest$$"
 TMP="$(mktemp -d)"
 TMUX_BIN="$(command -v tmux)"
@@ -65,6 +65,12 @@ out="$(run "$TMP/notes.txt")";                       assert_contains "legacy ope
 
 echo "## origin pane recorded for relative resolution ##"
 out="$(run open "$PANE" notes.txt)";                 assert_contains "relative resolves from pane cwd" "$out" "$TMP/notes.txt"
+
+echo "## sidebar panes do not change split placement ##"
+SIDEBAR="$("$TMUX_BIN" -L "$SRV" split-window -h -d -P -F '#{pane_id}' -t "$PANE")"
+"$TMUX_BIN" -L "$SRV" set-option -p -t "$SIDEBAR" @sidebar_pane 1
+out="$(run nvim "$PANE" "$TMP/notes.txt")"
+assert_contains "sidebar excluded from content count" "$out" "split-window -h -t $PANE"
 
 echo "## hostile explicit payloads ##"
 for name in "space name.txt" "quo'te.txt" 'semi;$.txt' $'tab\tname.txt' "-leading.txt"; do

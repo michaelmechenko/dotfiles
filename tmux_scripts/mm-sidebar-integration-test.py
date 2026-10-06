@@ -66,6 +66,7 @@ class AttachedClient:
     tty: str
     master: int
     process: subprocess.Popen[bytes]
+    captured: bytearray
 
     @classmethod
     def attach(cls, harness: "Harness", session: str) -> "AttachedClient":
@@ -86,7 +87,7 @@ class AttachedClient:
         )
         os.close(slave)
         os.set_blocking(master, False)
-        client = cls(harness, tty, master, process)
+        client = cls(harness, tty, master, process, bytearray())
         harness.wait(
             f"attached client for {session}",
             lambda: client.alive and harness.client_present(tty),
@@ -103,11 +104,17 @@ class AttachedClient:
         self.drain()
         os.write(self.master, data)
 
+    def clear_capture(self) -> None:
+        self.drain()
+        self.captured.clear()
+
     def drain(self) -> None:
         while select.select([self.master], [], [], 0)[0]:
             try:
-                if not os.read(self.master, 65536):
+                chunk = os.read(self.master, 65536)
+                if not chunk:
                     return
+                self.captured.extend(chunk)
             except BlockingIOError:
                 return
 
@@ -142,6 +149,7 @@ class Harness:
         # into this server's global environment.
         self.env.pop("TMUX", None)
         self.env.pop("TMUX_PANE", None)
+        self.env.pop("MM_SIDEBAR_BIN", None)
         self.env.update(
             {
                 "HOME": str(self.home),
@@ -193,6 +201,7 @@ class Harness:
 
     def install_fault_wrapper(self) -> None:
         """Install a tmux shim visible only to launcher subprocesses in this fixture."""
+        assert self.real_tmux is not None
         bindir = self.tmp / "bin"
         bindir.mkdir()
         wrapper = bindir / "tmux"
@@ -271,24 +280,13 @@ class Harness:
             "set-option -g extended-keys on\n"
             "set-option -g extended-keys-format csi-u\n"
             "bind-key -n M-Tab if -F '#{||:#{popup_width},#{@nnn_popup_token}}' "
-            f'{{ send-keys M-Tab }} {{ run-shell "{command} --toggle-persistent" }}\n'
+            f'{{ send-keys M-Tab }} {{ run-shell "{command} --focus" }}\n'
             "bind-key -n M-BTab if -F '#{||:#{popup_width},#{@nnn_popup_token}}' "
-            f'{{ send-keys M-BTab }} {{ run-shell "{command} --focus" }}\n'
+            f'{{ send-keys M-BTab }} {{ run-shell "{command}" }}\n'
         )
         self.tmux("source-file", str(config))
         self.bindings_installed = True
 
-    def install_persistent_hooks(self) -> None:
-        sync = self.scripts / "tmux-sidebar-sync"
-        command = f"HOME={shlex.quote(str(self.home))} {shlex.quote(str(sync))} #{{q:window_id}} #{{q:client_name}}"
-        config = self.tmp / "persistent-hooks.conf"
-        config.write_text(
-            f'set-hook -g after-select-window[101] \'run-shell -b "{command}"\'\n'
-            f'set-hook -g client-session-changed[101] \'run-shell -b "{command}"\'\n'
-            f'set-hook -g pane-exited[101] \'run-shell -b "sleep 0.05; {command}"\'\n'
-            f'set-hook -g window-layout-changed[101] \'run-shell -b "sleep 0.05; {command}"\'\n'
-        )
-        self.tmux("source-file", str(config))
 
     def tmux(
         self,
@@ -442,6 +440,17 @@ class Harness:
         if not condition:
             raise Failure(message)
 
+    def process_count(self, required: str) -> int:
+        """Count only processes whose complete command contains a fixture token."""
+        proc = subprocess.run(
+            ["ps", "-eo", "args="],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=True,
+        )
+        return sum(line.strip().startswith(required) for line in proc.stdout.splitlines())
+
     def close(self, pane: str) -> None:
         self.invoke_toggle(pane, "--close")
         self.wait("sidebar closes", lambda: not self.sidebar(pane))
@@ -522,9 +531,13 @@ def raw_capture_command(ready: Path, output: Path, count: int, hold: bool = Fals
 
 def assert_sidebar_geometry(h: Harness, content: str) -> str:
     sidebar = h.sidebar(content)
-    h.require(sidebar and h.alive(sidebar), "sidebar option must name a live pane")
+    h.require(bool(sidebar) and h.alive(sidebar), "sidebar option must name a live pane")
     h.require(h.fmt(sidebar, "#{pane_width}") == str(WIDTH), "sidebar width must be 36")
-    h.require(h.fmt(sidebar, "#{pane_left}") == "0", "sidebar must be leftmost")
+    h.require(
+        int(h.fmt(sidebar, "#{pane_left}")) + int(h.fmt(sidebar, "#{pane_width}"))
+        == int(h.fmt(sidebar, "#{window_width}")),
+        "sidebar must be rightmost",
+    )
     h.require(
         h.fmt(sidebar, "#{pane_top}:#{pane_height}")
         == f"0:{h.fmt(sidebar, '#{window_height}')}",
@@ -542,7 +555,7 @@ def test_detached_open_close(h: Harness) -> None:
     assert_sidebar_geometry(h, main)
     h.require(h.active_pane(main) == main, "plain open must leave focus in content")
     h.require(h.option(main, "@sidebar_content_pane") == main, "content pane was not recorded")
-    h.require(h.option(main, "@sidebar_source") == "sessions", "first open must set sessions source")
+    h.require(h.option(main, "@sidebar_source") == "filetree", "first open must set filetree source")
     h.close(main)
     h.require(h.alive(main), "close must preserve the content pane")
     h.require(not h.option(main, "@sidebar_content_pane"), "content option must clear on close")
@@ -557,10 +570,9 @@ def test_focus_switch(h: Harness) -> None:
     h.wait("focused sidebar open", lambda: bool(h.sidebar(other)))
     sidebar = assert_sidebar_geometry(h, other)
     h.require(h.active_pane(other) == sidebar, "--focus must focus a newly-opened sidebar")
-    # The binary can query before the launcher records @sidebar_content_pane;
-    # its documented RightOfPane fallback then picks the pane right of the
-    # full-height sidebar. Transactional lifecycle ordering is a later phase.
-    h.require(h.option(other, "@sidebar_content_pane"), "focused open did not record a content pane")
+    # Publication precedes child startup; recovery must remain on the content
+    # side of the full-height right sidebar.
+    h.require(bool(h.option(other, "@sidebar_content_pane")), "focused open did not record a content pane")
 
     h.invoke_toggle(sidebar, "--focus")
     h.wait("focus returns from sidebar", lambda: h.active_pane(other) == other)
@@ -642,6 +654,12 @@ def test_status_window_click_regression(h: Harness) -> None:
     h.require("switch-client -t =" in binding, f"status click binding changed: {binding}")
     client = h.attach("status-click")
     h.wait("status client starts on window 0", lambda: h.client_state(client)[1] == "0")
+    # #{status} is the textual tmux option, not an integer. Keep this real
+    # attached-client observation coupled to tmuxio's parser regression test.
+    h.require(h.tmux("display-message", "-p", "-c", client.tty, "#{status}") == "on", "attached client did not expose textual status=on")
+    h.tmux("set-option", "-g", "status", "off")
+    h.require(h.tmux("display-message", "-p", "-c", client.tty, "#{status}") == "off", "attached client did not expose textual status=off")
+    h.tmux("set-option", "-g", "status", "on")
     client.send(b"\x1b[<0;3;1M")
     h.wait("status click switches window", lambda: h.client_state(client)[1] == "1")
 
@@ -677,13 +695,24 @@ def test_stale_layout(h: Harness) -> None:
     h.require(not h.option(main, "@sidebar_saved_layout"), "stale saved layout must still clear")
 
 
+def test_simultaneous_opens_are_window_scoped(h: Harness) -> None:
+    first = h.new_session("parallel-first")
+    second = h.tmux("new-window", "-d", "-P", "-F", "#{pane_id}", "-t", "parallel-first:", "-n", "second", "/bin/sh -i")
+    toggle = h.scripts / "tmux-sidebar-toggle"
+    for pane in (first, second):
+        command = f"TMUX_PANE={shlex.quote(pane)} HOME={shlex.quote(str(h.home))} {shlex.quote(str(toggle))}"
+        h.tmux("run-shell", "-b", "-t", pane, command)
+    h.wait("parallel window sidebars", lambda: bool(h.sidebar(first)) and bool(h.sidebar(second)))
+    h.close(first)
+    h.close(second)
+
+
 def test_multiple_windows_and_repin(h: Harness) -> None:
     first = h.new_session("multi")
     second = h.tmux(
         "new-window", "-d", "-P", "-F", "#{pane_id}", "-t", "multi:", "-n", "other", "/bin/sh -i"
     )
-    # The launcher lock intentionally serializes rapid invocations, even across
-    # windows; wait for the first process to release it before opening the next.
+    # Sequential opens still preserve independently owned sidebar state.
     h.invoke_toggle(first)
     h.wait("first window sidebar", lambda: bool(h.sidebar(first)))
     h.invoke_toggle(second)
@@ -700,21 +729,20 @@ def test_multiple_windows_and_repin(h: Harness) -> None:
     h.close(second)
 
 
-def lock_for_socket(h: Harness, kind: str, socket_path: Path) -> Path:
+def lock_for_socket(h: Harness, kind: str, socket_path: Path, window_id: str) -> Path:
     socket_path = socket_path.resolve()
-    return socket_path.parent / f".mm-sidebar-{kind}.{os.getuid()}.{socket_path.name}.lock"
+    return socket_path.parent / f".mm-sidebar-{kind}.{os.getuid()}.{socket_path.name}.{window_id}.lock"
 
 
-def sidebar_lock(h: Harness, kind: str) -> Path:
+def sidebar_lock(h: Harness, kind: str, pane: str) -> Path:
     socket_path = h.tmp / "tmux" / f"tmux-{os.getuid()}" / h.socket
-    return lock_for_socket(h, kind, socket_path)
+    return lock_for_socket(h, kind, socket_path, h.fmt(pane, "#{window_id}"))
 
 
 def wait_sidebar_lifecycle_idle(h: Harness) -> None:
     h.wait(
-        "sidebar lifecycle lock releases",
-        lambda: not sidebar_lock(h, "toggle").exists()
-        and not sidebar_lock(h, "persistent").exists(),
+        "sidebar lifecycle locks release",
+        lambda: not list((h.tmp / "tmux").rglob(".mm-sidebar-toggle.*.lock")),
     )
 
 
@@ -722,10 +750,10 @@ def test_uninitialized_lifecycle_lock_is_reclaimed(h: Harness) -> None:
     main = h.new_session("stale-lock")
     # Same socket basename under a different TMUX_TMPDIR must have an independent lock.
     other_socket = h.tmp / "other-tmux" / f"tmux-{os.getuid()}" / h.socket
-    other_socket_lock = lock_for_socket(h, "toggle", other_socket)
+    other_socket_lock = lock_for_socket(h, "toggle", other_socket, h.fmt(main, "#{window_id}"))
     other_socket_lock.parent.mkdir(parents=True)
     other_socket_lock.write_text("99999999\n")
-    lock = sidebar_lock(h, "toggle")
+    lock = sidebar_lock(h, "toggle", main)
     lock.write_text("not-a-pid\n")
     alternate_tmp = h.tmp / "alternate-tmp"
     alternate_tmp.mkdir()
@@ -775,19 +803,79 @@ def test_csi_u_sidebar_gestures(h: Harness) -> None:
     client = h.attach("csi-u")
 
     client.send(CSI_M_TAB)
-    h.wait("raw M-Tab opens sidebar", lambda: bool(h.sidebar(main)))
+    h.wait("raw M-Tab opens and focuses sidebar", lambda: bool(h.sidebar(main)) and h.active_pane(main) == h.sidebar(main))
     sidebar = assert_sidebar_geometry(h, main)
-    h.require(h.active_pane(main) == main, "raw M-Tab open must keep content focused")
-
-    client.send(CSI_M_BTAB)
-    h.wait("raw M-BTab focuses sidebar", lambda: h.active_pane(main) == sidebar)
-    client.send(CSI_M_BTAB)
-    h.wait("raw M-BTab returns to content", lambda: h.active_pane(main) == main)
-    h.require(h.sidebar(main) == sidebar, "M-BTab focus return must keep sidebar alive")
 
     client.send(CSI_M_TAB)
-    h.wait("raw M-Tab closes sidebar", lambda: not h.sidebar(main))
-    h.require(h.alive(main), "raw M-Tab close must preserve content")
+    h.wait("raw M-Tab returns to content", lambda: h.active_pane(main) == main)
+    h.require(h.sidebar(main) == sidebar, "M-Tab focus return must keep sidebar alive")
+
+    client.send(CSI_M_BTAB)
+    h.wait("raw M-BTab closes local sidebar", lambda: not h.sidebar(main))
+    h.require(h.alive(main), "raw M-BTab close must preserve content")
+
+    client.send(CSI_M_BTAB)
+    h.wait("raw M-BTab opens local sidebar", lambda: bool(h.sidebar(main)))
+    h.require(h.active_pane(main) == main, "raw M-BTab open must keep content focused")
+    h.close(main)
+
+
+def test_path_preview_popup_from_raw_p_key(h: Harness) -> None:
+    """Exercise the selected-file P path through a real attached client.
+
+    popup_width is intentionally not inspected here: tmux does not expose it
+    from a standalone client once the popup owns the terminal. The preview
+    child command and the terminal stream are bounded, observable evidence.
+    """
+    fixture = h.tmp / "preview-fixture"
+    fixture.mkdir()
+    hello = fixture / "hello.py"
+    hello.write_text('print("popup works")\n')
+    main = h.new_session("path-preview")
+    h.tmux("respawn-pane", "-k", "-t", main, "-c", str(fixture), "/bin/sh", "-i")
+    client = h.attach("path-preview")
+    h.invoke_toggle(main, "--focus", extra_env={"MM_SIDEBAR_ORIGIN_CLIENT": client.tty})
+    h.wait("path preview sidebar opens", lambda: bool(h.sidebar(main)) and h.active_pane(main) == h.sidebar(main))
+    h.wait("filetree paints fixture file", lambda: b"hello.py" in client.captured)
+
+    # Bubble Tea's terminal probe otherwise consumes the first key in a PTY
+    # harness. Reply before P exactly as a terminal would.
+    client.send(b"\x1b[1;1R\x1b[?1;2c")
+    time.sleep(0.3)
+    client.clear_capture()
+
+    preview_command = f"{h.scripts / 'mm-sidebar' / 'mm-sidebar'} preview"
+    client.send(b"P")
+    h.wait("P starts preview child", lambda: h.process_count(preview_command) == 1)
+    h.wait("popup paints highlighted fixture", lambda: b"popup works" in client.captured)
+    h.require(
+        b"\x1b[38;" in client.captured,
+        "preview PTY output lost 24-bit syntax styling",
+    )
+    client.send(b"q")
+    h.wait("q closes preview popup", lambda: h.process_count(preview_command) == 0)
+
+    # A private PATH removes moor without mutating the host and proves the
+    # fallback pager's private LESSKEYIN Escape binding in the same real popup.
+    pager_bin = h.tmp / "less-only-bin"
+    pager_bin.mkdir()
+    for tool in ("bat", "less"):
+        resolved = shutil.which(tool)
+        if resolved is None:
+            raise Failure(f"{tool} is required for preview test")
+        (pager_bin / tool).symlink_to(resolved)
+    (pager_bin / "tmux").symlink_to(h.tmp / "bin" / "tmux")
+    h.tmux("set-environment", "-g", "PATH", f"{pager_bin}:{h.tmp / 'bin'}:/usr/bin:/bin")
+
+    client.clear_capture()
+    client.send(b"P")
+    h.wait("P starts a second preview child", lambda: h.process_count(preview_command) == 1)
+    h.wait("less fallback starts", lambda: h.process_count(f"{pager_bin / 'less'} -R") == 1)
+    h.wait("second popup paints fixture", lambda: b"popup works" in client.captured)
+    client.send(b"\x1b")
+    h.wait("Escape closes less preview popup", lambda: h.process_count(preview_command) == 0)
+    h.tmux("set-environment", "-g", "PATH", h.env["PATH"])
+    h.close(main)
 
 
 def test_popup_guard(h: Harness) -> None:
@@ -965,7 +1053,7 @@ def test_signal_after_split_rolls_back(h: Harness) -> None:
     _, hold, pid = h.begin_split_return_paused_open(main)
     h.require(not h.sidebar(main), "ownership must not publish before the gate opens")
     h.require(len(h.panes(main)) == len(before_panes) + 1, "split must exist while paused")
-    h.require(h.option(main, "@sidebar_gate"), "paused child gate must be retained")
+    h.require(bool(h.option(main, "@sidebar_gate")), "paused child gate must be retained")
     os.kill(int(pid.read_text().strip()), signal.SIGTERM)
     hold.unlink()
     h.wait(
@@ -973,7 +1061,7 @@ def test_signal_after_split_rolls_back(h: Harness) -> None:
         lambda: h.panes(main) == before_panes and not h.sidebar(main) and h.layout(main) == before_layout,
     )
     assert_transient_state_cleared(h, main)
-    h.require(not sidebar_lock(h, "toggle").exists(), "signal rollback leaked the launcher lock")
+    h.require(not sidebar_lock(h, "toggle", main).exists(), "signal rollback leaked the launcher lock")
 
 
 def test_prepublication_gate(h: Harness) -> None:
@@ -1051,7 +1139,7 @@ def test_kill_failure_retries(h: Harness) -> None:
     sidebar = h.sidebar(main)
     h.invoke_toggle(main, "--close", fail="kill")
     h.require(h.sidebar(main) == sidebar and h.alive(sidebar), "failed close lost sidebar ownership")
-    h.require(h.option(main, "@sidebar_content_pane"), "failed close cleared content state")
+    h.require(bool(h.option(main, "@sidebar_content_pane")), "failed close cleared content state")
     h.close(main)
 
     rollback = h.new_session("rollback-kill-retry")
@@ -1060,7 +1148,7 @@ def test_kill_failure_retries(h: Harness) -> None:
     h.wait("rollback failure retains owner", lambda: bool(h.sidebar(rollback)))
     waiting = h.sidebar(rollback)
     h.require(h.alive(waiting), "failed rollback killed the pane despite injected failure")
-    h.require(h.option(rollback, "@sidebar_saved_layout") or h.option(rollback, "@sidebar_was_zoomed"), "failed rollback cleared saved state")
+    h.require(bool(h.option(rollback, "@sidebar_saved_layout") or h.option(rollback, "@sidebar_was_zoomed")), "failed rollback cleared saved state")
     h.close(rollback)
     h.require(not h.alive(waiting), "retry close did not kill retained rollback pane")
     assert_transient_state_cleared(h, rollback)
@@ -1071,7 +1159,7 @@ def test_move_before_gate_release_cancels_and_clears_source(h: Harness) -> None:
     destination = h.new_session("move-before-gate-release-destination")
     _, hold = h.begin_gate_release_paused_open(source)
     sidebar = h.sidebar(source)
-    h.require(sidebar, "sidebar must publish before the gate-release pause")
+    h.require(bool(sidebar), "sidebar must publish before the gate-release pause")
     h.tmux("break-pane", "-d", "-s", sidebar, "-t", "move-before-gate-release-destination:")
     hold.unlink()
     h.wait(
@@ -1222,7 +1310,7 @@ def test_sidebar_nav_transport_handles_hostile_tmux_strings(h: Harness) -> None:
 def test_context_prompt_preserves_hostile_label(h: Harness) -> None:
     main = h.new_session("context-prompt")
     client = h.attach("context-prompt")
-    client.send(CSI_M_BTAB)
+    client.send(CSI_M_TAB)
     h.wait("context prompt sidebar focus", lambda: bool(h.sidebar(main)) and h.active_pane(main) == h.sidebar(main))
     sidebar = h.sidebar(main)
 
@@ -1296,7 +1384,7 @@ def test_moved_sidebar_and_content_are_stale(h: Harness) -> None:
             not h.sidebar(prepublication)
             and not h.option(prepublication, "@sidebar_gate")
             and not gate.exists()
-            and not sidebar_lock(h, "toggle").exists()
+            and not sidebar_lock(h, "toggle", prepublication).exists()
         ),
     )
     if h.alive(pending):
@@ -1372,83 +1460,24 @@ def test_sidebar_focus_preserves_window_name(h: Harness) -> None:
     h.close(main)
 
 
-def test_failed_global_dismissal_is_reported_and_retryable(h: Harness) -> None:
-    main = h.new_session("dismiss-failure")
-    other = h.tmux("new-window", "-d", "-P", "-F", "#{pane_id}", "-t", "dismiss-failure:", "-n", "other")
-    h.invoke_toggle(main, "--toggle-persistent")
-    h.wait("first persistent sidebar opened for failure test", lambda: bool(h.sidebar(main)))
-    h.invoke_toggle(other, "--ensure")
-    h.wait("persistent sidebars opened for failure test", lambda: bool(h.sidebar(main)) and bool(h.sidebar(other)))
-    h.invoke_toggle(main, "--toggle-persistent", fail="kill")
-    h.wait("global dismissal kill fault", lambda: h.last_fault_marker.exists())
-    h.require(h.tmux("show-options", "-gqv", "@sidebar_persistent", check=False) == "", "failed dismissal retained desired state")
-    h.require(bool(h.sidebar(main)) or bool(h.sidebar(other)), "injected close failure was silently treated as success")
-    for pane in (main, other):
-        if h.sidebar(pane):
-            h.invoke_toggle(h.sidebar(pane), "--close")
-    h.wait("failed dismissal cleanup remains retryable", lambda: not h.sidebar(main) and not h.sidebar(other))
-
-
-def test_persistent_sidebar_across_windows_and_sessions(h: Harness) -> None:
-    main = h.new_session("persistent")
-    other_window = h.tmux("new-window", "-d", "-P", "-F", "#{pane_id}", "-t", "persistent", "-n", "next", "sleep 30")
-    other_session = h.new_session("persistent-other")
-    client = h.attach("persistent")
-    h.install_persistent_hooks()
-
-    # M-Tab records global desired state and opens only the selected owner. Its
-    # -d split must not steal the attached client's focus.
-    client.send(CSI_M_TAB)
-    h.wait("persistent sidebar opens in selected window", lambda: bool(h.sidebar(main)))
-    h.require(h.active_pane(main) == main, "persistent open stole content focus")
-    first_sidebar = h.sidebar(main)
-
-    # Event hooks ensure each newly selected window/session independently. A
-    # second hook delivery is idempotent and cannot duplicate its sidebar.
-    h.tmux("switch-client", "-c", client.tty, "-t", "persistent:1")
-    h.wait("persistent sidebar opens in next window", lambda: bool(h.sidebar(other_window)))
-    h.tmux("run-shell", "-b", "-t", other_window, f"HOME={shlex.quote(str(h.home))} {shlex.quote(str(h.scripts / 'tmux-sidebar-sync'))} {shlex.quote(h.fmt(other_window, '#{window_id}'))} {shlex.quote(client.tty)}")
+def test_obsolete_ensure_never_opens(h: Harness) -> None:
+    main = h.new_session("ensure-noop")
+    h.invoke_toggle(main, "--ensure")
     time.sleep(0.15)
-    h.require(len(h.panes(other_window)) == 2, "repeated sync duplicated sidebar")
+    h.require(not h.sidebar(main), "obsolete --ensure created a sidebar")
 
-    h.tmux("switch-client", "-c", client.tty, "-t", "persistent-other")
-    h.wait("persistent sidebar opens in next session", lambda: bool(h.sidebar(other_session)))
 
-    # A local crash preserves global desired state and the pane-exited hook
-    # repairs only that window. No other owner changes identity.
-    crashed = h.sidebar(other_window)
-    h.tmux("kill-pane", "-t", crashed)
-    h.wait("persistent crash recovers", lambda: bool(h.sidebar(other_window)) and h.sidebar(other_window) != crashed)
-    h.require(h.sidebar(main) == first_sidebar, "crash recovery touched another window")
-
-    # M-Tab's disable path is global and canonical: every sidebar closes through
-    # its own transaction and all original content panes survive.
-    h.tmux("switch-client", "-c", client.tty, "-t", "persistent:0")
-    client.send(CSI_M_TAB)
-    h.wait(
-        "persistent dismissal closes all",
-        lambda: not h.sidebar(main) and not h.sidebar(other_window) and not h.sidebar(other_session),
-    )
-    h.require(h.tmux("show-options", "-gqv", "@sidebar_persistent", check=False) == "", "persistent desired state survived dismissal")
-    h.require(h.alive(main) and h.alive(other_window) and h.alive(other_session), "global close killed content")
-
-    # q/Esc shares the same global dismissal semantics, rather than merely
-    # killing the focused pane and leaving unvisited windows stale.
-    client.send(CSI_M_TAB)
-    h.wait("persistent reopens for q", lambda: bool(h.sidebar(main)))
-    h.tmux("switch-client", "-c", client.tty, "-t", "persistent:1")
-    h.wait("persistent q setup next window", lambda: bool(h.sidebar(other_window)))
-    h.tmux("switch-client", "-c", client.tty, "-t", "persistent-other")
-    h.wait("persistent q setup next session", lambda: bool(h.sidebar(other_session)))
-    h.tmux("switch-client", "-c", client.tty, "-t", "persistent:0")
-    h.tmux("select-pane", "-t", h.sidebar(main))
-    h.wait("persistent q focuses sidebar", lambda: h.active_pane(main) == h.sidebar(main))
-    client.send(b"q")
-    h.wait(
-        "persistent q closes all",
-        lambda: not h.sidebar(main) and not h.sidebar(other_window) and not h.sidebar(other_session),
-    )
-    h.require(h.tmux("show-options", "-gqv", "@sidebar_persistent", check=False) == "", "q left persistent mode enabled")
+def test_window_closes_are_independent(h: Harness) -> None:
+    first = h.new_session("local-first")
+    second = h.tmux("new-window", "-d", "-P", "-F", "#{pane_id}", "-t", "local-first:", "-n", "second")
+    h.invoke_toggle(first)
+    h.invoke_toggle(second)
+    h.wait("two local sidebars", lambda: bool(h.sidebar(first)) and bool(h.sidebar(second)))
+    second_sidebar = h.sidebar(second)
+    h.invoke_toggle(first)
+    h.wait("first local close", lambda: not h.sidebar(first))
+    h.require(h.sidebar(second) == second_sidebar and h.alive(second_sidebar), "local close affected another window")
+    h.close(second)
 
 
 def test_explicit_targeting(h: Harness) -> None:
@@ -1484,10 +1513,12 @@ def main() -> int:
         h.run("M-H two-pane equalization", lambda: test_m_h_two_pane_layout(h))
         h.run("attached status window click", lambda: test_status_window_click_regression(h))
         h.run("stale saved layout", lambda: test_stale_layout(h))
+        h.run("simultaneous window-scoped opens", lambda: test_simultaneous_opens_are_window_scoped(h))
         h.run("multiple windows and manual re-pin", lambda: test_multiple_windows_and_repin(h))
         h.run("real binary q/Esc startup stress", lambda: test_q_and_escape_startup_stress(h))
         h.run("q close keeps immutable window context", lambda: test_q_close_keeps_immutable_window_context(h))
         h.run("raw CSI-u M-Tab/M-BTab gestures", lambda: test_csi_u_sidebar_gestures(h))
+        h.run("raw P path preview popup", lambda: test_path_preview_popup_from_raw_p_key(h))
         h.run("real popup M-Tab guard", lambda: test_popup_guard(h))
         h.run("F13/F14 application transport", lambda: test_f13_f14_transport(h))
         h.run("nnn guard", lambda: test_nnn_guard(h))
@@ -1512,8 +1543,8 @@ def main() -> int:
         h.run("moved sidebar/content safety", lambda: test_moved_sidebar_and_content_are_stale(h))
         h.run("switch-client focus compatibility", lambda: test_focus_pane_switch_client_compatibility(h))
         h.run("sidebar window-name guard", lambda: test_sidebar_focus_preserves_window_name(h))
-        h.run("failed global dismissal", lambda: test_failed_global_dismissal_is_reported_and_retryable(h))
-        h.run("persistent window/session sidebars", lambda: test_persistent_sidebar_across_windows_and_sessions(h))
+        h.run("obsolete ensure never opens", lambda: test_obsolete_ensure_never_opens(h))
+        h.run("independent local closes", lambda: test_window_closes_are_independent(h))
         h.run("explicit inactive-pane targeting", lambda: test_explicit_targeting(h))
         print(f"ok: {h.passed} lifecycle checks")
         return 0

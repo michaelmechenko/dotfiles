@@ -340,15 +340,25 @@ Type a query; every matching substring in the popup's visible content rows gets 
 | `prefix C` | — | New session (prompt) |
 | `M-C` | root | New session (prompt) |
 | `M-s` | root | Session picker fzf popup (`tmux-session-ls`) |
-| `M-Tab` | root | Toggle persistent mm-sidebar mode: enable and ensure current; disable and close all (`tmux-sidebar-toggle`; see tmux sidebar section) |
-| `M-BTab` | root | Switch focus to / from the mm-sidebar without closing it (`--focus`) |
-| `prefix Tab` | prefix | Same persistent-mode toggle, terminal-agnostic fallback for `M-Tab` |
-| `prefix BTab` | prefix | Same focus switch, terminal-agnostic fallback for `M-BTab` |
+| `M-Tab` | root | Focus switch for this window's mm-sidebar: open+focus if closed, otherwise move sidebar ↔ last content pane (`--focus`) |
+| `M-BTab` | root | Toggle only this window's mm-sidebar visible: open without moving focus / close (`tmux-sidebar-toggle`) |
+| `prefix Tab` | prefix | Same local focus switch, terminal-agnostic fallback for `M-Tab` |
+| `prefix BTab` | prefix | Same local visibility toggle, terminal-agnostic fallback for `M-BTab` |
 | `M-:` | root | Switch client to prev session (by index) |
 | `M-[` | root | Switch client to prev session |
 | `M-"` | root | Switch client to next session (by index) |
 | `M-]` | root | Switch client to next session |
 | `prefix S` | — | Rename session (prompt) |
+
+### mm-sidebar
+The sidebar is an independent, manually opened **right** full-height pane in the
+current window; no persistent global mode or selection hook creates another one.
+Its sessions/panes views and rightmost split helpers exclude `@sidebar_pane` from
+ordinary content counts. Within its filetree, Space toggles a directory, `P`
+requests the explicit safe path preview (popup left of the sidebar when geometry
+allows, otherwise the bounded in-sidebar fallback), and `q`/Esc closes only this
+window's sidebar after dismissing a filter/modal first. `M-G`/`M-P`/`M-p` are
+forwarded into a focused sidebar so they act on its selected agent row.
 
 ### Popup layout cycle (disabled)
 `tmux_scripts/tmux-popup-resize` still implements a 5-layout cycle (fullscreen/top/bottom/left/right), but `M-Right`/`M-Left` are currently unbound from it — reopening a popup with new geometry right after `detach-client` reliably races tmux's own popup teardown and makes the popup vanish instead of resizing (confirmed live against a real tmux server; the same bug pre-dates this work, in the old maximize/restore/`M-m` toggle). See `AGENTS.md`.
@@ -464,21 +474,18 @@ In-nnn plugin keys (`;` prefix — nnn requires it for plugins):
 > Internal plugin name: **mm-sidebar**. Canonical reference:
 > `tmux_scripts/mm-sidebar.md`.
 
-A leftmost, full-window-height Bubble Tea pane. `M-Tab` toggles synchronized
-persistent sidebars; `M-BTab` focuses or leaves the current window's sidebar.
-Window-local `@sidebar_source` and `@sidebar_width` preserve the active tab and
-30/36/44-column width.
+An independent, manually opened **right** full-height Bubble Tea pane for one
+tmux window. There is no global persistence mode or synchronization lifecycle.
+`M-Tab` / `prefix Tab` is the local three-state focus switch: open+focus when
+closed, otherwise sidebar ↔ last content pane. `M-BTab` / `prefix BTab` toggles
+this window's sidebar visible: open without moving focus or close. `@sidebar_source` retains a
+valid tab (first open defaults to filetree) and `@sidebar_width` retains 30/36/44.
 
 The normal surface is an adaptive hybrid cockpit: the 5-tab navigator, urgent
 permission/wait attention, cached selected-item context, then thinking agents and
 recent cached activity when the full navigator fits. Idle agents, empty sections,
 system gauges, and inspector detail never fill main. `v` opens full agents /
 activity / system views. Genuine unused space stays blank.
-
-| Key | Scope | Action |
-| --- | --- | --- |
-| `M-Tab` / `prefix Tab` | root / prefix | Enable+ensure persistent mode, or disable+close all owners with geometry restore |
-| `M-BTab` / `prefix BTab` | root / prefix | Open/focus the local sidebar, or return to tmux's last active pane without closing it |
 
 **Main surface keys**
 
@@ -489,20 +496,25 @@ activity / system views. Genuine unused space stays blank.
 | `J` `K` / F13 F14 | Rotate between navigator and attention without acting |
 | `g` / `G` / `Enter` | First / last / activate |
 | `/` / `Backspace` | Filter; Backspace is filetree parent when not filtering |
-| Left / Right | Filetree: collapse / expand a cached top-level directory without I/O |
-| `Space` | Explicit bounded preview of the selected filetree path; close an open preview |
+| Left / Right | Filetree: collapse / expand materialized directories; move to parent / first child |
+| `Space` | Toggle selected filetree directory; no-op on a file |
+| `P` | Explicit selected filetree preview: popup left of the sidebar when suitable, otherwise bounded in-sidebar fallback |
 | `h` / `p` / `R` | Filetree: hidden / pin root / reset root |
 | `a` / `:` | Selected row actions; long palettes scroll with selection; destructive actions require confirmation |
 | `v` | Open the explicit views palette |
 | `r` | Force the active navigator refresh; projects re-run bounded Git/Worktrunk inventory |
 | `w` | Cycle 30 / 36 / 44 columns |
 | `?` / `d` | Open one-column scrollable help / cached diagnostics |
-| `q` / `Esc` | Dismiss all sidebars; Esc clears a filter first |
+| `q` / `Esc` | Close this window's sidebar; Esc clears a filter/modal first |
 
-The attention section shows up to four `!P`/`!W` rows, permission before waiting,
-and keeps at least one blocker visible in the shortest usable frame. Its overflow
-row opens the full agents view when it fits. While help is open, `j/k`, arrows,
-`g/G`, PageUp/PageDown scroll it and `q`/Esc returns to main.
+Filetree reads lazily: expanded directories only, 512 entries per directory, 256
+cached directories, depth 64, and 64 watches. Filtering searches materialized
+rows and reveals their ancestors; it neither crawls the tree nor changes the root.
+One gated `git status --porcelain=v1 -z` snapshot supplies all Git rows; events
+or `r` refresh it, failure retains and labels the last-good status stale, and no
+per-row or timer-based Git command runs. `P` is the only path-preview trigger;
+it writes a private sanitized snapshot, uses optional `bat --theme=ansi`, pages via
+moor or less (`q` exits both; moor handles Esc and less maps Esc to quit), and never auto-opens media.
 
 **Explicit views (`v`)**
 
@@ -517,11 +529,3 @@ row opens the full agents view when it fits. While help is open, `j/k`, arrows,
 inspector starts only from **inspect agent**; selection alone does no transcript,
 plan, or Git work. Its absent fields and duplicate cwd/worktree line are omitted;
 `r` bypasses its short cache.
-
-Sessions render as an actionable cached session→pane outline. Project repository
-headings show worktree/branch counts and start collapsed; Enter toggles them
-locally, while filtering temporarily reveals matching children.
-
-Navigator loading, successful-empty, no-match, and fetch-error states are
-separate. In particular, projects shows `loading projects…` during its bounded
-cold fetch instead of temporarily claiming the catalog is empty.

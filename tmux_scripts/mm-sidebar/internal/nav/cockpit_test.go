@@ -26,7 +26,7 @@ func TestRepositoryPresentationKeepsCountsInDetail(t *testing.T) {
 	}
 }
 
-func TestFiletreeStartsCollapsedAndCarriesCachedChildren(t *testing.T) {
+func TestFiletreeStartsCollapsedWithoutScanningChildren(t *testing.T) {
 	root := t.TempDir()
 	dir := filepath.Join(root, "alpha")
 	if err := os.Mkdir(dir, 0o700); err != nil {
@@ -38,17 +38,29 @@ func TestFiletreeStartsCollapsedAndCarriesCachedChildren(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "root.txt"), []byte("root"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	rows, err := (Filetree{}).Fetch(Ctx{Root: root})
+	tree := NewFiletree()
+	rows, err := tree.Fetch(Ctx{Root: root})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(rows) != 3 || !rows[0].GroupHeading || !rows[0].Collapsible || rows[0].ToggleOnEnter || rows[1].GroupID != rows[0].GroupID {
-		t.Fatalf("filetree disclosure rows=%#v", rows)
+	if len(rows) != 2 || rows[0].Kind != ActionOpenDir || rows[0].ParentID != "" {
+		t.Fatalf("initial rows=%#v", rows)
 	}
-	if rows[0].Presentation.Label != "alpha/" || rows[1].Presentation.Depth != 1 || rows[1].Presentation.Label != "child.txt" {
-		t.Fatalf("filetree hierarchy presentation=%#v", rows)
+	if strings.Contains(strings.Join(rows[0].Lines, ""), "child") {
+		t.Fatalf("collapsed root prewalked children: %#v", rows)
 	}
-	if got := rows[0].Presentation.Detail.PlainText(); !strings.Contains(got, dir) || !strings.Contains(got, "Space preview") {
+	control, handled := tree.HandleRowKey("space", rows[0], Ctx{Root: root})
+	if !handled || !control.Refresh || !control.Loading {
+		t.Fatalf("expand control=%#v handled=%t", control, handled)
+	}
+	rows, err = tree.Fetch(Ctx{Root: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 3 || rows[1].ParentID != rows[0].ID || rows[1].Presentation.Depth != 1 || rows[1].Presentation.Label != "child.txt" {
+		t.Fatalf("expanded hierarchy=%#v", rows)
+	}
+	if got := rows[0].Presentation.Detail.PlainText(); !strings.Contains(got, dir) || !strings.Contains(got, "Space toggle") {
 		t.Fatalf("directory detail=%q", got)
 	}
 }
@@ -68,7 +80,7 @@ func TestSemanticPanePresentationRetainsAlertsAndActiveState(t *testing.T) {
 
 func TestSourceContextsAreUsefulAndPure(t *testing.T) {
 	projects := Projects{}.Context(Ctx{}, []Row{{GroupHeading: true}, {GroupHeading: true}})
-	filetree := Filetree{}.Context(Ctx{Root: "/Users/me/.config", RootPinned: true, ShowHidden: false}, nil)
+	filetree := NewFiletree().Context(Ctx{Root: "/Users/me/.config", RootPinned: true, ShowHidden: false}, nil)
 	if projects != "2 repositories · r refresh" {
 		t.Fatalf("projects context=%q", projects)
 	}

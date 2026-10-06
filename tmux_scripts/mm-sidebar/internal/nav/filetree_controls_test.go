@@ -9,8 +9,8 @@ import (
 )
 
 func TestFiletreeActionsAdvertiseEverySourceControl(t *testing.T) {
-	got := Filetree{}.KeyActions()
-	want := []string{"Space", "Left/Right", "h", "p", "R", "Backspace"}
+	got := NewFiletree().KeyActions()
+	want := []string{"Space", "P", "Left/Right", "h", "p", "R", "Backspace"}
 	if len(got) != len(want) {
 		t.Fatalf("actions = %#v", got)
 	}
@@ -26,7 +26,7 @@ func TestFiletreeControlsOwnHiddenRootAndPinState(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, ".hidden"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	f := Filetree{}
+	f := NewFiletree()
 	ctx := Ctx{Theme: theme.Theme{}, Cwd: root, ContentPane: "%1", Root: root, RootPane: "%1"}
 	rows, err := f.Fetch(ctx)
 	if err != nil || len(rows) != 0 {

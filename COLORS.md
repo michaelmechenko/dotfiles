@@ -64,21 +64,21 @@ palette requires rebuilding the Linux profile. See `nix/README.md` for scope.
 |---|---|---|
 | `text` | `#BEBEBE` | Ghostty `foreground`; nvim editor fg (`vague.lua` `colors.fg`) |
 | `text-ui` | `#9094A0` | nvim WinBar fg (`dropbar.lua`) — slightly dimmer than `text` for chrome/breadcrumb text |
-| `text-muted` | `#656a80` | tmux `@color-text-muted` — secondary UI text (border fg, inactive footer dashes/default-marker fg, the three outer stars per side of inactive labeled and unlabeled footers, status secondary text, bell-state); tmux copy-mode non-current line numbers (`copy-mode-line-number-style`, dim); nvim devicons, dropbar `DropBarIconKindDefault`, lualine inactive-buffer fg; nvim `FloatBorder` fg; Claude statusline dir/model/ctx text; Claude theme `inactive` token; moor preview overflow hints; mm-sidebar inactive tabs, idle agents, help overlay, `(none)`/`(empty)` placeholders |
+| `text-muted` | `#656a80` | tmux `@color-text-muted` — secondary UI text (border fg, inactive footer dashes/default-marker fg, the three outer stars per side of inactive labeled and unlabeled footers, status secondary text, bell-state); tmux copy-mode non-current line numbers (`copy-mode-line-number-style`, dim); nvim devicons, dropbar `DropBarIconKindDefault`, lualine inactive-buffer fg; nvim `FloatBorder` fg; Claude statusline dir/model/ctx text; Claude theme `inactive` token; moor preview overflow hints; mm-sidebar inactive tabs, idle agents, help overlay, `(none)`/`(empty)` placeholders, ignored Git rows |
 | `text-default` | `#a9b1d6` | tmux `@color-text-default` — window-status text (the colored window names in the status bar). **Not referenced elsewhere.** |
 
 ### Accents
 
 | Role | Hex | Where used |
 |---|---|---|
-| `accent-primary` (rose) | `#d8647e` | tmux `@color-accent-primary` — the two inner stars per flank plus central three-star marker in inactive unlabeled footers, and the two stars nearest each side of an inactive label; tmux ephemeral session indicator; Ghostty ANSI 1; ohmyposh path segment; nvim lualine `replace`-mode status/location block; mm-sidebar agents-glance `!P`/`!W` (awaiting-permission / waiting) |
+| `accent-primary` (rose) | `#d8647e` | tmux `@color-accent-primary` — the two inner stars per flank plus central three-star marker in inactive unlabeled footers, and the two stars nearest each side of an inactive label; tmux ephemeral session indicator; Ghostty ANSI 1; ohmyposh path segment; nvim lualine `replace`-mode status/location block; mm-sidebar agents-glance `!P`/`!W` (awaiting-permission / waiting) and Git deleted/conflict rows |
 | `accent-secondary` (lavender) | `#aeaed1` | tmux `@color-accent-secondary`; active pane-border fg, active-footer lines/labeled frame stars, and the active pane's horizontal span plus adjacent split-border cells on the second status row; every real adjacent split-border intersection is rendered as `+`; Ghostty ANSI 6 + ANSI 12 (ANSI 12 override → Claude Code code-block syntax highlighting, since its dark-ansi theme has no syntax token); ohmyposh session segment; nvim lualine `normal`/`command`-mode status/location block; mm-sidebar active-tab chip bg, block labels (`▸ name`), cursor `▶`, directory rows |
-| `accent-tertiary` (dusty pink) | `#bb9dbd` | tmux `@color-accent-tertiary` — active labeled text and every active unlabeled marker star; Ghostty ANSI 2; ohmyposh transient prompt + git segment; nvim lualine `visual`-mode status/location block; mm-sidebar agents-glance `~~` (thinking) |
+| `accent-tertiary` (dusty pink) | `#bb9dbd` | tmux `@color-accent-tertiary` — active labeled text and every active unlabeled marker star; Ghostty ANSI 2; ohmyposh transient prompt + git segment; nvim lualine `visual`-mode status/location block; mm-sidebar agents-glance `~~` (thinking) and Git added/untracked rows |
 | `accent-highlight` (pale lavender) | `#bebedb` | tmux `@color-accent-highlight` / `@color-accent-highlight` — current window status; tmux copy-mode current line number (`copy-mode-current-line-number-style`, bold); mm-sidebar row text + stat values |
 | `accent-info` (slate) | `#8ba9c1` | ohmyposh executiontime segment; nvim `FoldColumn` fg (`surface-fold`); Claude theme `planMode` token. **No tmux usage. No longer Ghostty ANSI 12** — that slot was remapped to `accent-secondary` lavender (`#aeaed1`). |
 | `accent-periwinkle` | `#9b9bcc` | nvim render-md inline code (`RenderMarkdownCodeInline` fg, bg cleared — fenced blocks keep their bg) + table borders (`RenderMarkdownTableHead` / `RenderMarkdownTableRow` fg; Head otherwise default-links to `@markup.heading` = blue `c.keyword`). A blue-violet between `accent-info` slate and `accent-secondary` lavender. **nvim-only.** |
 | `accent-warn` (warm sand) | `#f5cb96` | Ghostty ANSI 11. **ohmyposh uses a near-miss variant** (see below). |
-| `accent-amber` (amber) | `#f3be7c` | Ghostty ANSI 4; nvim `GitSignsChange`; nvim lualine `insert`-mode status/location block. Distinct from `accent-warn` (`#f5cb96`, ANSI 11) — `accent-amber` is more orange-ward. |
+| `accent-amber` (amber) | `#f3be7c` | Ghostty ANSI 4; nvim `GitSignsChange`; nvim lualine `insert`-mode status/location block; mm-sidebar Git changed/renamed/type rows. Distinct from `accent-warn` (`#f5cb96`, ANSI 11) — `accent-amber` is more orange-ward. |
 
 ### Selection / chrome (Ghostty only)
 
@@ -184,10 +184,9 @@ Pi tool-card accent edges (`▌`, `tool-display/frame.ts`) introduce no new pale
 
 `tmux_scripts/mm-sidebar` (the `M-Tab` sidebar pane, Go/Bubble Tea) is the only
 surface here that reads the palette **at runtime from tmux itself** rather than
-duplicating hex in a theme file. `internal/theme/theme.go` resolves nine
+duplicating hex in a theme file. `internal/theme/theme.go` resolves ten
 `@color-*` user options once at startup — in **one** `display-message` fork via
-`tmuxio.GlobalOpts`, not one `show -gqv` each (measured 20ms per fork, so the
-per-role version cost 112ms of blank pane on every `M-Tab` open) — into `lipgloss`
+`tmuxio.GlobalOpts`, not one `show -gqv` invocation per role — into `lipgloss`
 styles:
 
 | Style | tmux option | Palette role | Used for |
@@ -195,8 +194,9 @@ styles:
 | `Muted` | `@color-text-muted` | text-muted | idle agent rows, secondary help/detail text, `(none)`/`(empty)`, gauge labels, command/status facts |
 | `Accent` | `@color-accent-secondary` | accent-secondary | block/detail labels, directory rows, active-tab chip **bg**, gauge fill, attached/current state |
 | `Text` | `@color-accent-highlight` | accent-highlight | ordinary row text, gauge percent values |
-| `Urgent` | `@color-accent-primary` | accent-primary | `!P` awaiting-permission, `!W` waiting, gauge fill when hot (cpu/mem/disk ≥ 85%, battery ≤ 20%) |
-| `Busy` | `@color-accent-tertiary` | accent-tertiary | `~~` thinking |
+| `Urgent` | `@color-accent-primary` | accent-primary | `!P` awaiting-permission, `!W` waiting, Git deleted/conflict rows, gauge fill when hot (cpu/mem/disk ≥ 85%, battery ≤ 20%) |
+| `Busy` | `@color-accent-tertiary` | accent-tertiary | `~~` thinking; Git added/untracked rows |
+| `Changed` | `@color-accent-amber` | accent-amber | Git modified/renamed/type rows |
 | `Divider` | `@color-divider` | divider-subtle | context/detail/attention rules and explicit system-view gauge track |
 | `Chrome` | `@color-text-ui` | text-ui | source context rail and inactive tab chrome |
 | `Selected` fg | `@color-text-ui` | text-ui | selected navigator row text |
@@ -232,9 +232,9 @@ agents glance encode state identically.
 | Operation | Hex | Used in |
 |---|---|---|
 | Branch indicator | `#bb9dbd` (`accent-tertiary`) | Claude statusline `color_branch`; ohmyposh `git.foreground` |
-| Added (+ / diffAdded) | `#bb9dbd` (`accent-tertiary`) | nvim `GitSignsAdd`; Claude statusline `color_add`; Claude theme `success` + `diffAdded` |
-| Changed (~) | `#f3be7c` (`accent-amber`) | nvim `GitSignsChange`; Claude statusline `color_dirty`; Claude theme `warning` |
-| Deleted (− / diffRemoved) | `#d8647e` (`accent-primary`) | nvim `GitSignsDelete`; Claude statusline `color_delete`; Claude theme `error` + `diffRemoved` |
+| Added (+ / diffAdded) | `#bb9dbd` (`accent-tertiary`) | nvim `GitSignsAdd`; Claude statusline `color_add`; Claude theme `success` + `diffAdded`; mm-sidebar added/untracked rows |
+| Changed (~) | `#f3be7c` (`accent-amber`) | nvim `GitSignsChange`; Claude statusline `color_dirty`; Claude theme `warning`; mm-sidebar changed/renamed/type rows |
+| Deleted (− / diffRemoved) | `#d8647e` (`accent-primary`) | nvim `GitSignsDelete`; Claude statusline `color_delete`; Claude theme `error` + `diffRemoved`; mm-sidebar deleted/conflict rows |
 | Git icon decoration | `#f5cb96` (`accent-warn`) | ohmyposh git template surround |
 
 ## nvim lualine statusline

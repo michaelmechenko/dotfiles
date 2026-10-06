@@ -21,6 +21,12 @@ cp "$ROOT/tmux_scripts/tsave" "$ROOT/tmux_scripts/tload" "$ROOT/tmux_scripts/tmu
 cat >"$BIN/tmux" <<EOF
 #!/bin/sh
 if [ "\${FAIL_LIST_PANES:-}" = 1 ] && [ "\${1:-}" = list-panes ]; then exit 73; fi
+if [ "\${FAIL_CODEC:-}" = 1 ] && [ "\${1:-}" = list-panes ]; then
+  printf '%s' '\\x'
+  for field in 1 2 3 4 5 6 7 8 9 10 11 12 13 14; do printf '\\0371'; done
+  printf '\\n'
+  exit 0
+fi
 exec "$REAL_TMUX" -L "$SOCKET" "\$@"
 EOF
 chmod +x "$BIN/tmux" "$HOME_DIR/.config/tmux_scripts/"*
@@ -38,12 +44,14 @@ HOSTILE_CWD=$'cwd-\x1f-newline\n-tab\t-unicode-λ'
 mkdir -p "$TMP/$HOSTILE_CWD"
 "$REAL_TMUX" -L "$SOCKET" -f /dev/null new-session -d -s 'work space' -c "$TMP/$HOSTILE_CWD" "$ZSH"
 PANE=$("$REAL_TMUX" -L "$SOCKET" display-message -p -t '=work space:' '#{pane_id}')
-TITLE="title ' ; \$ unicode-λ"
+TITLE="~/title ' ; \$ unicode-λ"
 LABEL=$'label\twith \x1f tab;$(touch nope)'
 "$REAL_TMUX" -L "$SOCKET" select-pane -t "$PANE" -T "$TITLE"
 "$REAL_TMUX" -L "$SOCKET" set-option -p -t "$PANE" @pane-label "$LABEL"
 "$REAL_TMUX" -L "$SOCKET" set-option -p -t "$PANE" @pane-named 1
 
+ENCODED_TITLE=$("$REAL_TMUX" -L "$SOCKET" display-message -p -t "$PANE" '#{q/a:pane_title}')
+case "$ENCODED_TITLE" in *'\~'*) ;; *) fail "fixture did not exercise escaped tilde" ;; esac
 "$HOME_DIR/.config/tmux_scripts/tsave" stable >/dev/null
 JSON="$HOME_DIR/.config/tmux_sessions/stable.json"
 [ -s "$JSON" ] || fail "snapshot JSON missing"
@@ -56,6 +64,11 @@ if FAIL_LIST_PANES=1 "$HOME_DIR/.config/tmux_scripts/tsave" stable >/dev/null 2>
   fail "failed collection reported success"
 fi
 assert_eq "$(shasum -a 256 "$JSON" | awk '{print $1}')" "$BEFORE" "failed collection replaced good JSON"
+
+if FAIL_CODEC=1 "$HOME_DIR/.config/tmux_scripts/tsave" stable >/dev/null 2>&1; then
+  fail "invalid codec input reported success"
+fi
+assert_eq "$(shasum -a 256 "$JSON" | awk '{print $1}')" "$BEFORE" "failed decoding replaced good JSON"
 
 # Malformed input must be rejected before creating a session.
 printf '{"sessions":"bad"}\n' >"$TMP/bad.json"

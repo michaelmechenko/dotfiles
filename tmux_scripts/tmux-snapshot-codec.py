@@ -6,7 +6,7 @@ import json
 import sys
 
 SEP = b"\x1f"
-PUNCTUATION = b'''!"#$&'()*,-;<>?[]\\^`|{}'''
+PUNCTUATION = b'''!"#$&'()*,-;<>?[]\\^`|{}~'''
 NAMED = {ord("a"): 7, ord("b"): 8, ord("f"): 12, ord("n"): 10,
          ord("r"): 13, ord("t"): 9, ord("v"): 11}
 

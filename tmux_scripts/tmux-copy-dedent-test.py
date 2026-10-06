@@ -25,16 +25,16 @@ spec.loader.exec_module(helper)
 class TransformTests(unittest.TestCase):
     def test_bytes(self):
         cases = [
-            (b"   sudo nixos-rebuild switch", b"sudo nixos-rebuild switch"),
-            (b"   sudo nixos-rebuild switch \\\n     --flake /tmp/scratch-terminal-build.RJ7HOT#nixos \\\n     --option experimental-features 'nix-command flakes'",
-             b"sudo nixos-rebuild switch \\\n  --flake /tmp/scratch-terminal-build.RJ7HOT#nixos \\\n  --option experimental-features 'nix-command flakes'"),
+            (b"   command", b"command"),
+            (b"  first\n    second\n", b"  first\n    second\n"),
+            (b"  first\n  second\n", b"first\nsecond\n"),
             (b"", b""), (b" \t\n  \r\n", b" \t\n  \r\n"),
             (b"  a\nzero\n", b"  a\nzero\n"),
-            (b"  a\r\n \r\n    b \t\r\n", b"a\r\n\r\n  b \t\r\n"),
-            (b"\t  a\n\t    b", b"a\n  b"),
-            (b" \ta\n  b", b"\ta\n b"),
-            (b"  a\n\n   b\n", b"a\n\n b\n"),
-            ("  café\n   日本語".encode(), "café\n 日本語".encode()),
+            (b"  a\r\n \r\n  b \t\r\n", b"a\r\n\r\nb \t\r\n"),
+            (b"\t  a\n\t  b", b"a\nb"),
+            (b" \ta\n  b", b" \ta\n  b"),
+            (b"  a\n\n  b\n", b"a\n\nb\n"),
+            ("  café\n  日本語".encode(), "café\n日本語".encode()),
             (b"  \xff\x0bcontent\t\n", b"\xff\x0bcontent\t\n"),
             ("\u00a0a\n  b".encode(), "\u00a0a\n  b".encode()),
         ]
@@ -157,10 +157,27 @@ class BindingTests(unittest.TestCase):
         return result
 
     def test_linewise_repeated_and_single(self):
-        result = self.compare(b"   sudo nixos-rebuild switch \\\n     --flake /tmp/example#nixos \\\n     --option experimental-features 'nix-command flakes'\n",
-                              [b"V", "cursor-down", "cursor-down"])
-        self.assertEqual(result, b"sudo nixos-rebuild switch \\\n  --flake /tmp/example#nixos \\\n  --option experimental-features 'nix-command flakes'\n")
-        self.compare(b"   sudo nixos-rebuild switch\n", [b"V"])
+        data = b"   first\n     second\n"
+        self.assertEqual(self.compare(data, [b"V", "cursor-down"]), data)
+        self.assertEqual(self.compare(b"   first\n   second\n",
+                                     [b"V", "cursor-down"]), b"first\nsecond\n")
+        self.assertEqual(self.compare(b"   command\n", [b"V"]), b"command\n")
+
+    def test_production_clipboard_helper(self):
+        self.clipboard.write_bytes((HERE.parent / "qol_scripts/copy").read_bytes())
+        backend = self.root / "bin"
+        backend.mkdir()
+        (backend / "pbcopy").write_text("#!/bin/sh\ncat > " + shlex.quote(str(self.sink)) + "\n")
+        (backend / "pbcopy").chmod(0o755)
+        self.env["PATH"] = str(backend) + os.pathsep + os.environ["PATH"]
+        # The tmux server predates this PATH; direct invocation exercises the real
+        # helper's executable shebang and the dedent delivery boundary safely.
+        subprocess.run([str(HERE / "tmux-copy-dedent.py"), self.socket],
+                       input=b"  first\n    second\n", env=self.env,
+                       check=True, capture_output=True)
+        self.assertEqual(self.sink.read_bytes(), b"  first\n    second\n")
+        self.assertEqual(self.run_tmux("save-buffer", "-").stdout,
+                         b"  first\n    second\n")
 
     def test_characterwise_reverse_rectangle_and_wrap(self):
         for commands in ([b"v", "cursor-down", "end-of-line"],

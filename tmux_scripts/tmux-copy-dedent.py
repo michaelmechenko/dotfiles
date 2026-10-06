@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Copy selected bytes with their common literal indentation removed."""
+"""Copy selected bytes, removing indentation only when nonblank lines agree."""
 
 import argparse
 import os
@@ -17,8 +17,8 @@ def dedent(data: bytes) -> bytes:
             prefixes.append(body[: len(body) - len(body.lstrip(b" \t"))])
     if not prefixes:
         return data
-    prefix = os.path.commonprefix(prefixes)
-    if not prefix:
+    prefix = prefixes[0]
+    if not prefix or any(other != prefix for other in prefixes[1:]):
         return data
     result = []
     for line in lines:

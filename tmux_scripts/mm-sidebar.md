@@ -119,6 +119,17 @@ sidebar, including sidebars in other windows or sessions.
 `internal/tmuxio` reads the window options through `#{@user_option}` inside the
 single per-tick `display-message -p`; no separate `show-options` forks are needed.
 
+### Tree identity and selected paths
+
+The tree header shows its root path followed by the cached branch. Linked Git
+worktrees also show `wt:<root-name>`; main checkouts omit this redundant label,
+detached HEAD shows `detached`, and non-repositories show neither. Identity is
+collected only with the gated Git snapshot, never on cursor movement. The last
+good identity remains visible with `git stale` after collection failures.
+Selected directory/file display paths beneath the actual home directory use
+`~/`; canonical paths and open/copy actions remain unchanged. Long header text
+uses the existing single-line clipping at the sidebar's 30/36/44-column widths.
+
 ### Content-pane tracking
 
 `@sidebar_content_pane` is verified every refresh. If it is dead, the model

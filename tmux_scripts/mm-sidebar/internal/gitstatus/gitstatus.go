@@ -95,6 +95,7 @@ type Snapshot struct {
 	Worktree  string
 	GitDir    string
 	CommonDir string
+	Branch    string // short symbolic branch, or "detached" for detached HEAD
 	Paths     map[string]Status
 }
 
@@ -194,7 +195,23 @@ func (c Collector) Snapshot(ctx context.Context, dir string) (Snapshot, error) {
 	if int64(len(out)) > c.MaxBytes {
 		return Snapshot{}, ErrOutputTooLarge
 	}
-	return Snapshot{Worktree: root, GitDir: gitDir, CommonDir: common, Paths: ParsePorcelain(root, out)}, nil
+	branchOut, err := c.Run(ctx, root, "symbolic-ref", "--quiet", "--short", "HEAD")
+	branch := "detached"
+	if err != nil {
+		var exit *exec.ExitError
+		if !errors.As(err, &exit) || exit.ExitCode() != 1 || ctx.Err() != nil {
+			return Snapshot{}, err
+		}
+	} else {
+		if int64(len(branchOut)) > c.MaxBytes {
+			return Snapshot{}, ErrOutputTooLarge
+		}
+		if len(branchOut) < 2 || branchOut[len(branchOut)-1] != '\n' {
+			return Snapshot{}, fmt.Errorf("git symbolic-ref returned incomplete branch")
+		}
+		branch = strings.TrimSuffix(string(branchOut), "\n")
+	}
+	return Snapshot{Worktree: root, GitDir: gitDir, CommonDir: common, Branch: branch, Paths: ParsePorcelain(root, out)}, nil
 }
 
 func (c Collector) path(ctx context.Context, dir, flag string) (string, error) {

@@ -79,3 +79,47 @@ func TestFiletreeWatchPathsKeepGitMetadataBeforeExpandedDirectories(t *testing.T
 }
 
 func contains(s, want string) bool { return strings.Contains(s, want) }
+
+func TestFiletreeHeaderUsesCachedRepositoryIdentity(t *testing.T) {
+	f := NewFiletree()
+	root := "/repo/feature"
+	f.state.git = &gitstatus.Snapshot{Worktree: root, GitDir: "/repo/.git/worktrees/feature", CommonDir: "/repo/.git", Branch: "topic"}
+	// Context must remain usable with no command runner available.
+	t.Setenv("PATH", "")
+	value := f.Context(Ctx{Root: root, RootPinned: true}, nil)
+	if !strings.Contains(value, "/repo/feature · topic · wt:feature · pinned") {
+		t.Fatalf("linked header=%q", value)
+	}
+	f.state.gitErr = errors.New("timeout")
+	if value := f.Context(Ctx{Root: root}, nil); !strings.Contains(value, "topic") || !strings.Contains(value, "git stale") {
+		t.Fatalf("stale header=%q", value)
+	}
+	f.state.git.GitDir = f.state.git.CommonDir
+	f.state.git.Branch = "detached"
+	if value := f.Context(Ctx{Root: root}, nil); strings.Contains(value, "wt:") || !strings.Contains(value, "detached") {
+		t.Fatalf("main detached header=%q", value)
+	}
+	f.state.git = nil
+	f.state.gitErr = nil
+	if value := f.Context(Ctx{Root: root}, nil); strings.Contains(value, "wt:") || strings.Contains(value, "detached") {
+		t.Fatalf("nonrepository header=%q", value)
+	}
+}
+
+func TestFiletreeSelectedPathsCompactOnlyActualHome(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	for _, tc := range []struct{ path, want string }{
+		{home, "~"}, {filepath.Join(home, "dir"), "~/dir"},
+		{home + "-other/dir", home + "-other/dir"}, {"/outside/dir", "/outside/dir"},
+	} {
+		for _, row := range []Row{
+			dirRow(theme.Theme{}, tc.path, "", 0, false, false, gitstatus.Status{}, false, nil),
+			fileRow(theme.Theme{}, tc.path, "", 0, gitstatus.Status{}, false, nil),
+		} {
+			if row.Presentation.Detail.Lines[0].Text != tc.want || row.Path != tc.path {
+				t.Fatalf("path=%q display=%q action=%q", tc.path, row.Presentation.Detail.Lines[0].Text, row.Path)
+			}
+		}
+	}
+}

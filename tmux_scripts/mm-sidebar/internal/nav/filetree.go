@@ -105,6 +105,18 @@ func (f *Filetree) Context(c Ctx, _ []Row) string {
 	}
 	home, _ := os.UserHomeDir()
 	parts := []string{display.Sanitize(compactPath(root, home))}
+	s := f.runtime()
+	s.mu.Lock()
+	stale := s.gitErr != nil
+	if s.git != nil {
+		if s.git.Branch != "" {
+			parts = append(parts, display.Sanitize(s.git.Branch))
+		}
+		if s.git.GitDir != "" && s.git.CommonDir != "" && s.git.GitDir != s.git.CommonDir {
+			parts = append(parts, "wt:"+display.Sanitize(filepath.Base(s.git.Worktree)))
+		}
+	}
+	s.mu.Unlock()
 	if c.RootPinned {
 		parts = append(parts, "pinned")
 	}
@@ -113,10 +125,6 @@ func (f *Filetree) Context(c Ctx, _ []Row) string {
 	} else {
 		parts = append(parts, "hidden off")
 	}
-	s := f.runtime()
-	s.mu.Lock()
-	stale := s.gitErr != nil
-	s.mu.Unlock()
 	if stale {
 		parts = append(parts, "git stale")
 	}
@@ -655,7 +663,8 @@ func gitPresentation(label string, depth int, marker string, status gitstatus.St
 }
 
 func gitDetail(title, path string, status gitstatus.Status, known bool, gitErr error, hints []KeyAction) Detail {
-	lines := []DetailLine{{Text: display.Sanitize(path), TruncateLeft: true}}
+	home, _ := os.UserHomeDir()
+	lines := []DetailLine{{Text: compactPath(path, home), TruncateLeft: true}}
 	if known {
 		lines = append(lines, DetailLine{Text: "git: " + status.Kind.Badge(), Tone: toneForGit(status.Kind)})
 		lines = append(lines, DetailLine{Text: status.StagedText(), Tone: toneForGit(status.Kind)}, DetailLine{Text: status.UnstagedText(), Tone: toneForGit(status.Kind)})

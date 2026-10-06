@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -1154,5 +1155,103 @@ func TestMouseAgentClickSetsKeyboardFocus(t *testing.T) {
 	}
 	if m.focusRegion != focusBlock || m.focusBlock != 0 || m.focusRow != 0 {
 		t.Fatalf("mouse focus = region %d block %d row %d, want block 0 row 0", m.focusRegion, m.focusBlock, m.focusRow)
+	}
+}
+
+func TestTreeIdentityAndCompactSelectedPathFrames(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	root := filepath.Join(home, "r")
+	git := func(dir string, args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git: %v %s", err, out)
+		}
+	}
+	git(home, "init", "-b", "main", root)
+	git(root, "config", "user.name", "test")
+	git(root, "config", "user.email", "test@example.invalid")
+	if err := os.Mkdir(filepath.Join(root, "dir"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "dir", "file"), []byte("x"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	git(root, "add", ".")
+	git(root, "commit", "-m", "fixture")
+	linked := filepath.Join(home, "f")
+	git(root, "worktree", "add", "-b", "topic", linked)
+	outside := t.TempDir()
+	for _, tc := range []struct{ name, root, branch, worktree string }{
+		{"main", root, "main", ""}, {"linked", linked, "topic", "wt:f"},
+		{"outside", outside, "", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := nav.NewFiletree()
+			rows, err := f.Fetch(nav.Ctx{Root: tc.root})
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Rendering must never spawn commands, including on cursor movement.
+			t.Setenv("PATH", "")
+			for _, width := range []int{30, 36, 44} {
+				m := &model{width: width, height: 40, sources: []nav.Source{f}, sourceRoot: tc.root, rows: rows, focusRegion: focusNavigator}
+				lines := m.headerLines()
+				if len(lines) != 2 || lipgloss.Width(lines[1]) > width {
+					t.Fatalf("header=%q", lines)
+				}
+				for _, want := range []string{tc.branch, tc.worktree} {
+					if want != "" && !strings.Contains(lines[1], want) {
+						t.Fatalf("width=%d missing %q: %q", width, want, lines[1])
+					}
+				}
+				view := m.View()
+				if len(strings.Split(view, "\n")) != m.height {
+					t.Fatalf("wrong frame height")
+				}
+				if tc.name != "outside" && !strings.Contains(view, "~/"+filepath.Base(tc.root)+"/dir") {
+					t.Fatalf("selected path not compact: %q", view)
+				}
+				for _, line := range strings.Split(view, "\n") {
+					if lipgloss.Width(line) > width {
+						t.Fatalf("overflow: %q", line)
+					}
+				}
+			}
+		})
+	}
+	git(linked, "checkout", "--detach")
+	f := nav.NewFiletree()
+	rows, err := f.Fetch(nav.Ctx{Root: linked})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := &model{width: 44, height: 40, sources: []nav.Source{f}, sourceRoot: linked, rows: rows}
+	if header := m.headerLines()[1]; !strings.Contains(header, "detached") || !strings.Contains(header, "wt:f") {
+		t.Fatalf("detached header=%q", header)
+	}
+	git(linked, "checkout", "-b", "long-topic/with-a-very-long-branch-name")
+	rows, err = f.Fetch(nav.Ctx{Root: linked})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.rows = rows
+	longWorktree := filepath.Join(home, "a-very-long-worktree-directory-name")
+	git(root, "worktree", "add", "-b", "another-long-topic", longWorktree)
+	for _, path := range []string{linked, longWorktree} {
+		rows, err = f.Fetch(nav.Ctx{Root: path})
+		if err != nil {
+			t.Fatal(err)
+		}
+		m.sourceRoot, m.rows = path, rows
+		for _, width := range []int{30, 36, 44} {
+			m.width = width
+			if line := m.headerLines()[1]; lipgloss.Width(line) > width {
+				t.Fatalf("long identity overflow: %q", line)
+			}
+		}
 	}
 }

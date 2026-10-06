@@ -96,7 +96,12 @@ func TestCollectorNoRepositoryAndLinkedWorktree(t *testing.T) {
 
 	parent := t.TempDir()
 	main := filepath.Join(parent, "main")
-	gitCommand(t, parent, "init", main)
+	gitCommand(t, parent, "init", "-b", "main", main)
+
+	unborn, err := New().Snapshot(context.Background(), main)
+	if err != nil || unborn.Branch != "main" {
+		t.Fatalf("unborn snapshot=%#v err=%v", unborn, err)
+	}
 	gitCommand(t, main, "config", "user.email", "sidebar@example.invalid")
 	gitCommand(t, main, "config", "user.name", "sidebar")
 	if err := os.WriteFile(filepath.Join(main, "tracked"), []byte("x"), 0o644); err != nil {
@@ -107,8 +112,17 @@ func TestCollectorNoRepositoryAndLinkedWorktree(t *testing.T) {
 	linked := filepath.Join(parent, "linked")
 	gitCommand(t, main, "worktree", "add", "-b", "linked", linked)
 	snap, err := New().Snapshot(context.Background(), linked)
-	if err != nil || snap.Worktree != linked || snap.GitDir == snap.CommonDir || !strings.Contains(snap.GitDir, "worktrees") {
+	if err != nil || snap.Branch != "linked" || snap.Worktree != linked || snap.GitDir == snap.CommonDir || !strings.Contains(snap.GitDir, "worktrees") {
 		t.Fatalf("linked snapshot=%#v err=%v", snap, err)
+	}
+	mainSnap, err := New().Snapshot(context.Background(), main)
+	if err != nil || mainSnap.Branch != "main" || mainSnap.GitDir != mainSnap.CommonDir {
+		t.Fatalf("main snapshot=%#v err=%v", mainSnap, err)
+	}
+	gitCommand(t, linked, "checkout", "--detach")
+	detached, err := New().Snapshot(context.Background(), linked)
+	if err != nil || detached.Branch != "detached" {
+		t.Fatalf("detached snapshot=%#v err=%v", detached, err)
 	}
 	if len(snap.WatchPaths()) == 0 {
 		t.Fatal("linked worktree supplied no metadata watches")
@@ -151,5 +165,38 @@ func gitCommand(t *testing.T, dir string, args ...string) {
 	cmd.Dir = dir
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("git %s: %v: %s", strings.Join(args, " "), err, out)
+	}
+}
+
+func TestCollectorBranchFailureAndBounds(t *testing.T) {
+	root := t.TempDir()
+	for _, tc := range []struct {
+		name    string
+		output  string
+		failure error
+		want    error
+	}{
+		{"failure", "", errors.New("branch failed"), nil},
+		{"bounded", strings.Repeat("b", 65), nil, ErrOutputTooLarge},
+		{"incomplete", "main", nil, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			calls := 0
+			run := func(_ context.Context, _ string, args ...string) ([]byte, error) {
+				calls++
+				switch args[0] {
+				case "rev-parse":
+					return []byte(root + "\n"), nil
+				case "status":
+					return nil, nil
+				default:
+					return []byte(tc.output), tc.failure
+				}
+			}
+			_, err := (Collector{MaxBytes: 64, Run: run}).Snapshot(context.Background(), root)
+			if err == nil || calls != 5 || (tc.want != nil && !errors.Is(err, tc.want)) || (tc.failure != nil && !errors.Is(err, tc.failure)) {
+				t.Fatalf("err=%v calls=%d", err, calls)
+			}
+		})
 	}
 }

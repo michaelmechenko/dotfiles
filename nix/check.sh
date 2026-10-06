@@ -26,6 +26,7 @@ test -x "$home_path/bin/app-focus"
 python3 nix/home/app-focus-test.py
 lua nix/home/workspaces-test.lua
 lua nix/home/scratch-terminal-test.lua
+lua nix/home/scratch-sidra-test.lua
 [[ $("$home_path/bin/nwg-dock-hyprland" -v) == 'nwg-dock-hyprland version 0.4.11' ]]
 bash nix/home/dock-seed-test.sh
 # The painted panel is separate from the transparent layer-shell detectors.

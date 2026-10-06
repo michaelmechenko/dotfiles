@@ -17,6 +17,7 @@ The full Mac tmux/sidebar and Neovim plugin configuration is not enabled here.
 | `Super-q` | Close focused window |
 | `Super-f` | Toggle fullscreen |
 | `Super-Shift-f` | Show/focus or hide the shared floating Ghostty scratch terminal; hidden shell/jobs stay alive |
+| `Super-Shift-b` | Adopt/show or hide Sidra’s ordinary window as a floating scratchpad; launch Sidra if absent |
 | `Super-Shift-Space` | Toggle floating |
 | `Super-h/j/k/l` | Focus left/down/up/right |
 | `Super-1..9` | Focus primary DP-1 workspace IDs `101..109` (labels `1*..9*`) |

@@ -182,6 +182,32 @@ interaction, rapid first-use double/triple presses, and close/crash recovery.
 Confirm only one scratch client exists and normal Super-Return/Super-Ctrl-Z still
 operate on ordinary Ghostty windows. Fixture success is not live acceptance.
 
+## Sidra scratchpad
+
+Super-Shift-B adopts Sidra's existing ordinary main window into `special:sidra`
+on the focused monitor. It becomes floating and centered at 70% of that monitor's
+logical width/height; initial adoption leaves fullscreen/maximized mode. Subsequent
+presses show/focus or hide the same window, preserving playback and application
+state. Invoking it on the other monitor transfers the scratchpad; later toggles
+preserve its size. Super-B still opens Helium and Super-Shift-F remains the
+independent Ghostty scratch terminal.
+
+There is no second Sidra instance or altered app ID/icon. With no mapped main
+window, the shortcut launches `uwsm app -- sidra` once while pending and adopts
+the resulting map according to the latest show/hide request. Sidra's own
+close-to-tray setting is unchanged: when unmapped, the shortcut invokes its
+ordinary singleton launcher to reveal it. Closing/exiting or ending the desktop
+session has normal app-owned semantics; this is not logout/reboot recovery.
+External dock/Fuzzel launches remain ordinary until explicitly adopted; reload
+does not move an already running ordinary window. Launch failure before mapping
+requires correcting the failure and reloading configuration before retrying;
+avoid reload during a pending launch, just as with the terminal.
+
+After approved activation, test current-window adoption without restarting Sidra,
+hide/show playback retention, both monitor directions, cold launch/rapid toggles,
+close-to-tray and full-exit recovery, fullscreen interaction and the unchanged
+terminal shortcut. Pure Lua fixtures do not replace these live checks.
+
 ## Autohiding dock and grayscale Waybar icons
 
 `home/dock.nix` installs locally pinned nwg-dock-hyprland 0.4.11 for Hyprland
@@ -197,7 +223,9 @@ one open window and two for multiple windows. Closed pins retain a transparent
 indicator row above the icon, preserving alignment. A small local package patch
 moves the bottom-dock row; the SVG fill comes from `accent-secondary`, preserving
 its shape/outline and other dock placements. Upstream disables its focused-window
-underline in autohide mode. The top Waybar layout and existing shortcuts remain.
+underline in autohide mode. Panel padding is 6px above/on each side and 11px
+below, balancing the 5px indicator row without changing button hit areas or the
+8px external screen margin. The top Waybar layout is unchanged.
 
 The dock panel, right-click menus/submenus and tooltips share the desktop's
 opaque `surface-chrome`, 2px `divider-subtle` borders, 8px corners and Waybar's
@@ -222,6 +250,27 @@ The file stays writable: right-click pin/unpin changes survive rebuilds. Existin
 files and symlinks are never replaced. Hidden desktop aliases resolve Obsidian's
 and Dolphin's window classes without duplicating launcher entries. Validate
 Dolphin's live Wayland class and pin association when first testing the dock.
+
+### Reordering dock apps
+
+This dock version does not implement drag-to-reorder. Pinned apps appear
+left-to-right in the line order of `~/.cache/nwg-dock-pinned` (or
+`$XDG_CACHE_HOME/nwg-dock-pinned`). Back up the file, edit the existing app/desktop
+IDs into the desired order, one per line, then restart the dock before any further
+pin/unpin interaction. Its in-memory pin list could otherwise overwrite your edit.
+Pin an unpinned running app first if you want a fixed position; remaining unpinned
+apps follow the pins, ordered by workspace ID and class.
+
+For a deliberate dock-only restart from the Hyprland session:
+
+```sh
+# Matches only the dock executable (including its Nix wrapper), not this shell.
+pkill -f '^/[^ ]*/(\\.nwg-dock-hyprland-wrapped|nwg-dock-hyprland)( |$)' || true
+uwsm app -- nwg-dock-hyprland -d -p bottom -a center -i 40 -mb 8 -hd 0 -nolauncher
+```
+
+Restarting the dock does not close its applications. Neither rebuilds nor this
+scratchpad configuration reorder or replace an existing pin file.
 
 The local `packages/waybar-grayscale.patch` desaturates private pixbuf copies in
 Waybar's taskbar loader and SNI tray image updater before Cairo rendering. This

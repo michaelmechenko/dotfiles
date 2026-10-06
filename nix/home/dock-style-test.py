@@ -175,6 +175,17 @@ assert panel.get_style_context().get_property("border-radius", Gtk.StateFlags.NO
 assert color(panel.get_style_context(), "background-color") == rgb("surface-chrome") + (255,)
 assert color(panel.get_style_context(), "border-color") == rgb("divider-subtle") + (255,)
 assert button.get_style_context().get_property("font-size", Gtk.StateFlags.NORMAL) == 13
+padding = panel.get_style_context().get_padding(Gtk.StateFlags.NORMAL)
+assert (padding.top, padding.right, padding.bottom, padding.left) == (6, 6, 11, 6)
+# Equal icon-to-panel gaps: the top has the 5px indicator, the bottom padding
+# supplies the same space. Check real allocations, not just CSS properties.
+panel_y = panel.translate_coordinates(window, 0, 0)[1]
+panel_height = panel.get_allocation().height
+for sibling in buttons:
+    app_image = sibling.get_image()
+    image_y = app_image.translate_coordinates(window, 0, 0)[1]
+    image_height = app_image.get_allocation().height
+    assert image_y - panel_y == panel_y + panel_height - image_y - image_height
 
 states = {
     "idle": Gtk.StateFlags.NORMAL,

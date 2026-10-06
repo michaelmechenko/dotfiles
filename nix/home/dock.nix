@@ -56,7 +56,8 @@ in
       background: ${roles.surface-chrome};
       border: 2px solid ${roles.divider-subtle};
       border-radius: 8px;
-      padding: 6px;
+      /* Balance the 5px indicator row above the bottom-dock buttons. */
+      padding: 6px 6px 11px;
     }
     * { font-family: "Lilex Nerd Font", sans-serif; font-size: 13px; }
     button, image { background: none; border: none; box-shadow: none; }

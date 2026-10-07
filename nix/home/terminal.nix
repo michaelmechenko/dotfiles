@@ -119,7 +119,7 @@ in
     enableZshIntegration = true;
     settings = palette.ghostty // {
       palette = lib.imap0 (index: color: "${toString index}=${color}") palette.ansi;
-      font-family = "Lilex Nerd Font";
+      font-family = "ComicShannsMono Nerd Font";
       font-size = 13;
       cursor-style = "underline";
       cursor-style-blink = false;

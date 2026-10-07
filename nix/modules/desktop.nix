@@ -48,6 +48,7 @@
 
   fonts.packages = with pkgs; [
     nerd-fonts.lilex
+    nerd-fonts.comic-shanns-mono
     noto-fonts
     noto-fonts-color-emoji
   ];

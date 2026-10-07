@@ -17,6 +17,7 @@ import fcntl
 import os
 import secrets
 import select
+import errno
 import signal
 import shlex
 import shutil
@@ -117,6 +118,12 @@ class AttachedClient:
                 self.captured.extend(chunk)
             except BlockingIOError:
                 return
+            except OSError as error:
+                # Linux reports EOF on a closed PTY slave as EIO. Older fixture
+                # clients can exit while the harness drains every client.
+                if error.errno == errno.EIO:
+                    return
+                raise
 
     def close(self) -> None:
         if self.alive:
@@ -1545,15 +1552,21 @@ def test_status_sidebar_button(h: Harness) -> None:
         h.wait("button client resize", lambda: h.tmux(
             "display-message", "-p", "-c", client.tty, "#{client_width}") == str(width))
 
-    def paint(width: int) -> None:
+    def paint(width: int, glyph: str) -> None:
         client.clear_capture()
         h.tmux("refresh-client", "-t", client.tty)
         time.sleep(0.15)
         client.drain()
         chars, colors = render.render_terminal(bytes(client.captured), 50, width)
         row = "".join(chars[0])
-        h.require(row.endswith("-*-"), f"rendered sidebar button missing: {row!r}")
-        h.require(colors[0][-3:] == [muted] * 3, "button does not use muted foreground")
+        h.require(row.endswith(glyph), f"rendered sidebar button missing: {row!r}")
+        h.require(colors[0][-2:] == [muted] * 2, "button does not use muted foreground")
+        second_client.clear_capture()
+        h.tmux("refresh-client", "-t", second_client.tty)
+        time.sleep(0.15)
+        second_client.drain()
+        other_chars, _ = render.render_terminal(bytes(second_client.captured), 50, 180)
+        h.require("".join(other_chars[0]).endswith("</"), "other window inherited open glyph")
         h.require(not h.sidebar(other), "click created sidebar in another window")
         h.require(h.client_state(second_client) == original_other, "click affected second client")
 
@@ -1563,10 +1576,11 @@ def test_status_sidebar_button(h: Harness) -> None:
     # Exercise each cell, narrow/wide tiers, labeled and zoomed content, and a
     # focused sidebar. Actual terminal cells and raw SGR clicks are authoritative.
     for width, offset, zoom, label, focus in (
-        (180, 2, False, "", False),
-        (180, 1, False, "label", True),
+        (180, 1, False, "", False),
+        (180, 0, False, "label", True),
         (180, 0, True, "label", False),
         (60, 1, False, "", False),
+        (60, 0, False, "label", True),
     ):
         resize(width)
         h.tmux("select-pane", "-t", main)
@@ -1574,15 +1588,19 @@ def test_status_sidebar_button(h: Harness) -> None:
         if zoom:
             h.tmux("resize-pane", "-Z", "-t", main)
         before = h.layout(main)
-        paint(width)
+        paint(width, "</")
         click(width, width - offset)
         h.wait("status button opens sidebar", lambda: bool(h.sidebar(main)))
         h.require(h.active_pane(main) == main, "button stole content focus")
-        paint(width)
+        paint(width, "/>")
         sidebar = h.sidebar(main)
         if focus:
             h.tmux("select-pane", "-t", sidebar)
-            paint(width)
+            paint(width, "/>")
+        if zoom:
+            h.tmux("resize-pane", "-Z", "-t", main)
+            paint(width, "/>")
+            h.tmux("resize-pane", "-Z", "-t", main)
         click(width, width - offset, 2)
         time.sleep(0.15)
         h.require(h.sidebar(main) == sidebar, "right button unexpectedly toggled sidebar")
@@ -1594,7 +1612,7 @@ def test_status_sidebar_button(h: Harness) -> None:
         h.require(h.layout(main) == before, "button close did not restore layout")
         h.require(h.fmt(main, "#{window_zoomed_flag}") == ("1" if zoom else "0"),
                   "button close did not restore zoom")
-        paint(width)
+        paint(width, "</")
         if zoom:
             h.tmux("resize-pane", "-Z", "-t", main)
 

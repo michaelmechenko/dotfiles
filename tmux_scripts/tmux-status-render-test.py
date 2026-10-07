@@ -633,42 +633,47 @@ def main() -> int:
         resize(12)
         narrow = tmux("display-message", "-p", "-c", client_name, "-t", "=alpha:", "#{E:status-right}")
         plain = re.sub(r"#\[[^]]*\]", "", narrow)
-        if plain != "alpha -*-":
+        if plain != "alpha </":
             raise AssertionError(f"narrow status tier = {plain!r}")
 
         resize(220)
         wide = tmux("display-message", "-p", "-c", client_name, "-t", "=alpha:", "#{E:status-right}")
         if "[" not in wide or "#[underscore]" not in wide:
             raise AssertionError(f"wide status tier missing session stars: {wide!r}")
-        if not re.sub(r"#\[[^]]*\]", "", wide).endswith(" -*-"):
+        if not re.sub(r"#\[[^]]*\]", "", wide).endswith(" </"):
             raise AssertionError("wide status tier lacks sidebar suffix")
-        for option, form in (("@m-rshort", "@sr-short-form"), ("@m-rfull", "@sr-full-form")):
-            measured = int(tmux("display-message", "-p", "-c", client_name,
-                                "#{E:#{" + option + "}}"))
-            rendered = tmux("display-message", "-p", "-c", client_name,
-                            "#{E:#{" + form + "}}")
-            if measured != len(re.sub(r"#\[[^]]*\]", "", rendered)):
-                raise AssertionError("status measurement does not include button")
-        # Check both content-measured tier boundaries on a real attached frame.
-        for measure in ("@m-rshort", "@m-rfull"):
-            boundary = int(tmux("display-message", "-p", "-c", client_name,
-                                "#{e|+:#{E:#{@m-listfull}},#{e|+:#{E:#{" + measure +
-                                "}},#{e|+:#{E:#{@m-left}},#{@sl-gap}}}}"))
-            for width in (boundary - 1, boundary, boundary + 1):
-                resize(width)
-                while select.select([master], [], [], 0)[0]:
-                    os.read(master, 65536)
-                tmux("refresh-client", "-t", tty)
-                frame = b""
-                while select.select([master], [], [], 0.15)[0]:
-                    frame += os.read(master, 65536)
-                chars, _ = render_terminal(frame, 40, width)
-                if not "".join(chars[0]).endswith("-*-"):
-                    raise AssertionError(f"button missing at tier boundary {width}")
-                expanded = tmux("display-message", "-p", "-c", client_name,
-                                "#{E:status-right}")
-                if measure == "@m-rfull" and ("#[underscore]" in expanded) != (width >= boundary):
-                    raise AssertionError("star block did not switch at measured boundary")
+        # Exercise both states at each measured boundary. The lifecycle suite
+        # verifies real sidebar publication; this isolates the format itself.
+        for glyph, owner in (("</", ""), ("/>", "%999999")):
+            tmux("set-option", "-w", "-t", "=alpha:", "@sidebar_pane_id", owner)
+            for option, form in (("@m-rshort", "@sr-short-form"), ("@m-rfull", "@sr-full-form")):
+                measured = int(tmux("display-message", "-p", "-c", client_name,
+                                    "#{E:#{" + option + "}}"))
+                rendered = tmux("display-message", "-p", "-c", client_name,
+                                "#{E:#{" + form + "}}")
+                if measured != len(re.sub(r"#\[[^]]*\]", "", rendered)):
+                    raise AssertionError("status measurement does not include button")
+            # Check both content-measured tier boundaries on a real attached frame.
+            for measure in ("@m-rshort", "@m-rfull"):
+                boundary = int(tmux("display-message", "-p", "-c", client_name,
+                                    "#{e|+:#{E:#{@m-listfull}},#{e|+:#{E:#{" + measure +
+                                    "}},#{e|+:#{E:#{@m-left}},#{@sl-gap}}}}"))
+                for width in (boundary - 1, boundary, boundary + 1):
+                    resize(width)
+                    while select.select([master], [], [], 0)[0]:
+                        os.read(master, 65536)
+                    tmux("refresh-client", "-t", tty)
+                    frame = b""
+                    while select.select([master], [], [], 0.15)[0]:
+                        frame += os.read(master, 65536)
+                    chars, _ = render_terminal(frame, 40, width)
+                    if not "".join(chars[0]).endswith(glyph):
+                        raise AssertionError(f"button missing at tier boundary {width}")
+                    expanded = tmux("display-message", "-p", "-c", client_name,
+                                    "#{E:status-right}")
+                    if measure == "@m-rfull" and ("#[underscore]" in expanded) != (width >= boundary):
+                        raise AssertionError("star block did not switch at measured boundary")
+        tmux("set-option", "-wu", "-t", "=alpha:", "@sidebar_pane_id")
         resize(220)
         before_active = wide[:wide.find("#[underscore]")]
         if before_active.count(" * ") != 1:

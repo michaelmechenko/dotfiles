@@ -378,7 +378,7 @@ forwarded into a focused sidebar so they act on its selected agent row.
 | `MouseDown1Status` | root | Switch to the clicked status-bar window (native window range; attached-client verified) |
 | `MouseDown1StatusRight` | root | Switch to previous session in float-first creation order |
 | `MouseDown3StatusRight` | root | Switch to next session in float-first creation order |
-| Left-click `-*-` (`MouseDown1Control0`) | root | Toggle this window's sidebar without moving focus; right-click does nothing |
+| Left-click `</` (closed) / `/>` (open) (`MouseDown1Control0`) | root | Toggle this window's sidebar without moving focus; right-click does nothing |
 | `MouseDown3Pane` | root | Pane context menu (open-in-finder, history top/bottom, paste, copy word/line/link, splits, swap, kill, respawn, mark, zoom) |
 | `M-MouseDown3Pane` | root | Force pane context menu (even when app has mouse focus) |
 

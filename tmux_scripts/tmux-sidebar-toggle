@@ -3,7 +3,7 @@
 #
 #   (default)              M-BTab: open without focus or close locally
 #   --dismiss               compatibility alias for local --close
-#   --focus                 M-Tab: local three-state sidebar/content focus switch
+#   --focus                 M-Tab: open and focus, or close an existing sidebar
 #   --close                 local owner cleanup (failures, HUP, q/Esc)
 #   --ensure                obsolete compatibility no-op; never opens a sidebar
 #
@@ -383,27 +383,9 @@ fi
 if pane_owned "$existing"; then
   # Obsolete --ensure remains idempotent for compatibility, but never creates.
   [ "$mode" = "--ensure" ] && exit 0
-  # Open/close (the default) and --close both dismiss an open sidebar; only
-  # --focus moves focus around while keeping the pane alive.
-  if [ "$mode" != "--focus" ]; then
-    close_sidebar || exit 1
-    exit 0
-  fi
-  if [ "$current_pane" = "$existing" ]; then
-    # Focus is in the sidebar -> hand it back to the window's last active pane,
-    # keeping the sidebar alive. See return_pane for why last-pane and not
-    # @sidebar_content_pane.
-    target=$(return_pane)
-    [ -n "$target" ] && focus_owned_pane "$target"
-  else
-    # Focus is in a content pane -> retarget the sidebar at THIS pane, then focus it.
-    # Retargeting means the sidebar's filetree/scratch follow whichever pane you were
-    # last working in, rather than staying pinned to whatever was focused at open.
-    # Retarget only if the caller is still in this captured window; focus has
-    # its own ownership guard, so neither action can follow a moved pane.
-    owned_action "$current_pane" "set-option -wt $win_target @sidebar_content_pane $current_pane" 2>/dev/null || true
-    focus_owned_pane "$existing"
-  fi
+  # Every visibility gesture closes an open sidebar, regardless of focus.
+  # --focus differs only on open: it selects the newly created sidebar.
+  close_sidebar || exit 1
   exit 0
 fi
 

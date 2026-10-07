@@ -340,9 +340,9 @@ Type a query; every matching substring in the popup's visible content rows gets 
 | `prefix C` | — | New session (prompt) |
 | `M-C` | root | New session (prompt) |
 | `M-s` | root | Session picker fzf popup (`tmux-session-ls`) |
-| `M-Tab` | root | Focus switch for this window's mm-sidebar: open+focus if closed, otherwise move sidebar ↔ last content pane (`--focus`) |
+| `M-Tab` | root | Toggle this window's mm-sidebar: open+focus if closed, otherwise close (`--focus`) |
 | `M-BTab` | root | Toggle only this window's mm-sidebar visible: open without moving focus / close (`tmux-sidebar-toggle`) |
-| `prefix Tab` | prefix | Same local focus switch, terminal-agnostic fallback for `M-Tab` |
+| `prefix Tab` | prefix | Same open+focus/close toggle, terminal-agnostic fallback for `M-Tab` |
 | `prefix BTab` | prefix | Same local visibility toggle, terminal-agnostic fallback for `M-BTab` |
 | `M-:` | root | Switch client to prev session (by index) |
 | `M-[` | root | Switch client to prev session |
@@ -477,8 +477,8 @@ In-nnn plugin keys (`;` prefix — nnn requires it for plugins):
 
 An independent, manually opened **right** full-height Bubble Tea pane for one
 tmux window. There is no global persistence mode or synchronization lifecycle.
-`M-Tab` / `prefix Tab` is the local three-state focus switch: open+focus when
-closed, otherwise sidebar ↔ last content pane. `M-BTab` / `prefix BTab` toggles
+`M-Tab` / `prefix Tab` opens and focuses the local sidebar when
+closed, otherwise closes it regardless of focus. `M-BTab` / `prefix BTab` toggles
 this window's sidebar visible: open without moving focus or close. `@sidebar_source` retains a
 valid tab (first open defaults to filetree) and `@sidebar_width` retains 30/36/44.
 

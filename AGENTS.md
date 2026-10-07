@@ -229,9 +229,8 @@ When in doubt, check the AeroSpace guide: callbacks spawn a process from argv; b
 
 The sidebar is a manually opened, independent **right**, full-window-height pane.
 It is not globally persistent and no selection/layout hook creates sidebars in
-other windows. `M-Tab` / `prefix Tab` is the local three-state focus switch:
-closed → open+focus, focused sidebar → last content pane, focused content →
-retarget then focus sidebar. `M-BTab` / `prefix BTab` toggles that one sidebar
+other windows. `M-Tab` / `prefix Tab` is the local open+focus/close toggle:
+closed → open+focus; open → close, whether content or sidebar is focused. `M-BTab` / `prefix BTab` toggles that one sidebar
 visible (open without moving focus / close). `M-BTab` is tmux's required Backtab spelling; never
 bind `M-S-Tab`. The Ghostty CSI-u transports and tmux popup/nnn forwarding guards
 must remain paired with these bindings.

@@ -562,26 +562,35 @@ def test_detached_open_close(h: Harness) -> None:
     h.require(not h.option(main, "@sidebar_saved_layout"), "saved layout must clear on close")
 
 
-def test_focus_switch(h: Harness) -> None:
+def test_focus_toggle(h: Harness) -> None:
     main = h.new_session("focus")
     other = h.split(main, "-h", "-l", "60")
-    h.tmux("select-pane", "-t", other)
-    h.invoke_toggle(other, "--focus")
-    h.wait("focused sidebar open", lambda: bool(h.sidebar(other)))
-    sidebar = assert_sidebar_geometry(h, other)
-    h.require(h.active_pane(other) == sidebar, "--focus must focus a newly-opened sidebar")
-    # Publication precedes child startup; recovery must remain on the content
-    # side of the full-height right sidebar.
-    h.require(bool(h.option(other, "@sidebar_content_pane")), "focused open did not record a content pane")
+    for zoom in (False, True):
+        h.tmux("select-pane", "-t", other)
+        if zoom:
+            h.tmux("resize-pane", "-Z", "-t", other)
+        before = h.layout(other)
+        h.invoke_toggle(other, "--focus")
+        h.wait("focused sidebar open", lambda: bool(h.sidebar(other)))
+        sidebar = assert_sidebar_geometry(h, other)
+        h.require(h.active_pane(other) == sidebar, "--focus must focus a newly-opened sidebar")
+        h.require(bool(h.option(other, "@sidebar_content_pane")), "focused open did not record content")
+        h.invoke_toggle(sidebar, "--focus")
+        h.wait("focused sidebar closes", lambda: not h.sidebar(other))
+        h.require(h.active_pane(other) == other, "focused close must restore content focus")
+        h.require(h.layout(other) == before, "focused close did not restore layout")
+        h.require(h.fmt(other, "#{window_zoomed_flag}") == ("1" if zoom else "0"),
+                  "focused close did not restore zoom")
+        if zoom:
+            h.tmux("resize-pane", "-Z", "-t", other)
 
-    h.invoke_toggle(sidebar, "--focus")
-    h.wait("focus returns from sidebar", lambda: h.active_pane(other) == other)
-    h.require(h.sidebar(other) == sidebar, "focus return must keep sidebar alive")
-
+    h.tmux("select-pane", "-t", main)
+    h.invoke_toggle(main)
+    h.wait("unfocused sidebar open", lambda: bool(h.sidebar(main)))
+    h.require(h.active_pane(main) == main, "plain open stole focus")
     h.invoke_toggle(main, "--focus")
-    h.wait("focus retargets sidebar", lambda: h.active_pane(main) == sidebar)
-    h.require(h.option(main, "@sidebar_content_pane") == main, "focus retarget did not record caller")
-    h.close(main)
+    h.wait("M-Tab from content closes sidebar", lambda: not h.sidebar(main))
+    h.require(h.alive(main) and h.alive(other), "toggle close killed content")
 
 
 def invoke_config_binding(h: Harness, pane: str, key: str) -> None:
@@ -804,20 +813,25 @@ def test_csi_u_sidebar_gestures(h: Harness) -> None:
 
     client.send(CSI_M_TAB)
     h.wait("raw M-Tab opens and focuses sidebar", lambda: bool(h.sidebar(main)) and h.active_pane(main) == h.sidebar(main))
-    sidebar = assert_sidebar_geometry(h, main)
-
+    assert_sidebar_geometry(h, main)
     client.send(CSI_M_TAB)
-    h.wait("raw M-Tab returns to content", lambda: h.active_pane(main) == main)
-    h.require(h.sidebar(main) == sidebar, "M-Tab focus return must keep sidebar alive")
-
-    client.send(CSI_M_BTAB)
-    h.wait("raw M-BTab closes local sidebar", lambda: not h.sidebar(main))
-    h.require(h.alive(main), "raw M-BTab close must preserve content")
+    h.wait("raw M-Tab closes focused sidebar", lambda: not h.sidebar(main))
+    h.wait("raw close restores content focus", lambda: h.active_pane(main) == main)
+    h.wait("raw close releases lock", lambda: not sidebar_lock(h, "toggle", main).exists())
 
     client.send(CSI_M_BTAB)
     h.wait("raw M-BTab opens local sidebar", lambda: bool(h.sidebar(main)))
     h.require(h.active_pane(main) == main, "raw M-BTab open must keep content focused")
-    h.close(main)
+    client.send(CSI_M_TAB)
+    h.wait("raw M-Tab closes sidebar from content", lambda: not h.sidebar(main))
+    h.wait("raw content close releases lock", lambda: not sidebar_lock(h, "toggle", main).exists())
+
+    client.send(CSI_M_BTAB)
+    h.wait("raw M-BTab reopens local sidebar", lambda: bool(h.sidebar(main)))
+    h.require(h.active_pane(main) == main, "raw M-BTab reopen stole focus")
+    client.send(CSI_M_BTAB)
+    h.wait("raw M-BTab closes local sidebar", lambda: not h.sidebar(main))
+    h.require(h.alive(main), "raw close must preserve content")
 
 
 def test_path_preview_popup_from_raw_p_key(h: Harness) -> None:
@@ -1591,7 +1605,7 @@ def main() -> int:
         h.setup()
         h.run("detached open/close", lambda: test_detached_open_close(h))
         h.run("uninitialized lifecycle lock recovery", lambda: test_uninitialized_lifecycle_lock_is_reclaimed(h))
-        h.run("--focus open and switch", lambda: test_focus_switch(h))
+        h.run("--focus open and close", lambda: test_focus_toggle(h))
         h.run("one/two/three-pane layouts", lambda: test_layouts(h))
         h.run("M-H two-pane equalization", lambda: test_m_h_two_pane_layout(h))
         h.run("attached status window click", lambda: test_status_window_click_regression(h))

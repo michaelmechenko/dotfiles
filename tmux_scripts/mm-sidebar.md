@@ -67,7 +67,7 @@ inventory rather than temporarily claiming `(empty)`.
 | Path | Role |
 | --- | --- |
 | `tmux_scripts/mm-sidebar/` | The Go module. `go.mod`/`go.sum` tracked; the architecture-specific binary is generated on demand and ignored. |
-| `tmux_scripts/tmux-sidebar-toggle` | Window-local open/close and focus switch, with owner-safe lifecycle recovery. |
+| `tmux_scripts/tmux-sidebar-toggle` | Window-local open/close with optional focus on open and owner-safe lifecycle recovery. |
 | `tmux_scripts/tmux-sidebar-sync` | Disabled compatibility shim for the retired synchronized-sidebar lifecycle. |
 | `tmux_scripts/tmux-sidebar-build` | Builds or repairs the binary on demand; prints its path, or exits 1 so callers can fall back. |
 | `tmux_scripts/tmux-sidebar-repin` | Restores every sidebar pane to its configured width after a resize. |
@@ -189,7 +189,7 @@ query path.
 
 The sidebar is opened only by an explicit local gesture. `M-BTab` / `prefix BTab`
 opens or closes the current window's sidebar; `M-Tab` / `prefix Tab` is the
-three-state focus switch. Neither gesture creates a sidebar elsewhere.
+open+focus/close toggle. Neither gesture creates a sidebar elsewhere.
 
 The far-right status button `-*-` also toggles visibility like `M-BTab`: left-click
 opens without moving focus or closes this window's sidebar. Right-click does
@@ -204,8 +204,7 @@ button cells clickable without changing the session hit region.
 | `M-BTab` / `prefix BTab` | closed | open this window's right sidebar without moving focus |
 | `M-BTab` / `prefix BTab` | open | close this window's sidebar, restoring layout/zoom when possible |
 | `M-Tab` / `prefix Tab` | closed | open and focus this window's sidebar |
-| `M-Tab` / `prefix Tab` | focused sidebar | return to the window's last active content pane |
-| `M-Tab` / `prefix Tab` | focused content | retarget content to that pane, then focus the sidebar |
+| `M-Tab` / `prefix Tab` | open (content or sidebar focused) | close this window's sidebar, restoring layout/zoom and content focus |
 
 The `-d` split preserves content focus for a plain open; `--focus` selects the
 sidebar explicitly. Returning focus uses tmux's `#{pane_last}` first, then the
@@ -266,8 +265,8 @@ Three pieces must stay aligned for `M-Tab` and `M-BTab`:
 fallbacks.** The `M-` forms exist only because of (1); from another emulator, or
 over SSH from a machine without those mappings, they silently do nothing. The
 prefix table needs no terminal cooperation, so the sidebar is never unreachable.
-`Tab` maps to the local focus switch and `BTab` (tmux's name for Shift-Tab)
-to local open/close — two distinct, intentional behaviors.
+`Tab` maps to open+focus/close and `BTab` (tmux's name for Shift-Tab)
+to open-without-focus/close — two distinct, intentional behaviors.
 
 Note the sidebar's own `Tab`/`S-Tab` (cycle navigator tabs) don't collide: those
 are unmodified keys delivered to the focused pane, while `M-Tab`/`M-BTab` are
@@ -869,6 +868,6 @@ instant. It was deferred because the holding session's window gets tiled by
 AeroSpace, needing an autohide/floating workspace or an AeroSpace exclusion.
 
 **It is no longer wanted.** Its only purpose was hiding the respawn cost of
-kill-on-close, and `M-Tab` (the focus switch) means the sidebar isn't killed
-incidentally in the first place — the respawn is only paid on a deliberate
-local close. Don't reintroduce it.
+kill-on-close. Both visibility gestures deliberately close the local sidebar;
+opening pays the respawn cost. Keep the owner-safe lifecycle rather than
+reintroducing hidden holding sessions.

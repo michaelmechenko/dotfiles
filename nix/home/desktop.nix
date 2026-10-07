@@ -232,7 +232,6 @@ in
       modules-left = [
         "custom/menu"
         "hyprland/workspaces"
-        "wlr/taskbar"
       ];
       modules-center = [ "clock" ];
       modules-right = [
@@ -248,7 +247,17 @@ in
         tooltip = false;
       };
       "hyprland/workspaces" = {
-        format = "{icon}";
+        format = "{icon} {windows}";
+        workspace-taskbar = {
+          enable = true;
+          format = "{icon}";
+          icon-size = 20;
+          icon-theme = config.gtk.iconTheme.name;
+          update-active-window = true;
+          active-window-position = "none";
+          # Only the address/button supplied by Waybar enters this command.
+          on-click-window = "if [ {button} = 1 ]; then hyprctl dispatch \"hl.dsp.focus({ window = 'address:{address}' })\"; fi";
+        };
         format-icons = builtins.listToAttrs (
           lib.concatMap (i: [
             { name = toString (100 + i); value = "${toString i}*"; }
@@ -261,13 +270,6 @@ in
         sort-by = "id";
         # Show only existing (populated or active) workspaces on this output.
         # Unmapped legacy names retain their labels; do not create placeholders.
-      };
-      "wlr/taskbar" = {
-        format = "{icon}";
-        icon-size = 20;
-        icon-theme = config.gtk.iconTheme.name;
-        tooltip-format = "{title}";
-        on-click = "activate";
       };
       clock = {
         format = "{:%a %d %b  %H:%M}";
@@ -305,10 +307,16 @@ in
       window#waybar { background: ${roles.surface-chrome}; color: ${roles.text}; }
       button { color: ${roles.text-ui}; border-radius: 4px; padding: 0 8px; }
       button:hover { background: ${roles.surface-highlight}; }
-      #workspaces button.active, #taskbar button.active {
+      #workspaces button { margin: 0 3px; }
+      #workspaces button.active {
         color: ${roles.accent-secondary}; background: ${roles.surface-highlight};
       }
       #workspaces button.urgent { color: ${roles.accent-primary}; }
+      #workspaces .taskbar-window { padding: 0 5px; border-radius: 4px; }
+      #workspaces .taskbar-window:hover { background: ${roles.surface-highlight}; }
+      #workspaces .taskbar-window.active {
+        box-shadow: inset 0 -2px ${roles.accent-secondary};
+      }
       #custom-menu, #custom-session { padding: 0 10px; color: ${roles.accent-secondary}; }
       #clock, #network, #bluetooth, #pulseaudio, #tray { padding: 0 6px; }
       #network.disconnected, #pulseaudio.muted { color: ${roles.text-ui}; }

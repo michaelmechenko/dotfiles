@@ -28,15 +28,17 @@ bootstrap; harden it separately after verifying persistent key access.
 
 ## Intended rendering and behavior
 
-- A 34px top Waybar on every monitor: Apps, workspaces, running app icons;
+- A 34px top Waybar on every monitor: Apps, each workspace label followed by
+  its running window icons;
   centered clock; volume, network, Bluetooth, tray and session menu on the right.
   The session menu (also Super-Shift-Escape) offers Lock, Sleep, Log out, Restart,
   and Shut down. Sleep runs `systemctl suspend`; Hypridle requests locking before
   sleep. The session stays in RAM and still requires power. Hypridle has no idle
   timeout, so inactivity does not lock the session or power off the displays;
   manual locking and locking before explicit sleep remain enabled.
-- Active workspace/app: lavender on the highlight surface; inactive: muted UI
-  text on chrome; urgent workspace: rose. Offline/muted states say so in text.
+- Active workspace: lavender on the highlight surface; inactive: muted UI
+  text on chrome; urgent workspace: rose. The focused window icon has an inset
+  lavender underline. Offline/muted states say so in text.
 - Focused window: lavender border; unfocused: subtle divider border. Eight-pixel
   corners, no transparency or blur. Restrained 150–250ms window/fade/workspace
   animations are enabled. `misc.vrr = 2` enables variable refresh rate only
@@ -54,8 +56,19 @@ bootstrap; harden it separately after verifying persistent key access.
   gnome-keyring, and its polkit agent. UWSM owns their lifetime; they must not
   follow the user back into Plasma or replace Plasma's wallet.
 
-Waybar retains its running-window taskbar. A separate nwg-dock-hyprland dock
-provides pinned applications at the bottom edge (see below).
+Waybar's native Hyprland workspace taskbar groups running windows beside their
+workspace labels: `1* [Helium] [Ghostty] 2* [Steam] [Grimoire] [Dolphin]`.
+Each monitor shows only its own workspaces, including populated inactive ones;
+empty inactive and special workspaces stay hidden. Icons remain 20px grayscale
+Breeze Dark images with window-title tooltips. Clicking a label switches workspace;
+left-clicking an icon focuses that exact window through Hyprland's Lua dispatcher.
+Other mouse buttons have no window action. Native window order is retained, without
+focus-triggered reordering or application deduplication. The focused icon has a
+localized lavender underline, independent of the active workspace background.
+A separate nwg-dock-hyprland dock provides pinned applications at the bottom edge
+(see below). After activation, check both monitors' groups, focus/hover/urgent and
+empty states, multiple windows of one app, window moves/open/close, and crowded
+layouts; verify icon clicks from inactive workspaces as well as label clicks.
 
 ## Applications and shared workflows
 

@@ -143,7 +143,21 @@ assert 'on-click' not in workspaces
 assert workspaces['all-outputs'] is False
 assert workspaces['move-to-monitor'] is False
 assert workspaces['sort-by'] == 'id'
-assert workspaces['format'] == '{icon}'
+assert bar['modules-left'] == ['custom/menu', 'hyprland/workspaces']
+assert 'wlr/taskbar' not in bar
+assert workspaces['format'] == '{icon} {windows}'
+assert not workspaces.get('show-special', False)
+assert workspaces['disable-scroll'] is True
+taskbar = workspaces['workspace-taskbar']
+assert taskbar == {
+    'enable': True,
+    'format': '{icon}',
+    'icon-size': 20,
+    'icon-theme': 'breeze-dark',
+    'update-active-window': True,
+    'active-window-position': 'none',
+    'on-click-window': "if [ {button} = 1 ]; then hyprctl dispatch \"hl.dsp.focus({ window = 'address:{address}' })\"; fi",
+}
 assert workspaces['format-icons'] == {
     **{str(100 + i): f'{i}*' for i in range(1, 10)},
     **{str(200 + i): f'{i}^' for i in range(1, 10)},

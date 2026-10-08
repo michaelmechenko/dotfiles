@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Copy selected bytes, removing indentation only when nonblank lines agree."""
+"""Copy selected bytes, removing the minimum nonblank-line indentation."""
 
 import argparse
 import os
@@ -10,21 +10,20 @@ import sys
 def dedent(data: bytes) -> bytes:
     # Split only at LF: splitlines() also splits content at other control bytes.
     lines = data.split(b"\n")
-    prefixes = []
+    indents = []
     for line in lines:
         body = line[:-1] if line.endswith(b"\r") else line
         if body.strip(b" \t"):
-            prefixes.append(body[: len(body) - len(body.lstrip(b" \t"))])
-    if not prefixes:
+            indents.append(len(body) - len(body.lstrip(b" \t")))
+    if not indents:
         return data
-    prefix = prefixes[0]
-    if not prefix or any(other != prefix for other in prefixes[1:]):
+    indent = min(indents)
+    if not indent:
         return data
     result = []
     for line in lines:
-        count = 0
-        while count < min(len(prefix), len(line)) and line[count] == prefix[count]:
-            count += 1
+        # Spaces and tabs count as one byte each, not terminal columns.
+        count = min(indent, len(line) - len(line.lstrip(b" \t")))
         result.append(line[count:])
     return b"\n".join(result)
 

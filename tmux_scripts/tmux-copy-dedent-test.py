@@ -26,13 +26,20 @@ class TransformTests(unittest.TestCase):
     def test_bytes(self):
         cases = [
             (b"   command", b"command"),
-            (b"  first\n    second\n", b"  first\n    second\n"),
+            (b"  first\n    second\n", b"first\n  second\n"),
+            (b"   first\n     second\n", b"first\n  second\n"),
+            (b"   first\n \t\n     second\n", b"first\n\n  second\n"),
+            (b"   first\n     \n     second\n", b"first\n  \n  second\n"),
+            (b"   first\r\n \r\n     second\t \r\n", b"first\r\n\r\n  second\t \r\n"),
+            (b" \ta\n   b", b"a\n b"),
+            (b"\ta\n\t\t\tb", b"a\n\t\tb"),
+            (b" \ta\n  \tb", b"a\n\tb"),
             (b"  first\n  second\n", b"first\nsecond\n"),
             (b"", b""), (b" \t\n  \r\n", b" \t\n  \r\n"),
             (b"  a\nzero\n", b"  a\nzero\n"),
             (b"  a\r\n \r\n  b \t\r\n", b"a\r\n\r\nb \t\r\n"),
             (b"\t  a\n\t  b", b"a\nb"),
-            (b" \ta\n  b", b" \ta\n  b"),
+            (b" \ta\n  b", b"a\nb"),
             (b"  a\n\n  b\n", b"a\n\nb\n"),
             ("  café\n  日本語".encode(), "café\n日本語".encode()),
             (b"  \xff\x0bcontent\t\n", b"\xff\x0bcontent\t\n"),
@@ -158,7 +165,7 @@ class BindingTests(unittest.TestCase):
 
     def test_linewise_repeated_and_single(self):
         data = b"   first\n     second\n"
-        self.assertEqual(self.compare(data, [b"V", "cursor-down"]), data)
+        self.assertEqual(self.compare(data, [b"V", "cursor-down"]), b"first\n  second\n")
         self.assertEqual(self.compare(b"   first\n   second\n",
                                      [b"V", "cursor-down"]), b"first\nsecond\n")
         self.assertEqual(self.compare(b"   command\n", [b"V"]), b"command\n")
@@ -175,9 +182,9 @@ class BindingTests(unittest.TestCase):
         subprocess.run([str(HERE / "tmux-copy-dedent.py"), self.socket],
                        input=b"  first\n    second\n", env=self.env,
                        check=True, capture_output=True)
-        self.assertEqual(self.sink.read_bytes(), b"  first\n    second\n")
+        self.assertEqual(self.sink.read_bytes(), b"first\n  second\n")
         self.assertEqual(self.run_tmux("save-buffer", "-").stdout,
-                         b"  first\n    second\n")
+                         b"first\n  second\n")
 
     def test_characterwise_reverse_rectangle_and_wrap(self):
         for commands in ([b"v", "cursor-down", "end-of-line"],

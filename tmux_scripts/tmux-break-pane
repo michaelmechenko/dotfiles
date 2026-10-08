@@ -1,6 +1,6 @@
 #!/usr/bin/env zsh
 
-# Break the active pane out into its own new window at the end of the session.
+# Break the active pane out into its own new window just after its source window.
 # Delegates to the shared crash-safe helper tmux-pane-to-new-window, because the
 # installed tmux (Homebrew --HEAD build) crashes the whole server on break-pane.
 #
@@ -8,6 +8,8 @@
 # new window after it; otherwise keep tmux's default auto-naming. Invoked via
 # `run-shell -b` with the origin pane id ($1); every tmux call targets it
 # explicitly so backgrounding can't resolve the wrong pane.
+
+set -e
 
 pane="${1:-$(tmux display-message -p '#{pane_id}')}"
 
@@ -18,7 +20,9 @@ fi
 
 name="$(tmux display-message -t "$pane" -p '#{@pane-named}')"
 
-# '' target -> the pane's own session.
-newwin="$(~/.config/tmux_scripts/tmux-pane-to-new-window "$pane" '' "$name")"
+session="$(tmux display-message -t "$pane" -p '#{session_id}')"
+window="$(tmux display-message -t "$pane" -p '#{window_id}')"
+[ -n "$session" ] && [ -n "$window" ] || exit 1
+newwin="$(~/.config/tmux_scripts/tmux-pane-to-new-window "$pane" "$session" "$name" "$window")"
 
 tmux select-window -t "$newwin"   # mirror break-pane focusing the new window

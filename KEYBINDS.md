@@ -298,8 +298,8 @@ Type a query; every matching substring in the popup's visible content rows gets 
 ### Pane — move / break / send
 | Key | Scope | Action |
 | --- | --- | --- |
-| `M-q` | root | Break pane into new window (`tmux-break-pane`) |
-| `prefix q` | — | Break pane into new window (same) |
+| `M-q` | root | Break pane into a new window immediately after its source window (`tmux-break-pane`) |
+| `prefix q` | — | Break pane into a new window immediately after its source window (same) |
 | `M-E` | root | Send pane to next window (`tmux-send-pane-adjacent next`; applies main-vertical if dest has panes) |
 | `M-Q` | root | Send pane to prev window (`tmux-send-pane-adjacent prev`) |
 | `M-i` | root | Send pane to a new window (`tmux-pane-to-window`) |
@@ -312,7 +312,7 @@ Type a query; every matching substring in the popup's visible content rows gets 
 ### Window
 | Key | Scope | Action |
 | --- | --- | --- |
-| `M-e` | root | New window in pane cwd |
+| `M-e` | root | New window immediately after the current window, in pane cwd |
 | `M-w` | root | Current-session pane picker fzf popup (`tmux-window-ls`) |
 | `M-;` | root | Previous window |
 | `M-'` | root | Next window |

@@ -273,9 +273,9 @@ def verify_status_stripe_layouts() -> None:
                 right_border = left + width < window
                 end = min(window, left + width + 1)
                 suffix = 101 - end
-                active_text = ("+" if left_border else "") + "─" * width
+                active_text = ("┬" if left_border else "") + "─" * width
                 if right_border:
-                    active_text += "+"
+                    active_text += "┬"
                 expected = (f"#[fg={muted}]" + "─" * start +
                             f"#[fg={accent}]" + active_text +
                             f"#[fg={muted}]" + "─" * suffix)
@@ -293,9 +293,9 @@ def verify_status_stripe_layouts() -> None:
                 expected_colors[start:end] = [accent.lower()] * (end - start)
             expected_chars = ["─"] * 101
             if should_highlight and left_border:
-                expected_chars[left - 1] = "+"
+                expected_chars[left - 1] = "┬"
             if should_highlight and right_border:
-                expected_chars[left + width] = "+"
+                expected_chars[left + width] = "┬"
             rendered_chars, rendered_colors = capture_status_redraw()
             if rendered_chars != expected_chars or rendered_colors != expected_colors:
                 runs = []

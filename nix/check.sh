@@ -94,7 +94,7 @@ PY
 configured_home=$(nix_eval home-manager.users.mishka.home.homeDirectory)
 [[ $HOME == "$configured_home" ]] || { echo 'Run this check as the configured user.' >&2; exit 1; }
 live_paths=(
-  zshrc tmux.conf nvim pi-config/agent/AGENTS.md
+  zshrc tmux.conf nvim zed pi-config/agent/AGENTS.md
   pi-config/agent/agents pi-config/agent/prompts pi-config/agent/skills
   pi-config/agent/pi-lens-global.json
 )

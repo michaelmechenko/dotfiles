@@ -1,4 +1,4 @@
-{ inputs, pkgs, ... }:
+{ config, inputs, pkgs, ... }:
 let
   system = pkgs.stdenv.hostPlatform.system;
   grimoire = pkgs.callPackage ../packages/grimoire.nix { };
@@ -24,7 +24,12 @@ in
     # for live monitor layout changes under Hyprland.
     wdisplays
     piper
+    zed-editor
   ];
+
+   xdg.configFile."zed".source =
+     config.lib.file.mkOutOfStoreSymlink
+       "${config.home.homeDirectory}/.dotfiles/zed";
 
   xdg.mimeApps = {
     enable = true;

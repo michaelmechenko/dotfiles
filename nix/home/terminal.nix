@@ -121,7 +121,8 @@ in
       palette = lib.imap0 (index: color: "${toString index}=${color}") palette.ansi;
       font-family = "Comic Mono";
       font-style = "Normal";
-      font-size = 13;
+      font-size = 12;
+      adjust-cell-height = "4%";
       cursor-style = "underline";
       cursor-style-blink = false;
       shell-integration-features = "no-cursor,sudo,ssh-env,ssh-terminfo";

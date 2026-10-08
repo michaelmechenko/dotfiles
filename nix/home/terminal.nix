@@ -120,6 +120,7 @@ in
     settings = palette.ghostty // {
       palette = lib.imap0 (index: color: "${toString index}=${color}") palette.ansi;
       font-family = "Comic Mono";
+      font-style = "Normal";
       font-size = 13;
       cursor-style = "underline";
       cursor-style-blink = false;

@@ -37,8 +37,8 @@ bootstrap; harden it separately after verifying persistent key access.
   timeout, so inactivity does not lock the session or power off the displays;
   manual locking and locking before explicit sleep remain enabled.
 - Active workspace: lavender on the highlight surface; inactive: muted UI
-  text on chrome; urgent workspace: rose. The focused window icon has a small
-  centered lavender dot below it. Offline/muted states say so in text.
+  text on chrome; urgent workspace: rose. The focused window icon has a thin
+  icon-width lavender line below it. Offline/muted states say so in text.
 - Focused window: lavender border; unfocused: subtle divider border. Eight-pixel
   corners, no transparency or blur. Restrained 150–250ms window/fade/workspace
   animations are enabled. `misc.vrr = 2` enables variable refresh rate only
@@ -64,8 +64,9 @@ Breeze Dark images with window-title tooltips. Clicking a label switches workspa
 left-clicking an icon focuses that exact window through Hyprland's Lua dispatcher.
 Other mouse buttons have no window action. Native window order is retained, without
 focus-triggered reordering or application deduplication. The focused icon has a
-4px centered lavender dot below it, independent of the active workspace background.
-All icons reserve the same indicator space, so focus changes do not shift them.
+20px-wide, 1px-thick lavender line below it, independent of the active workspace
+background. Icons stay vertically centered; the line leaves 2px of clearance above the bar's
+bottom edge without shifting icons when focus changes.
 A separate nwg-dock-hyprland dock provides pinned applications at the bottom edge
 (see below). After activation, check both monitors' groups, focus/hover/urgent and
 empty states, multiple windows of one app, window moves/open/close, and crowded

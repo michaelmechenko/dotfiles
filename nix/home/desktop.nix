@@ -312,11 +312,11 @@ in
         color: ${roles.accent-secondary}; background: ${roles.surface-highlight};
       }
       #workspaces button.urgent { color: ${roles.accent-primary}; }
-      #workspaces .taskbar-window { padding: 0 5px 6px; border-radius: 4px; }
+      #workspaces .taskbar-window { padding: 0 5px; border-radius: 4px; }
       #workspaces .taskbar-window:hover { background: ${roles.surface-highlight}; }
       #workspaces .taskbar-window.active {
-        background-image: radial-gradient(circle, ${roles.accent-secondary} 2px, transparent 2px);
-        background-size: 4px 4px;
+        background-image: linear-gradient(to bottom, ${roles.accent-secondary} 1px, transparent 1px);
+        background-size: 20px 3px;
         background-repeat: no-repeat;
         background-position: center bottom;
       }

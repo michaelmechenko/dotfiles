@@ -50,6 +50,23 @@ expansion otherwise interprets an uppercase `#D` prefix as the pane-ID shorthand
 and can invalidate the same style directive that owns a status item's clickable
 range.
 
+The tmux adapter also materializes the active border foreground: `text-muted`
+for a genuinely single-pane window (including the centered footer base rule cells),
+`accent-secondary` for multi-pane windows, even when zoomed. A sidebar counts as
+a pane. This matches the single-pane separator beneath the tabs without changing
+native box-drawing borders or pane backgrounds. Unlabeled motifs use
+` ─── ─────── ─── `: two accented three-cell flanks separated
+by whitespace, with a connected unaccented seven-cell center. Active accents
+use `accent-tertiary`; inactive accents use `accent-primary` over `text-muted`. Base foreground is restored
+after each motif. These accents remain separate from the native rail policy,
+including single-pane windows. Labeled motifs also have one outer space per side; each state accents its label
+and both complete three-cell flanks (` ─── [label] ─── `); all four spaces
+use the base foreground.
+Zoom uses scoped underline on the box-drawing footer motif except its leading and trailing
+whitespace cells, not a background block.
+The generated lifecycle alias, reload-time native session/window command loop,
+and theme-application path apply the same policy with lowercase concrete colors.
+
 ## Override layer (`overrides`)
 
 A palette may carry an optional `overrides` object (`{roles: {...}, reason?: "..."}`)

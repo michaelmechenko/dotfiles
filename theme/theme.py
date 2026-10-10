@@ -479,7 +479,7 @@ def _tmux(p: dict) -> str:
     lines.extend([
         "",
         "# Materialized static styles (tmux style options cannot expand formats).",
-        f"set -g command-alias[200] 'refresh-active-bg=if -F \"#{{||:#{{==:#{{window_panes}},1}},#{{window_zoomed_flag}}}}\" {{ setw window-active-style \"bg={canvas}\" ; setw pane-active-border-style \"fg={accent}, bg={canvas}\" }} {{ setw window-active-style \"bg={active}\" ; setw pane-active-border-style \"fg={accent}, bg={canvas}\" }}'",
+        f"set -g command-alias[200] 'refresh-active-bg=if -F \"#{{||:#{{==:#{{window_panes}},1}},#{{window_zoomed_flag}}}}\" {{ setw window-active-style \"bg={canvas}\" }} {{ setw window-active-style \"bg={active}\" }} ; if -F \"#{{==:#{{window_panes}},1}}\" {{ setw pane-active-border-style \"fg={muted}, bg={canvas}\" }} {{ setw pane-active-border-style \"fg={accent}, bg={canvas}\" }}'",
         f'set -g status-style "bg={canvas}"',
         f'setw -g pane-active-border-style "fg={accent}, bg={canvas}"',
         f'setw -g pane-border-style "fg={muted}, bg={canvas}"',
@@ -499,6 +499,9 @@ def _tmux(p: dict) -> str:
         f'set -g window-status-last-style "fg={default}, bg={canvas}"',
         f'set -g window-status-activity-style "fg={default}, bg={canvas}"',
         f'set -g window-status-bell-style "fg={muted}, bg={canvas}, bold"',
+        # Refresh existing window-local overrides on source/reload, too. Native
+        # session/window loops bind explicit targets without a shell or focus changes.
+        f"run-shell -C '#{{S:#{{W:setw -t #{{window_id}} window-active-style \"bg=#{{?#{{||:#{{==:#{{window_panes}},1}},#{{window_zoomed_flag}}}},{canvas},{active}}}\" ; setw -t #{{window_id}} pane-active-border-style \"fg=#{{?#{{==:#{{window_panes}},1}},{muted},{accent}}}#,bg={canvas}\" ;}}}}'",
     ])
     return "\n".join(lines) + "\n"
 
@@ -955,9 +958,10 @@ def _apply_tmux() -> None:
         return
     try:
         _run(["tmux", "source-file", str(THEME_DIR / "active" / "tmux" / "colors.conf")])
-        canvas = _run(["tmux", "show-options", "-gqv", "@color-canvas"]).stdout.strip()
-        active = _run(["tmux", "show-options", "-gqv", "@color-surface-pane-active"]).stdout.strip()
-        accent = _run(["tmux", "show-options", "-gqv", "@color-accent-secondary"]).stdout.strip()
+        canvas = _run(["tmux", "show-options", "-gqv", "@color-canvas"]).stdout.strip().lower()
+        active = _run(["tmux", "show-options", "-gqv", "@color-surface-pane-active"]).stdout.strip().lower()
+        accent = _run(["tmux", "show-options", "-gqv", "@color-accent-secondary"]).stdout.strip().lower()
+        muted = _run(["tmux", "show-options", "-gqv", "@color-text-muted"]).stdout.strip().lower()
         rows = _run([
             "tmux", "list-windows", "-aF",
             "#{window_id}\t#{window_panes}\t#{window_zoomed_flag}",
@@ -968,7 +972,7 @@ def _apply_tmux() -> None:
             _run(["tmux", "set-window-option", "-t", window_id,
                   "window-active-style", f"bg={bg}"])
             _run(["tmux", "set-window-option", "-t", window_id,
-                  "pane-active-border-style", f"fg={accent}, bg={canvas}"])
+                  "pane-active-border-style", f"fg={muted if panes == '1' else accent}, bg={canvas}"])
         _run(["tmux", "refresh-client", "-S"])
     except (subprocess.CalledProcessError, ValueError):
         # No live server, or a window disappeared during the sweep; non-fatal.

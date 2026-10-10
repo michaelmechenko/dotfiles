@@ -15,6 +15,13 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 import theme  # noqa: E402
 
+# Tests validate this checkout, not the deployed ~/.config Nix store links.
+theme.CONFIG_DIR = Path(__file__).resolve().parent.parent
+theme.THEME_DIR = theme.CONFIG_DIR / "theme"
+theme.PALETTES_DIR = theme.THEME_DIR / "palettes"
+theme.BUNDLES_DIR = theme.THEME_DIR / "bundles"
+theme.ACTIVE_LINK = theme.THEME_DIR / "active"
+
 
 class PaletteValidationTests(unittest.TestCase):
     def test_all_palettes_load(self):
@@ -132,7 +139,7 @@ class TmuxAdapterTests(unittest.TestCase):
         self.assertIn('setw -g pane-active-border-style "fg=#aeaed1, bg=#100e11"', tmux)
         self.assertIn("if -F '#{==:#{version},next-3.8}' 'setw -g window-style \"bg=#0c0a0c,dim=20%\"' 'setw -g window-style \"bg=#0c0a0c\"'", tmux)
         self.assertNotIn('status-style "bg=#{', tmux)
-        self.assertNotIn('pane-active-border-style "fg=#{', tmux)
+        self.assertNotIn('setw -g pane-active-border-style "fg=#{', tmux)
 
     def test_materialized_style_hex_is_lowercase_for_safe_format_expansion(self):
         for path in sorted(theme.PALETTES_DIR.glob("*.json")):
@@ -261,11 +268,12 @@ class BundleDriftTests(unittest.TestCase):
 
     def test_all_tracked_bundles_match_generator_output(self):
         stale = []
-        for path in sorted(theme.PALETTES_DIR.glob("*.json")):
+        palettes = sorted(theme.PALETTES_DIR.glob("*.json"))
+        self.assertGreaterEqual(len(palettes), 39)
+        for path in palettes:
             name = path.stem
             bundle_dir = theme.BUNDLES_DIR / name
-            if not bundle_dir.exists():
-                continue
+            self.assertTrue(bundle_dir.is_dir(), f"missing bundle: {path.stem}")
             expected = theme.render_bundle(theme.load_palette(name))
             for rel, content in expected.items():
                 on_disk = bundle_dir / rel
@@ -275,41 +283,66 @@ class BundleDriftTests(unittest.TestCase):
 
 
 class TmuxFooterTests(unittest.TestCase):
-    def test_footer_uses_requested_silhouettes_and_zoom_background(self):
+    def test_footer_shapes_and_scoped_zoom_underline(self):
         config = (theme.CONFIG_DIR / "tmux.conf").read_text()
-        self.assertIn("#{?#{window_zoomed_flag},#[bg=#{@color-divider}],}", config)
-        self.assertIn("#{?#{window_zoomed_flag},#[bg=#{@color-canvas}],}", config)
-        self.assertNotIn("#[underscore#,us=#{@color-divider}]", config)
-        self.assertIn("#{@pane-label}#[fg=#{@color-accent-secondary}]───*───*───*───*───*", config)
-        self.assertIn("#{@pane-label}#[fg=#{@color-text-muted}]───#[fg=#{@color-accent-primary}]*", config)
-        inactive_label = (
-            "#[fg=#{@color-text-muted}]*───*───*───"
-            "#[fg=#{@color-accent-primary}]*#[fg=#{@color-text-muted}]───"
-            "#[fg=#{@color-accent-primary}]*#[fg=#{@color-text-muted}]───"
-            "#[fg=#{@color-accent-primary}]#{@pane-label}"
-            "#[fg=#{@color-text-muted}]───#[fg=#{@color-accent-primary}]*"
-            "#[fg=#{@color-text-muted}]───#[fg=#{@color-accent-primary}]*"
-            "#[fg=#{@color-text-muted}]───*───*───*"
-        )
-        self.assertIn(inactive_label, config)
-        inactive_unlabeled = (
-            "#[fg=#{@color-text-muted}]*───*───*───"
-            "#[fg=#{@color-accent-primary}]*#[fg=#{@color-text-muted}]───"
-            "#[fg=#{@color-accent-primary}]*#[fg=#{@color-text-muted}]───"
-            "#[fg=#{@color-accent-primary}]*#[fg=#{@color-text-muted}]─"
-            "#[fg=#{@color-accent-primary}]*#[fg=#{@color-text-muted}]─"
-            "#[fg=#{@color-accent-primary}]*#[fg=#{@color-text-muted}]───"
-            "#[fg=#{@color-accent-primary}]*#[fg=#{@color-text-muted}]───"
-            "#[fg=#{@color-accent-primary}]*#[fg=#{@color-text-muted}]───*───*───*"
-        )
-        self.assertIn(inactive_unlabeled, config)
-        self.assertNotIn("---#[fg=#{@color-accent", config)
         footer = next(line for line in config.splitlines() if line.startswith("setw -g pane-border-format"))
+        active_base = "#[fg=#{?#{==:#{window_panes},1},#{@color-text-muted},#{@color-accent-secondary}}]"
+        inactive_base = "#[fg=#{@color-text-muted}]"
+        for highlight, base, reset in (
+            ("#[fg=#{@color-accent-tertiary}]", active_base, "#[nounderscore]"),
+            ("#[fg=#{@color-accent-primary}]", inactive_base, "#{?#{==:#{pane_width},#{window_width}}"),
+        ):
+            leading_start = "#{?#{window_zoomed_flag},#[underscore],}" if base == active_base else ""
+            motif = base + " " + leading_start + highlight + "───" + base + " ─────── " + highlight + "───"
+            trailing_reset = "#[nounderscore]" if base == active_base else ""
+            self.assertIn(motif + base + trailing_reset + " }" + reset, footer)
+            labeled = (" " + leading_start + highlight + "───" + base + " " + highlight + "[#{@pane-label}]" +
+                       base + " " + highlight + "───" + base + trailing_reset + " ")
+            self.assertIn(labeled + ",", footer)
+        self.assertIn("#{?#{window_zoomed_flag},#[underscore],}", footer)
+        self.assertIn("#[nounderscore]#{?#{==:#{pane_width},#{window_width}}", footer)
+        self.assertIn("#{?#{==:#{window_panes},1},#{@color-text-muted},#{@color-accent-secondary}}", footer)
+        self.assertNotIn("#[bg=", footer)
+        self.assertNotIn("*", footer)
         self.assertEqual(footer.count("#[align=centre]"), 2)
-        self.assertNotIn("align=absolute-centre", footer)
+        self.assertNotIn("align=left", footer)
+        self.assertIn('setw -g pane-border-lines "single"', config)
         status_row = next(line for line in config.splitlines() if line.startswith("set -g status-format[1]"))
-        self.assertIn("#{?#{e|>:#{pane_left},0},+,}", status_row)
-        self.assertIn("#{window_width}},+,}", status_row)
+        self.assertIn("#{?#{e|>:#{pane_left},0},┬,}", status_row)
+        self.assertIn("#{window_width}},┬,}", status_row)
+
+    def test_generated_refresh_distinguishes_one_pane_from_zoom(self):
+        output = theme.render_bundle(theme.load_palette("vague"))["tmux/colors.conf"]
+        self.assertIn('if -F "#{==:#{window_panes},1}" { setw pane-active-border-style "fg=#656a80, bg=#100e11" }', output)
+        self.assertIn("run-shell -C '#{S:#{W:setw -t #{window_id}", output)
+        self.assertIn('fg=#{?#{==:#{window_panes},1},#656a80,#aeaed1}#,bg=#100e11', output)
+
+    def test_theme_application_matches_lifecycle_policy(self):
+        from unittest.mock import patch
+        calls = []
+        options = {"@color-canvas": "#100E11", "@color-surface-pane-active": "#131115",
+                   "@color-accent-secondary": "#AEAED1", "@color-text-muted": "#656A80"}
+
+        def run(command, check=True):
+            from subprocess import CompletedProcess
+            calls.append(command)
+            if command[1] == "show-options":
+                output = options[command[-1]]
+            elif command[1] == "list-windows":
+                output = "@0\t1\t0\n@1\t2\t0\n@2\t2\t1\n"
+            else:
+                output = ""
+            return CompletedProcess(command, 0, output, "")
+
+        with patch.object(theme, "_run", run), patch.object(theme.shutil, "which", return_value="tmux"):
+            theme._apply_tmux()
+        for window, border, background in (("@0", "#656a80", "#100e11"),
+                                           ("@1", "#aeaed1", "#131115"),
+                                           ("@2", "#aeaed1", "#100e11")):
+            self.assertIn(["tmux", "set-window-option", "-t", window,
+                           "pane-active-border-style", f"fg={border}, bg=#100e11"], calls)
+            self.assertIn(["tmux", "set-window-option", "-t", window,
+                           "window-active-style", f"bg={background}"], calls)
 
 
 class LualineConfigTests(unittest.TestCase):

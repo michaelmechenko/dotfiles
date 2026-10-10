@@ -48,7 +48,7 @@ palette requires rebuilding the Linux profile. See `nix/README.md` for scope.
 |---|---|---|
 | `canvas` | `#100E11` | Ghostty `background`; tmux status bar, borders, message line, all window-status states, and active pane when single-pane or zoomed; tmux `message-style`/`message-command-style` `fill=` (required on next-3.7 so the command-prompt repaints the full line — see Cross-tool notes); mm-sidebar active-tab chip fg. Tmux derives its darker inactive-pane surface from this role (28% toward black; `#0c0a0c` for Vague) and exposes it as `@color-surface-inactive`; near-black palettes that cannot clear the distinctness floor use the midpoint between canvas and `surface-active` instead. **Exposed as the tmux user option `@color-canvas`** — added so a pane running its own TUI can read the hex instead of hardcoding it. The ~15 pre-existing inline `#100E11` literals in `tmux.conf` predate the option and could migrate to it (purely mechanical, not yet done). |
 | `surface-active` | `#1B1A21` | Shared lifted surface for nvim/Pi/LazyGit consumers. Tmux keeps the canonical role unchanged and derives `@color-surface-pane-active` from `canvas` with a small RGB lift (`+3,+3,+4`), falling back to canonical `surface-active` when a near-black palette cannot keep the lift distinct from inactive. Split-focused panes use that lifted surface; inactive panes use the derived `@color-surface-inactive`, while single-pane and zoomed windows remain on canvas. Focus changes synchronously repaint between those two surfaces, retaining a subtle focus cue. |
-| `surface-chrome` | `#1C1C24` | nvim chrome: dropbar WinBar bg, lualine statusline/winbar bg (the whole bar — sections `b`/`c`/`x`/`y` + inactive — in the inline lualine theme; see `nvim lualine statusline`); tmux inactive pane-footer rail fg / subtle horizontal separator; Pi assistant fenced-code panels via `toolPendingBg` |
+| `surface-chrome` | `#1C1C24` | nvim chrome: dropbar WinBar bg, lualine statusline/winbar bg (the whole bar — sections `b`/`c`/`x`/`y` + inactive — in the inline lualine theme; see `nvim lualine statusline`); Pi assistant fenced-code panels via `toolPendingBg` |
 | `surface-highlight` | `#2A2A35` | nvim `CursorLine` (override in `vague.lua`'s `on_highlights`) |
 | `surface-extend` | `#d8647e` | nvim `NonText` fg/bold — `listchars` `extends`/`precedes` indicators (`»`/`«`) when line exceeds window width. Uses `accent-primary` rose. **Side-effect override:** groups that inherit `NonText` but should remain dim are reset to `copy-mode-indicator` `#606079`: `BlinkCmpGhostText`, `LspInlayHint`, `GitSignsCurrentLineBlame`, `ComplHint`. |
 | `surface-fold` | `#8ba9c1` | nvim `FoldColumn` fg — fold markers (`▸`/`▾`/`│`) in the sign column. Uses `accent-info` slate blue. |
@@ -56,7 +56,7 @@ palette requires rebuilding the Linux profile. See `nix/README.md` for scope.
 | `surface-heading-h2` | `#33333a` | nvim render-md H2 heading bg + underline fg. Faint lavender tint at ~20% on canvas. Uses `accent-secondary` hue. |
 | `surface-heading-h3` | `#40362a` | nvim render-md H3 heading bg + underline fg. Faint amber tint at ~20% on canvas. Uses `accent-amber` hue. |
 | `copy-mode-indicator` | `#606079` | tmux `copy-mode-position-style` block bg (top-right time/scroll box shown in copy mode); indicator text is `text-default` `#a9b1d6`. Also Ghostty ANSI 14 override (`ghostty/config`) — deliberately dims Claude Code's hardcoded session-rename label, which has no theme token (see Claude Code integration notes). |
-| `divider-subtle` | `#383848` | nvim `SnacksIndent` + `NeoTreeIndentMarker` fg (indent guides); Claude statusline ` * ` separators; tmux second status row separator and zoomed-pane footer background; mm-sidebar integrated attention heading + explicit system-view gauge track. **Exposed as the tmux user option `@color-divider`** so consumers can read it at runtime. |
+| `divider-subtle` | `#383848` | nvim `SnacksIndent` + `NeoTreeIndentMarker` fg (indent guides); Claude statusline ` * ` separators; mm-sidebar integrated attention heading + explicit system-view gauge track. **Exposed as the tmux user option `@color-divider`** so consumers can read it at runtime. |
 
 ### Text
 
@@ -64,21 +64,41 @@ palette requires rebuilding the Linux profile. See `nix/README.md` for scope.
 |---|---|---|
 | `text` | `#BEBEBE` | Ghostty `foreground`; nvim editor fg (`vague.lua` `colors.fg`) |
 | `text-ui` | `#9094A0` | nvim WinBar fg (`dropbar.lua`) — slightly dimmer than `text` for chrome/breadcrumb text |
-| `text-muted` | `#656a80` | tmux `@color-text-muted` — secondary UI text (border fg, inactive footer dashes/default-marker fg, the three outer stars per side of inactive labeled and unlabeled footers, status secondary text, bell-state); tmux copy-mode non-current line numbers (`copy-mode-line-number-style`, dim); nvim devicons, dropbar `DropBarIconKindDefault`, lualine inactive-buffer fg; nvim `FloatBorder` fg; Claude statusline dir/model/ctx text; Claude theme `inactive` token; moor preview overflow hints; mm-sidebar inactive tabs, idle agents, help overlay, `(none)`/`(empty)` placeholders, ignored Git rows |
+| `text-muted` | `#656a80` | tmux `@color-text-muted` — secondary UI text (inactive border/outer footer rule cells and spaces, single-pane active border/footer base rule cells, full-width second status row separator, status secondary text, bell-state); tmux copy-mode non-current line numbers (`copy-mode-line-number-style`, dim); nvim devicons, dropbar `DropBarIconKindDefault`, lualine inactive-buffer fg; nvim `FloatBorder` fg; Claude statusline dir/model/ctx text; Claude theme `inactive` token; moor preview overflow hints; mm-sidebar inactive tabs, idle agents, help overlay, `(none)`/`(empty)` placeholders, ignored Git rows |
 | `text-default` | `#a9b1d6` | tmux `@color-text-default` — window-status text (the colored window names in the status bar). **Not referenced elsewhere.** |
 
 ### Accents
 
 | Role | Hex | Where used |
 |---|---|---|
-| `accent-primary` (rose) | `#d8647e` | tmux `@color-accent-primary` — the two inner stars per flank plus central three-star marker in inactive unlabeled footers, and the two stars nearest each side of an inactive label; tmux ephemeral session indicator; Ghostty ANSI 1; ohmyposh path segment; nvim lualine `replace`-mode status/location block; mm-sidebar agents-glance `!P`/`!W` (awaiting-permission / waiting) and Git deleted/conflict rows |
-| `accent-secondary` (lavender) | `#aeaed1` | tmux `@color-accent-secondary`; active pane-border fg, active-footer lines/labeled frame stars, and the active pane's horizontal span plus adjacent split-border cells on the second status row; every real adjacent split-border intersection is rendered as `+`; Ghostty ANSI 6 + ANSI 12 (ANSI 12 override → Claude Code code-block syntax highlighting, since its dark-ansi theme has no syntax token); ohmyposh session segment; nvim lualine `normal`/`command`-mode status/location block; mm-sidebar active-tab chip bg, block labels (`▸ name`), cursor `▶`, directory rows |
-| `accent-tertiary` (dusty pink) | `#bb9dbd` | tmux `@color-accent-tertiary` — active labeled text and every active unlabeled marker star; Ghostty ANSI 2; ohmyposh transient prompt + git segment; nvim lualine `visual`-mode status/location block; mm-sidebar agents-glance `~~` (thinking) and Git added/untracked rows |
+| `accent-primary` (rose) | `#d8647e` | tmux `@color-accent-primary` — the two three-cell flanks in inactive unlabeled footers, and the inactive bracketed label and its complete three-cell flanks; tmux ephemeral session indicator; Ghostty ANSI 1; ohmyposh path segment; nvim lualine `replace`-mode status/location block; mm-sidebar agents-glance `!P`/`!W` (awaiting-permission / waiting) and Git deleted/conflict rows |
+| `accent-secondary` (lavender) | `#aeaed1` | tmux `@color-accent-secondary`; multi-pane active border/centered footer base rule cells (including zoom), and the active pane's horizontal span plus adjacent split-border cells on the second status row; every real adjacent split-border intersection is rendered as `┬`; Ghostty ANSI 6 + ANSI 12 (ANSI 12 override → Claude Code code-block syntax highlighting, since its dark-ansi theme has no syntax token); ohmyposh session segment; nvim lualine `normal`/`command`-mode status/location block; mm-sidebar active-tab chip bg, block labels (`▸ name`), cursor `▶`, directory rows |
+| `accent-tertiary` (dusty pink) | `#bb9dbd` | tmux `@color-accent-tertiary` — active bracketed footer label text and its complete three-cell flanks, and the two three-cell flanks in active unlabeled footers; Ghostty ANSI 2; ohmyposh transient prompt + git segment; nvim lualine `visual`-mode status/location block; mm-sidebar agents-glance `~~` (thinking) and Git added/untracked rows |
 | `accent-highlight` (pale lavender) | `#bebedb` | tmux `@color-accent-highlight` / `@color-accent-highlight` — current window status; tmux copy-mode current line number (`copy-mode-current-line-number-style`, bold); mm-sidebar row text + stat values |
 | `accent-info` (slate) | `#8ba9c1` | ohmyposh executiontime segment; nvim `FoldColumn` fg (`surface-fold`); Claude theme `planMode` token. **No tmux usage. No longer Ghostty ANSI 12** — that slot was remapped to `accent-secondary` lavender (`#aeaed1`). |
 | `accent-periwinkle` | `#9b9bcc` | nvim render-md inline code (`RenderMarkdownCodeInline` fg, bg cleared — fenced blocks keep their bg) + table borders (`RenderMarkdownTableHead` / `RenderMarkdownTableRow` fg; Head otherwise default-links to `@markup.heading` = blue `c.keyword`). A blue-violet between `accent-info` slate and `accent-secondary` lavender. **nvim-only.** |
 | `accent-warn` (warm sand) | `#f5cb96` | Ghostty ANSI 11. **ohmyposh uses a near-miss variant** (see below). |
 | `accent-amber` (amber) | `#f3be7c` | Ghostty ANSI 4; nvim `GitSignsChange`; nvim lualine `insert`-mode status/location block; mm-sidebar Git changed/renamed/type rows. Distinct from `accent-warn` (`#f5cb96`, ANSI 11) — `accent-amber` is more orange-ward. |
+
+### Tmux pane-footer rendering
+
+The native border stays continuous box drawing (`pane-border-lines = single`).
+Its unlabeled decoration is ` ─── ─────── ─── ` (17 cells), or
+` ─── [label] ─── ` with a label. Both complete three-cell flanks are highlighted:
+`accent-tertiary` when active, `accent-primary` when inactive. The connected
+seven-cell unlabeled center is **not highlighted**; it and the four spaces
+use the state's base foreground. Labeled text shares its flanks' accent.
+The spaces occur outside each flank and between the flank and center/label.
+Restore the base foreground after the motif so the native outer rail is unchanged.
+Zoom underlines the centered motif except its leading and trailing whitespace cells, with no
+background highlight. Actual
+Ghostty rendering on tmux 3.7c verifies underline for these line/bracket motifs.
+
+A genuinely single-pane window uses `text-muted` for its native rail and base
+motif cells, matching the separator beneath the tabs. Its active unlabeled
+highlights and labeled text remain `accent-tertiary`. A zoomed multi-pane window
+retains `accent-secondary` for its native rail/base cells and the same dusty-pink
+unlabeled highlights. Pane backgrounds are unchanged.
 
 ### Selection / chrome (Ghostty only)
 
@@ -102,16 +122,14 @@ palette requires rebuilding the Linux profile. See `nix/README.md` for scope.
 
 | Conflict | Tmux | Ghostty | ohmyposh |
 |---|---|---|---|
-| Soft lavender used in zoomed-border stars | `#c9b1c9` (inline in pane-border-format) | `#c9b1ca` (ANSI 13) | n/a |
 | Warm sand (git icon / "bright yellow") | n/a | `#f5cb96` (ANSI 11) | `#F5CC96` (git icon template) |
 
-Two places drift by one hex digit. The fixes are mechanical — pick one of the two values for each conflict and propagate.
+The warm-sand pair drifts by one hex digit. The old zoomed-star lavender comparison no longer applies: pane footers use semantic roles and scoped underline, not an inline zoom color.
 
 > Ghostty ANSI 14 ("bright cyan") was formerly a pale-lavender near-miss (`#bebeda` vs tmux's `#bebedb`). It is now **deliberately diverged** to `#606079` in `ghostty/config` to dim Claude Code's hardcoded session-rename label (Claude Code has no theme token for it). tmux's pale-lavender `accent-highlight` is a literal `#bebedb` and is unaffected.
 
 ### Recommended normalization (not yet applied)
 
-- Lavender accent (`c9b1c9` vs `c9b1ca`): pick **`#c9b1ca`** (Ghostty's value, since the palette is the larger contract). Update the tmux pane-border-format on line 342 of `~/.config/tmux.conf` to use `#c9b1ca`.
 - Warm sand (`F5CC96` vs `f5cb96`): pick **`#f5cb96`** (Ghostty's value). Update `~/.config/ohmyposh/base.json` git template — both occurrences of `#F5CC96` become `#f5cb96`.
 
 ### Tmux-only colors (not in Ghostty's palette)

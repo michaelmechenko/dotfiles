@@ -13,13 +13,24 @@ import tempfile
 import termios
 import time
 from pathlib import Path
+from typing import Literal, overload
 
 ROOT = Path(__file__).resolve().parent.parent
 SOCKET = f"tmux-render-{os.getpid()}"
 
+# Never load the deployed, possibly stale, store-backed palette in this fixture.
+CONFIG_TEMP = tempfile.TemporaryDirectory(prefix="tmux-render-config-")
+CONFIG = Path(CONFIG_TEMP.name) / "tmux.conf"
+original_config = (ROOT / "tmux.conf").read_text()
+source = "source-file ~/.config/theme/active/tmux/colors.conf"
+assert original_config.count(source) == 2
+CONFIG.write_text(original_config.replace(source, f"source-file {ROOT / 'theme/bundles/vague/tmux/colors.conf'}"))
+TEST_ENV = os.environ.copy()
+TEST_ENV.pop("TMUX", None)
+
 
 def tmux(*args: str, check: bool = True) -> str:
-    proc = subprocess.run(["tmux", "-L", SOCKET, *args], text=True, capture_output=True)
+    proc = subprocess.run(["tmux", "-L", SOCKET, *args], text=True, capture_output=True, env=TEST_ENV)
     if check and proc.returncode:
         raise RuntimeError(proc.stderr.strip())
     return proc.stdout.rstrip("\n")
@@ -34,13 +45,30 @@ def wait_for(test, message: str) -> None:
     raise AssertionError(message)
 
 
-def render_terminal(data: bytes, rows: int, cols: int) -> tuple[list[list[str]], list[list[str | None]]]:
-    """Apply the small VT subset tmux uses for redraws and return cells plus fg."""
+Cells = list[list[str]]
+Colors = list[list[str | None]]
+Underlines = list[list[bool]]
+
+
+@overload
+def render_terminal(data: bytes, rows: int, cols: int, *, styles: Literal[False] = False) -> tuple[Cells, Colors]: ...
+
+
+@overload
+def render_terminal(data: bytes, rows: int, cols: int, *, styles: Literal[True]) -> tuple[Cells, Colors, Colors, Underlines]: ...
+
+
+def render_terminal(data: bytes, rows: int, cols: int, *, styles: bool = False):
+    """Apply tmux redraws; optionally return background and underline cell grids."""
     chars = [[" " for _ in range(cols)] for _ in range(rows)]
     colors: list[list[str | None]] = [[None for _ in range(cols)] for _ in range(rows)]
+    backgrounds: Colors = [[None for _ in range(cols)] for _ in range(rows)]
+    underlines = [[False for _ in range(cols)] for _ in range(rows)]
     row = col = 0
     fg: str | None = None
-    last = (" ", None)
+    bg: str | None = None
+    underline = False
+    last: tuple[str, str | None, str | None, bool] = (" ", None, None, False)
     i = 0
 
     def draw(char: str) -> None:
@@ -48,8 +76,10 @@ def render_terminal(data: bytes, rows: int, cols: int) -> tuple[list[list[str]],
         if 0 <= row < rows and 0 <= col < cols:
             chars[row][col] = char
             colors[row][col] = fg
+            backgrounds[row][col] = bg
+            underlines[row][col] = underline
         col += 1
-        last = (char, fg)
+        last = (char, fg, bg, underline)
 
     while i < len(data):
         byte = data[i]
@@ -87,32 +117,49 @@ def render_terminal(data: bytes, rows: int, cols: int) -> tuple[list[list[str]],
                     row -= first or 1
                     col = 0
                 elif final == "b":
-                    old_fg = fg
-                    char, repeated_fg = last
-                    fg = repeated_fg
+                    old_style = fg, bg, underline
+                    char, fg, bg, underline = last
                     for _ in range(first or 1):
                         draw(char)
-                    fg = old_fg
+                    fg, bg, underline = old_style
                 elif final == "X":
                     for offset in range(first or 1):
                         if 0 <= row < rows and 0 <= col + offset < cols:
                             chars[row][col + offset] = " "
                             colors[row][col + offset] = fg
+                            backgrounds[row][col + offset] = bg
+                            underlines[row][col + offset] = underline
                 elif final == "K" and 0 <= row < rows:
                     start, stop = (0, cols) if first == 2 else ((0, col + 1) if first == 1 else (col, cols))
                     for offset in range(max(0, start), min(cols, stop)):
                         chars[row][offset] = " "
                         colors[row][offset] = fg
+                        backgrounds[row][offset] = bg
+                        underlines[row][offset] = underline
                 elif final == "m":
                     index = 0
                     if not values:
-                        fg = None
+                        fg = bg = None
+                        underline = False
                     while index < len(values):
                         code = values[index]
-                        if code in (0, 39):
+                        if code == 0:
+                            fg = bg = None
+                            underline = False
+                        elif code == 39:
                             fg = None
-                        elif code == 38 and index + 4 < len(values) and values[index + 1] == 2:
-                            fg = "#" + "".join(f"{channel:02x}" for channel in values[index + 2:index + 5])
+                        elif code == 49:
+                            bg = None
+                        elif code == 4:
+                            underline = True
+                        elif code == 24:
+                            underline = False
+                        elif code in (38, 48) and index + 4 < len(values) and values[index + 1] == 2:
+                            color = "#" + "".join(f"{channel:02x}" for channel in values[index + 2:index + 5])
+                            if code == 38:
+                                fg = color
+                            else:
+                                bg = color
                             index += 4
                         index += 1
                 i = end + 1
@@ -146,7 +193,7 @@ def render_terminal(data: bytes, rows: int, cols: int) -> tuple[list[list[str]],
         length = 1 if byte < 0x80 else 2 if byte < 0xE0 else 3 if byte < 0xF0 else 4
         draw(data[i:i + length].decode("utf-8", "replace"))
         i += length
-    return chars, colors
+    return (chars, colors, backgrounds, underlines) if styles else (chars, colors)
 
 
 def verify_status_click(width: int) -> None:
@@ -154,7 +201,7 @@ def verify_status_click(width: int) -> None:
     base = ["tmux", "-L", socket]
 
     def run(*args: str, check: bool = True) -> str:
-        proc = subprocess.run(base + list(args), text=True, capture_output=True)
+        proc = subprocess.run(base + list(args), text=True, capture_output=True, env=TEST_ENV)
         if check and proc.returncode:
             raise RuntimeError(proc.stderr.strip())
         return proc.stdout.rstrip("\n")
@@ -162,7 +209,7 @@ def verify_status_click(width: int) -> None:
     master, slave = os.openpty()
     proc = None
     try:
-        run("-f", str(ROOT / "tmux.conf"), "new-session", "-d", "-s", "click-test",
+        run("-f", str(CONFIG), "new-session", "-d", "-s", "click-test",
             "-x", str(width), "-y", "30")
         run("new-window", "-d", "-t", "=click-test:", "-n", "click-target")
         fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 30, width, 0, 0))
@@ -212,7 +259,7 @@ def verify_status_stripe_layouts() -> None:
     base = ["tmux", "-L", socket]
 
     def run(*args: str, check: bool = True) -> str:
-        proc = subprocess.run(base + list(args), text=True, capture_output=True)
+        proc = subprocess.run(base + list(args), text=True, capture_output=True, env=TEST_ENV)
         if check and proc.returncode:
             raise RuntimeError(proc.stderr.strip())
         return proc.stdout.rstrip("\n")
@@ -220,7 +267,7 @@ def verify_status_stripe_layouts() -> None:
     master, slave = os.openpty()
     proc = None
     try:
-        run("-f", str(ROOT / "tmux.conf"), "new-session", "-d", "-s", "stripe",
+        run("-f", str(CONFIG), "new-session", "-d", "-s", "stripe",
             "-x", "101", "-y", "30")
         fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 30, 101, 0, 0))
         env = os.environ.copy() | {"TERM": "xterm-ghostty"}
@@ -267,11 +314,11 @@ def verify_status_stripe_layouts() -> None:
                 "display-message", "-p", "-t", pane,
                 "#{pane_left} #{pane_width} #{window_width}",
             ).split())
+            left_border = left > 0
+            start = max(0, left - 1)
+            right_border = left + width < window
+            end = min(window, left + width + 1)
             if should_highlight:
-                left_border = left > 0
-                start = max(0, left - 1)
-                right_border = left + width < window
-                end = min(window, left + width + 1)
                 suffix = 101 - end
                 active_text = ("┬" if left_border else "") + "─" * width
                 if right_border:
@@ -369,7 +416,7 @@ def verify_footer_centering() -> None:
         base = ["tmux", "-L", socket]
 
         def run(*args: str, check: bool = True) -> str:
-            proc = subprocess.run(base + list(args), text=True, capture_output=True)
+            proc = subprocess.run(base + list(args), text=True, capture_output=True, env=TEST_ENV)
             if check and proc.returncode:
                 raise RuntimeError(proc.stderr.strip())
             return proc.stdout.rstrip("\n")
@@ -377,7 +424,7 @@ def verify_footer_centering() -> None:
         master, slave = os.openpty()
         proc = None
         try:
-            run("-f", str(ROOT / "tmux.conf"), "new-session", "-d", "-s", "footer",
+            run("-f", str(CONFIG), "new-session", "-d", "-s", "footer",
                 "-x", str(cols), "-y", "30")
             first = run("display-message", "-p", "-t", "=footer:", "#{pane_id}")
             right = run("split-window", "-h", "-P", "-F", "#{pane_id}", "-t", first)
@@ -401,7 +448,8 @@ def verify_footer_centering() -> None:
             tty = os.ttyname(slave)
             wait_for(lambda: tty in run("list-clients", "-F", "#{client_tty}"),
                      f"{cols}/{layout} footer client did not attach")
-            active_marker = run("show-option", "-gqv", "@color-accent-tertiary").lower()
+            active_marker = run("show-option", "-gqv", "@color-accent-secondary").lower()
+            label_marker = run("show-option", "-gqv", "@color-accent-tertiary").lower()
             inactive_marker = run("show-option", "-gqv", "@color-accent-primary").lower()
             muted_marker = run("show-option", "-gqv", "@color-text-muted").lower()
 
@@ -432,7 +480,7 @@ def verify_footer_centering() -> None:
                 span_start = max(0, left - 1)
                 span_end = min(window - 1, left + width)
                 target_center = (span_start + span_end) / 2
-                for label, needle in (("CENTER", "CENTER"), ("", "*─*─*")):
+                for label, needle in (("CENTER", "CENTER"), ("ODD", "ODD"), ("", " ─── ─────── ─── ")):
                     for other in panes:
                         run("set-option", "-pu", "-t", other, "@pane-label")
                     if label:
@@ -445,7 +493,7 @@ def verify_footer_centering() -> None:
                             expanded = run("display-message", "-p", "-t", pane,
                                            "#{E:pane-border-format}")
                             plain = re.sub(r"#\[[^]]*\]", "", expanded)
-                            if not plain.endswith("*──") or plain.endswith("*────"):
+                            if plain != f" ─── [{label}] ─── ──":
                                 state = "active" if active else "inactive"
                                 raise AssertionError(
                                     f"{state} odd right-edge/even-label parity pad "
@@ -455,33 +503,40 @@ def verify_footer_centering() -> None:
                         chars, colors = capture()
                         footer_row = 2 + top + height
                         row = "".join(chars[footer_row])
-                        index = row.find(needle, span_start, span_end + 1)
+                        # Derive unlabeled motif positions from pane geometry,
+                        # including their invisible base-colored whitespace.
+                        fraction = (len(needle) - 1) / 2 % 1
+                        expected_center = int(target_center - fraction) + fraction
+                        index = row.find(needle, span_start, span_end + 1) if label else int(expected_center - (len(needle) - 1) / 2)
                         state = "active" if active else "inactive"
-                        if index < 0:
+                        if index < 0 or row[index:index + len(needle)] != needle:
                             raise AssertionError(
                                 f"{cols}/{layout}/{pane}/{state} footer lacks "
                                 f"{needle!r}: {row!r}"
                             )
-                        expected_marker = active_marker if active else inactive_marker
-                        if colors[footer_row][index] != expected_marker:
+                        expected_marker = label_marker if active else inactive_marker
+                        marker_index = index if label else index + 1
+                        if colors[footer_row][marker_index] != expected_marker:
                             raise AssertionError(
                                 f"{cols}/{layout}/{pane}/{state}/{needle} marker "
-                                f"color={colors[footer_row][index]!r} expected={expected_marker}"
+                                f"color={colors[footer_row][marker_index]!r} expected={expected_marker}"
                             )
-                        if not label and not active:
-                            motif = "*───*───*───*───*───*─*─*───*───*───*───*───*"
-                            motif_start = row.find(motif, span_start, span_end + 1)
-                            if motif_start >= 0:
+                        if not label:
+                            if not active:
                                 inactive_color_cases += 1
-                                star_offsets = [i for i, char in enumerate(motif) if char == "*"]
-                                for star_index, offset in enumerate(star_offsets):
-                                    expected = muted_marker if star_index < 3 or star_index >= 10 else inactive_marker
-                                    actual = colors[footer_row][motif_start + offset]
-                                    if actual != expected:
-                                        raise AssertionError(
-                                            f"{cols}/{layout}/{pane}/inactive star {star_index} "
-                                            f"color={actual!r} expected={expected}"
-                                        )
+                            base_color = active_marker if active else muted_marker
+                            highlight = label_marker if active else inactive_marker
+                            for offset in range(len(needle)):
+                                expected = highlight if offset in (1, 2, 3, 13, 14, 15) else base_color
+                                assert colors[footer_row][index + offset] == expected
+                        if label:
+                            motif_start = index - 6
+                            expected_colors = [active_marker if active else muted_marker] * (len(label) + 12)
+                            highlight = label_marker if active else inactive_marker
+                            expected_colors[5:len(label) + 7] = [highlight] * (len(label) + 2)
+                            for offset in (1, 2, 3, len(label) + 8, len(label) + 9, len(label) + 10):
+                                expected_colors[offset] = highlight
+                            assert colors[footer_row][motif_start:motif_start + len(expected_colors)] == expected_colors
                         actual_center = index + (len(needle) - 1) / 2
                         fraction = (len(needle) - 1) / 2 % 1
                         expected_center = int(target_center - fraction) + fraction
@@ -513,73 +568,251 @@ def verify_footer_centering() -> None:
         raise AssertionError("footer matrix missed a fully visible inactive unlabeled motif")
 
 
-def verify_zoom_render() -> None:
-    """Attach after zoom is established so the first frame is a complete repaint."""
-    socket = f"{SOCKET}-zoom"
-    base = ["tmux", "-L", socket]
+class FooterClient:
+    """Disposable attached client using the checkout config and palette."""
 
-    def run(*args: str, check: bool = True) -> str:
-        proc = subprocess.run(base + list(args), text=True, capture_output=True)
-        if check and proc.returncode:
-            raise RuntimeError(proc.stderr.strip())
-        return proc.stdout.rstrip("\n")
+    def __init__(self, name: str, cols: int = 101, rows: int = 30):
+        self.base = ["tmux", "-L", f"{SOCKET}-{name}"]
+        self.cols, self.rows = cols, rows
+        self.proc = None
+        self.master = self.slave = None
 
-    master, slave = os.openpty()
-    proc = None
-    try:
-        run("-f", str(ROOT / "tmux.conf"), "new-session", "-d", "-s", "zoom-render",
-            "-x", "180", "-y", "40")
-        pane = run("display-message", "-p", "-t", "=zoom-render:", "#{pane_id}")
-        run("split-window", "-h", "-t", pane)
-        run("select-pane", "-t", pane)
-        run("set-option", "-p", "-t", pane, "@pane-label", "label")
-        run("resize-pane", "-Z", "-t", pane)
-        divider = run("show-option", "-gqv", "@color-divider")
+    def run(self, *args: str, check: bool = True) -> str:
+        result = subprocess.run(self.base + list(args), text=True, capture_output=True, env=TEST_ENV)
+        if check and result.returncode:
+            raise RuntimeError(result.stderr.strip())
+        return result.stdout.rstrip("\n")
 
-        fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 180, 0, 0))
-        env = os.environ.copy() | {"TERM": "xterm-ghostty"}
-        env.pop("TMUX", None)
-        proc = subprocess.Popen(base + ["attach", "-t", "=zoom-render"], env=env,
-                                stdin=slave, stdout=slave, stderr=slave, start_new_session=True)
-        divider_rgb = tuple(int(divider[i:i + 2], 16) for i in (1, 3, 5))
-        divider_escape = f"\x1b[48;2;{divider_rgb[0]};{divider_rgb[1]};{divider_rgb[2]}m".encode()
-        rendered = b""
-        end = time.time() + 3
-        while time.time() < end and divider_escape not in rendered:
-            if select.select([master], [], [], 0.1)[0]:
-                rendered += os.read(master, 65536)
-        time.sleep(0.05)
-        while select.select([master], [], [], 0)[0]:
-            rendered += os.read(master, 65536)
-        if divider_escape not in rendered:
-            backgrounds = sorted(set(re.findall(rb"\x1b\[48[^m]*m", rendered)))
-            raise AssertionError(f"rendered zoom footer lacks divider background: expected={divider_escape!r} seen={backgrounds!r}")
-        terminal_text = re.sub(rb"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1b\\))", b"", rendered)
-        terminal_text = terminal_text.replace(b"\x1b(B", b"").replace(b"\x1b=", b"")
-        shape = "*───*───*───*───*───label───*───*───*───*───*".encode()
-        if shape not in terminal_text:
-            raise AssertionError("initial attached frame lacks the zoomed labeled footer cells")
-    finally:
-        run("kill-server", check=False)
-        if proc and proc.poll() is None:
-            proc.terminate()
+    def __enter__(self):
+        try:
+            self.run("-f", str(CONFIG), "new-session", "-d", "-s", "fixture",
+                     "-x", str(self.cols), "-y", str(self.rows), "sleep 3600")
+            self.first = self.run("display", "-p", "-t", "=fixture:", "#{pane_id}")
+            self.master, self.slave = os.openpty()
+            fcntl.ioctl(self.slave, termios.TIOCSWINSZ,
+                        struct.pack("HHHH", self.rows, self.cols, 0, 0))
+            self.tty = os.ttyname(self.slave)
+            self.proc = subprocess.Popen(self.base + ["attach", "-t", "=fixture"],
+                env=TEST_ENV | {"TERM": "xterm-ghostty"}, stdin=self.slave,
+                stdout=self.slave, stderr=self.slave, start_new_session=True)
+            wait_for(lambda: self.tty in self.run("list-clients", "-F", "#{client_tty}"),
+                     "footer client did not attach")
+            self.palette = {name: self.run("show-option", "-gqv", "@color-" + name).lower()
+                            for name in ("canvas", "text-muted", "accent-secondary",
+                                         "accent-tertiary", "accent-primary", "surface-pane-active")}
+            return self
+        except BaseException:
+            self.__exit__(None, None, None)
+            raise
+
+    def __exit__(self, *_):
+        self.run("kill-server", check=False)
+        if self.proc and self.proc.poll() is None:
+            self.proc.terminate()
             try:
-                proc.wait(timeout=1)
+                self.proc.wait(timeout=1)
             except subprocess.TimeoutExpired:
-                proc.kill()
-        os.close(slave)
-        os.close(master)
+                self.proc.kill()
+                self.proc.wait()
+        for fd in (self.master, self.slave):
+            if fd is not None:
+                os.close(fd)
+
+    def capture(self):
+        assert self.master is not None
+        while select.select([self.master], [], [], 0)[0]:
+            os.read(self.master, 65536)
+        self.run("refresh-client", "-t", self.tty)
+        data = b""
+        deadline = time.time() + 2
+        while time.time() < deadline:
+            if select.select([self.master], [], [], 0.1)[0]:
+                data += os.read(self.master, 65536)
+            elif data:
+                break
+        assert data, "no attached-client repaint"
+        return render_terminal(data, self.rows, self.cols, styles=True)
+
+    def label(self, pane: str, label: str):
+        if label:
+            self.run("set", "-p", "-t", pane, "@pane-label", label)
+        else:
+            self.run("set", "-pu", "-t", pane, "@pane-label")
+
+    def assert_policy(self, pane: str, *, single: bool, zoom: bool = False):
+        rail = self.palette["text-muted" if single else "accent-secondary"]
+        border = self.run("show", "-wqv", "-t", pane, "pane-active-border-style")
+        assert border.replace(" ", "").lower() == f"fg={rail},bg={self.palette['canvas']}", border
+        background = self.palette["canvas" if single or zoom else "surface-pane-active"]
+        actual = self.run("show", "-wqv", "-t", pane, "window-active-style").lower()
+        assert actual == f"bg={background}", actual
+        assert self.run("show", "-wAqv", "-t", pane, "pane-border-lines") == "single"
+
+    def assert_footer(self, pane: str, label: str, *, active: bool, zoom: bool = False,
+                      clipped: bool = False):
+        left, width, top, height, window, panes = map(int, self.run(
+            "display", "-p", "-t", pane,
+            "#{pane_left} #{pane_width} #{pane_top} #{pane_height} #{window_width} #{window_panes}",
+        ).split())
+        chars, colors, backgrounds, underlines = self.capture()
+        y = 2 + top + height
+        start, end = max(0, left - 1), min(window - 1, left + width)
+        row = "".join(chars[y])
+        rail = self.palette["text-muted" if not active or panes == 1 else "accent-secondary"]
+        motif = f" ─── [{label}] ─── " if label else " ─── ─────── ─── "
+        fraction = (len(motif) - 1) / 2 % 1
+        if width == window:
+            expected_center = left + 2 + (width - 2) // 2 - len(motif) // 2 + (len(motif) - 1) / 2
+        else:
+            expected_center = int((start + end) / 2 - fraction) + fraction
+        index = row.find(motif, start, end + 1) if label else int(expected_center - (len(motif) - 1) / 2)
+        expected_colors = [rail] * len(motif)
+        if label:
+            accent = self.palette["accent-tertiary" if active else "accent-primary"]
+            expected_colors[5:len(label) + 7] = [accent] * (len(label) + 2)
+            for offset in (1, 2, 3, len(label) + 8, len(label) + 9, len(label) + 10):
+                expected_colors[offset] = accent
+        else:
+            highlight = self.palette["accent-tertiary" if active else "accent-primary"]
+            for offset in (1, 2, 3, 13, 14, 15):
+                expected_colors[offset] = highlight
+        if clipped and not label:
+            # Clip from the geometry-derived motif origin, not a repeated-rule
+            # substring. Leading native rail cells are outside the status span.
+            draw_start, draw_end = left + 2, min(left + width, window)
+            for x in range(draw_start, draw_end):
+                offset = x - index
+                expected_char = motif[offset] if 0 <= offset < len(motif) else "─"
+                assert chars[y][x] == expected_char, (width, x, offset, row)
+                expected = expected_colors[offset] if 0 <= offset < len(motif) else rail
+                assert colors[y][x] == expected, (width, active, x, offset, colors[y][x], expected)
+                assert underlines[y][x] == (zoom and 1 <= offset < len(motif) - 1)
+                assert backgrounds[y][x] == self.palette["canvas"]
+            for x in range(left, draw_start):
+                assert colors[y][x] == rail, (x, colors[y][x], rail)
+                assert not underlines[y][x]
+            return
+        if clipped and index < 0:
+            visible = row[start:end + 1]
+            content = row[left + 2:min(left + width, window)]
+            assert content and content in motif + "────", (width, label, visible)
+            offset = (motif + "────").index(content)
+            clipped_colors = (expected_colors + [rail] * 4)[offset:offset + len(content)]
+            assert colors[y][left + 2:left + 2 + len(content)] == clipped_colors
+            assert "*" not in visible, visible
+            assert not any(underlines[y][start:end + 1]), visible
+            assert all(color in (None, self.palette["canvas"]) for color in backgrounds[y][start:end + 1])
+            return
+        assert index >= 0 and row[index:index + len(motif)] == motif, (pane, active, zoom, motif, row)
+        assert colors[y][index:index + len(motif)] == expected_colors, (row, colors[y])
+        assert index + (len(motif) - 1) / 2 == expected_center, (row, expected_center)
+        expected_underline = [False] * (end - start + 1)
+        expected_underline[index - start + 1:index - start + len(motif) - 1] = [zoom] * (len(motif) - 2)
+        assert underlines[y][start:end + 1] == expected_underline, (row, underlines[y])
+        assert all(color in (None, self.palette["canvas"]) for color in backgrounds[y][start:end + 1]), backgrounds[y]
+        assert backgrounds[y][index:index + len(motif)] == [self.palette["canvas"]] * len(motif)
+        for x in range(start, end + 1):
+            # The adjacent shared split cell can belong to the active neighbor.
+            if left <= x < left + width and not index <= x < index + len(motif) and chars[y][x] in "─┬┴│┼":
+                assert colors[y][x] == rail, (x, colors[y][x], rail)
+        # Check full-width separator color equality independently of footer text.
+        if panes == 1:
+            assert all(color == self.palette["text-muted"] for color in colors[1]), colors[1]
+
+
+def verify_footer_lifecycle() -> None:
+    with FooterClient("lifecycle") as client:
+        pane = client.first
+        client.assert_policy(pane, single=True)
+        for label in ("", "label", "EVEN", "ODD", ""):
+            client.label(pane, label)
+            client.assert_footer(pane, label, active=True)
+        other = client.run("split", "-h", "-P", "-F", "#{pane_id}", "-t", pane, "sleep 3600")
+        client.assert_policy(other, single=False)
+        client.run("select-pane", "-t", pane)
+        client.assert_footer(pane, "", active=True)
+        client.assert_footer(other, "", active=False)
+        client.run("resize-pane", "-Z", "-t", pane)
+        client.assert_policy(pane, single=False, zoom=True)
+        client.assert_footer(pane, "", active=True, zoom=True)
+        client.run("resize-pane", "-Z", "-t", pane)
+        client.run("kill-pane", "-t", other)
+        client.assert_policy(pane, single=True)
+        client.assert_footer(pane, "", active=True)
+        extra = client.run("new-window", "-d", "-P", "-F", "#{pane_id}", "-t", "=fixture:", "sleep 3600")
+        second = client.run("new-session", "-d", "-s", "second", "-P", "-F", "#{pane_id}", "sleep 3600")
+        client.run("split", "-h", "-t", extra, "sleep 3600")
+        client.run("resize-pane", "-Z", "-t", extra)
+        client.run("split", "-v", "-t", second, "sleep 3600")
+        policies = ((pane, True, False), (extra, False, True), (second, False, False))
+        for target, single, zoom in policies:
+            client.assert_policy(target, single=single, zoom=zoom)
+            client.run("setw", "-t", target, "pane-active-border-style", "fg=red")
+            client.run("setw", "-t", target, "window-active-style", "bg=red")
+        client.run("source-file", str(CONFIG))
+        for target, single, zoom in policies:
+            client.assert_policy(target, single=single, zoom=zoom)
+        assert "pane-active-border-style" in client.run("show-hooks", "-g", "window-layout-changed")
+        assert "window-layout-changed[100]" in client.run("show-hooks", "-g", "window-layout-changed")
+        # The standalone palette source path used by theme application refreshes
+        # existing windows as well, without selecting or renaming any window.
+        client.run("setw", "-t", extra, "pane-active-border-style", "fg=red")
+        client.run("source-file", str(ROOT / "theme/bundles/vague/tmux/colors.conf"))
+        client.assert_policy(extra, single=False, zoom=True)
+
+    with FooterClient("stacked") as client:
+        top = client.first
+        bottom = client.run("split", "-v", "-P", "-F", "#{pane_id}", "-t", top, "sleep 3600")
+        for pane in (top, bottom):
+            client.run("select-pane", "-t", pane)
+            client.label(pane, "STACK")
+            client.assert_footer(pane, "STACK", active=True)
+            client.run("select-pane", "-t", bottom if pane == top else top)
+            client.assert_footer(pane, "STACK", active=False)
+
+    for cols in (40, 41, 60):
+        with FooterClient(f"narrow-{cols}", cols) as client:
+            pane = client.first
+            client.assert_footer(pane, "", active=True)
+            client.label(pane, "label longer than the available footer width" * 2)
+            client.assert_footer(pane, "label longer than the available footer width" * 2,
+                                 active=True, clipped=True)
+            other = client.run("split", "-h", "-P", "-F", "#{pane_id}", "-t", pane, "sleep 3600")
+            for target in (pane, other):
+                for label in ("", "ODD"):
+                    client.label(target, label)
+                    for active in (True, False):
+                        client.run("select-pane", "-t", target if active else (other if target == pane else pane))
+                        client.assert_footer(target, label, active=active, clipped=True)
+
+
+def verify_zoom_render() -> None:
+    """Check actual zoom cells, including underline boundaries and restoration."""
+    with FooterClient("zoom", 180) as client:
+        pane = client.first
+        other = client.run("split-window", "-h", "-P", "-F", "#{pane_id}", "-t", pane)
+        client.run("select-pane", "-t", pane)
+        for label in ("label", "", "EVEN", "ODD"):
+            client.label(pane, label)
+            client.run("resize-pane", "-Z", "-t", pane)
+            client.assert_footer(pane, label, active=True, zoom=True)
+            client.run("resize-pane", "-Z", "-t", pane)
+            client.assert_footer(pane, label, active=True)
+            client.run("select-pane", "-t", other)
+            client.assert_footer(pane, label, active=False)
+            client.run("select-pane", "-t", pane)
 
 
 def main() -> int:
     tmp = tempfile.mkdtemp(prefix="tmux-render-", dir="/tmp")
     old_tmux_tmpdir = os.environ.get("TMUX_TMPDIR")
     os.environ["TMUX_TMPDIR"] = tmp
-    env = os.environ.copy()
+    TEST_ENV["TMUX_TMPDIR"] = tmp
+    env = TEST_ENV.copy()
     master, slave = os.openpty()
     proc = None
     try:
-        subprocess.run(["tmux", "-L", SOCKET, "-f", str(ROOT / "tmux.conf"),
+        subprocess.run(["tmux", "-L", SOCKET, "-f", str(CONFIG),
                         "new-session", "-d", "-s", "alpha", "-x", "220", "-y", "40"],
                        env=env, check=True, capture_output=True)
         prefix_w = "\n".join(line for line in tmux("list-keys", "-T", "prefix").splitlines()
@@ -700,10 +933,10 @@ def main() -> int:
         inactive = tmux("split-window", "-h", "-P", "-F", "#{pane_id}", "-t", pane)
         tmux("select-pane", "-t", pane)
         base_footer = {
-            (pane, ""): "*───*───*───*───*───*─*─*───*───*───*───*───*",
-            (inactive, ""): "*───*───*───*───*───*─*─*───*───*───*───*───*",
-            (pane, "label"): "*───*───*───*───*───label───*───*───*───*───*",
-            (inactive, "label"): "*───*───*───*───*───label───*───*───*───*───*",
+            (pane, ""): " ─── ─────── ─── ",
+            (inactive, ""): " ─── ─────── ─── ",
+            (pane, "label"): " ─── [label] ─── ",
+            (inactive, "label"): " ─── [label] ─── ",
         }
 
         def footer_pad(target: str, label: str) -> str:
@@ -736,12 +969,10 @@ def main() -> int:
         zoomed = tmux("display-message", "-p", "-t", pane, "#{E:pane-border-format}")
         if plain_format(normal) != plain_format(zoomed) + "──":
             raise AssertionError("zoom did not remove only the outer-column centering bias")
-        divider = tmux("show-option", "-gqv", "@color-divider")
-        canvas = tmux("show-option", "-gqv", "@color-canvas")
-        if f"#[bg={divider}]" not in zoomed or not zoomed.endswith(f"#[bg={canvas}]"):
-            raise AssertionError(f"zoomed footer lacks a scoped background block: {zoomed!r}")
-        if f"#[bg={divider}]" in normal:
-            raise AssertionError("normal footer unexpectedly has the zoom background")
+        if "#[underscore]" not in zoomed or "#[nounderscore]" not in zoomed:
+            raise AssertionError(f"zoomed footer lacks scoped underline: {zoomed!r}")
+        if "#[underscore]" in normal or "#[bg=" in zoomed:
+            raise AssertionError("zoom underline/background policy mismatch")
 
         # The production status styles must survive #{E:...} expansion. Uppercase
         # #D used to become the #D pane-ID shorthand, invalidating the range style.
@@ -758,6 +989,7 @@ def main() -> int:
         verify_status_stripe_layouts()
         verify_footer_centering()
         verify_zoom_render()
+        verify_footer_lifecycle()
 
         print("ok: attached tmux status clicks and footer states")
         return 0

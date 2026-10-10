@@ -105,7 +105,7 @@ in
         hl.bind("SUPER + CTRL + " .. key, hl.dsp.exec_cmd("app-focus " .. app))
       end
       hl.bind("SUPER + Q", hl.dsp.window.close())
-      hl.bind("SUPER + F", hl.dsp.window.fullscreen())
+      hl.bind("SUPER + F", hl.dsp.window.fullscreen({ mode = "maximized" }))
       hl.bind("SUPER + SHIFT + Space", hl.dsp.window.float({ action = "toggle" }))
       hl.bind("SUPER + CTRL + L", hl.dsp.exec_cmd("loginctl lock-session"))
       hl.bind("SUPER + SHIFT + Escape", launch("desktop-session-menu"))

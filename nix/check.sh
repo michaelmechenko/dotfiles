@@ -158,6 +158,27 @@ end
 assert(count == 4 and next(expected) == nil)
 print("Generated resize Lua: four native relative axis bindings and repeat options passed.")
 LUA
+# Win+F must toggle usable-area maximization, not fullscreen or enable-only mode.
+lua - "$files/.config/hypr/hyprland.lua" <<'LUA'
+local count = 0
+hl = {
+  dsp = { window = { fullscreen = function(options)
+    assert(options.mode == "maximized")
+    assert(options.action == nil or options.action == "toggle")
+    assert(options.window == nil)
+    return options
+  end } },
+  bind = function(key, action, options)
+    assert(key == "SUPER + F" and action.mode == "maximized" and options == nil)
+    count = count + 1
+  end,
+}
+for line in io.lines(arg[1]) do
+  if line:match('hl%.bind%(%s*"SUPER %+ F"') then assert(load(line))() end
+end
+assert(count == 1, "Expected exactly one Win+F maximization binding")
+print("Generated Win+F Lua: unique maximized-mode toggle passed.")
+LUA
 python3 - "$files/.config/waybar/config" <<'PY'
 import json
 import sys

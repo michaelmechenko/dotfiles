@@ -43,7 +43,10 @@ bootstrap; harden it separately after verifying persistent key access.
   corners, no transparency or blur. Restrained 150–250ms window/fade/workspace
   animations are enabled. `misc.vrr = 2` enables variable refresh rate only
   with fullscreen windows on displays supporting adaptive sync; ordinary
-  windowed use keeps VRR off. Other fullscreen behavior follows Hyprland defaults.
+  windowed use keeps VRR off. Super-F toggles maximization within the monitor's
+  usable area, respecting the bar's reserved space; press it again to restore.
+  Application-native fullscreen controls remain unchanged. Other fullscreen
+  behavior follows Hyprland defaults.
 - Both monitors use 2560×1440 at nominal 180 Hz and 100% scale, top-aligned:
   Samsung Odyssey G50SF (`DP-1`) is on the left at `0x0`, using its advertised
   179.98 Hz mode; Acer XZ322QU V3 (`DP-2`) is on the right at `2560x0`, at 180 Hz.

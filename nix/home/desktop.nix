@@ -114,6 +114,12 @@ in
       for key, direction in pairs({ H = "left", J = "down", K = "up", L = "right" }) do
         hl.bind("SUPER + " .. key, hl.dsp.focus({ direction = direction }))
       end
+      -- US physical =/- keys: Shift selects height even when the keysym becomes +/_.
+      -- Native dwindle resizes its divider, not necessarily the focused tile.
+      hl.bind("SUPER + code:21", hl.dsp.window.resize({ x = 25, y = 0, relative = true }), { repeating = true })
+      hl.bind("SUPER + code:20", hl.dsp.window.resize({ x = -25, y = 0, relative = true }), { repeating = true })
+      hl.bind("SUPER + SHIFT + code:21", hl.dsp.window.resize({ x = 0, y = 25, relative = true }), { repeating = true })
+      hl.bind("SUPER + SHIFT + code:20", hl.dsp.window.resize({ x = 0, y = -25, relative = true }), { repeating = true })
       ${builtins.readFile ./workspaces.lua}
       ${builtins.readFile ./scratch-terminal.lua}
       ${builtins.readFile ./scratch-sidra.lua}

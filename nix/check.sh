@@ -132,6 +132,32 @@ done
 test -f "$sessions/share/wayland-sessions/plasma.desktop"
 test -f "$sessions/share/wayland-sessions/hyprland-uwsm.desktop"
 Hyprland --verify-config -c "$files/.config/hypr/hyprland.lua"
+# Execute the actual generated resize declarations; parsing alone cannot catch
+# incorrect axes, delta signs, absolute sizing, or lost repeat behavior.
+lua - "$files/.config/hypr/hyprland.lua" <<'LUA'
+local expected = {
+  ["SUPER + code:21"] = {25, 0}, ["SUPER + code:20"] = {-25, 0},
+  ["SUPER + SHIFT + code:21"] = {0, 25}, ["SUPER + SHIFT + code:20"] = {0, -25},
+}
+local count = 0
+hl = {
+  dsp = { window = { resize = function(options) return options end } },
+  bind = function(key, action, options)
+    local delta = assert(expected[key], "Unexpected resize binding: " .. key)
+    assert(action.x == delta[1] and action.y == delta[2] and action.relative == true)
+    assert(action.window == nil and options.repeating == true)
+    expected[key] = nil
+    count = count + 1
+  end,
+}
+for line in io.lines(arg[1]) do
+  if line:find('hl.bind("SUPER', 1, true) and line:find('hl.dsp.window.resize({', 1, true) then
+    assert(load(line))()
+  end
+end
+assert(count == 4 and next(expected) == nil)
+print("Generated resize Lua: four native relative axis bindings and repeat options passed.")
+LUA
 python3 - "$files/.config/waybar/config" <<'PY'
 import json
 import sys

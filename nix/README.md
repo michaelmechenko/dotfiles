@@ -330,6 +330,15 @@ They no-op on legacy/special workspaces, while a scratchpad is shown on the
 acting monitor, or when source/destination ownership no longer matches the
 connected monitor. Existing direct-number bindings remain available.
 
+Super-equals/minus sends horizontal relative resize deltas of +25/-25 logical
+pixels; adding Shift selects vertical deltas. Hold to repeat. These are native
+Hyprland resize operations: floating windows grow/shrink, while dwindle moves
+split boundaries, so a positive delta can shrink a focused right/bottom tile.
+A lone tiled window or an axis without a split cannot resize; fullscreen windows
+are rejected by the native dispatcher. No automatic floating, sign-correction,
+or layout-setting changes are applied. The eight new shortcuts use physical US
+XKB keycodes (equals 21, minus 20, period 60, comma 59, semicolon 47, apostrophe 48),
+so Shift cannot turn the configured key into an unmatched punctuation keysym.
 The existing physical Super+left/right drag/resize bindings remain unchanged;
 middle-mouse remapping is deferred.
 
@@ -356,13 +365,16 @@ Build-time tests cover numeric/named/empty-placeholder/special selectors,
 move-to-current-monitor semantics and hostile-name escaping. Lua tests cover all
 41 workspace bindings, ordered numeric IDs, adjacent stepping across empty
 workspaces, endpoint no-ops, bidirectional moves, monitor/special-workspace guards
-and nonpersistent rules. After activation approval, verify incoming/outgoing slides
+and nonpersistent rules. Generated-config tests execute all four resize bindings
+and check their delta signs, axes, relative sizing and repeat options. After activation approval, verify incoming/outgoing slides
 for higher/lower indices on both outputs, including `1` to `9` and back. Verify
 that empty inactive buttons disappear, populated inactive and empty active
 buttons remain, and labels match their numeric click targets. Check monitor
 ownership, all shortcuts, both move directions, disconnected outputs and
-fresh-login defaults. Physically test the punctuation shortcuts on both monitors.
-Verify workspace focus/move-and-follow, endpoint no-ops, empty
+fresh-login defaults. Physically test the punctuation shortcuts and resize repeat
+on both monitors, including left/right, top/bottom and mixed tiled splits, lone
+tiles, floating windows, minimum sizes, fullscreen and different pointer
+positions. Verify workspace focus/move-and-follow, endpoint no-ops, empty
 workspace visibility and unchanged scratchpads. Do not migrate live windows
 automatically. Parsing and fixture tests alone do not establish actual rendered
 click or physical-key behavior.

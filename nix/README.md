@@ -321,6 +321,15 @@ Adding Shift moves the focused window there and follows it. Super-Shift-W toggle
 only the focused window between DP-1 and DP-2, using the destination's currently
 active workspace, and follows it. It no-ops without a focused window or when its
 output is not DP-1/DP-2. These bindings no-op when the target output is absent.
+Super-Shift-period (`>`) and Super-Shift-comma (`<`) move the focused window to
+the next/previous numbered workspace on its monitor and follow it. Super-semicolon
+and Super-apostrophe focus the previous/next numbered workspace on the active
+monitor, even without a focused window. These non-repeating shortcuts include
+empty destinations, stop at indices 1 and 9, and never cross monitor ranges.
+They no-op on legacy/special workspaces, while a scratchpad is shown on the
+acting monitor, or when source/destination ownership no longer matches the
+connected monitor. Existing direct-number bindings remain available.
+
 The existing physical Super+left/right drag/resize bindings remain unchanged;
 middle-mouse remapping is deferred.
 
@@ -345,14 +354,18 @@ it when Waybar is upgraded. Existing grayscale patches remain separate.
 
 Build-time tests cover numeric/named/empty-placeholder/special selectors,
 move-to-current-monitor semantics and hostile-name escaping. Lua tests cover all
-37 bindings, ordered numeric IDs, bidirectional moves, monitor guards and
-nonpersistent rules. After activation approval, verify incoming/outgoing slides
+41 workspace bindings, ordered numeric IDs, adjacent stepping across empty
+workspaces, endpoint no-ops, bidirectional moves, monitor/special-workspace guards
+and nonpersistent rules. After activation approval, verify incoming/outgoing slides
 for higher/lower indices on both outputs, including `1` to `9` and back. Verify
 that empty inactive buttons disappear, populated inactive and empty active
 buttons remain, and labels match their numeric click targets. Check monitor
 ownership, all shortcuts, both move directions, disconnected outputs and
-fresh-login defaults. Do not migrate live windows automatically.
-Parsing and fixture tests alone do not establish actual rendered click behavior.
+fresh-login defaults. Physically test the punctuation shortcuts on both monitors.
+Verify workspace focus/move-and-follow, endpoint no-ops, empty
+workspace visibility and unchanged scratchpads. Do not migrate live windows
+automatically. Parsing and fixture tests alone do not establish actual rendered
+click or physical-key behavior.
 
 ## Configuration ownership
 

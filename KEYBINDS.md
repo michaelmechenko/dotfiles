@@ -25,6 +25,8 @@ The full Mac tmux/sidebar and Neovim plugin configuration is not enabled here.
 | `Super-Shift-1..9` | Move focused window to primary IDs `101..109` (labels `1*..9*`) and follow it |
 | `Super-Ctrl-Shift-1..9` | Move focused window to secondary IDs `201..209` (labels `1^..9^`) and follow it |
 | `Super-Shift-w` | Move focused window between DP-1 and DP-2, using the destination's active workspace, and follow it |
+| `Super-Shift-.` / `Super-Shift-,` (`>` / `<`) | Move focused window to next/previous numbered workspace on its monitor and follow; stop at 1/9 |
+| `Super-;` / `Super-'` | Focus previous/next numbered workspace on the active monitor, including empty ones; stop at 1/9 |
 | `Super` + left/right mouse drag | Move/resize window |
 | `Super-Ctrl-l` | Lock session |
 | `Super-Shift-Escape` | Session menu: lock, sleep, log out, restart, shut down |

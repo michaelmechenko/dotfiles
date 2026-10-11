@@ -67,6 +67,12 @@ whitespace cells, not a background block.
 The generated lifecycle alias, reload-time native session/window command loop,
 and theme-application path apply the same policy with lowercase concrete colors.
 
+On stable tmux 3.8 and the tested `next-3.8` build, inactive panes additionally
+use `dim=35%` to dim both foreground and background, including application colors.
+Focused panes, single-pane windows, and zoomed panes retain normal brightness.
+Older servers retain the background-only focus distinction. This is separate
+from desktop-window opacity and does not change the canonical palette roles.
+
 ## Override layer (`overrides`)
 
 A palette may carry an optional `overrides` object (`{roles: {...}, reason?: "..."}`)

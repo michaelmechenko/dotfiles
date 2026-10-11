@@ -204,7 +204,9 @@ class BindingTests(unittest.TestCase):
     def test_mouse_drag_copies_raw_and_exits_at_live_bottom(self):
         self.run_tmux("set", "-g", "mouse", "on")
         self.fixture(b"   mouse raw\n")
-        self.select_text([b"V"])
+        # Start a fresh mouse selection. In 3.8, dragging an existing linewise
+        # selection adjusts its endpoint instead of starting a new selection.
+        self.select_text([])
         self.sink.unlink(missing_ok=True)
         os.write(self.master, b"\x1b[<0;1;1M")
         time.sleep(0.08)

@@ -137,7 +137,7 @@ class TmuxAdapterTests(unittest.TestCase):
         self.assertIn('set -g @color-surface-pane-active "#131115"', tmux)
         self.assertIn('set -g status-style "bg=#100e11"', tmux)
         self.assertIn('setw -g pane-active-border-style "fg=#aeaed1, bg=#100e11"', tmux)
-        self.assertIn("if -F '#{==:#{version},next-3.8}' 'setw -g window-style \"bg=#0c0a0c,dim=20%\"' 'setw -g window-style \"bg=#0c0a0c\"'", tmux)
+        self.assertIn("if -F '#{||:#{==:#{version},3.8},#{==:#{version},next-3.8}}' 'setw -g window-style \"bg=#0c0a0c,dim=35%\"' 'setw -g window-style \"bg=#0c0a0c\"'", tmux)
         self.assertNotIn('status-style "bg=#{', tmux)
         self.assertNotIn('setw -g pane-active-border-style "fg=#{', tmux)
 

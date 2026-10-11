@@ -51,20 +51,20 @@ Underlines = list[list[bool]]
 
 
 @overload
-def render_terminal(data: bytes, rows: int, cols: int, *, styles: Literal[False] = False) -> tuple[Cells, Colors]: ...
+def render_terminal(data: bytes, rows: int, cols: int, *, styles: Literal[False] = False, cursor: tuple[int, int] = (0, 0)) -> tuple[Cells, Colors]: ...
 
 
 @overload
-def render_terminal(data: bytes, rows: int, cols: int, *, styles: Literal[True]) -> tuple[Cells, Colors, Colors, Underlines]: ...
+def render_terminal(data: bytes, rows: int, cols: int, *, styles: Literal[True], cursor: tuple[int, int] = (0, 0)) -> tuple[Cells, Colors, Colors, Underlines]: ...
 
 
-def render_terminal(data: bytes, rows: int, cols: int, *, styles: bool = False):
+def render_terminal(data: bytes, rows: int, cols: int, *, styles: bool = False, cursor: tuple[int, int] = (0, 0)):
     """Apply tmux redraws; optionally return background and underline cell grids."""
     chars = [[" " for _ in range(cols)] for _ in range(rows)]
     colors: list[list[str | None]] = [[None for _ in range(cols)] for _ in range(rows)]
     backgrounds: Colors = [[None for _ in range(cols)] for _ in range(rows)]
     underlines = [[False for _ in range(cols)] for _ in range(rows)]
-    row = col = 0
+    row, col = cursor
     fg: str | None = None
     bg: str | None = None
     underline = False
@@ -146,6 +146,10 @@ def render_terminal(data: bytes, rows: int, cols: int, *, styles: bool = False):
                         if code == 0:
                             fg = bg = None
                             underline = False
+                        elif 30 <= code <= 37:
+                            fg = f"ansi:{code - 30}"
+                        elif 40 <= code <= 47:
+                            bg = f"ansi:{code - 40}"
                         elif code == 39:
                             fg = None
                         elif code == 49:
@@ -568,6 +572,92 @@ def verify_footer_centering() -> None:
         raise AssertionError("footer matrix missed a fully visible inactive unlabeled motif")
 
 
+def verify_pane_dimming() -> None:
+    """Inspect actual RGB cells, not only window-style option expansion."""
+    version = tmux("-V").removeprefix("tmux ")
+    supported = version in ("3.8", "next-3.8")
+    command = ("sleep 0.2; printf '\\033[H\\033[38;2;200;150;100m"
+               "\\033[48;2;100;50;25mRGB\\033[0m\\r\\n"
+               "\\033[31mANSI\\033[0m DEFAULT'; sleep 3600")
+    with FooterClient("dimming") as client:
+        first = client.first
+        # Simulate Ghostty's OSC default-color replies for default-foreground
+        # dimming. These go only to this fixture's private PTY.
+        assert client.master is not None
+        os.write(client.master, b"\x1b]10;rgb:bebe/bebe/bebe\x1b\\"
+                               b"\x1b]11;rgb:1010/0e0e/1111\x1b\\")
+
+        def paint(pane: str) -> None:
+            client.run("respawn-pane", "-k", "-t", pane, command)
+            wait_for(lambda: "RGB" in client.run("capture-pane", "-p", "-t", pane),
+                     "pane color sample did not render")
+
+        def check(pane: str, dim: bool) -> None:
+            left, top = map(int, client.run("display", "-p", "-t", pane,
+                                           "#{pane_left} #{pane_top}").split())
+            chars, foregrounds, backgrounds, _ = client.capture()
+            row = top + 2  # Production config has two top status rows.
+            assert "".join(chars[row][left:left + 3]) == "RGB"
+            expected = ("#826141", "#412010") if dim else ("#c89664", "#643219")
+            actual = foregrounds[row][left], backgrounds[row][left]
+            assert actual == expected, (version, pane, dim, actual, expected)
+            assert "".join(chars[row + 1][left:left + 12]) == "ANSI DEFAULT"
+            assert foregrounds[row + 1][left] == ("#530000" if dim else "ansi:1")
+            assert foregrounds[row + 1][left + 5] == ("#7b7b7b" if dim else None)
+            expected_background = "#070607" if dim else client.run(
+                "show", "-wqv", "-t", pane, "window-active-style").split("bg=", 1)[1]
+            if not dim and pane != client.run("display", "-p", "#{pane_id}"):
+                expected_background = client.run("show", "-gqv", "@color-surface-inactive")
+            assert backgrounds[row + 1][left + 5] == expected_background
+
+        paint(first)
+        check(first, False)  # Single pane never dims.
+        second = client.run("split-window", "-h", "-P", "-F", "#{pane_id}", "sleep 3600")
+        paint(first)
+        paint(second)
+        for active, inactive in ((first, second), (second, first)):
+            client.run("select-pane", "-t", active)
+            check(active, False)
+            check(inactive, supported)
+            client.run("source-file", str(CONFIG))
+            check(active, False)
+            check(inactive, supported)
+        client.run("resize-pane", "-Z", "-t", second)
+        paint(second)
+        check(second, False)  # Zoom never inherits inactive dimming.
+
+
+def verify_nvim_dimming() -> None:
+    """An application's own truecolor background must dim only when inactive."""
+    import shlex
+    import shutil
+    if not shutil.which("nvim"):
+        raise AssertionError("nvim is required for application dimming coverage")
+    supported = tmux("-V").removeprefix("tmux ") in ("3.8", "next-3.8")
+    with tempfile.TemporaryDirectory(prefix="tmux-dim-nvim-") as directory:
+        sample = Path(directory) / "sample.txt"
+        sample.write_text("RGB application colors\n")
+        command = ("nvim -u NONE -i NONE -n --cmd 'set termguicolors' "
+                   "-c 'highlight Normal guifg=#c89664 guibg=#643219' "
+                   + shlex.quote(str(sample)))
+        with FooterClient("nvim-dimming") as client:
+            first = client.first
+            second = client.run("split-window", "-h", "-P", "-F", "#{pane_id}", "sleep 3600")
+            for pane in (first, second):
+                client.run("respawn-pane", "-k", "-t", pane, command)
+                wait_for(lambda: "RGB application" in client.run("capture-pane", "-p", "-t", pane),
+                         "nvim sample did not render")
+            for active, inactive in ((first, second), (second, first)):
+                client.run("select-pane", "-t", active)
+                for pane in (active, inactive):
+                    left = int(client.run("display", "-p", "-t", pane, "#{pane_left}"))
+                    chars, foregrounds, backgrounds, _ = client.capture()
+                    assert "".join(chars[2][left:left + 3]) == "RGB"
+                    dim = supported and pane == inactive
+                    expected = ("#826141", "#412010") if dim else ("#c89664", "#643219")
+                    assert (foregrounds[2][left], backgrounds[2][left]) == expected
+
+
 class FooterClient:
     """Disposable attached client using the checkout config and palette."""
 
@@ -622,6 +712,11 @@ class FooterClient:
         assert self.master is not None
         while select.select([self.master], [], [], 0)[0]:
             os.read(self.master, 65536)
+        # Redraws may elide an absolute cursor move when already on that row.
+        # The preceding frame restores the active pane's application cursor.
+        top, left, y, x = map(int, self.run(
+            "display", "-p", "-c", self.tty,
+            "#{pane_top} #{pane_left} #{cursor_y} #{cursor_x}").split())
         self.run("refresh-client", "-t", self.tty)
         data = b""
         deadline = time.time() + 2
@@ -631,7 +726,8 @@ class FooterClient:
             elif data:
                 break
         assert data, "no attached-client repaint"
-        return render_terminal(data, self.rows, self.cols, styles=True)
+        return render_terminal(data, self.rows, self.cols, styles=True,
+                               cursor=(top + y + 2, left + x))
 
     def label(self, pane: str, label: str):
         if label:
@@ -990,8 +1086,10 @@ def main() -> int:
         verify_footer_centering()
         verify_zoom_render()
         verify_footer_lifecycle()
+        verify_pane_dimming()
+        verify_nvim_dimming()
 
-        print("ok: attached tmux status clicks and footer states")
+        print("ok: attached tmux status clicks, footer states, and pane dimming")
         return 0
     finally:
         tmux("kill-server", check=False)

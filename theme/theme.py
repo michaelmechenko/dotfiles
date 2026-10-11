@@ -491,9 +491,9 @@ def _tmux(p: dict) -> str:
         f'setw -g copy-mode-current-line-number-style "fg={highlight},bold"',
         f'setw -g window-active-style "bg={canvas}"',
         # Inactive panes use a tmux-only surface derived from canvas. The tested
-        # next-3.8 build also supports percentage dimming; keep this runtime gate
-        # so one generated artifact remains portable across both servers.
-        f"if -F '#{{==:#{{version}},next-3.8}}' 'setw -g window-style \"bg={inactive},dim=20%\"' 'setw -g window-style \"bg={inactive}\"'",
+        # Stable 3.8 and the tested next-3.8 build support percentage dimming.
+        # Keep the older-server fallback so shared bundles remain portable.
+        f"if -F '#{{||:#{{==:#{{version}},3.8}},#{{==:#{{version}},next-3.8}}}}' 'setw -g window-style \"bg={inactive},dim=35%\"' 'setw -g window-style \"bg={inactive}\"'",
         f'set -g window-status-current-style "fg={highlight}, bg={canvas}"',
         f'set -g window-status-style "fg={default}, bg={canvas}"',
         f'set -g window-status-last-style "fg={default}, bg={canvas}"',

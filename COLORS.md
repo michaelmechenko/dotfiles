@@ -40,6 +40,12 @@ Linux currently selects Vague declaratively at rebuild time. The macOS live
 `theme switch` command is not deployed by this bootstrap; changing the canonical
 palette requires rebuilding the Linux profile. See `nix/README.md` for scope.
 
+Tmux 3.8 (and the tested `next-3.8` build) additionally dims unfocused pane
+foreground/background colors by 35% with `window-style`'s `dim=35%`.
+Focused, single, and zoomed panes retain normal brightness and their existing
+surfaces. Older tmux servers retain background-only inactive styling. Palette
+roles, status rows, and native border/footer colors are unchanged.
+
 ## Roles
 
 ### Surfaces

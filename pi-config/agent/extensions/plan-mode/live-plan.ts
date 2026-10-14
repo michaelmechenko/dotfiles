@@ -28,7 +28,7 @@ export function livePlanPath(pid = process.pid): string {
 
 export function renderLivePlan(state: PlanState): string {
 	const lines = ["# Current plan", "", `**Goal:** ${state.goal || "(not set)"}`, "", `**Phase:** ${state.phase}`, "", "## Steps", ""];
-	for (const step of state.steps) lines.push(`- [${step.completed ? "x" : step.skipped ? "-" : " "}] ${step.text}`);
+	for (const step of state.steps) lines.push(`- [${step.completed ? "x" : step.skipped ? "-" : " "}] ${step.text} _(id: ${step.id})_`);
 	if (state.criteria.length) lines.push("", "## Verification criteria", "", ...state.criteria.map((item) => `- ${item}`));
 	if (state.followUps.length) lines.push("", "## Follow-up work", "", ...state.followUps.map((item) => `- ${item}`));
 	const brief = state.executionBrief;

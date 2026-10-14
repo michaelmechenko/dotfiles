@@ -12,7 +12,7 @@ export type ExecutionContextKind = "kickoff" | "resume" | "recalibration";
 export function renderExecutionContext(plan: PlanState, source: ExecutionContextSource, kind: ExecutionContextKind = "kickoff"): string {
 	const lines = ["[PLAN EXECUTION]", "", heading(kind), "", `Source session: ${source.sessionId}`, `Working directory: ${source.cwd}`];
 	if (source.tmuxSession) lines.push(`Source tmux session: ${source.tmuxSession}`);
-	lines.push("", "## Goal", plan.goal || "(not set)", "", "## Execution brief", `Summary: ${plan.executionBrief.summary || "(legacy plan — recalibrate before relying on prior context)"}`, section("Findings", plan.executionBrief.findings), section("Decisions", plan.executionBrief.decisions), files(plan.executionBrief.relevantFiles), section("Constraints", plan.executionBrief.constraints), "", "## Plan status", ...plan.steps.map((step) => `${step.step}. [${step.completed ? "x" : step.skipped ? "-" : " "}] ${step.text}`));
+	lines.push("", "## Goal", plan.goal || "(not set)", "", "## Execution brief", `Summary: ${plan.executionBrief.summary || "(legacy plan — recalibrate before relying on prior context)"}`, section("Findings", plan.executionBrief.findings), section("Decisions", plan.executionBrief.decisions), files(plan.executionBrief.relevantFiles), section("Constraints", plan.executionBrief.constraints), "", "## Plan status", ...plan.steps.map((step) => `${step.step}. [${step.completed ? "x" : step.skipped ? "-" : " "}] ${step.text} (id: ${step.id})`));
 	if (plan.criteria.length) lines.push("", "## Verification requirements", ...plan.criteria.map((item) => `- ${item}`));
 	if (plan.followUps.length) lines.push("", "## Known follow-up work", ...plan.followUps.map((item) => `- ${item}`));
 	lines.push("", instruction(kind));

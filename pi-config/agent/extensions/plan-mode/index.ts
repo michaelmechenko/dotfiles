@@ -1,23 +1,25 @@
+import { AsyncLocalStorage } from "node:async_hooks";
+import { randomUUID } from "node:crypto";
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import { getSupportedThinkingLevels, StringEnum, type AssistantMessage } from "@earendil-works/pi-ai";
 import { copyToClipboard, getAgentDir, getSettingsListTheme, type ExtensionAPI, type ExtensionCommandContext, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Container, Key, matchesKey, type SettingItem, SettingsList, truncateToWidth } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { inspectSavedExecutionModel, isModelSnapshot, loadPlanModeConfig, savePlanModeConfig, type SavedExecutionModelState } from "./config.ts";
-import { acknowledgeExecutionPacket, buildTmuxDetachedPaneArgs, buildTmuxNewWindowArgs, cancelUnclaimedExecutionPacket, consumeExecutionPacket, deleteExecutionPacket, executionOwner, finishRecoveredExecutionPacket, reclaimDeadExecutionPacket, renderPlanMarkdown, waitForExecutionAcknowledgement, type TmuxTarget, writeExecutionPacket } from "./execution-handoff.ts";
+import { acknowledgeExecutionPacket, buildTmuxDetachedPaneArgs, buildTmuxNewWindowArgs, cancelUnclaimedExecutionPacket, consumeExecutionPacket, deleteExecutionPacket, executionOwner, finishRecoveredExecutionPacket, reclaimDeadExecutionPacket, recoveredExecutionPacketFinished, renderPlanMarkdown, validateExecutionClaim, waitForExecutionAcknowledgement, type TmuxTarget, writeExecutionPacket } from "./execution-handoff.ts";
 import { executionGuidance, renderExecutionContext } from "./execution-context.ts";
 import { candidateFor, createExecutionSettings, cycleExecutionSettingValue, defaultExecutionDestination, resolveExecutionSettings, retainSelectedExecutionRow, type ExecutionDestination, type ExecutionSettings, type ModelCandidate } from "./execution-settings.ts";
 import { canUpdateTrackedPlan, createInternalPlan, latestInternalPlan, resolvePlanUpdateScope, type InternalPlan } from "./internal-plan.ts";
 import { deletePlanFile, readPlanFile, writePlanFile } from "./plan-file.ts";
 import { publishLivePlan, removeLivePlan } from "./live-plan.ts";
-import { restorePlanLifecycle } from "./lifecycle.ts";
-import { applyPlanUpdate, canClosePlan, clonePlanState, createPlanState, enterRestrictedMode, isStepDone, leaveRestrictedMode, materializePlan, migratePlanState, pendingSteps, updatePlanStep, type ModelSnapshot, type PlanCloseout, type PlanState, type ThinkingLevel } from "./plan-state.ts";
+import { PlanLifecycle, PlanMutationQueue, lifecycleGuard, restorePlanLifecycle, transitionPlanLifecycle, type LifecycleToken } from "./lifecycle.ts";
+import { applyPlanUpdate, canClosePlan, closeoutExecutionIdentity, closeoutMatches, clonePlanState, createPlanState, isStepDone, leaveRestrictedMode, materializePlan, migratePlanState, pendingSteps, updatePlanStep, type CurrentPaneTransfer, type DetachedHandoffIntent, type ModelSnapshot, type PlanCloseout, type PlanState, type ThinkingLevel, type TrackedPlanStepInput } from "./plan-state.ts";
 import { archiveCompletedPlan, completedPlanRecord, listCompletedPlansForSession, resolvePlanProject, watchCompletedPlans, type PlanProject } from "./plan-history.ts";
 import { planFooterStatus } from "./plan-status.ts";
 import { checkRestrictedToolCall, PLAN_EXECUTION_TOOLS, PLAN_UPDATE_TOOL, restrictedTools, restrictionGuidance } from "./restricted-mode.ts";
 import { buildRecalibrationMessage, promptForRecalibration } from "./recalibration-editor.ts";
 import { renderExecutionSettingsHeader, renderPlanProgress } from "./tui-rendering.ts";
-import { parsePlanEditText, type TodoItem } from "./utils.ts";
+import { parsePlanEditEntries, type TodoItem } from "./utils.ts";
 import { processStartToken } from "../session-state/process-identity.ts";
 
 const PLAN_STEP_TOOL = "plan_step";
@@ -30,7 +32,7 @@ const PlanStepParams = Type.Object({
 });
 const PlanUpdateParams = Type.Object({
 	scope: Type.Optional(StringEnum(["internal", "tracked"] as const)),
-	goal: Type.String({ minLength: 1 }), steps: Type.Array(Type.String({ minLength: 1 }), { minItems: 1 }),
+	goal: Type.String({ minLength: 1 }), steps: Type.Array(Type.Union([Type.String({ minLength: 1 }), Type.Object({ id: Type.Optional(Type.String({ minLength: 1 })), text: Type.String({ minLength: 1 }) })]), { minItems: 1 }),
 	criteria: Type.Optional(Type.Array(Type.String({ minLength: 1 }))), followUps: Type.Optional(Type.Array(Type.String({ minLength: 1 }))),
 	executionBrief: Type.Object({ summary: Type.String({ minLength: 1 }), findings: Type.Array(Type.String({ minLength: 1 })), decisions: Type.Array(Type.String({ minLength: 1 })), relevantFiles: Type.Array(Type.Object({ path: Type.String({ minLength: 1 }), note: Type.String({ minLength: 1 }) })), constraints: Type.Array(Type.String({ minLength: 1 })) }),
 });
@@ -46,18 +48,29 @@ function snapshotModel(ctx: ExtensionContext): ModelSnapshot | undefined {
 	return ctx.model ? { provider: ctx.model.provider, model: ctx.model.id, thinkingLevel: ctx.thinkingLevel as ThinkingLevel } : undefined;
 }
 function formatSteps(steps: TodoItem[]): string {
-	return steps.map((step) => `${step.step}. [${step.completed ? "x" : step.skipped ? "-" : " "}] ${step.text}`).join("\n");
+	return steps.map((step) => `${step.step}. [${step.completed ? "x" : step.skipped ? "-" : " "}] ${step.text} (id: ${step.id})`).join("\n");
 }
 function isAssistantMessage(message: AgentMessage): message is AssistantMessage {
 	return message.role === "assistant" && Array.isArray(message.content);
 }
 
+type InternalModelCall = <T>(call: () => T) => T;
+
 /** Switch only this live session; Pi persists defaults only through its settings APIs. */
-export async function setSessionModel(pi: ExtensionAPI, ctx: ExtensionContext, model: ModelSnapshot): Promise<boolean> {
+export async function setSessionModel(pi: ExtensionAPI, ctx: ExtensionContext, model: ModelSnapshot, isCurrent: () => boolean = () => true, internalCall: InternalModelCall = (call) => call()): Promise<boolean> {
+	if (!isCurrent()) return false;
+	const current = snapshotModel(ctx);
+	if (current?.provider === model.provider && current.model === model.model && current.thinkingLevel === model.thinkingLevel) return true;
 	const resolved = ctx.modelRegistry.find(model.provider, model.model);
-	if (!resolved || !(await pi.setModel(resolved))) return false;
-	pi.setThinkingLevel(model.thinkingLevel);
-	return true;
+	if (!resolved || !isCurrent()) return false;
+	try {
+		const changed = await internalCall(() => pi.setModel(resolved));
+		// Pi authenticates before mutating the live model. Revalidate after it returns:
+		// a user selection made while it awaited authentication has already queued its repair.
+		if (!changed || !isCurrent()) return false;
+		internalCall(() => pi.setThinkingLevel(model.thinkingLevel));
+		return true;
+	} catch { return false; }
 }
 
 export default function planModeExtension(pi: ExtensionAPI): void {
@@ -66,22 +79,87 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 	let sessionId = "";
 	let sessionFile: string | undefined;
 	let sessionCwd = "";
+	let activeHandoff: { path: string; claimToken: string } | undefined;
 	let handledStoppedAssistantTimestamp: number | undefined;
-	let pendingCurrentPanePacket: { handoffPath: string; saveDefault: boolean } | undefined;
+	let closeoutAttempt: { planId: string; terminalEpoch: number; executionId: string } | undefined;
 	let project: PlanProject | undefined;
 	let completedPlanCount = 0;
 	let closeHistoryWatcher: (() => void) | undefined;
 	let historyRefreshTimer: ReturnType<typeof setTimeout> | undefined;
 	let revision = 0;
-	let transition = Promise.resolve();
+	const lifecycle = new PlanLifecycle();
+	const mutations = new PlanMutationQueue();
+	// Model changes are asynchronous session effects, not state commits. Keep their
+	// ordering independent from the short synchronous mutation queue.
+	let modelEffects: Promise<void> = Promise.resolve();
+	let modelIntent = 0;
+	// Pi's setters dispatch extension events inline. Attribute only calls made by
+	// this effect, never a coincidentally identical provider/model selected in the UI.
+	type ModelOperation = { sessionId: string; sessionManager: ExtensionContext["sessionManager"] };
+	const internalModelCall = new AsyncLocalStorage<ModelOperation>();
+	let activeModelOperation: ModelOperation | undefined;
 	const agentDir = getAgentDir();
-	function serialize<T>(action: () => Promise<T>): Promise<T> {
-		const next = transition.then(action);
-		transition = next.then(() => {}, () => {});
-		return next;
+	type OperationGuard = { revision: number; lifecycle: LifecycleToken };
+	function branchIds(ctx: ExtensionContext): string[] {
+		const ids = ctx.sessionManager.getBranch().map((entry) => (entry as { id?: string }).id).filter((id): id is string => typeof id === "string");
+		const leaf = ctx.sessionManager.getLeafId();
+		return ids.length ? ids : leaf ? [leaf] : [];
 	}
-	function isCurrent(ctx: ExtensionContext, expected: number): boolean {
-		return revision === expected && sessionId === ctx.sessionManager.getSessionId();
+	function leafId(ctx: ExtensionContext): string { return ctx.sessionManager.getLeafId() ?? ""; }
+	function captureGuard(): OperationGuard { return { revision, lifecycle: lifecycle.capture() }; }
+	function isCurrent(ctx: ExtensionContext, expected: number | OperationGuard): boolean {
+		if (typeof expected === "number") return lifecycleGuard(expected, sessionId, revision, ctx.sessionManager.getSessionId());
+		return expected.revision === revision && lifecycle.isCurrent(expected.lifecycle, ctx.sessionManager.getSessionId(), branchIds(ctx));
+	}
+	function serialize<T>(ctx: ExtensionContext, guard: OperationGuard, action: () => T): Promise<T> {
+		return mutations.run(() => {
+			if (!isCurrent(ctx, guard)) throw new Error("Plan operation was superseded by session navigation.");
+			return action();
+		}, "tool");
+	}
+	function isInternalModelEvent(ctx: ExtensionContext): boolean {
+		const operation = internalModelCall.getStore();
+		return operation !== undefined
+			&& operation === activeModelOperation
+			&& operation.sessionManager === ctx.sessionManager
+			&& operation.sessionId === ctx.sessionManager.getSessionId();
+	}
+	function nativeDestinationModel(ctx: ExtensionContext): ModelSnapshot | undefined {
+		const branch = ctx.sessionManager.getBranch();
+		const selected = [...branch].reverse().find((entry) => entry.type === "model_change") as { provider?: unknown; modelId?: unknown } | undefined;
+		const thinking = [...branch].reverse().find((entry) => entry.type === "thinking_level_change") as { thinkingLevel?: unknown } | undefined;
+		const fallback = snapshotModel(ctx);
+		const candidate = typeof selected?.provider === "string" && typeof selected.modelId === "string" && typeof thinking?.thinkingLevel === "string"
+			? { provider: selected.provider, model: selected.modelId, thinkingLevel: thinking.thinkingLevel }
+			: fallback;
+		return isModelSnapshot(candidate) ? candidate : fallback;
+	}
+	function queueSessionModel(ctx: ExtensionContext, model: ModelSnapshot, guard = captureGuard()): Promise<boolean> {
+		const intent = ++modelIntent;
+		const effect = modelEffects.then(async () => {
+			if (intent !== modelIntent || !isCurrent(ctx, guard)) return false;
+			const current = snapshotModel(ctx);
+			if (current?.provider === model.provider && current.model === model.model && current.thinkingLevel === model.thinkingLevel) return true;
+			const operation: ModelOperation = { sessionId: ctx.sessionManager.getSessionId(), sessionManager: ctx.sessionManager };
+			activeModelOperation = operation;
+			try {
+				return await internalModelCall.run(operation, () => setSessionModel(
+					pi,
+					ctx,
+					model,
+					() => intent === modelIntent && isCurrent(ctx, guard),
+					(call) => internalModelCall.run(operation, call),
+				));
+			} finally {
+				if (activeModelOperation === operation) activeModelOperation = undefined;
+			}
+		});
+		modelEffects = effect.then(() => undefined, () => undefined);
+		return effect;
+	}
+	function queueDestinationModel(ctx: ExtensionContext, planModel: ModelSnapshot | undefined, guard = captureGuard()): Promise<boolean> {
+		const destination = planModel ?? nativeDestinationModel(ctx);
+		return destination ? queueSessionModel(ctx, destination, guard) : Promise.resolve(isCurrent(ctx, guard));
 	}
 	function idle(ctx: ExtensionContext): boolean {
 		if (ctx.isIdle()) return true;
@@ -89,6 +167,7 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 		return false;
 	}
 	function owned(ctx: ExtensionContext): boolean {
+		if (state.ownershipAttention) { ctx.ui.notify("Execution ownership needs source-session recovery; this session is inspection-only.", "warning"); return false; }
 		if (state.phase !== "handed-off") return true;
 		ctx.ui.notify("This plan belongs to its handed-off execution session.", "warning");
 		return false;
@@ -124,7 +203,6 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 		// A detached child finishes the same plan in another process. Once its
 		// archive arrives, release this source session for its next sequential plan.
 		if (state.phase === "handed-off" && state.planId && records.some((record) => record.id === state.planId)) {
-			if (state.handoffPath) deleteExecutionPacket(agentDir, state.handoffPath);
 			state = createPlanState();
 			if (sessionId) deletePlanFile(agentDir, sessionId);
 			persist();
@@ -134,9 +212,12 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 	function watchProjectHistory(ctx: ExtensionContext): void {
 		closeHistoryWatcher?.();
 		project = resolvePlanProject(ctx.cwd);
+		const token = lifecycle.capture();
+		const current = () => lifecycle.isCurrent(token, ctx.sessionManager.getSessionId(), branchIds(ctx));
 		const watcher = watchCompletedPlans(agentDir, project, () => {
+			if (!current()) return;
 			if (historyRefreshTimer) clearTimeout(historyRefreshTimer);
-			historyRefreshTimer = setTimeout(() => refreshCompletedHistory(ctx), 50);
+			historyRefreshTimer = setTimeout(() => { if (current()) refreshCompletedHistory(ctx); }, 50);
 		});
 		closeHistoryWatcher = () => watcher.close();
 		refreshCompletedHistory(ctx);
@@ -147,6 +228,9 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 		ctx.ui.setStatus("plan-mode", ctx.ui.theme.fg(tone, status));
 		if (state.phase !== "executing" || !state.steps.length) return ctx.ui.setWidget("plan-todos", undefined);
 		const done = state.steps.filter(isStepDone).length;
+		if (state.closeoutState.kind === "attention" && canClosePlan(state)) {
+			return ctx.ui.setWidget("plan-todos", [ctx.ui.theme.fg("warning", `plan ${done}/${state.steps.length} — closeout needs attention; /plan-review to retry`)]);
+		}
 		if (state.widgetCollapsed) {
 			const next = pendingSteps(state)[0];
 			return ctx.ui.setWidget("plan-todos", [next ? `${ctx.ui.theme.fg("accent", `plan ${done}/${state.steps.length}`)} ${ctx.ui.theme.fg("muted", "—")} ${next.text}` : `${ctx.ui.theme.fg("accent", `plan ${done}/${state.steps.length}`)} ${ctx.ui.theme.fg("muted", "— finalizing closeout")}`]);
@@ -158,29 +242,54 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 		updateUi(ctx);
 	}
 	function enterPlan(ctx: ExtensionContext): void {
-		state = enterRestrictedMode(state, "plan", pi.getActiveTools());
-		if (!state.planningModel) state = { ...state, planningModel: snapshotModel(ctx) };
+		state = transitionPlanLifecycle(state, { type: "enter", mode: "plan", activeTools: pi.getActiveTools(), planningModel: snapshotModel(ctx) });
 		applyRestrictedTools(); persist(); updateUi(ctx);
 	}
 	function enterReadOnly(ctx: ExtensionContext): void {
-		state = enterRestrictedMode(state, "read-only", pi.getActiveTools());
+		state = transitionPlanLifecycle(state, { type: "enter", mode: "read-only", activeTools: pi.getActiveTools() });
 		applyRestrictedTools(); persist(); updateUi(ctx);
 	}
-	async function restorePlanningModel(ctx: ExtensionContext): Promise<void> {
-		if (state.planningModel) await setSessionModel(pi, ctx, state.planningModel);
+	async function restorePlanningModel(ctx: ExtensionContext, guard = captureGuard()): Promise<boolean> {
+		if (state.planningModel && !(await queueSessionModel(ctx, state.planningModel, guard))) return false;
+		return isCurrent(ctx, guard);
 	}
 	function branchPlanState(ctx: ExtensionContext): PlanState | undefined {
 		const entry = [...ctx.sessionManager.getBranch()].reverse().find((item) => item.type === "custom" && item.customType === "plan-mode") as { data?: unknown } | undefined;
-		return migratePlanState(entry?.data);
+		const restored = migratePlanState(entry?.data);
+		if (restored || !entry?.data || typeof entry.data !== "object") return restored;
+		// Never fall through to a checklist sidecar after malformed persisted plan
+		// data; that could drop an ownership fence and make an uncontrolled executor.
+		return { ...createPlanState(), phase: "paused", ownershipAttention: { reason: "malformed-state" } };
 	}
 	function branchInternalPlan(ctx: ExtensionContext): InternalPlan | undefined {
 		return latestInternalPlan(ctx.sessionManager.getBranch().flatMap((entry) => entry.type === "message" && entry.message.role === "toolResult" && entry.message.toolName === PLAN_UPDATE_TOOL ? [entry.message.details] : []));
 	}
-	async function activateRestoredState(ctx: ExtensionContext, restored: PlanState): Promise<void> {
-		const activation = restorePlanLifecycle(state, restored, pi.getActiveTools(), availableTools());
+	function branchExecutionTransfer(ctx: ExtensionContext): CurrentPaneTransfer | undefined {
+		// Transfer is bootstrap-only. Once this replacement branch has persisted a
+		// valid plan state, that newer state owns restoration on reload/navigation.
+		const branch = ctx.sessionManager.getBranch();
+		const index = branch.map((item, i) => item.type === "custom" && item.customType === "plan-mode-new-session-execution" ? i : -1).filter((i) => i >= 0).at(-1);
+		if (index === undefined || branch.slice(index + 1).some((item) => item.type === "custom" && item.customType === "plan-mode")) return undefined;
+		// SAFETY: custom entries are local extension data; validate every field before use.
+		const entry = branch[index] as { data?: unknown } | undefined;
+		const value = entry?.data;
+		if (!value || typeof value !== "object" || !("handoffPath" in value) || !("transferId" in value) || !("planId" in value) || !("saveDefault" in value) || !("source" in value)) return undefined;
+		const transfer = value as CurrentPaneTransfer;
+		return typeof transfer.handoffPath === "string" && typeof transfer.transferId === "string" && typeof transfer.planId === "string" && typeof transfer.saveDefault === "boolean" && !!transfer.source && typeof transfer.source.sessionId === "string" && typeof transfer.source.cwd === "string" && typeof transfer.source.tmuxSession === "string" ? transfer : undefined;
+	}
+	function restoreActiveHandoff(): void {
+		const claim = state.executionClaim;
+		activeHandoff = claim && validateExecutionClaim(agentDir, claim, { planId: state.planId, sourceSessionId: state.executionSource?.sessionId }) ? { path: claim.path, claimToken: claim.token } : undefined;
+		if (claim && !activeHandoff) state = { ...state, phase: "paused", accessMode: "none", ownershipAttention: { reason: "invalid-claim" } };
+	}
+	async function activateRestoredState(ctx: ExtensionContext, restored: PlanState, guard = captureGuard(), restoreNative = false): Promise<boolean> {
+		state = materializePlan(restored);
+		restoreActiveHandoff();
+		const activation = restorePlanLifecycle(state, state, pi.getActiveTools(), availableTools());
 		state = activation.state;
 		setTools(activation.tools);
-		if (activation.model) await setSessionModel(pi, ctx, activation.model);
+		if (!activation.model && !restoreNative) return isCurrent(ctx, guard);
+		return queueDestinationModel(ctx, activation.model, guard);
 	}
 	async function leaveReadOnly(ctx: ExtensionContext): Promise<void> {
 		const transition = leaveRestrictedMode(state);
@@ -190,8 +299,11 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 	}
 	async function pause(ctx: ExtensionContext): Promise<void> {
 		if (!owned(ctx) || (!state.steps.length && state.phase === "idle")) return;
-		state = { ...state, phase: "paused", accessMode: "none", awaitingReview: false, resumeAfterRevision: false };
-		restoreTools(); await restorePlanningModel(ctx); persist(); updateUi(ctx);
+		const guard = captureGuard();
+		state = transitionPlanLifecycle(state, { type: "pause" });
+		restoreTools();
+		if (!(await restorePlanningModel(ctx, guard))) return;
+		persist(); updateUi(ctx);
 	}
 
 	function executionCandidates(ctx: ExtensionContext, current: ModelSnapshot | undefined, saved: ModelSnapshot | undefined): ModelCandidate[] {
@@ -239,6 +351,7 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 				const rows = items();
 				selectedId = retainSelectedExecutionRow(rows.map((row) => row.id), selectedId);
 				const next = new SettingsList(rows, 10, getSettingsListTheme(), change, () => done(undefined));
+				// SAFETY: SettingsList stores selectedIndex internally; retain its valid row index across rebuilds.
 				(next as unknown as { selectedIndex: number }).selectedIndex = Math.max(0, rows.findIndex((row) => row.id === selectedId));
 				list = next;
 				tui.requestRender();
@@ -315,85 +428,110 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 			};
 		});
 	}
-	async function beginExecution(ctx: ExtensionContext, model: ModelSnapshot, source?: { sessionId: string; cwd: string; tmuxSession?: string }): Promise<boolean> {
+	async function beginExecution(ctx: ExtensionContext, model: ModelSnapshot, source?: { sessionId: string; cwd: string; tmuxSession?: string }, guard = captureGuard()): Promise<boolean> {
 		if (!state.steps.length || !isModelSnapshot(model)) return false;
 		const resolved = ctx.modelRegistry.find(model.provider, model.model);
 		if (!resolved) { ctx.ui.notify(`Execution model ${model.provider}/${model.model} is unavailable.`, "warning"); return false; }
 		const planningModel = state.planningModel ?? snapshotModel(ctx);
-		const expected = revision;
-		if (!(await setSessionModel(pi, ctx, model))) { ctx.ui.notify(`Execution model ${model.provider}/${model.model} is unavailable or unauthenticated.`, "warning"); return false; }
-		if (!isCurrent(ctx, expected)) return false;
+		if (!(await queueSessionModel(ctx, model, guard))) { ctx.ui.notify(`Execution model ${model.provider}/${model.model} is unavailable or unauthenticated.`, "warning"); return false; }
+		if (!isCurrent(ctx, guard)) return false;
 		const executionSource = source ?? { sessionId, cwd: ctx.cwd };
-		state = { ...state, planningModel, phase: "executing", accessMode: "none", executionModel: model, executionSource, awaitingReview: false, resumeAfterRevision: false, completionRequested: false };
+		state = transitionPlanLifecycle(state, { type: "execute", model, source: executionSource, executionId: randomUUID(), planningModel });
 		executionTools(); persist(); showPlan(ctx);
+		// No asynchronous seam follows this commit; its own persist advances revision.
 		pi.sendMessage({ customType: "plan-execution-kickoff", content: renderExecutionContext(state, executionSource), display: true }, { triggerTurn: true, deliverAs: "followUp" });
 		return true;
 	}
-	async function replaceWithExecutionSession(ctx: ExtensionCommandContext, request: { handoffPath: string; saveDefault: boolean }): Promise<void> {
+	async function replaceWithExecutionSession(ctx: ExtensionCommandContext, transfer: CurrentPaneTransfer): Promise<"started" | "ready" | "claimed"> {
 		const parentSession = ctx.sessionManager.getSessionFile();
 		const result = await ctx.newSession({
 			parentSession,
-			setup: async (manager) => { manager.appendCustomEntry("plan-mode-new-session-execution", request); },
+			setup: async (manager) => { manager.appendCustomEntry("plan-mode-new-session-execution", transfer); },
 			withSession: async (replacement) => { await replacement.sendUserMessage("/plan-review", { expandPromptTemplates: true }); },
 		});
-		if (result.cancelled) deleteExecutionPacket(agentDir, request.handoffPath);
+		return result.cancelled ? (cancelUnclaimedExecutionPacket(agentDir, transfer.handoffPath) ? "ready" : "claimed") : "started";
 	}
 	async function executeWizard(ctx: ExtensionContext): Promise<void> {
-		const expected = revision;
+		const guard = captureGuard();
 		const tmux = await resolveTmuxTarget();
 		const settings = await executionSettings(ctx, tmux);
-		if (!settings || !isCurrent(ctx, expected)) return;
+		if (!settings || !isCurrent(ctx, guard)) return;
 		const resolution = resolveExecutionSettings(settings, snapshotModel(ctx), loadPlanModeConfig(agentDir).executionModel, executionCandidates(ctx, snapshotModel(ctx), loadPlanModeConfig(agentDir).executionModel));
-		if (!resolution.ok) return ctx.ui.notify(resolution.error, "warning");
+		if (resolution.ok === false) return ctx.ui.notify(resolution.error, "warning");
 		if (resolution.value.destination === "clipboard") { await copyToClipboard(renderPlanMarkdown(state)); ctx.ui.notify("Plan copied to the clipboard.", "info"); return; }
 		const model = resolution.value.model!;
-		if (resolution.value.destination === "current") { if (await beginExecution(ctx, model) && resolution.value.saveDefault) savePlanModeConfig(model, agentDir); return; }
+		if (resolution.value.destination === "current") { if (await beginExecution(ctx, model, undefined, guard) && resolution.value.saveDefault && lifecycle.isCurrent(guard.lifecycle, ctx.sessionManager.getSessionId(), branchIds(ctx))) savePlanModeConfig(model, agentDir); return; }
 		if (!tmux) return;
 		const source = { sessionId, cwd: ctx.cwd, tmuxSession: tmux.session };
 		if (resolution.value.destination === "tmux-current") {
-			pendingCurrentPanePacket = { handoffPath: writeExecutionPacket(agentDir, { version: 2, plan: { ...state, phase: "executing", accessMode: "none" }, source, model }), saveDefault: resolution.value.saveDefault };
+			const executionPlan = materializePlan({ ...state, phase: "executing", accessMode: "none", executionModel: model, executionSource: source });
+			const handoffPath = writeExecutionPacket(agentDir, { version: 2, plan: executionPlan, source, model });
+			// Persist an exact transfer record before queueing the replacement command.
+			const transfer: CurrentPaneTransfer = { handoffPath, transferId: randomUUID(), saveDefault: resolution.value.saveDefault, source, planId: executionPlan.planId! };
+			state = { ...executionPlan, phase: "handed-off", handoffPath, currentPaneTransfer: transfer, accessMode: "none", awaitingReview: false };
+			persist();
 			pi.sendUserMessage("/plan-review", { expandPromptTemplates: true });
 			return;
 		}
-		const packetPath = writeExecutionPacket(agentDir, { version: 2, plan: { ...state, phase: "executing", accessMode: "none" }, source, model });
-		const args = resolution.value.destination === "tmux-pane" ? buildTmuxDetachedPaneArgs(tmux, ctx.cwd, packetPath, model, resolution.value.paneDirection) : buildTmuxNewWindowArgs(tmux, ctx.cwd, packetPath, model);
+		const destination = resolution.value.destination;
+		const executionPlan = materializePlan({ ...state, phase: "executing", accessMode: "none", executionModel: model, executionSource: source });
+		const packetPath = writeExecutionPacket(agentDir, { version: 2, plan: executionPlan, source, model });
+		const intent: DetachedHandoffIntent = {
+			handoffPath: packetPath, transferId: randomUUID(), planId: executionPlan.planId!, source, sourceLeafId: leafId(ctx), destination,
+			launch: { cwd: ctx.cwd, session: tmux.session, window: tmux.window, pane: tmux.pane, paneDirection: destination === "tmux-pane" ? resolution.value.paneDirection : undefined },
+		};
+		// The durable source fence exists before tmux is invoked. Cancellation, timeout,
+		// navigation, reload, and shutdown therefore cannot revive this source as ready.
+		state = { ...executionPlan, phase: "handed-off", handoffPath: packetPath, detachedHandoff: intent, accessMode: "none", awaitingReview: false };
+		persist();
+		const launchGuard = captureGuard();
+		const args = destination === "tmux-pane" ? buildTmuxDetachedPaneArgs(tmux, ctx.cwd, packetPath, model, resolution.value.paneDirection) : buildTmuxNewWindowArgs(tmux, ctx.cwd, packetPath, model);
 		try {
 			const launch = await pi.exec("tmux", args, { timeout: 5_000 });
 			if (launch.code !== 0) throw new Error(launch.stderr.trim() || "tmux failed");
 		} catch (error) {
-			deleteExecutionPacket(agentDir, packetPath);
-			return ctx.ui.notify(`Could not launch tmux handoff: ${error instanceof Error ? error.message : "tmux failed"}`, "warning");
+			return ctx.ui.notify(`Could not launch tmux handoff; source ownership remains fenced: ${error instanceof Error ? error.message : "tmux failed"}`, "warning");
 		}
-		state = { ...state, phase: "handed-off", handoffPath: packetPath, accessMode: "none", awaitingReview: false };
-		persist();
-		const awaitingRevision = revision;
-		let acknowledgement = await waitForExecutionAcknowledgement(agentDir, packetPath);
-		if (!isCurrent(ctx, awaitingRevision) || state.phase !== "handed-off" || state.handoffPath !== packetPath) return;
-		if (acknowledgement === "unclaimed") {
-			if (cancelUnclaimedExecutionPacket(agentDir, packetPath)) {
-				state = { ...state, phase: "ready", handoffPath: undefined, accessMode: "plan" };
-				applyRestrictedTools(); persist(); updateUi(ctx);
-				return ctx.ui.notify("Tmux handoff did not claim the plan; the plan remains ready.", "warning");
-			}
-			acknowledgement = "claimed";
-		}
+		if (!isCurrent(ctx, launchGuard)) return;
+		const acknowledgement = await waitForExecutionAcknowledgement(agentDir, packetPath);
+		if (!isCurrent(ctx, launchGuard) || state.phase !== "handed-off" || state.handoffPath !== packetPath) return;
 		if (resolution.value.saveDefault) savePlanModeConfig(model, agentDir);
-		restoreTools(true); await restorePlanningModel(ctx); persist(); refreshCompletedHistory(ctx);
-		if (acknowledgement === "claimed") ctx.ui.notify("Tmux handoff claimed the plan but did not confirm readiness; execution ownership remains with the new session.", "warning");
+		restoreTools(true);
+		if (!(await restorePlanningModel(ctx, launchGuard))) return;
+		persist(); refreshCompletedHistory(ctx);
+		if (acknowledgement === "ready") ctx.ui.notify("Tmux handoff is ready in the new execution session.", "info");
+		else if (acknowledgement === "claimed") ctx.ui.notify("Tmux handoff claimed the plan but did not confirm readiness; execution ownership remains with the new session.", "warning");
+		else ctx.ui.notify("Tmux handoff is still unclaimed; use /plan-review in this exact source branch to cancel it or retry deliberately.", "warning");
 	}
 	async function requestRevision(ctx: ExtensionContext, request?: string): Promise<void> {
-		const expected = revision;
+		const guard = captureGuard();
 		const draft = request ? { text: request, images: [] } : await promptForRecalibration(ctx, agentDir);
-		if (!draft?.text.trim() || !isCurrent(ctx, expected)) return;
-		state = { ...state, phase: "revising", accessMode: "plan", awaitingReview: false, resumeAfterRevision: true, completionRequested: false };
-		applyRestrictedTools(); await restorePlanningModel(ctx); persist(); updateUi(ctx);
+		if (!draft?.text.trim() || !isCurrent(ctx, guard)) return;
+		state = transitionPlanLifecycle(state, { type: "revise" });
+		applyRestrictedTools();
+		if (!(await restorePlanningModel(ctx, guard))) return;
+		persist(); updateUi(ctx);
+		if (!isCurrent(ctx, guard)) return;
 		pi.sendUserMessage(buildRecalibrationMessage(renderExecutionContext(state, state.executionSource ?? { sessionId, cwd: ctx.cwd }, "recalibration"), draft), { deliverAs: "followUp" });
 	}
-	async function closePlan(ctx: ExtensionContext, closeout: PlanCloseout): Promise<void> {
+	function restoreInterruptedCloseout(): boolean {
+		if (state.phase !== "executing" || (state.closeoutState.kind !== "requested" && state.closeoutState.kind !== "started")) return false;
+		state = transitionPlanLifecycle(state, { type: "closeout", state: { ...state.closeoutState, kind: "attention", reason: "restored" } });
+		return true;
+	}
+	function closePlan(ctx: ExtensionContext, closeout: PlanCloseout): void {
 		const source = state.executionSource ?? { sessionId, cwd: ctx.cwd };
 		// Archive before changing tools or state so an I/O failure leaves this plan
 		// executable and lets plan_complete be retried safely.
-		archiveCompletedPlan(agentDir, completedPlanRecord(state, source.sessionId, resolvePlanProject(source.cwd), closeout));
+		try {
+			archiveCompletedPlan(agentDir, completedPlanRecord(state, source.sessionId, resolvePlanProject(source.cwd), closeout));
+		} catch (error) {
+			state = transitionPlanLifecycle(state, { type: "closeout", state: state.planId ? { kind: "attention", planId: state.planId, terminalEpoch: state.terminalEpoch, executionId: closeoutExecutionIdentity(state), reason: "archive-failed" } : { kind: "idle" } });
+			persist(); updateUi(ctx);
+			throw error;
+		}
+		if (activeHandoff) { deleteExecutionPacket(agentDir, activeHandoff.path, activeHandoff.claimToken); activeHandoff = undefined; }
+		state = { ...state, executionClaim: undefined };
 		pi.sendMessage({ customType: "plan-complete", content: `## Plan complete\n\n**Goal:** ${state.goal}\n\n**Outcome:** ${closeout.outcome}\n\n**End state:** ${closeout.endState}\n\n**Verification:**\n${closeout.verification.map((item) => `- ${item}`).join("\n")}\n\n**Deviations:**\n${(closeout.deviations.length ? closeout.deviations : ["None."]).map((item) => `- ${item}`).join("\n")}\n\n**Next steps:**\n${(closeout.nextSteps.length ? closeout.nextSteps : state.followUps.length ? state.followUps : ["No further work identified."]).map((item) => `- ${item}`).join("\n")}`, display: true }, { triggerTurn: false });
 		restoreTools();
 		// Successful execution remains on its selected model. Pause, recalibration,
@@ -402,39 +540,94 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 		if (sessionId) deletePlanFile(agentDir, sessionId);
 		persist(); refreshCompletedHistory(ctx);
 	}
+	async function editPlanSteps(ctx: ExtensionContext): Promise<void> {
+		const expected = captureGuard();
+		const text = await ctx.ui.editor("Edit top-level plan steps (keep [id] to preserve status):", state.steps.map((step) => `[${step.id}] ${step.text}`).join("\n"));
+		const steps = text ? parsePlanEditEntries(text) : [];
+		if (!steps.length || !isCurrent(ctx, expected)) return;
+		const retained = new Set(steps.flatMap((step) => step.id ? [step.id] : []));
+		const resetTerminal = state.steps.filter((step) => isStepDone(step) && !retained.has(step.id));
+		if (resetTerminal.length && !(await ctx.ui.confirm("Remove completed or skipped steps?", `These terminal steps will be removed/reset:\n${resetTerminal.map((step) => `- ${step.text} (${step.id})`).join("\n")}\n\nContinue?`))) return;
+		if (!isCurrent(ctx, expected)) return;
+		state = applyPlanUpdate(state, { goal: state.goal, steps, criteria: state.criteria, followUps: state.followUps, executionBrief: state.executionBrief });
+		persist(); showPlan(ctx);
+	}
+	function isExactDetachedSource(ctx: ExtensionContext, intent: DetachedHandoffIntent): boolean {
+		return sessionId === intent.source.sessionId && branchIds(ctx).includes(intent.sourceLeafId);
+	}
 	async function reviewPlan(ctx: ExtensionCommandContext): Promise<void> {
-		if (state.phase === "handed-off") { ctx.ui.notify("This plan is owned by its handed-off execution session.", "warning"); return; }
-		if (pendingCurrentPanePacket) {
-			const request = pendingCurrentPanePacket;
-			pendingCurrentPanePacket = undefined;
-			try { await replaceWithExecutionSession(ctx, request); } catch (error) { deleteExecutionPacket(agentDir, request.handoffPath); ctx.ui.notify(`Could not create the execution session: ${error instanceof Error ? error.message : "session replacement failed"}`, "warning"); }
+		if (state.ownershipAttention) {
+			ctx.ui.notify(state.ownershipAttention.reason === "malformed-state" ? "The restored tracked plan is malformed and has been refused; inspect the source session before recovery." : "The child claim is no longer valid; only its source session may recover the handoff.", "warning");
 			return;
 		}
-		const request = [...ctx.sessionManager.getBranch()].reverse().find((entry) => entry.type === "custom" && entry.customType === "plan-mode-new-session-execution") as { data?: { handoffPath?: unknown; saveDefault?: unknown } } | undefined;
-		const handoffPath = typeof request?.data?.handoffPath === "string" ? request.data.handoffPath : undefined;
-		const saveDefault = request?.data?.saveDefault === true;
-		if (handoffPath && !state.steps.length) {
-			const packet = consumeExecutionPacket(agentDir, handoffPath);
-			if (!packet) return ctx.ui.notify("The new-session execution handoff is unavailable.", "warning");
-			state = materializePlan({ ...packet.plan, version: 6, phase: "ready", accessMode: "none", awaitingReview: false, executionSource: packet.source, planningModel: undefined, toolsBeforePlan: pi.getActiveTools().filter((name) => !PLAN_EXECUTION_TOOLS.includes(name)) });
+		// Current-pane transfer is source-owned until the replacement claims its exact packet.
+		const replacementTransfer = branchExecutionTransfer(ctx);
+		if (state.currentPaneTransfer && !replacementTransfer) {
+			const transfer = state.currentPaneTransfer;
+			try {
+				const outcome = await replaceWithExecutionSession(ctx, transfer);
+				if (outcome === "ready" && state.currentPaneTransfer?.transferId === transfer.transferId) {
+					state = { ...state, phase: "ready", accessMode: "plan", handoffPath: undefined, currentPaneTransfer: undefined };
+					persist(); applyRestrictedTools(); updateUi(ctx);
+				} else if (outcome === "claimed") ctx.ui.notify("The replacement may have claimed the plan; ownership remains fenced.", "warning");
+			} catch (error) {
+				if (cancelUnclaimedExecutionPacket(agentDir, transfer.handoffPath) && state.currentPaneTransfer?.transferId === transfer.transferId) {
+					state = { ...state, phase: "ready", accessMode: "plan", handoffPath: undefined, currentPaneTransfer: undefined };
+					persist(); applyRestrictedTools(); updateUi(ctx);
+				}
+				ctx.ui.notify(`Could not create the execution session: ${error instanceof Error ? error.message : "session replacement failed"}`, "warning");
+			}
+			return;
+		}
+		if (state.detachedHandoff) {
+			const intent = state.detachedHandoff;
+			if (!isExactDetachedSource(ctx, intent)) { ctx.ui.notify("This detached handoff can only be controlled from its original source branch.", "warning"); return; }
+			const owner = executionOwner(agentDir, intent.handoffPath);
+			if (owner === "unknown") {
+				const confirmed = await ctx.ui.confirm("Cancel unclaimed tmux handoff?", "This explicitly fences the packet and returns this source plan to ready state. You can then review and launch again.");
+				if (!confirmed || !isExactDetachedSource(ctx, intent) || state.detachedHandoff?.transferId !== intent.transferId) return;
+				if (!cancelUnclaimedExecutionPacket(agentDir, intent.handoffPath)) return ctx.ui.notify("The handoff changed; ownership remains fenced.", "warning");
+				state = { ...state, phase: "ready", accessMode: "plan", handoffPath: undefined, detachedHandoff: undefined };
+				applyRestrictedTools(); persist(); updateUi(ctx);
+				return;
+			}
+			ctx.ui.notify(owner === "dead" ? "The detached execution is dead; use /plan-recover from this source branch." : "This plan is owned by its handed-off execution session.", "warning");
+			return;
+		}
+		if (state.phase === "handed-off") { ctx.ui.notify("This plan is owned by its handed-off execution session.", "warning"); return; }
+		if (activeHandoff && state.executionClaim && state.phase === "ready") {
+			const model = state.executionModel;
+			if (!model) return ctx.ui.notify("The claimed execution has no model; inspect it before recovery.", "warning");
+			const started = await beginExecution(ctx, model, state.executionSource);
+			if (started && !acknowledgeExecutionPacket(agentDir, activeHandoff.path, activeHandoff.claimToken)) ctx.ui.notify("Execution started, but handoff readiness could not be recorded.", "warning");
+			return;
+		}
+		if (replacementTransfer) {
+			const candidate = replacementTransfer;
+			const packet = consumeExecutionPacket(agentDir, candidate.handoffPath);
+			if (!packet || packet.plan.planId !== candidate.planId || packet.source.sessionId !== candidate.source.sessionId || packet.source.cwd !== candidate.source.cwd || packet.source.tmuxSession !== candidate.source.tmuxSession) return ctx.ui.notify("The new-session execution handoff is unavailable.", "warning");
+			state = materializePlan({ ...packet.plan, version: 7, phase: "ready", accessMode: "none", awaitingReview: false, executionSource: packet.source, planningModel: undefined, toolsBeforePlan: pi.getActiveTools().filter((name) => !PLAN_EXECUTION_TOOLS.includes(name)), executionClaim: { path: candidate.handoffPath, token: packet.claimToken } });
+			activeHandoff = { path: candidate.handoffPath, claimToken: packet.claimToken };
+			persist();
 			const started = await beginExecution(ctx, packet.model, packet.source);
-			if (started && !acknowledgeExecutionPacket(agentDir, handoffPath)) ctx.ui.notify("Execution started, but handoff readiness could not be recorded.", "warning");
-			if (started && saveDefault) savePlanModeConfig(packet.model, agentDir);
-			deleteExecutionPacket(agentDir, handoffPath);
+			if (started && !acknowledgeExecutionPacket(agentDir, candidate.handoffPath, packet.claimToken)) ctx.ui.notify("Execution started, but handoff readiness could not be recorded.", "warning");
+			if (started && candidate.saveDefault) savePlanModeConfig(packet.model, agentDir);
+			if (!started) ctx.ui.notify("The execution session owns the handoff but could not set its model; use /plan-review to recover it.", "warning");
 			return;
 		}
 		if (!state.steps.length) { enterPlan(ctx); return; }
-		const expected = revision;
+		if (state.phase === "executing" && canClosePlan(state) && state.closeoutState.kind === "attention" && closeoutMatches(state)) {
+			state = transitionPlanLifecycle(state, { type: "closeout", state: { kind: "requested", planId: state.planId!, terminalEpoch: state.terminalEpoch, executionId: closeoutExecutionIdentity(state) } });
+			persist();
+			pi.sendMessage({ customType: "plan-closeout-retry", content: "Retry closeout now: call plan_complete with the final outcome, end state, verification, deviations, and next steps.", display: true }, { triggerTurn: true, deliverAs: "followUp" });
+			return;
+		}
+		const expected = captureGuard();
 		const choice = await ctx.ui.select("Current plan",  ["Execute", "Recalibrate from current state", "Edit steps manually", "Pause plan", "Discard plan"]);
 		if (!isCurrent(ctx, expected)) return;
 		if (choice === "Execute") await executeWizard(ctx);
 		else if (choice === "Recalibrate from current state") await requestRevision(ctx);
-		else if (choice === "Edit steps manually") {
-			const editRevision = revision;
-			const text = await ctx.ui.editor("Edit top-level plan steps:", state.steps.map((step) => `${step.step}. ${step.text}`).join("\n"));
-			const steps = text ? parsePlanEditText(text) : [];
-			if (steps.length && isCurrent(ctx, editRevision)) { state = applyPlanUpdate(state, { goal: state.goal, steps, criteria: state.criteria, followUps: state.followUps, executionBrief: state.executionBrief }); persist(); showPlan(ctx); }
-		} else if (choice === "Pause plan") await pause(ctx);
+		else if (choice === "Edit steps manually") await editPlanSteps(ctx); else if (choice === "Pause plan") await pause(ctx);
 		else if (choice === "Discard plan") { restoreTools(); state = createPlanState(); if (sessionId) deletePlanFile(agentDir, sessionId); persist(); updateUi(ctx); }
 	}
 	async function showTodos(ctx: ExtensionContext): Promise<void> {
@@ -447,7 +640,7 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 	}
 
 	// The subagent runner requests the current access policy at dispatch time.
-	pi.events.on("plan-mode:access-policy", (receive: (mode: PlanState["accessMode"]) => void) => receive(state.accessMode));
+	pi.events.on("plan-mode:access-policy", (receive: unknown) => { if (typeof receive === "function") receive(state.accessMode); });
 	pi.registerFlag("plan", { description: "Start in structured read-only plan mode", type: "boolean", default: false });
 	function samePausedPlan(ctx: ExtensionContext, planId: string | undefined): boolean {
 		return state.phase === "paused" && state.planId === planId && sessionId === ctx.sessionManager.getSessionId();
@@ -469,96 +662,174 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 	pi.registerCommand("mode", { description: "Cycle none, plan, and read-only access modes", handler: async (_args, ctx) => changeMode(ctx, "cycle") });
 	pi.registerCommand("plan-review", { description: "Execute, recalibrate, pause, or discard the active plan", handler: async (_args, ctx) => { if (idle(ctx)) await reviewPlan(ctx); } });
 	pi.registerCommand("plan-recover", { description: "Inspect and explicitly reclaim a dead detached execution", handler: async (_args, ctx) => {
-		if (!idle(ctx) || state.phase !== "handed-off" || !state.handoffPath) return ctx.ui.notify("No recoverable detached handoff is recorded.", "warning");
+		if (!idle(ctx)) return;
+		if (state.detachedHandoff && !isExactDetachedSource(ctx, state.detachedHandoff)) return ctx.ui.notify("Detached recovery is allowed only from its original source branch.", "warning");
+		const persistedRecovery = state.phase === "paused" ? state.recovery : undefined;
+		const handoffPath = state.phase === "handed-off" ? state.handoffPath : persistedRecovery?.handoffPath;
+		const planId = state.planId;
+		const sourceSessionId = state.executionSource?.sessionId;
+		if (!handoffPath || !planId || !sourceSessionId || (persistedRecovery && (persistedRecovery.planId !== planId || persistedRecovery.sourceSessionId !== sourceSessionId))) return ctx.ui.notify("No recoverable detached handoff is recorded.", "warning");
 		refreshCompletedHistory(ctx);
-		if (state.phase !== "handed-off" || !state.handoffPath) return;
-		const handoffPath = state.handoffPath;
+		if (state.phase === "paused" && persistedRecovery && recoveredExecutionPacketFinished(agentDir, handoffPath, persistedRecovery.token, planId, sourceSessionId)) {
+			const expected = captureGuard();
+			if (!(await ctx.ui.confirm("Reconcile finished recovery?", "The recovery cleanup completed before this session saved its final state. Keep the paused plan; this does not restart execution.")) || !isCurrent(ctx, expected) || state.recovery?.token !== persistedRecovery.token) return;
+			state = { ...state, handoffPath: undefined, currentPaneTransfer: undefined, detachedHandoff: undefined, recovery: undefined };
+			persist(); updateUi(ctx); return;
+		}
 		const owner = executionOwner(agentDir, handoffPath);
 		if (owner !== "dead") return ctx.ui.notify(`Execution owner is ${owner}; ownership cannot be reclaimed.`, "warning");
-		const expected = revision;
+		const expected = captureGuard();
 		const confirmed = await ctx.ui.confirm("Reclaim dead execution?", "The execution process is gone, but it may have changed files before stopping. Inspect its work before restarting; recovery does not undo changes.");
-		if (!confirmed || !isCurrent(ctx, expected) || state.phase !== "handed-off" || state.handoffPath !== handoffPath) return;
-		if (!reclaimDeadExecutionPacket(agentDir, handoffPath)) return ctx.ui.notify("The handoff changed or could not be reclaimed.", "warning");
-		state = { ...state, phase: "paused", accessMode: "none", toolsBeforePlan: undefined };
+		if (!confirmed || !isCurrent(ctx, expected) || !state.planId || state.planId !== planId || state.executionSource?.sessionId !== sourceSessionId || !((state.phase === "handed-off" && state.handoffPath === handoffPath) || (state.phase === "paused" && state.recovery?.handoffPath === handoffPath))) return;
+		const recoveryToken = reclaimDeadExecutionPacket(agentDir, handoffPath);
+		if (!recoveryToken) return ctx.ui.notify("The handoff changed or could not be reclaimed.", "warning");
+		state = { ...state, phase: "paused", accessMode: "none", toolsBeforePlan: undefined, recovery: { handoffPath, token: recoveryToken, planId, sourceSessionId } };
 		persist();
-		finishRecoveredExecutionPacket(agentDir, handoffPath);
-		state = { ...state, handoffPath: undefined };
+		if (!finishRecoveredExecutionPacket(agentDir, handoffPath, recoveryToken)) return ctx.ui.notify("Recovery ownership changed before cleanup; retry /plan-recover.", "warning");
+		state = { ...state, handoffPath: undefined, currentPaneTransfer: undefined, detachedHandoff: undefined, recovery: undefined };
 		persist(); updateUi(ctx);
 	} });
 	pi.registerCommand("plan-edit", { description: "Edit top-level steps in the active plan", handler: async (_args, ctx) => {
 		if (!idle(ctx) || !owned(ctx)) return;
 		if (!state.steps.length) return ctx.ui.notify("No active plan.", "info");
-		const expected = revision;
-		const text = await ctx.ui.editor("Edit top-level plan steps:", state.steps.map((step) => `${step.step}. ${step.text}`).join("\n"));
-		const steps = text ? parsePlanEditText(text) : [];
-		if (steps.length && isCurrent(ctx, expected)) { state = applyPlanUpdate(state, { goal: state.goal, steps, criteria: state.criteria, followUps: state.followUps, executionBrief: state.executionBrief }); persist(); showPlan(ctx); }
+		await editPlanSteps(ctx);
 	} });
-	pi.registerCommand("plan-widget", { description: "Toggle collapsed plan progress", handler: async (_args, ctx) => { state = { ...state, widgetCollapsed: !state.widgetCollapsed }; persist(); updateUi(ctx); } });
+	pi.registerCommand("plan-widget", { description: "Toggle collapsed plan progress", handler: async (_args, ctx) => { if (!owned(ctx)) return; state = { ...state, widgetCollapsed: !state.widgetCollapsed }; persist(); updateUi(ctx); } });
 	pi.registerCommand("todos", { description: "View or correct plan progress", handler: async (_args, ctx) => { if (idle(ctx) && owned(ctx)) await showTodos(ctx); } });
 	pi.registerCommand("pause", { description: "Pause plan execution", handler: async (_args, ctx) => { if (idle(ctx)) await pause(ctx); } });
 	pi.registerShortcut(Key.ctrl("p"), { description: "Cycle none → plan → read-only → none", handler: async (ctx) => changeMode(ctx, "cycle") });
 	pi.registerShortcut(Key.ctrlAlt("p"), { description: "Toggle collapsed plan progress", handler: async (ctx) => { state = { ...state, widgetCollapsed: !state.widgetCollapsed }; persist(); updateUi(ctx); } });
 	pi.registerShortcut(Key.ctrlAlt("t"), { description: "Toggle collapsed plan progress", handler: async (ctx) => { state = { ...state, widgetCollapsed: !state.widgetCollapsed }; persist(); updateUi(ctx); } });
 
-	pi.registerTool({ name: PLAN_UPDATE_TOOL, label: "Plan Update", description: "Create or revise an internal agent plan or the explicit tracked execution plan.", promptSnippet: "Create or revise an internal or tracked structured plan", promptGuidelines: ["Call plan_update after planning and when scope or blockers change pending work. Use scope=internal for agent-only coordination; omit scope only in explicit plan mode or tracked execution when the tracked plan should change."], parameters: PlanUpdateParams, async execute(_id, params, _signal, _update, ctx) { return serialize(async () => {
-		const { scope: requestedScope, ...payload } = params;
-		const scope = resolvePlanUpdateScope(requestedScope, state.accessMode, state.phase);
-		if (scope === "internal") {
-			const action = internalPlan ? "replaced" : "created";
-			internalPlan = createInternalPlan(payload);
-			return { content: [{ type: "text", text: `Internal plan ${action} with ${internalPlan.steps.length} step(s).` }], details: { scope: "internal" as const, internalPlan } };
-		}
-		if (!canUpdateTrackedPlan(state.accessMode, state.phase)) throw new Error("Tracked plan updates require explicit plan mode or active tracked execution.");
-		state = materializePlan(applyPlanUpdate(state, payload));
-		if (state.phase === "revising" && state.resumeAfterRevision) { const model = state.executionModel ?? loadPlanModeConfig(agentDir).executionModel ?? snapshotModel(ctx); persist(); if (!model || !(await beginExecution(ctx, model))) throw new Error("No valid execution model is available."); }
-		else { persist(); updateUi(ctx); }
-		return { content: [{ type: "text", text: `Tracked plan updated with ${state.steps.length} step(s).\n${planContext()}` }], details: { scope: "tracked" as const, state: clonePlanState(state) } };
-	}); } });
-	pi.registerTool({ name: PLAN_STEP_TOOL, label: "Plan Step", description: "Track an approved plan step during execution.", promptSnippet: "Mark an executing plan step complete or skipped", promptGuidelines: ["Call plan_step immediately after each executed or skipped step."], parameters: PlanStepParams, async execute(_id, params, _signal, _update, ctx) { return serialize(async () => { if (state.phase !== "executing") throw new Error("plan_step is available only while executing."); if (params.action === "list") return { content: [{ type: "text", text: formatSteps(state.steps) }], details: { state: clonePlanState(state) } }; if (params.step === undefined) throw new Error("plan_step requires a valid step."); state = updatePlanStep(state, params.step, params.action); const step = state.steps.find((item) => item.step === params.step)!; persist(); updateUi(ctx); return { content: [{ type: "text", text: `Step ${step.step} marked ${params.action}: ${step.text}` }], details: { state: clonePlanState(state) } }; }); } });
-	pi.registerTool({ name: PLAN_COMPLETE_TOOL, label: "Plan Complete", description: "Record the final plan outcome.", promptSnippet: "Record the final plan outcome and next steps", promptGuidelines: ["Call plan_complete after every plan step is terminal."], parameters: PlanCompleteParams, async execute(_id, params, _signal, _update, ctx) { return serialize(async () => { if (!canClosePlan(state)) throw new Error("plan_complete requires every plan step to be terminal."); const closeout: PlanCloseout = { goal: state.goal, ...params, deviations: params.deviations ?? [], nextSteps: params.nextSteps ?? [] }; await closePlan(ctx, closeout); return { content: [{ type: "text", text: "Plan closeout recorded." }], details: { closeout } }; }); } });
+	pi.registerTool({ name: PLAN_UPDATE_TOOL, label: "Plan Update", description: "Create or revise an internal agent plan or the explicit tracked execution plan.", promptSnippet: "Create or revise an internal or tracked structured plan", promptGuidelines: ["Call plan_update after planning and when scope or blockers change pending work. Use scope=internal for agent-only coordination; omit scope only in explicit plan mode or tracked execution when the tracked plan should change."], parameters: PlanUpdateParams, async execute(_id, params, _signal, _update, ctx) {
+		const guard = captureGuard();
+		const result = await serialize(ctx, guard, () => {
+			const { scope: requestedScope, ...payload } = params;
+			const scope = resolvePlanUpdateScope(requestedScope, state.accessMode, state.phase);
+			if (scope === "internal") {
+				if (payload.steps.some((step) => typeof step !== "string")) throw new Error("Internal plans accept only string steps; step IDs are tracked-plan-only.");
+				const action = internalPlan ? "replaced" : "created";
+				internalPlan = createInternalPlan({ ...payload, steps: payload.steps as string[] });
+				return { response: { content: [{ type: "text" as const, text: `Internal plan ${action} with ${internalPlan.steps.length} step(s).` }], details: { scope: "internal" as const, internalPlan } } };
+			}
+			if (!canUpdateTrackedPlan(state.accessMode, state.phase)) throw new Error("Tracked plan updates require explicit plan mode or active tracked execution.");
+			state = materializePlan(applyPlanUpdate(state, payload as { goal: string; steps: TrackedPlanStepInput[]; criteria?: string[]; followUps?: string[]; executionBrief: PlanState["executionBrief"] }));
+			const resumeModel = state.phase === "revising" && state.resumeAfterRevision ? state.executionModel ?? loadPlanModeConfig(agentDir).executionModel ?? snapshotModel(ctx) : undefined;
+			persist(); updateUi(ctx);
+			return { resumeModel, resumeGuard: captureGuard(), response: { content: [{ type: "text" as const, text: `Tracked plan updated with ${state.steps.length} step(s).\n${planContext()}` }], details: { scope: "tracked" as const, state: clonePlanState(state) } } };
+		});
+		if (result.resumeModel && !(await beginExecution(ctx, result.resumeModel, undefined, result.resumeGuard))) throw new Error("No valid execution model is available.");
+		return result.response;
+	} });
+	pi.registerTool({ name: PLAN_STEP_TOOL, label: "Plan Step", description: "Track an approved plan step during execution.", promptSnippet: "Mark an executing plan step complete or skipped", promptGuidelines: ["Call plan_step immediately after each executed or skipped step."], parameters: PlanStepParams, async execute(_id, params, _signal, _update, ctx) { const guard = captureGuard(); return serialize(ctx, guard, () => { if (state.phase !== "executing") throw new Error("plan_step is available only while executing."); if (params.action === "list") return { content: [{ type: "text", text: formatSteps(state.steps) }], details: { state: clonePlanState(state) } }; if (params.step === undefined) throw new Error("plan_step requires a valid step."); state = updatePlanStep(state, params.step, params.action); const step = state.steps.find((item) => item.step === params.step)!; persist(); updateUi(ctx); return { content: [{ type: "text", text: `Step ${step.step} marked ${params.action}: ${step.text}` }], details: { state: clonePlanState(state) } }; }); } });
+	pi.registerTool({ name: PLAN_COMPLETE_TOOL, label: "Plan Complete", description: "Record the final plan outcome.", promptSnippet: "Record the final plan outcome and next steps", promptGuidelines: ["Call plan_complete after every plan step is terminal."], parameters: PlanCompleteParams, async execute(_id, params, _signal, _update, ctx) { const guard = captureGuard(); return serialize(ctx, guard, () => { if (!canClosePlan(state)) throw new Error("plan_complete requires every plan step to be terminal."); const closeout: PlanCloseout = { goal: state.goal, ...params, deviations: params.deviations ?? [], nextSteps: params.nextSteps ?? [] }; closePlan(ctx, closeout); return { content: [{ type: "text", text: "Plan closeout recorded." }], details: { closeout } }; }); } });
 
+	function queueLatestModelSnapshot(ctx: ExtensionContext): void {
+		const desired = snapshotModel(ctx);
+		if (desired && isModelSnapshot(desired)) void queueSessionModel(ctx, desired);
+		else modelIntent++;
+	}
+	pi.on("model_select", async (event, ctx) => {
+		const selected = (event as { model?: { provider?: unknown; id?: unknown } }).model;
+		if (!selected || typeof selected.provider !== "string" || typeof selected.id !== "string") return;
+		if (isInternalModelEvent(ctx)) return;
+		// A manual selection is the newest destination. Capture it even when it chose
+		// the same model that an authenticated internal mutation is still targeting.
+		const desired = snapshotModel(ctx);
+		if (desired?.provider === selected.provider && desired.model === selected.id) queueLatestModelSnapshot(ctx);
+		else modelIntent++;
+	});
+	pi.on("thinking_level_select", async (event, ctx) => {
+		if (isInternalModelEvent(ctx)) return;
+		const selected = (event as { thinkingLevel?: unknown; level?: unknown }).thinkingLevel ?? (event as { level?: unknown }).level;
+		const current = snapshotModel(ctx);
+		if (typeof selected !== "string" || !current) return;
+		const selectedModel = { ...current, thinkingLevel: selected as ThinkingLevel };
+		if (!isModelSnapshot(selectedModel)) return;
+		void queueSessionModel(ctx, selectedModel);
+	});
 	pi.on("tool_call", async (event) => { const reason = checkRestrictedToolCall(state.accessMode, event.toolName, event.input); return reason ? { block: true, reason } : undefined; });
 	pi.on("context", async (event) => ({ messages: event.messages.filter((message) => { const type = (message as { customType?: string }).customType; if (!type || !CONTEXT_TYPES.has(type)) return true; return (type === "plan-mode-context" && state.accessMode === "plan") || (type === "read-only-mode-context" && state.accessMode === "read-only"); }) }));
-	pi.on("before_agent_start", async (event) => { const guidance = restrictionGuidance(state.accessMode); if (guidance) return { systemPrompt: `${event.systemPrompt}\n\n${guidance}` }; if (state.phase === "executing") return { systemPrompt: `${event.systemPrompt}\n\n${executionGuidance()}` }; });
+	pi.on("before_agent_start", async (event) => {
+		if (state.phase === "executing" && canClosePlan(state) && closeoutMatches(state) && state.closeoutState.kind === "requested") {
+			closeoutAttempt = { planId: state.planId!, terminalEpoch: state.terminalEpoch, executionId: closeoutExecutionIdentity(state) };
+			state = transitionPlanLifecycle(state, { type: "closeout", state: { ...closeoutAttempt, kind: "started" } });
+			persist();
+		}
+		const guidance = restrictionGuidance(state.accessMode);
+		if (guidance) return { systemPrompt: `${event.systemPrompt}\n\n${guidance}` };
+		if (state.phase === "executing") return { systemPrompt: `${event.systemPrompt}\n\n${executionGuidance()}` };
+	});
+	pi.on("agent_before_settle", async (event) => {
+		if (state.phase !== "executing" || !canClosePlan(state) || !closeoutMatches(state) || state.closeoutState.kind !== "requested") return;
+		// A requested closeout may be continued exactly once. Any non-continuable
+		// boundary becomes visible recovery work instead of silently remaining pending.
+		if (event.outcome !== "completed" || event.continue || !event.context.canContinue || event.context.pendingMessages.length) {
+			state = transitionPlanLifecycle(state, { type: "closeout", state: { kind: "attention", planId: state.planId!, terminalEpoch: state.terminalEpoch, executionId: closeoutExecutionIdentity(state), reason: "missing-complete" } });
+			persist();
+			return;
+		}
+		state = transitionPlanLifecycle(state, { type: "closeout", state: { kind: "started", planId: state.planId!, terminalEpoch: state.terminalEpoch, executionId: closeoutExecutionIdentity(state) } });
+		persist();
+		return { continue: true, entries: [{ type: "custom_message", customType: "plan-closeout-request", content: "All plan steps are terminal. Call plan_complete now with the final outcome, end state, verification, deviations, and next steps.", display: true }] };
+	});
 	pi.on("agent_settled", async (_event, ctx) => {
-		if (state.phase === "ready" && state.awaitingReview && state.accessMode === "plan") { state = { ...state, awaitingReview: false }; persist(); showPlan(ctx); const expected = revision; const choice = await ctx.ui.select("Plan ready", ["Execute", "Recalibrate plan", "Stay in plan mode"]); if (!isCurrent(ctx, expected)) return; if (choice === "Execute") await executeWizard(ctx); else if (choice === "Recalibrate plan") await requestRevision(ctx); return; }
+		if (state.phase === "ready" && state.awaitingReview && state.accessMode === "plan") { state = { ...state, awaitingReview: false }; persist(); showPlan(ctx); const expected = captureGuard(); const choice = await ctx.ui.select("Plan ready", ["Execute", "Recalibrate plan", "Stay in plan mode"]); if (!isCurrent(ctx, expected)) return; if (choice === "Execute") await executeWizard(ctx); else if (choice === "Recalibrate plan") await requestRevision(ctx); return; }
 		if (state.phase !== "executing") return;
+		if (canClosePlan(state) && closeoutMatches(state) && (state.closeoutState.kind === "started" || (state.closeoutState.kind === "requested" && closeoutAttempt?.planId === state.planId && closeoutAttempt?.terminalEpoch === state.terminalEpoch && closeoutAttempt?.executionId === closeoutExecutionIdentity(state)))) {
+			state = transitionPlanLifecycle(state, { type: "closeout", state: { kind: "attention", planId: state.planId!, terminalEpoch: state.terminalEpoch, executionId: closeoutExecutionIdentity(state), reason: "missing-complete" } });
+			closeoutAttempt = undefined;
+			persist(); updateUi(ctx);
+			ctx.ui.notify("Plan closeout still needs attention. Use /plan-review to retry.", "warning");
+			return;
+		}
 		const last = [...ctx.sessionManager.getBranch()].reverse().find((entry) => entry.type === "message" && isAssistantMessage(entry.message as AgentMessage)) as { message: AssistantMessage } | undefined;
 		if (!last) return;
-		if (!canClosePlan(state) && last.message.timestamp !== handledStoppedAssistantTimestamp) { handledStoppedAssistantTimestamp = last.message.timestamp; const expected = revision; const current = pendingSteps(state)[0]; const choice = await ctx.ui.select(`${last.message.stopReason === "aborted" ? "Execution interrupted" : "Execution stopped before all plan steps were terminal"}${current ? `\n\nCurrent step ${current.step}: ${current.text}` : ""}`, ["Resume current step", "Recalibrate plan", "Adjust statuses", "Pause plan"]); if (!isCurrent(ctx, expected)) return; if (choice === "Resume current step") pi.sendMessage({ customType: "plan-resume", content: renderExecutionContext(state, state.executionSource ?? { sessionId, cwd: ctx.cwd }, "resume"), display: true }, { triggerTurn: true, deliverAs: "followUp" }); else if (choice === "Recalibrate plan") await requestRevision(ctx); else if (choice === "Adjust statuses") await showTodos(ctx); else if (choice === "Pause plan") await pause(ctx); return; }
-		if (canClosePlan(state) && !state.completionRequested) { state = { ...state, completionRequested: true }; persist(); pi.sendMessage({ customType: "plan-closeout-request", content: "All plan steps are terminal. Call plan_complete now.", display: true }, { triggerTurn: true, deliverAs: "followUp" }); }
+		if (!canClosePlan(state) && last.message.timestamp !== handledStoppedAssistantTimestamp) { handledStoppedAssistantTimestamp = last.message.timestamp; const expected = captureGuard(); const current = pendingSteps(state)[0]; const choice = await ctx.ui.select(`${last.message.stopReason === "aborted" ? "Execution interrupted" : "Execution stopped before all plan steps were terminal"}${current ? `\n\nCurrent step ${current.step}: ${current.text}` : ""}`, ["Resume current step", "Recalibrate plan", "Adjust statuses", "Pause plan"]); if (!isCurrent(ctx, expected)) return; if (choice === "Resume current step") pi.sendMessage({ customType: "plan-resume", content: renderExecutionContext(state, state.executionSource ?? { sessionId, cwd: ctx.cwd }, "resume"), display: true }, { triggerTurn: true, deliverAs: "followUp" }); else if (choice === "Recalibrate plan") await requestRevision(ctx); else if (choice === "Adjust statuses") await showTodos(ctx); else if (choice === "Pause plan") await pause(ctx); return; }
 	});
 	pi.on("session_start", async (_event, ctx) => {
+		// Session replacement invalidates every dialog, model change, and watcher callback.
+		revision++;
 		sessionId = ctx.sessionManager.getSessionId();
+		lifecycle.startSession(sessionId, leafId(ctx));
 		sessionFile = ctx.sessionManager.getSessionFile();
 		sessionCwd = ctx.cwd;
 		internalPlan = branchInternalPlan(ctx);
 		watchProjectHistory(ctx);
 		const packet = process.env.PI_PLAN_HANDOFF ? consumeExecutionPacket(agentDir, process.env.PI_PLAN_HANDOFF) : undefined;
-		if (packet) { state = { ...packet.plan, version: 6, phase: "executing", accessMode: "none", executionSource: packet.source, planningModel: snapshotModel(ctx), toolsBeforePlan: pi.getActiveTools().filter((name) => !PLAN_EXECUTION_TOOLS.includes(name)) }; state = materializePlan(state); executionTools(); persist(); updateUi(ctx); if (!acknowledgeExecutionPacket(agentDir, process.env.PI_PLAN_HANDOFF!)) ctx.ui.notify("Execution claimed the handoff but could not record readiness.", "warning"); pi.sendMessage({ customType: "plan-execution-kickoff", content: renderExecutionContext(state, packet.source), display: true }, { triggerTurn: true, deliverAs: "followUp" }); return; }
-		let restored = branchPlanState(ctx);
+		if (packet) { state = { ...packet.plan, version: 7, phase: "executing", accessMode: "none", currentPaneTransfer: undefined, executionSource: packet.source, planningModel: snapshotModel(ctx), executionModel: packet.model, executionId: randomUUID(), toolsBeforePlan: pi.getActiveTools().filter((name) => !PLAN_EXECUTION_TOOLS.includes(name)), executionClaim: { path: process.env.PI_PLAN_HANDOFF!, token: packet.claimToken } }; state = materializePlan(state); activeHandoff = { path: process.env.PI_PLAN_HANDOFF!, claimToken: packet.claimToken }; executionTools(); persist(); updateUi(ctx); if (!acknowledgeExecutionPacket(agentDir, process.env.PI_PLAN_HANDOFF!, packet.claimToken)) ctx.ui.notify("Execution claimed the handoff but could not record readiness.", "warning"); pi.sendMessage({ customType: "plan-execution-kickoff", content: renderExecutionContext(state, packet.source), display: true }, { triggerTurn: true, deliverAs: "followUp" }); return; }
+		let restored = branchExecutionTransfer(ctx) ? createPlanState() : branchPlanState(ctx);
 		if (!restored) { const legacy = readPlanFile(agentDir, sessionId); if (legacy.length) restored = { ...createPlanState(), phase: "paused", steps: legacy }; }
 		const priorPlanId = restored?.planId;
-		await activateRestoredState(ctx, restored ?? createPlanState());
-		if (state.phase === "paused" && state.handoffPath) {
-			finishRecoveredExecutionPacket(agentDir, state.handoffPath);
-			state = { ...state, handoffPath: undefined };
-			persist();
-		}
-		if (state.planId && !priorPlanId) persist();
+		const guard = captureGuard();
+		if (!(await activateRestoredState(ctx, restored ?? createPlanState(), guard))) return;
+		// A continuation cannot survive a process reload: it may already have been
+		// delivered, so surface one explicit /plan-review recovery action instead.
+		const restoredCloseout = restoreInterruptedCloseout();
+		// Recovery cleanup is deliberately never tokenless on startup. A resumed
+		// process must explicitly reclaim a verified-dead recovery owner first.
+		if ((state.planId && !priorPlanId) || restoredCloseout) persist();
 		if (pi.getFlag("plan") === true && state.accessMode === "none" && state.phase !== "handed-off") enterPlan(ctx);
 		refreshCompletedHistory(ctx);
 		syncLivePlan();
 		updateUi(ctx);
 	});
 	pi.on("session_tree", async (_event, ctx) => {
+		// Appending to this branch retains the captured leaf. Ancestor/sibling navigation
+		// advances the lifecycle generation before any awaited restoration can commit.
+		const changedBranch = lifecycle.observeBranch(ctx.sessionManager.getSessionId(), leafId(ctx), branchIds(ctx));
+		if (changedBranch) revision++;
 		internalPlan = branchInternalPlan(ctx);
-		await activateRestoredState(ctx, branchPlanState(ctx) ?? createPlanState());
+		const guard = captureGuard();
+		if (!(await activateRestoredState(ctx, branchExecutionTransfer(ctx) ? createPlanState() : branchPlanState(ctx) ?? createPlanState(), guard, true))) return;
+		if (restoreInterruptedCloseout()) persist();
 		refreshCompletedHistory(ctx);
 		syncLivePlan();
 		updateUi(ctx);
 	});
 	pi.on("session_shutdown", async (_event, ctx) => {
+		lifecycle.invalidate();
+		revision++;
 		removeLivePlan(process.pid, sessionId);
 		if (historyRefreshTimer) clearTimeout(historyRefreshTimer);
 		closeHistoryWatcher?.();

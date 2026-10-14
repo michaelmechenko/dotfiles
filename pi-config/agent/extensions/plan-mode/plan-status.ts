@@ -2,6 +2,7 @@ import { isStepDone, type PlanState } from "./plan-state.ts";
 
 /** Plain status text consumed by the themed footer status publisher. */
 export function planFooterStatus(state: PlanState, completedPlanCount: number): string {
+	if (state.ownershipAttention) return "1 plan · ownership needs recovery";
 	if (state.phase === "executing" && state.steps.length) return `plan ${state.steps.filter(isStepDone).length}/${state.steps.length}`;
 	if (state.phase === "handed-off") return "1 plan · executing in handoff";
 	if (state.steps.length) {

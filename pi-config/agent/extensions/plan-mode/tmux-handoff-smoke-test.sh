@@ -2,7 +2,7 @@
 set -eu
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-tmp=$(mktemp -d "${TMPDIR%/}/plan-mode-tmux.XXXXXX")
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/plan-mode-tmux.XXXXXX")
 socket="plan-mode-smoke-$$"
 cleanup() {
 	tmux -L "$socket" kill-server 2>/dev/null || true
@@ -19,7 +19,7 @@ cat > "$tmp/bin/pi" <<'EOF'
 #!/bin/sh
 set -eu
 printf '%s\n' "$PWD|$PI_PLAN_PROVIDER|$PI_PLAN_MODEL|$PI_PLAN_THINKING" >> "$PLAN_MODE_RESULT"
-if node --experimental-strip-types --no-warnings --input-type=module -e "import { acknowledgeExecutionPacket, consumeExecutionPacket } from '$PLAN_MODE_ROOT/execution-handoff.ts'; const packet = consumeExecutionPacket(process.env.PLAN_MODE_AGENT_DIR, process.env.PI_PLAN_HANDOFF); if (!packet || packet.source.tmuxSession !== 'source' || !acknowledgeExecutionPacket(process.env.PLAN_MODE_AGENT_DIR, process.env.PI_PLAN_HANDOFF)) process.exit(1);" >> "$PLAN_MODE_RESULT.consume" 2>&1; then
+if node --experimental-strip-types --no-warnings --input-type=module -e "import { acknowledgeExecutionPacket, consumeExecutionPacket } from '$PLAN_MODE_ROOT/execution-handoff.ts'; const packet = consumeExecutionPacket(process.env.PLAN_MODE_AGENT_DIR, process.env.PI_PLAN_HANDOFF); if (!packet || packet.source.tmuxSession !== 'source' || !acknowledgeExecutionPacket(process.env.PLAN_MODE_AGENT_DIR, process.env.PI_PLAN_HANDOFF, packet.claimToken)) process.exit(1);" >> "$PLAN_MODE_RESULT.consume" 2>&1; then
 	printf '0\n' >> "$PLAN_MODE_RESULT.status"
 else
 	printf '1\n' >> "$PLAN_MODE_RESULT.status"
@@ -71,6 +71,6 @@ right_left=$(tmux -L "$socket" display-message -p -t "$right" '#{pane_left}')
 source_left=$(tmux -L "$socket" display-message -p -t "$pane" '#{pane_left}')
 [ "$right_left" -gt "$source_left" ]
 [ ! -s "$result.consume" ]
-node --experimental-strip-types --no-warnings --input-type=module -e "import { readFileSync } from 'node:fs'; import { deleteExecutionPacket, waitForExecutionAcknowledgement } from '$root/execution-handoff.ts'; for (const path of readFileSync('$tmp/handoffs', 'utf8').trim().split('\\n')) { if (await waitForExecutionAcknowledgement(process.env.PLAN_MODE_AGENT_DIR, path, 100) !== 'ready') process.exit(1); deleteExecutionPacket(process.env.PLAN_MODE_AGENT_DIR, path); }"
-[ "$(find "$agent_dir/plan-handoffs" -type f | wc -l)" -eq 0 ]
+node --experimental-strip-types --no-warnings --input-type=module -e "import { readFileSync } from 'node:fs'; import { waitForExecutionAcknowledgement } from '$root/execution-handoff.ts'; for (const path of readFileSync('$tmp/handoffs', 'utf8').trim().split('\\n')) if (await waitForExecutionAcknowledgement(process.env.PLAN_MODE_AGENT_DIR, path, 100) !== 'ready') process.exit(1);"
+# The packet owner alone holds cleanup tokens; trap cleanup removes this isolated fixture.
 printf '%s\n' 'tmux pane/window handoff smoke test passed'

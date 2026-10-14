@@ -57,12 +57,16 @@ export function extractTodoItems(message: string): TodoItem[] {
  * Parse the plain-text plan a user typed into the `/plan-edit` editor
  * (`N. step text` per line, numbering optional/ignored) back into step texts.
  */
-export function parsePlanEditText(text: string): string[] {
-	return text
-		.split("\n")
-		.map((line) => line.replace(/^\s*\d+[.)]\s*/, "").trim())
-		.filter((line) => line.length > 0);
+export function parsePlanEditEntries(text: string): Array<{ id?: string; text: string }> {
+	return text.split("\n").map((line) => {
+		const trimmed = line.trim();
+		const tagged = trimmed.match(/^\[([A-Za-z0-9_-]+)\]\s+(.+)$/);
+		return tagged ? { id: tagged[1], text: tagged[2]!.trim() } : { text: trimmed.replace(/^\s*\d+[.)]\s*/, "").trim() };
+	}).filter((entry) => entry.text.length > 0);
 }
+
+/** Legacy text-only editor parser retained for callers outside tracked plan mode. */
+export function parsePlanEditText(text: string): string[] { return parsePlanEditEntries(text).map((entry) => entry.text); }
 
 /**
  * Rebuild the todo list from edited step texts, preserving completed/skipped

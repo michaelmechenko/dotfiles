@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { restorePlanLifecycle } from "./lifecycle.ts";
+import { PlanLifecycle, PlanMutationQueue, lifecycleGuard, restorePlanLifecycle, transitionPlanLifecycle } from "./lifecycle.ts";
 import { createPlanState } from "./plan-state.ts";
 
 const available = ["read", "bash", "write", "plan_update", "plan_step", "plan_complete"];
@@ -38,3 +38,8 @@ test("normal and read-only restoration retain internal planning without executio
 	const restricted = restorePlanLifecycle(createPlanState(), readOnly, available, available);
 	assert.deepEqual(restricted.tools, ["read", "plan_update"]);
 });
+test("mutation queue serializes short commits and gives queued user work priority", async () => { const queue = new PlanMutationQueue(); const order: string[] = []; await Promise.all([queue.run(() => order.push("first tool"), "tool"), queue.run(() => order.push("second tool"), "tool"), queue.run(() => order.push("user"))]); assert.deepEqual(order, ["user", "first tool", "second tool"]); assert.equal(lifecycleGuard(1, "a", 1, "a"), true); assert.equal(lifecycleGuard(1, "a", 2, "a"), false); assert.equal(lifecycleGuard(1, "a", 1, "b"), false); });
+
+test("navigation fences stale effects while ordinary branch appends remain current", () => { const lifecycle = new PlanLifecycle(); lifecycle.startSession("a", "root"); const beforeAppend = lifecycle.capture(); assert.equal(lifecycle.observeBranch("a", "child", ["root", "child"]), false); assert.equal(lifecycle.isCurrent(beforeAppend, "a", ["root", "child"]), true); const beforeNavigation = lifecycle.capture(); assert.equal(lifecycle.observeBranch("a", "sibling", ["root", "sibling"]), true); assert.equal(lifecycle.isCurrent(beforeNavigation, "a", ["root", "sibling"]), false); });
+
+test("execution transition creates a fresh execution identity", () => { const state = transitionPlanLifecycle({ ...createPlanState(), steps: [{ id: "one", step: 1, text: "Do it", completed: false, skipped: false }] }, { type: "execute", model: executionModel, source: { sessionId: "session", cwd: "/tmp" }, executionId: "attempt-2", planningModel }); assert.equal(state.executionId, "attempt-2"); assert.equal(state.phase, "executing"); });

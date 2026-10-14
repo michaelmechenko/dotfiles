@@ -22,8 +22,8 @@ cursor-style-blink = false
 # window-theme = auto
 # window-vsync = false
 
-window-padding-x = 12
-window-padding-y = 10, 0
+window-padding-x = 10
+window-padding-y = 10, 2
 
 # Match tmux window-style bg so padding wraps the inactive pane field seamlessly.
 # background/foreground and the ANSI 12/14 remaps now live in the generated active
@@ -62,12 +62,18 @@ font-size = 14
 # font-family = "ComicShanns Nerd Font"
 # font-family = "0xProto"
 
-# papermono config
-font-family = "Paper Mono"
+# comicmono config
+font-family = "Comic Mono"
 font-variation = wght=380
-adjust-cell-height = 4%
-adjust-underline-position = -1
-alpha-blending = linear-corrected
+adjust-cell-height = 6%
+adjust-cell-width = 4%
+
+# papermono config
+# font-family = "Paper Mono"
+# font-variation = wght=380
+# adjust-cell-height = 4%
+# adjust-underline-position = -1
+# alpha-blending = linear-corrected
 
 # lilex-specific config
 # font-family = "Lilex"

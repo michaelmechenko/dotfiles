@@ -8,12 +8,13 @@ import { Type } from "typebox";
 import { inspectSavedExecutionModel, isModelSnapshot, loadPlanModeConfig, savePlanModeConfig, type SavedExecutionModelState } from "./config.ts";
 import { acknowledgeExecutionPacket, buildTmuxDetachedPaneArgs, buildTmuxNewWindowArgs, cancelUnclaimedExecutionPacket, consumeExecutionPacket, deleteExecutionPacket, executionOwner, finishRecoveredExecutionPacket, reclaimDeadExecutionPacket, recoveredExecutionPacketFinished, renderPlanMarkdown, validateExecutionClaim, waitForExecutionAcknowledgement, type TmuxTarget, writeExecutionPacket } from "./execution-handoff.ts";
 import { executionGuidance, renderExecutionContext } from "./execution-context.ts";
+import { decideExecutionContinuation, resetExecutionContinuation } from "./execution-continuation.ts";
 import { candidateFor, createExecutionSettings, cycleExecutionSettingValue, defaultExecutionDestination, resolveExecutionSettings, retainSelectedExecutionRow, type ExecutionDestination, type ExecutionSettings, type ModelCandidate } from "./execution-settings.ts";
 import { canUpdateTrackedPlan, createInternalPlan, latestInternalPlan, resolvePlanUpdateScope, type InternalPlan } from "./internal-plan.ts";
 import { deletePlanFile, readPlanFile, writePlanFile } from "./plan-file.ts";
 import { publishLivePlan, removeLivePlan } from "./live-plan.ts";
 import { PlanLifecycle, PlanMutationQueue, lifecycleGuard, restorePlanLifecycle, transitionPlanLifecycle, type LifecycleToken } from "./lifecycle.ts";
-import { applyPlanUpdate, canClosePlan, closeoutExecutionIdentity, closeoutMatches, clonePlanState, createPlanState, isStepDone, leaveRestrictedMode, materializePlan, migratePlanState, pendingSteps, updatePlanStep, type CurrentPaneTransfer, type DetachedHandoffIntent, type ModelSnapshot, type PlanCloseout, type PlanState, type ThinkingLevel, type TrackedPlanStepInput } from "./plan-state.ts";
+import { applyPlanUpdate, canClosePlan, closeoutExecutionIdentity, closeoutMatches, clonePlanState, createPlanState, isExecutionWait, isStepDone, leaveRestrictedMode, materializePlan, migratePlanState, pendingSteps, updatePlanStep, type CurrentPaneTransfer, type DetachedHandoffIntent, type ExecutionWait, type ModelSnapshot, type PlanCloseout, type PlanState, type ThinkingLevel, type TrackedPlanStepInput } from "./plan-state.ts";
 import { archiveCompletedPlan, completedPlanRecord, listCompletedPlansForSession, resolvePlanProject, watchCompletedPlans, type PlanProject } from "./plan-history.ts";
 import { planFooterStatus } from "./plan-status.ts";
 import { checkRestrictedToolCall, PLAN_EXECUTION_TOOLS, PLAN_UPDATE_TOOL, restrictedTools, restrictionGuidance } from "./restricted-mode.ts";
@@ -35,6 +36,7 @@ const PlanUpdateParams = Type.Object({
 	goal: Type.String({ minLength: 1 }), steps: Type.Array(Type.Union([Type.String({ minLength: 1 }), Type.Object({ id: Type.Optional(Type.String({ minLength: 1 })), text: Type.String({ minLength: 1 }) })]), { minItems: 1 }),
 	criteria: Type.Optional(Type.Array(Type.String({ minLength: 1 }))), followUps: Type.Optional(Type.Array(Type.String({ minLength: 1 }))),
 	executionBrief: Type.Object({ summary: Type.String({ minLength: 1 }), findings: Type.Array(Type.String({ minLength: 1 })), decisions: Type.Array(Type.String({ minLength: 1 })), relevantFiles: Type.Array(Type.Object({ path: Type.String({ minLength: 1 }), note: Type.String({ minLength: 1 }) })), constraints: Type.Array(Type.String({ minLength: 1 })) }),
+	executionWait: Type.Optional(Type.Union([Type.Null(), Type.Object({ kind: StringEnum(["input", "permission", "external", "budget"] as const), reason: Type.String({ minLength: 1 }) })])),
 });
 const PlanCompleteParams = Type.Object({
 	outcome: Type.String({ minLength: 1 }),
@@ -52,6 +54,11 @@ function formatSteps(steps: TodoItem[]): string {
 }
 function isAssistantMessage(message: AgentMessage): message is AssistantMessage {
 	return message.role === "assistant" && Array.isArray(message.content);
+}
+
+/** Boundary outcome reports this turn's completion; an assistant stop reason still vetoes recovery. */
+function assistantCompleted(message: AssistantMessage | undefined): boolean {
+	return !message || (message.stopReason !== "aborted" && message.stopReason !== "error" && message.stopReason !== "pending" && message.stopReason !== "deferred");
 }
 
 type InternalModelCall = <T>(call: () => T) => T;
@@ -106,6 +113,25 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 		return ids.length ? ids : leaf ? [leaf] : [];
 	}
 	function leafId(ctx: ExtensionContext): string { return ctx.sessionManager.getLeafId() ?? ""; }
+	function latestAssistant(ctx: ExtensionContext): AssistantMessage | undefined {
+		const entry = [...ctx.sessionManager.getBranch()].reverse().find((item) => item.type === "message" && isAssistantMessage(item.message as AgentMessage)) as { message: AssistantMessage } | undefined;
+		return entry?.message;
+	}
+	function pendingWorkCheckpoint(ctx: ExtensionContext): string {
+		// Step identity changes only on real milestone/pending-work changes, not
+		// on prose, repeated plan updates or reload. Initial execution is one
+		// stable checkpoint too; a second no-progress stop must wait.
+		const prefix = `${state.executionId ?? state.planId}/${pendingSteps(state)[0]?.id}`;
+		for (const entry of [...ctx.sessionManager.getBranch()].reverse()) {
+			if (entry.type !== "message") continue;
+			const message = entry.message as { role?: unknown; toolName?: unknown; toolCallId?: unknown };
+			if (message.role !== "toolResult" || typeof message.toolName !== "string" || message.toolName === PLAN_UPDATE_TOOL || PLAN_EXECUTION_TOOLS.includes(message.toolName)) continue;
+			const entryId = (entry as { id?: unknown }).id;
+			const id = typeof message.toolCallId === "string" && message.toolCallId.length ? message.toolCallId : typeof entryId === "string" ? entryId : undefined;
+			if (id) return `${prefix}/${message.toolName}:${id}`;
+		}
+		return `${prefix}/initial`;
+	}
 	function captureGuard(): OperationGuard { return { revision, lifecycle: lifecycle.capture() }; }
 	function isCurrent(ctx: ExtensionContext, expected: number | OperationGuard): boolean {
 		if (typeof expected === "number") return lifecycleGuard(expected, sessionId, revision, ctx.sessionManager.getSessionId());
@@ -228,6 +254,9 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 		ctx.ui.setStatus("plan-mode", ctx.ui.theme.fg(tone, status));
 		if (state.phase !== "executing" || !state.steps.length) return ctx.ui.setWidget("plan-todos", undefined);
 		const done = state.steps.filter(isStepDone).length;
+		if (state.continuation.waitFor && !canClosePlan(state)) {
+			return ctx.ui.setWidget("plan-todos", [ctx.ui.theme.fg("warning", `plan ${done}/${state.steps.length} — waiting: ${state.continuation.waitFor.reason}`)]);
+		}
 		if (state.closeoutState.kind === "attention" && canClosePlan(state)) {
 			return ctx.ui.setWidget("plan-todos", [ctx.ui.theme.fg("warning", `plan ${done}/${state.steps.length} — closeout needs attention; /plan-review to retry`)]);
 		}
@@ -428,7 +457,7 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 			};
 		});
 	}
-	async function beginExecution(ctx: ExtensionContext, model: ModelSnapshot, source?: { sessionId: string; cwd: string; tmuxSession?: string }, guard = captureGuard()): Promise<boolean> {
+	async function beginExecution(ctx: ExtensionContext, model: ModelSnapshot, source?: { sessionId: string; cwd: string; tmuxSession?: string }, guard = captureGuard(), resetContinuation = true): Promise<boolean> {
 		if (!state.steps.length || !isModelSnapshot(model)) return false;
 		const resolved = ctx.modelRegistry.find(model.provider, model.model);
 		if (!resolved) { ctx.ui.notify(`Execution model ${model.provider}/${model.model} is unavailable.`, "warning"); return false; }
@@ -436,7 +465,7 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 		if (!(await queueSessionModel(ctx, model, guard))) { ctx.ui.notify(`Execution model ${model.provider}/${model.model} is unavailable or unauthenticated.`, "warning"); return false; }
 		if (!isCurrent(ctx, guard)) return false;
 		const executionSource = source ?? { sessionId, cwd: ctx.cwd };
-		state = transitionPlanLifecycle(state, { type: "execute", model, source: executionSource, executionId: randomUUID(), planningModel });
+		state = transitionPlanLifecycle(state, { type: "execute", model, source: executionSource, executionId: randomUUID(), planningModel, resetContinuation });
 		executionTools(); persist(); showPlan(ctx);
 		// No asynchronous seam follows this commit; its own persist advances revision.
 		pi.sendMessage({ customType: "plan-execution-kickoff", content: renderExecutionContext(state, executionSource), display: true }, { triggerTurn: true, deliverAs: "followUp" });
@@ -520,6 +549,7 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 		return true;
 	}
 	function closePlan(ctx: ExtensionContext, closeout: PlanCloseout): void {
+		if (state.continuation.waitFor) throw new Error("Clear the legitimate executionWait with a tracked update before plan_complete.");
 		const source = state.executionSource ?? { sessionId, cwd: ctx.cwd };
 		// Archive before changing tools or state so an I/O failure leaves this plan
 		// executable and lets plan_complete be retried safely.
@@ -616,6 +646,10 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 			return;
 		}
 		if (!state.steps.length) { enterPlan(ctx); return; }
+		if (state.phase === "executing" && canClosePlan(state) && state.continuation.waitFor) {
+			ctx.ui.notify("Clear the legitimate executionWait with a tracked update before retrying closeout.", "warning");
+			return;
+		}
 		if (state.phase === "executing" && canClosePlan(state) && state.closeoutState.kind === "attention" && closeoutMatches(state)) {
 			state = transitionPlanLifecycle(state, { type: "closeout", state: { kind: "requested", planId: state.planId!, terminalEpoch: state.terminalEpoch, executionId: closeoutExecutionIdentity(state) } });
 			persist();
@@ -701,12 +735,14 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 	pi.registerShortcut(Key.ctrlAlt("p"), { description: "Toggle collapsed plan progress", handler: async (ctx) => { state = { ...state, widgetCollapsed: !state.widgetCollapsed }; persist(); updateUi(ctx); } });
 	pi.registerShortcut(Key.ctrlAlt("t"), { description: "Toggle collapsed plan progress", handler: async (ctx) => { state = { ...state, widgetCollapsed: !state.widgetCollapsed }; persist(); updateUi(ctx); } });
 
-	pi.registerTool({ name: PLAN_UPDATE_TOOL, label: "Plan Update", description: "Create or revise an internal agent plan or the explicit tracked execution plan.", promptSnippet: "Create or revise an internal or tracked structured plan", promptGuidelines: ["Call plan_update after planning and when scope or blockers change pending work. Use scope=internal for agent-only coordination; omit scope only in explicit plan mode or tracked execution when the tracked plan should change."], parameters: PlanUpdateParams, async execute(_id, params, _signal, _update, ctx) {
+	pi.registerTool({ name: PLAN_UPDATE_TOOL, label: "Plan Update", description: "Create or revise an internal agent plan or the explicit tracked execution plan.", promptSnippet: "Create or revise an internal or tracked structured plan", promptGuidelines: ["Call plan_update after planning and when scope or blockers change pending work. Use tracked executionWait with a reason when waiting for input, a permission decision, an external dependency, or continuation budget; internal updates cannot change it. Use scope=internal for agent-only coordination; omit scope only in explicit plan mode or tracked execution when the tracked plan should change."], parameters: PlanUpdateParams, async execute(_id, params, _signal, _update, ctx) {
 		const guard = captureGuard();
 		const result = await serialize(ctx, guard, () => {
-			const { scope: requestedScope, ...payload } = params;
+			const { scope: requestedScope, executionWait, ...payload } = params as typeof params & { executionWait?: ExecutionWait | null };
 			const scope = resolvePlanUpdateScope(requestedScope, state.accessMode, state.phase);
+			if (executionWait !== undefined && executionWait !== null && !isExecutionWait(executionWait)) throw new Error("executionWait requires a supported kind and nonblank reason.");
 			if (scope === "internal") {
+				if (executionWait !== undefined) throw new Error("executionWait is available only on tracked plan updates.");
 				if (payload.steps.some((step) => typeof step !== "string")) throw new Error("Internal plans accept only string steps; step IDs are tracked-plan-only.");
 				const action = internalPlan ? "replaced" : "created";
 				internalPlan = createInternalPlan({ ...payload, steps: payload.steps as string[] });
@@ -714,11 +750,12 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 			}
 			if (!canUpdateTrackedPlan(state.accessMode, state.phase)) throw new Error("Tracked plan updates require explicit plan mode or active tracked execution.");
 			state = materializePlan(applyPlanUpdate(state, payload as { goal: string; steps: TrackedPlanStepInput[]; criteria?: string[]; followUps?: string[]; executionBrief: PlanState["executionBrief"] }));
+			if (executionWait !== undefined) state = { ...state, continuation: executionWait === null ? { ...state.continuation, waitFor: undefined } : { ...state.continuation, waitFor: { ...executionWait } } };
 			const resumeModel = state.phase === "revising" && state.resumeAfterRevision ? state.executionModel ?? loadPlanModeConfig(agentDir).executionModel ?? snapshotModel(ctx) : undefined;
 			persist(); updateUi(ctx);
 			return { resumeModel, resumeGuard: captureGuard(), response: { content: [{ type: "text" as const, text: `Tracked plan updated with ${state.steps.length} step(s).\n${planContext()}` }], details: { scope: "tracked" as const, state: clonePlanState(state) } } };
 		});
-		if (result.resumeModel && !(await beginExecution(ctx, result.resumeModel, undefined, result.resumeGuard))) throw new Error("No valid execution model is available.");
+		if (result.resumeModel && !(await beginExecution(ctx, result.resumeModel, undefined, result.resumeGuard, false))) throw new Error("No valid execution model is available.");
 		return result.response;
 	} });
 	pi.registerTool({ name: PLAN_STEP_TOOL, label: "Plan Step", description: "Track an approved plan step during execution.", promptSnippet: "Mark an executing plan step complete or skipped", promptGuidelines: ["Call plan_step immediately after each executed or skipped step."], parameters: PlanStepParams, async execute(_id, params, _signal, _update, ctx) { const guard = captureGuard(); return serialize(ctx, guard, () => { if (state.phase !== "executing") throw new Error("plan_step is available only while executing."); if (params.action === "list") return { content: [{ type: "text", text: formatSteps(state.steps) }], details: { state: clonePlanState(state) } }; if (params.step === undefined) throw new Error("plan_step requires a valid step."); state = updatePlanStep(state, params.step, params.action); const step = state.steps.find((item) => item.step === params.step)!; persist(); updateUi(ctx); return { content: [{ type: "text", text: `Step ${step.step} marked ${params.action}: ${step.text}` }], details: { state: clonePlanState(state) } }; }); } });
@@ -751,7 +788,7 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 	pi.on("tool_call", async (event) => { const reason = checkRestrictedToolCall(state.accessMode, event.toolName, event.input); return reason ? { block: true, reason } : undefined; });
 	pi.on("context", async (event) => ({ messages: event.messages.filter((message) => { const type = (message as { customType?: string }).customType; if (!type || !CONTEXT_TYPES.has(type)) return true; return (type === "plan-mode-context" && state.accessMode === "plan") || (type === "read-only-mode-context" && state.accessMode === "read-only"); }) }));
 	pi.on("before_agent_start", async (event) => {
-		if (state.phase === "executing" && canClosePlan(state) && closeoutMatches(state) && state.closeoutState.kind === "requested") {
+		if (state.phase === "executing" && !state.continuation.waitFor && canClosePlan(state) && closeoutMatches(state) && state.closeoutState.kind === "requested") {
 			closeoutAttempt = { planId: state.planId!, terminalEpoch: state.terminalEpoch, executionId: closeoutExecutionIdentity(state) };
 			state = transitionPlanLifecycle(state, { type: "closeout", state: { ...closeoutAttempt, kind: "started" } });
 			persist();
@@ -760,18 +797,34 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 		if (guidance) return { systemPrompt: `${event.systemPrompt}\n\n${guidance}` };
 		if (state.phase === "executing") return { systemPrompt: `${event.systemPrompt}\n\n${executionGuidance()}` };
 	});
-	pi.on("agent_before_settle", async (event) => {
-		if (state.phase !== "executing" || !canClosePlan(state) || !closeoutMatches(state) || state.closeoutState.kind !== "requested") return;
-		// A requested closeout may be continued exactly once. Any non-continuable
-		// boundary becomes visible recovery work instead of silently remaining pending.
-		if (event.outcome !== "completed" || event.continue || !event.context.canContinue || event.context.pendingMessages.length) {
-			state = transitionPlanLifecycle(state, { type: "closeout", state: { kind: "attention", planId: state.planId!, terminalEpoch: state.terminalEpoch, executionId: closeoutExecutionIdentity(state), reason: "missing-complete" } });
+	pi.on("agent_before_settle", async (event, ctx) => {
+		const completed = event.outcome === "completed" && assistantCompleted(latestAssistant(ctx));
+		if (state.phase !== "executing" || state.continuation.waitFor) return;
+		if (canClosePlan(state) && closeoutMatches(state) && state.closeoutState.kind === "requested") {
+			// Closeout has its own epoch-bound attempt. Never spend or reset pending-work
+			// rescue allowance here.
+			if (!completed || event.continue || !event.context.canContinue || event.context.pendingMessages.length) {
+				state = transitionPlanLifecycle(state, { type: "closeout", state: { kind: "attention", planId: state.planId!, terminalEpoch: state.terminalEpoch, executionId: closeoutExecutionIdentity(state), reason: "missing-complete" } });
+				persist();
+				return;
+			}
+			state = transitionPlanLifecycle(state, { type: "closeout", state: { kind: "started", planId: state.planId!, terminalEpoch: state.terminalEpoch, executionId: closeoutExecutionIdentity(state) } });
 			persist();
-			return;
+			return { continue: true, entries: [{ type: "custom_message", customType: "plan-closeout-request", content: "All plan steps are terminal. Call plan_complete now with the final outcome, end state, verification, deviations, and next steps.", display: true }] };
 		}
-		state = transitionPlanLifecycle(state, { type: "closeout", state: { kind: "started", planId: state.planId!, terminalEpoch: state.terminalEpoch, executionId: closeoutExecutionIdentity(state) } });
-		persist();
-		return { continue: true, entries: [{ type: "custom_message", customType: "plan-closeout-request", content: "All plan steps are terminal. Call plan_complete now with the final outcome, end state, verification, deviations, and next steps.", display: true }] };
+		const decision = decideExecutionContinuation(state.continuation, {
+			checkpoint: pendingWorkCheckpoint(ctx),
+			canContinue: event.context.canContinue,
+			pendingMessages: event.context.pendingMessages.length > 0,
+			alreadyContinuing: event.continue,
+			completed,
+			eligible: state.accessMode === "none" && !state.ownershipAttention && !state.detachedHandoff && !state.currentPaneTransfer && !canClosePlan(state),
+		});
+		if (decision.kind === "none") return;
+		state = { ...state, continuation: decision.continuation };
+		persist(); updateUi(ctx);
+		if (decision.kind === "wait") return;
+		return { continue: true, entries: [{ type: "custom_message", customType: "plan-pending-work-rescue", content: "Pending tracked work remains after an execution checkpoint. Continue the current approved plan; call plan_step after progress, retain ordinary-tool failure evidence, use plan_update with executionWait when waiting for input, permission, an external dependency, or budget, or call plan_complete only after every step is terminal.", display: true }] };
 	});
 	pi.on("agent_settled", async (_event, ctx) => {
 		if (state.phase === "ready" && state.awaitingReview && state.accessMode === "plan") { state = { ...state, awaitingReview: false }; persist(); showPlan(ctx); const expected = captureGuard(); const choice = await ctx.ui.select("Plan ready", ["Execute", "Recalibrate plan", "Stay in plan mode"]); if (!isCurrent(ctx, expected)) return; if (choice === "Execute") await executeWizard(ctx); else if (choice === "Recalibrate plan") await requestRevision(ctx); return; }
@@ -783,9 +836,9 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 			ctx.ui.notify("Plan closeout still needs attention. Use /plan-review to retry.", "warning");
 			return;
 		}
-		const last = [...ctx.sessionManager.getBranch()].reverse().find((entry) => entry.type === "message" && isAssistantMessage(entry.message as AgentMessage)) as { message: AssistantMessage } | undefined;
-		if (!last) return;
-		if (!canClosePlan(state) && last.message.timestamp !== handledStoppedAssistantTimestamp) { handledStoppedAssistantTimestamp = last.message.timestamp; const expected = captureGuard(); const current = pendingSteps(state)[0]; const choice = await ctx.ui.select(`${last.message.stopReason === "aborted" ? "Execution interrupted" : "Execution stopped before all plan steps were terminal"}${current ? `\n\nCurrent step ${current.step}: ${current.text}` : ""}`, ["Resume current step", "Recalibrate plan", "Adjust statuses", "Pause plan"]); if (!isCurrent(ctx, expected)) return; if (choice === "Resume current step") pi.sendMessage({ customType: "plan-resume", content: renderExecutionContext(state, state.executionSource ?? { sessionId, cwd: ctx.cwd }, "resume"), display: true }, { triggerTurn: true, deliverAs: "followUp" }); else if (choice === "Recalibrate plan") await requestRevision(ctx); else if (choice === "Adjust statuses") await showTodos(ctx); else if (choice === "Pause plan") await pause(ctx); return; }
+		const last = latestAssistant(ctx);
+		if (!last || state.continuation.waitFor) return;
+		if (!canClosePlan(state) && last.timestamp !== handledStoppedAssistantTimestamp) { handledStoppedAssistantTimestamp = last.timestamp; const expected = captureGuard(); const current = pendingSteps(state)[0]; const choice = await ctx.ui.select(`${last.stopReason === "aborted" ? "Execution interrupted" : "Execution stopped before all plan steps were terminal"}${current ? `\n\nCurrent step ${current.step}: ${current.text}` : ""}`, ["Resume current step", "Recalibrate plan", "Adjust statuses", "Pause plan"]); if (!isCurrent(ctx, expected)) return; if (choice === "Resume current step") { state = { ...state, continuation: resetExecutionContinuation() }; persist(); updateUi(ctx); pi.sendMessage({ customType: "plan-resume", content: renderExecutionContext(state, state.executionSource ?? { sessionId, cwd: ctx.cwd }, "resume"), display: true }, { triggerTurn: true, deliverAs: "followUp" }); } else if (choice === "Recalibrate plan") await requestRevision(ctx); else if (choice === "Adjust statuses") await showTodos(ctx); else if (choice === "Pause plan") await pause(ctx); return; }
 	});
 	pi.on("session_start", async (_event, ctx) => {
 		// Session replacement invalidates every dialog, model change, and watcher callback.
@@ -803,8 +856,8 @@ export default function planModeExtension(pi: ExtensionAPI): void {
 		const priorPlanId = restored?.planId;
 		const guard = captureGuard();
 		if (!(await activateRestoredState(ctx, restored ?? createPlanState(), guard))) return;
-		// A continuation cannot survive a process reload: it may already have been
-		// delivered, so surface one explicit /plan-review recovery action instead.
+		// A terminal closeout continuation cannot survive a process reload: it may
+		// already have been delivered. Pending-work rescue state stays durable.
 		const restoredCloseout = restoreInterruptedCloseout();
 		// Recovery cleanup is deliberately never tokenless on startup. A resumed
 		// process must explicitly reclaim a verified-dead recovery owner first.

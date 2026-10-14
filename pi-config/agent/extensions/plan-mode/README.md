@@ -26,6 +26,8 @@ Bash remains available in both restricted modes. Plan mode is not a shell sandbo
 
 Internal plans remain ordinary session tool-result data; “internal” means outside the tracked workflow, not absent from the transcript. They have no promotion action, execution engine, history archive, or separate UI. `plan_step` and `plan_complete` remain tracked-execution-only. A user-disabled `plan_update` remains disabled.
 
+During tracked execution, `plan_update` also accepts `executionWait: { kind: "input" | "permission" | "external" | "budget", reason }` or `executionWait: null`. A structured wait is durable, shown in the footer/widget and canonical execution context, and prevents automatic pending-work recovery and routine Resume dialogs after reload or branch navigation until a tracked update clears it. Internal updates cannot set or clear it; `/plan-review` remains an explicit manual control. The executor receives at most 32 automatic rescues for distinct ordinary-tool checkpoints in one approved execution; duplicate/no-progress checkpoints and exhaustion become visible attention. An explicit Resume or explicitly approved execution can reset that allowance; automatic resume after recalibration cannot.
+
 ## Workflow and history
 
 1. `/plan` enters structured tracked planning. The agent investigates, asks focused questions when needed, then calls `plan_update` with a goal, top-level steps, verification criteria, follow-up work, and a required execution brief.
@@ -39,7 +41,7 @@ Project identity is the canonical Git common directory (so worktrees share histo
 
 ## Recalibration and interruption
 
-After Pi settles from an interrupted execution, the existing resume, recalibrate, status-adjustment, and pause choices remain available. Kickoff, resume, and recalibration use one canonical execution-context renderer, including the structured brief, step status, verification requirements, cwd, and source session identity. Recurring execution guidance is added to the per-turn system prompt rather than persisted as duplicate context messages.
+After Pi settles from an interrupted execution, the existing resume, recalibrate, status-adjustment, and pause choices remain available. Structured input, permission, external, and budget waits plus automatic no-progress/budget attention suppress routine Resume prompts after reload or branch navigation while preserving manual `/plan-review`, recalibration, status, and pause controls. Execution guidance requires continuation after milestones and ordinary tool failures, retention of failure evidence, fresh namespaces for follow-up/review work, and adherence to review bounds. Kickoff, resume, and recalibration use one canonical execution-context renderer, including the structured brief, step status, verification requirements, durable execution wait, cwd, and source session identity. Recurring execution guidance is added to the per-turn system prompt rather than persisted as duplicate context messages.
 
 Recalibration, pause, interrupted-execution shutdown, and the non-executing source side of acknowledged tmux handoff restore the planning model. Successful `plan_complete` deliberately leaves the selected execution model active, avoiding an immediate context-window downgrade.
 

@@ -21,5 +21,7 @@ test("footer status describes restricted, ready, executing, and handed-off plans
 	const executing = withPlan("executing");
 	executing.steps[0]!.completed = true;
 	assert.equal(planFooterStatus(executing, 0), "plan 1/2");
+	executing.continuation.waitFor = { kind: "external", reason: "Waiting for deployment" };
+	assert.equal(planFooterStatus(executing, 0), "plan 1/2 · waiting for external");
 	assert.equal(planFooterStatus(withPlan("handed-off"), 0), "1 plan · executing in handoff");
 });

@@ -1,4 +1,5 @@
 import { enterRestrictedMode, materializePlan, type CloseoutState, type ModelSnapshot, type PlanState } from "./plan-state.ts";
+import { resetExecutionContinuation } from "./execution-continuation.ts";
 import { PLAN_EXECUTION_TOOLS, restrictedTools } from "./restricted-mode.ts";
 
 export interface RestoredLifecycle {
@@ -75,7 +76,7 @@ export type LifecycleTransition =
 	| { type: "enter"; mode: "plan" | "read-only"; activeTools: string[]; planningModel?: ModelSnapshot }
 	| { type: "pause" }
 	| { type: "revise" }
-	| { type: "execute"; model: ModelSnapshot; source: NonNullable<PlanState["executionSource"]>; executionId: string; planningModel?: ModelSnapshot }
+	| { type: "execute"; model: ModelSnapshot; source: NonNullable<PlanState["executionSource"]>; executionId: string; planningModel?: ModelSnapshot; resetContinuation?: boolean }
 	| { type: "closeout"; state: CloseoutState }
 	| { type: "restore"; restored: PlanState };
 
@@ -96,6 +97,7 @@ export function transitionPlanLifecycle(state: PlanState, transition: LifecycleT
 				planningModel: state.planningModel ?? transition.planningModel,
 				phase: "executing", accessMode: "none", executionModel: transition.model, executionSource: transition.source,
 				executionId: transition.executionId, awaitingReview: false, resumeAfterRevision: false, closeoutState: { kind: "idle" },
+				continuation: transition.resetContinuation === false ? state.continuation : resetExecutionContinuation(),
 			};
 		case "closeout":
 			return { ...state, closeoutState: transition.state };

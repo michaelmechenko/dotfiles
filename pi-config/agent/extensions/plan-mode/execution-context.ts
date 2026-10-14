@@ -15,12 +15,13 @@ export function renderExecutionContext(plan: PlanState, source: ExecutionContext
 	lines.push("", "## Goal", plan.goal || "(not set)", "", "## Execution brief", `Summary: ${plan.executionBrief.summary || "(legacy plan — recalibrate before relying on prior context)"}`, section("Findings", plan.executionBrief.findings), section("Decisions", plan.executionBrief.decisions), files(plan.executionBrief.relevantFiles), section("Constraints", plan.executionBrief.constraints), "", "## Plan status", ...plan.steps.map((step) => `${step.step}. [${step.completed ? "x" : step.skipped ? "-" : " "}] ${step.text} (id: ${step.id})`));
 	if (plan.criteria.length) lines.push("", "## Verification requirements", ...plan.criteria.map((item) => `- ${item}`));
 	if (plan.followUps.length) lines.push("", "## Known follow-up work", ...plan.followUps.map((item) => `- ${item}`));
+	if (plan.continuation.waitFor) lines.push("", "## Execution wait", `- ${plan.continuation.waitFor.kind}: ${plan.continuation.waitFor.reason}`);
 	lines.push("", instruction(kind));
 	return lines.join("\n");
 }
 
 export function executionGuidance(): string {
-	return "While executing, follow the active plan. Call plan_step immediately after each completed or skipped step. If scope or blockers change pending work, call plan_update with a complete replacement executionBrief. After every step is terminal, call plan_complete with outcome, end state, verification, deviations, and next steps.";
+	return "While executing, follow the active plan. Call plan_step immediately after each completed or skipped step. After every milestone and ordinary tool failure, retain the failure evidence and continue the approved pending work; use fresh namespaces for follow-up or review work and stay within the approved review bounds. If scope or blockers change pending work, call tracked plan_update with a complete replacement executionBrief. When waiting for user input, a permission decision, an external dependency, or continuation budget, set tracked executionWait to { kind: input | permission | external | budget, reason }; clear it only with tracked executionWait: null when work can continue. Internal plan_update never changes this wait. After every step is terminal, call plan_complete with outcome, end state, verification, deviations, and next steps.";
 }
 
 function heading(kind: ExecutionContextKind): string { return kind === "recalibration" ? "Recalibrate the active plan from this canonical context." : kind === "resume" ? "Resume the pending work from this canonical context." : "Start executing the handed-off plan from this canonical context."; }

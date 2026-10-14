@@ -105,11 +105,12 @@ layouts; verify icon clicks from inactive workspaces as well as label clicks.
   account, sync subscription, MIME default, or Blender GPU backend is configured.
 - Steam has 32/64-bit graphics support. Proton behavior, game ownership, and
   Deadlock compatibility remain runtime acceptance items, not build guarantees.
-- tmux 3.8 uses a fixed-hash upstream release override of the package-only tools
-  pin, preserving its dependencies and build features. Unfocused panes receive
-  35% foreground/background dimming; focused panes retain normal brightness.
+- tmux 3.7c comes from the existing package-only tools pin. The 3.8 override
+  was removed after reported popup/rendering regressions; shared configuration
+  and session state are retained. Inactive panes use background-only styling on
+  3.7c; the shared 35% dimming gate remains available only on supported 3.8 builds.
   The full shared config and Go sidebar retain Linux and macOS adapters.
-  Upgrades require saving work and a full tmux server restart; reload is not enough.
+  Version changes require a full server restart or reboot; reload is not enough.
 - Neovim uses the shared Lua configuration with a Nix-owned plugin tree, parsers,
   language servers, formatters, and native build dependencies. Lazy cannot install
   missing plugins and Mason/parser auto-install is disabled on NixOS.
@@ -451,35 +452,19 @@ recheck after any edit. `check.sh` refuses a `result` from a different evaluated
 system, verifies the live targets and retained packaged dependencies, and reports
 migration collisions. Builds and checks do not activate the running system.
 
-### tmux 3.7c → 3.8 migration
+### tmux version changes
 
-Build and run `bash nix/check.sh` first. Activation and a server restart require
-separate approval; neither is performed by the checks. The old running server
-keeps 3.7c even after the package changes, so `prefix r` cannot upgrade it.
+Build and run `bash nix/check.sh` before deliberate deployment. Use
+`nixos-rebuild boot` for a next-reboot version change; it does not replace the
+currently running tmux server. Save application work before rebooting. No
+session-state rollback or automatic snapshot restore is required by the package
+change. After reboot, confirm both `tmux -V` and
+`tmux display-message -p '#{version}'` report 3.7c.
 
-1. Save all application work, then run
-   `~/.config/tmux_scripts/tsave tmux-3.7c-before-3.8`. Resolve any snapshot warnings.
-   Keep that snapshot and the previous NixOS generation for rollback.
-2. Keep a terminal outside tmux available. After approval, activate the unchanged,
-   checked checkout:
-   ```sh
-   sudo nixos-rebuild switch --flake ~/.dotfiles#nixos \
-     --option experimental-features 'nix-command flakes'
-   ```
-3. When ready, exit the old tmux server deliberately after saving/exiting its
-   applications. This interrupts every attached client, including coding agents;
-   do not automate it. Confirm the installed binary reports `tmux 3.8`.
-4. From the outside terminal, run
-   `~/.config/tmux_scripts/tload tmux-3.7c-before-3.8`. Review each resume prompt;
-   reopen applications as needed. Verify the new server with
-   `tmux display-message -p '#{version}'` and check focus/dimming, zoom, and popups.
-
-Snapshots preserve layouts, working directories, labels, and available agent
-resume identities, **not running processes, unsaved buffers, or all terminal
-state**. Old 3.7 layouts are accepted by 3.8; retain the pre-upgrade snapshot
-rather than assuming 3.7 can restore a newly serialized 3.8 layout. For rollback,
-select the retained Nix generation and deliberately restart/restore from that
-pre-upgrade snapshot. No live session is terminated by repository tooling here.
+If you choose to restore a snapshot, validate its layout format first: 3.8 can
+accept legacy 3.7 layouts, but 3.7c does not accept 3.8 JSON layouts. Preserve any
+original snapshot rather than assuming backward compatibility. Snapshots do not
+preserve running processes or unsaved buffers.
 
 ### First migration from recursive store links
 

@@ -261,8 +261,8 @@ isolated=(env -i HOME="$test_home" PATH="$home_path/bin:$PWD/result/sw/bin:/usr/
   new-session -d -s validation 'sleep 3'
 [[ $("${isolated[@]}" tmux -S "$socket" show-options -gv prefix) == C-Space ]]
 [[ $("${isolated[@]}" tmux -S "$socket" show-options -gv extended-keys-format) == csi-u ]]
-[[ $("${isolated[@]}" tmux -S "$socket" display-message -p '#{version}') == 3.8 ]]
-[[ $("${isolated[@]}" tmux -S "$socket" show-options -gv window-style) == *dim=35%* ]]
+[[ $("${isolated[@]}" tmux -S "$socket" display-message -p '#{version}') == 3.7c ]]
+[[ $("${isolated[@]}" tmux -S "$socket" show-options -gv window-style) == "bg=$("${isolated[@]}" tmux -S "$socket" show-options -gv @color-surface-inactive)" ]]
 # Let the fixture exit naturally before removing its socket/HOME.
 sleep 4
 

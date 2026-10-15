@@ -16,7 +16,10 @@ Single source of truth for colors used across tmux, Ghostty, and zsh (via ohmypo
 `nix/home/palette.nix` reads `theme/palettes/vague.json`, resolves role references
 and optional role overrides, and supplies the Linux-only desktop and terminal
 modules. Hyprland active borders and selected controls use `accent-secondary`;
-inactive borders use `divider-subtle`; Waybar/launcher/notifications use
+`winkeytoggle` changes active and inactive borders to `accent-primary` rose while
+Win shortcuts are released. Exit/reload restores active lavender and inactive
+`divider-subtle`; border width and fullscreen decoration policy are unchanged.
+Waybar/launcher/notifications use
 `surface-chrome`, `surface-highlight`, `text`, and `text-ui`; urgent states use
 `accent-primary`; the lock background uses `canvas`. Ghostty uses the palette's
 `ghostty` and ANSI definitions, and Oh My Posh retains `ohmyposh/base.json` with

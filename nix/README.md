@@ -46,7 +46,22 @@ bootstrap; harden it separately after verifying persistent key access.
   windowed use keeps VRR off. Super-F toggles maximization within the monitor's
   usable area, respecting the bar's reserved space; press it again to restore.
   Application-native fullscreen controls remain unchanged. Other fullscreen
-  behavior follows Hyprland defaults.
+  behavior follows Hyprland defaults. Win+Shift+grave (` / ~) toggles
+  `winkeytoggle`: Win shortcuts and Win+mouse move/resize are released to the app,
+  except that same restoration chord. Active and inactive borders turn rose
+  (`accent-primary`); press again to restore shortcuts, active lavender
+  (`accent-secondary`) and inactive `divider-subtle`. Media keys and Print Screen
+  remain active. This is a
+  session-wide manual toggle, not tied to fullscreen or app exit; configuration
+  reload and login restore normal mode. Native fullscreen may hide borders;
+  the toggle does not force decorations or change fullscreen geometry.
+  Hyprland 0.55.4 omits the submap from mouse events, so the submap hook explicitly
+  disables/re-enables the original mouse-binding handles rather than consuming
+  clicks in a no-op. `winkeytoggle-test.lua` checks config lifecycle;
+  `winkeytoggle-input-test.py` uses a private headless compositor to check actual
+  pointer delivery, window geometry and rendered border pixels. `nix/check.sh`
+  supplies its pinned dependencies; set `WINKEYTOGGLE_KEEP_ARTIFACTS=1` to retain
+  successful screenshots/logs (failures always retain their private artifacts).
 - Both monitors use 2560×1440 at nominal 180 Hz and 100% scale, top-aligned:
   Samsung Odyssey G50SF (`DP-1`) is on the left at `0x0`, using its advertised
   179.98 Hz mode; Acer XZ322QU V3 (`DP-2`) is on the right at `2560x0`, at 180 Hz.

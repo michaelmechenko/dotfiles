@@ -109,7 +109,7 @@ in
       hl.bind("SUPER + SHIFT + Space", hl.dsp.window.float({ action = "toggle" }))
       hl.bind("SUPER + CTRL + L", hl.dsp.exec_cmd("loginctl lock-session"))
       hl.bind("SUPER + SHIFT + Escape", launch("desktop-session-menu"))
-      hl.bind("Print", launch("screenshot-region"))
+      hl.bind("Print", launch("screenshot-region"), { submap_universal = true })
 
       for key, direction in pairs({ H = "left", J = "down", K = "up", L = "right" }) do
         hl.bind("SUPER + " .. key, hl.dsp.focus({ direction = direction }))
@@ -123,14 +123,37 @@ in
       ${builtins.readFile ./workspaces.lua}
       ${builtins.readFile ./scratch-terminal.lua}
       ${builtins.readFile ./scratch-sidra.lua}
-      hl.bind("SUPER + mouse:272", hl.dsp.window.drag(), { mouse = true })
-      hl.bind("SUPER + mouse:273", hl.dsp.window.resize(), { mouse = true })
-      hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+"), { locked = true, repeating = true })
-      hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"), { locked = true, repeating = true })
-      hl.bind("XF86AudioMute", hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"), { locked = true })
-      hl.bind("XF86AudioPlay", hl.dsp.exec_cmd("playerctl play-pause"), { locked = true })
-      hl.bind("XF86AudioNext", hl.dsp.exec_cmd("playerctl next"), { locked = true })
-      hl.bind("XF86AudioPrev", hl.dsp.exec_cmd("playerctl previous"), { locked = true })
+      local win_mouse_bindings = {
+        hl.bind("SUPER + mouse:272", hl.dsp.window.drag(), { mouse = true }),
+        hl.bind("SUPER + mouse:273", hl.dsp.window.resize(), { mouse = true }),
+      }
+      -- Physical US grave key (Shift produces ~); the same chord restores.
+      hl.bind("SUPER + SHIFT + code:49", hl.dsp.submap("winkeytoggle"), { dont_inhibit = true })
+      hl.define_submap("winkeytoggle", function()
+        hl.bind("SUPER + SHIFT + code:49", hl.dsp.submap("reset"), { dont_inhibit = true })
+      end)
+      hl.on("keybinds.submap", function(name)
+        local released = name == "winkeytoggle"
+        -- Hyprland 0.55 mouse events lack submapAtPress: a submap alone cannot
+        -- release these buttons. Disable the real bindings, not a consuming no-op.
+        for _, binding in ipairs(win_mouse_bindings) do binding:set_enabled(not released) end
+        hl.config({ general = { col = {
+          active_border = released and "rgb(${hex roles.accent-primary})" or "rgb(${hex roles.accent-secondary})",
+          inactive_border = released and "rgb(${hex roles.accent-primary})" or "rgb(${hex roles.divider-subtle})",
+        } } })
+      end)
+      -- Reload returns to normal, including migration from the old submap name.
+      -- Startup/--verify-config already have the empty submap and no IPC manager.
+      hl.on("config.reloaded", function()
+        if hl.get_current_submap() ~= "" then hl.dispatch(hl.dsp.submap("reset")) end
+      end)
+      -- Keep non-Super desktop controls available in either mode.
+      hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+"), { locked = true, repeating = true, submap_universal = true })
+      hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"), { locked = true, repeating = true, submap_universal = true })
+      hl.bind("XF86AudioMute", hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"), { locked = true, submap_universal = true })
+      hl.bind("XF86AudioPlay", hl.dsp.exec_cmd("playerctl play-pause"), { locked = true, submap_universal = true })
+      hl.bind("XF86AudioNext", hl.dsp.exec_cmd("playerctl next"), { locked = true, submap_universal = true })
+      hl.bind("XF86AudioPrev", hl.dsp.exec_cmd("playerctl previous"), { locked = true, submap_universal = true })
 
       -- Only this session starts these daemons; Plasma keeps its own equivalents.
       hl.on("hyprland.start", function()

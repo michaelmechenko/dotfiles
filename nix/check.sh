@@ -132,6 +132,7 @@ done
 test -f "$sessions/share/wayland-sessions/plasma.desktop"
 test -f "$sessions/share/wayland-sessions/hyprland-uwsm.desktop"
 Hyprland --verify-config -c "$files/.config/hypr/hyprland.lua"
+lua nix/home/winkeytoggle-test.lua "$files/.config/hypr/hyprland.lua"
 # Execute the actual generated resize declarations; parsing alone cannot catch
 # incorrect axes, delta signs, absolute sizing, or lost repeat behavior.
 lua - "$files/.config/hypr/hyprland.lua" <<'LUA'
@@ -250,6 +251,19 @@ HOME="$test_home" XDG_CONFIG_HOME="$test_home/.config" \
 ln -s "$files/.config/tmux.conf" "$test_home/.config/tmux.conf"
 ln -s "$files/.config/theme" "$test_home/.config/theme"
 ln -s "$files/.config/tmux_scripts" "$test_home/.config/tmux_scripts"
+# Real virtual-input and rendered-border coverage on a private compositor. Weston
+# supplies only the headless GPU allocator; no live display or audio is touched.
+input_fixture=$(nix --extra-experimental-features 'nix-command flakes' build \
+  --impure --no-link --print-out-paths --expr '
+  let
+    p = (builtins.getFlake (toString ./.)).nixosConfigurations.nixos.pkgs;
+    python = p.python3.withPackages (x: [ x.pillow ]);
+  in p.writeShellScript "winkeytoggle-input-fixture" "
+    export WESTON=${p.weston}/bin/weston
+    export XKBCOMMON_LIB=${p.lib.getLib p.libxkbcommon}/lib/libxkbcommon.so.0
+    exec ${python}/bin/python3 \"$@\"
+  "')
+"$input_fixture" nix/home/winkeytoggle-input-test.py "$files/.config/hypr/hyprland.lua"
 # env -i also removes inherited TMUX/TMUX_PANE and live session variables.
 # A private socket avoids the live server even when this check runs inside tmux.
 socket="$test_home/tmux.sock"

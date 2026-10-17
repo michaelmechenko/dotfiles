@@ -71,6 +71,7 @@ in
       hl.config({
         general = {
           gaps_in = 6, gaps_out = 12, border_size = 2, layout = "dwindle",
+          resize_on_border = true,
           col = {
             active_border = "rgb(${hex roles.accent-secondary})",
             inactive_border = "rgb(${hex roles.divider-subtle})",

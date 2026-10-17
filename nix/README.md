@@ -447,8 +447,11 @@ are rejected by the native dispatcher. No automatic floating, sign-correction,
 or layout-setting changes are applied. The eight new shortcuts use physical US
 XKB keycodes (equals 21, minus 20, period 60, comma 59, semicolon 47, apostrophe 48),
 so Shift cannot turn the configured key into an unmatched punctuation keysym.
-The existing physical Super+left/right drag/resize bindings remain unchanged;
-middle-mouse remapping is deferred.
+Left-click dragging a window border resizes without a modifier
+(`general.resize_on_border = true`), using Hyprland's default 15-pixel extended
+grab area. Floating windows resize at edges/corners; tiled windows adjust split
+boundaries. The existing physical Super+left/right drag/resize bindings remain
+unchanged; middle-mouse remapping is deferred.
 
 Existing named/numeric workspaces and windows are not renamed or relocated on
 reload. Each Waybar shows only its output's populated or active workspaces in ID

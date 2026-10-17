@@ -30,6 +30,7 @@ The full Mac tmux/sidebar and Neovim plugin configuration is not enabled here.
 | `Super-=` / `Super--` | Adjust horizontal tiled divider / grow or shrink floating width by 25 logical pixels; hold to repeat |
 | `Super-Shift-=` / `Super-Shift--` | Adjust vertical tiled divider / grow or shrink floating height by 25 logical pixels; hold to repeat |
 | `Super` + left/right mouse drag | Move/resize window |
+| Left-click drag on a window border | Resize without a modifier; floating edges/corners or tiled dividers |
 | Super-Shift-\` | Toggle `winkeytoggle`: release Win shortcuts and Win+mouse move/resize to the app; active and inactive borders turn rose. Press again to restore shortcuts and normal border colors. Media keys and Print Screen remain active. |
 | `Super-Ctrl-l` | Lock session |
 | `Super-Shift-Escape` | Session menu: lock, sleep, log out, restart, shut down |

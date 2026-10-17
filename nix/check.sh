@@ -223,6 +223,16 @@ test -f "$sessions/share/wayland-sessions/plasma.desktop"
 test -f "$sessions/share/wayland-sessions/hyprland-uwsm.desktop"
 Hyprland --verify-config -c "$files/.config/hypr/hyprland.lua"
 lua nix/home/winkeytoggle-test.lua "$files/.config/hypr/hyprland.lua"
+# Evaluate the generated general settings without changing the running desktop.
+lua - "$files/.config/hypr/hyprland.lua" <<'LUA'
+local file = assert(io.open(arg[1]))
+local source = file:read("*a")
+file:close()
+local settings = assert(load("return " .. assert(source:match("hl%.config%((%b{})%)"))))()
+assert(settings.general.resize_on_border == true, "Border-drag resizing must be enabled")
+assert(settings.general.extend_border_grab_area == nil, "Keep Hyprland's default border grab area")
+print("Generated border resize Lua: enabled with the default grab area.")
+LUA
 # Execute the actual generated resize declarations; parsing alone cannot catch
 # incorrect axes, delta signs, absolute sizing, or lost repeat behavior.
 lua - "$files/.config/hypr/hyprland.lua" <<'LUA'

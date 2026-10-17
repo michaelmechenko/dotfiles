@@ -12,6 +12,11 @@ let
   piLens = pkgs.callPackage ../packages/pi-lens.nix { };
   piBtw = pkgs.callPackage ../packages/pi-btw.nix { };
   sourceSettings = builtins.fromJSON (builtins.readFile ../../pi-config/agent/settings.json);
+  seed = pkgs.writeShellApplication {
+    name = "pi-seed";
+    runtimeInputs = [ pkgs.coreutils ];
+    text = builtins.readFile ./pi-seed.sh;
+  };
   linuxSettings = sourceSettings // {
     lastChangelogVersion = piPkgs.pi-coding-agent.version;
     packages = [
@@ -21,9 +26,19 @@ let
       { source = "${piBtw}"; skills = [ ]; }
     ];
   };
+  settingsSeed = pkgs.writeText "pi-linux-settings.json" (builtins.toJSON linuxSettings);
+  loadCheck = pkgs.writeShellApplication {
+    name = "nixos-pi-load-check";
+    runtimeInputs = [ pkgs.coreutils ];
+    text = ''
+      exec timeout 40s ${pkgs.nodejs}/bin/node ${./pi-load-check.mjs} \
+        ${piPkgs.pi-coding-agent}/lib/node_modules/pi-monorepo \
+        ${settingsSeed} ${extensions} ${runtimePackages}
+    '';
+  };
 in
 {
-  home.packages = [ piPkgs.pi-coding-agent ];
+  home.packages = [ piPkgs.pi-coding-agent loadCheck ];
   home.sessionVariables = {
     PI_CODING_AGENT_DIR = "$HOME/.config/pi-config/agent";
     PI_FFF_MODE = "override";
@@ -51,21 +66,8 @@ in
   # Pi and the toggle extensions intentionally update these files. Seed them on
   # first activation, then leave user changes writable and outside the Nix store.
   home.activation.seedPiMutableConfig = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    agent="$HOME/.config/pi-config/agent"
-    mkdir -p "$agent"
-    if [ ! -e "$agent/settings.json" ]; then
-      cat > "$agent/settings.json" <<'JSON'
-${builtins.toJSON linuxSettings}
-JSON
-      chmod 600 "$agent/settings.json"
-    fi
-    if [ ! -e "$agent/keybindings.json" ]; then
-      install -m 600 ${../../pi-config/agent/keybindings.json} "$agent/keybindings.json"
-    fi
-    if [ ! -e "$agent/npm/package-lock.json" ]; then
-      mkdir -p "$agent/npm"
-      cp -r ${runtimePackages}/. "$agent/npm/"
-      chmod -R u+w "$agent/npm"
-    fi
+    run ${seed}/bin/pi-seed "$HOME/.config/pi-config/agent" \
+      ${settingsSeed} \
+      ${../../pi-config/agent/keybindings.json} ${runtimePackages}
   '';
 }

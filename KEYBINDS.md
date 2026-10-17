@@ -13,7 +13,7 @@ The full Mac tmux/sidebar and Neovim plugin configuration is not enabled here.
 | `Super-Enter` | Open Ghostty |
 | `Super-Space` | Search/launch applications with fuzzel |
 | `Super-e` / `Super-b` | Open Dolphin / Helium |
-| `Super-Ctrl-a/z/s/x` | Focus Helium / Ghostty / Dolphin / Obsidian if open on any workspace; otherwise launch it |
+| `Super-Ctrl-a/z/s/x` | Focus LibreWolf / Ghostty / Dolphin / Obsidian if open on any workspace; otherwise launch it |
 | `Super-q` | Close focused window |
 | `Super-f` | Toggle maximization within usable screen space, respecting the bar |
 | `Super-Shift-f` | Show/focus or hide the shared floating Ghostty scratch terminal; hidden shell/jobs stay alive |

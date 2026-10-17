@@ -10,7 +10,9 @@ is pinned in `flake.nix`; `flake.lock` also pins Home Manager.
   installer configuration. Keep filesystem identifiers and `stateVersion` intact.
 - `modules/desktop.nix`: NixOS Hyprland/UWSM/portal/PAM/hardware integration.
 - `home/desktop.nix`: Hyprland Lua, Waybar, launcher, notifications, lock/idle.
-- `home/apps.nix`: Blender, Obsidian, Sidra, Helium, Legcord, Dolphin and MIME defaults.
+- `home/apps.nix`: applications, LibreWolf browser and explicit file-type defaults.
+- `home/wallpaper.nix`: immutable Monet artwork, Hyprpaper and Hyprlock backgrounds.
+- `home/source-identity.nix`: build-bound live-source inventory and activation guard.
 - `home/icons.nix`: Breeze Dark selection; targeted GTK/KDE icon settings.
 - `home/terminal.nix`: shared Ghostty, zsh, prompt, tmux/sidebar, nnn, and Neovim.
 - `home/pi.nix`: Pi runtime, public resources, pinned dependencies, and writable seeds.
@@ -69,8 +71,8 @@ bootstrap; harden it separately after verifying persistent key access.
   After activation, verify refresh rates, pointer crossing, Waybar and window
   placement, fullscreen behavior, and persistence across the next login.
 - Notifications: chrome/text/lavender; critical messages persist with rose borders.
-  Lock screen: solid canvas and centered password input on every monitor.
-- Only Hyprland starts Waybar, mako, hypridle, the secrets component of
+  Lock screen: blurred/dimmed Monet artwork and centered password input on every monitor.
+- Only Hyprland starts Waybar, mako, hypridle, hyprpaper, the secrets component of
   gnome-keyring, and its polkit agent. UWSM owns their lifetime; they must not
   follow the user back into Plasma or replace Plasma's wallet.
 
@@ -89,6 +91,48 @@ A separate nwg-dock-hyprland dock provides pinned applications at the bottom edg
 (see below). After activation, check both monitors' groups, focus/hover/urgent and
 empty states, multiple windows of one app, window moves/open/close, and crowded
 layouts; verify icon clicks from inactive workspaces as well as label clicks.
+
+## Wallpaper and default applications
+
+The desktop and lock screen share the immutable `assets/wallpapers/monet1.jpg`
+(3648×2736), copied unchanged from
+`/home/mishka/Documents/extras extras/wallpapers_artwork/monet1.jpg`.
+Hyprpaper 0.8.4 uses a wildcard wallpaper block with `fit_mode = cover`: each
+monitor shows its own centered crop, not half of a spanning panorama. On a
+2560×1440 output the scaled image is 2560×1920, cropping 240px above/below.
+Check that the lower lily band remains satisfactory. The original file is untouched.
+
+Hyprlock uses that same store image on every output with three blur passes,
+blur size 8 and brightness 0.75. Canvas remains its load-failure fallback; the
+existing password field and manual/pre-sleep locking policy remain unchanged.
+No clock, extra idle timeout, Plasma wallpaper, or SDDM greeter change is added.
+Home Manager generates Hyprpaper configuration with `package = null` so it
+does not create a generic graphical-session unit. Hyprland starts one explicit
+store binary through UWSM; logout must stop it before entering Plasma.
+
+The explicit MIME table in `home/apps.nix` sets:
+
+| Content | Default |
+| --- | --- |
+| Web links, HTML/XHTML | LibreWolf (`librewolf.desktop`) |
+| Common images, including SVG/WebP/AVIF | Gwenview |
+| PDF, EPUB, DjVu and comic books | Okular's format-specific desktop entries |
+| Audio/video | VLC |
+| Archives | Ark |
+| Text, Markdown and selected code/config formats | Zed |
+| Directories | Dolphin |
+
+Defaults are also added associations, not removed associations, so other
+Open With choices remain available. Do not replace the table with `image/*`
+wildcards or all MIME claims from every package. LibreWolf/Gwenview/Okular/VLC
+are explicit packages even when Plasma happens to provide some of them.
+LibreWolf uses the existing package pin; profiles/preferences are app-owned,
+with no browser data migration. Helium, Firefox, Super-B and existing dock pins
+are retained. No office suite or mailto client is assumed.
+
+Home Manager declares the existing Desktop, Documents, Downloads, Music,
+Pictures, Projects, Public, Templates and Videos locations. It does not create
+or move directories. Preserve unknown local user-dir keys before taking ownership.
 
 ## Applications and shared workflows
 
@@ -141,7 +185,10 @@ layouts; verify icon clicks from inactive workspaces as well as label clicks.
 Pi settings, keybindings, extension/skill toggles, auth, sessions, package state,
 and caches remain writable in `~/.config/pi-config/agent`. Home Manager seeds
 settings, keybindings, and the npm workspace only when absent; it never deploys
-Mac auth/session/cache state. The active generated theme is store-backed. Existing writable
+Mac auth/session/cache state. Seeding preflights all paths, rejects dangling links
+and partial npm state, and honors Home Manager dry-run through its run wrapper.
+A complete initialized workspace is never merged or reset; back it up and resolve
+reported collisions explicitly. The active generated theme is store-backed. Existing writable
 Pi settings/npm state needs a separate, backed-up package migration; rebuilding does not
 replace it. MCP uses Pi's built-in `$PI_CODING_AGENT_DIR/mcp.json` support, not an adapter.
 Intercom retains upstream automatic incoming-turn/steering and no-send-confirmation defaults.
@@ -166,7 +213,7 @@ Dolphin so launchers and application processes inherit the setting. Opening anot
 window in an old Dolphin process is insufficient.
 
 Hyprland sets keyboard repeat to 50 repeats/second after a 250ms delay. Super-Ctrl
-+A/Z/S/X runs `app-focus` to focus the most recently used mapped window of Helium,
++A/Z/S/X runs `app-focus` to focus the most recently used mapped window of LibreWolf,
 Ghostty, Dolphin or Obsidian across workspaces/monitors, or launches the application
 through UWSM if no window exists. The existing Super-B/E/Return launchers still
 open new windows. The helper does not launch on Hyprland query failure and retries
@@ -408,11 +455,11 @@ bidirectional copy job on top of it.
 
 | Ownership | Paths under `~/.config` | Applying changes |
 | --- | --- | --- |
-| Live source links into the same paths under `~/.dotfiles` | `zshrc`, `tmux.conf`, `nvim`, `pi-config/agent/AGENTS.md`, `pi-config/agent/agents`, `pi-config/agent/prompts`, `pi-config/agent/skills`, `pi-config/agent/pi-lens-global.json` | Edit the source; reload/restart the application |
+| Live source links into the same paths under `~/.dotfiles` | `zshrc`, `tmux.conf`, `nvim`, `zed`, `pi-config/agent/AGENTS.md`, `pi-config/agent/agents`, `pi-config/agent/prompts`, `pi-config/agent/skills`, `pi-config/agent/pi-lens-global.json` | Edit the source; reload/restart the application |
 | Store-backed configuration and packages | Ghostty, Linux desktop, `oh-my-posh`, active themes, tmux scripts/plugins/sidebar, nnn plugins, shell helpers, all Pi extensions and Neovim dependencies | Build, check, then deliberately activate |
 | Local writable state | Pi settings/keybindings/auth/sessions/npm/cache, `zshrc.local`, application state | Leave local; never import whole runtime directories into Git or Nix |
 
-The eight live links use `mkOutOfStoreSymlink` with an absolute home-derived
+The nine live links use `mkOutOfStoreSymlink` with an absolute home-derived
 `~/.dotfiles` path. Keep this checkout in place; do not point links at temporary
 worktrees. Directory links pick up new guidance/Lua files without a rebuild.
 Changes to the link declarations themselves still require activation.
@@ -435,8 +482,27 @@ machine-local `zshrc.local`; private runtime state stays outside the checkout.
 Never use `git add .` against the live `~/.config` tree.
 
 `/home/mishka/nixos-config` remains an allowlisted deployment snapshot and
-recovery/build staging path. `nix/deploy.sh` verifies its previous SHA-256
-manifest and refuses to overwrite PC-side edits before updating the allowlist.
+recovery/build staging path. `nix/deploy.sh` creates a fresh snapshot using
+`public-source.py`: only Git-tracked paths within the public allowlist enter it,
+with private/runtime path components and conventional credential filenames
+(`.env`, key/certificate files, credential files) denied even if accidentally tracked.
+Git tracking and the subtree policy are not a content-level secret scanner: review
+public source contents before adding them.
+No broad recursive rsync include is used. The exact `.public-source.json`
+inventory covers file bytes, executable bits, directories and relative symlink
+targets; missing/extra files, changed types and retargeted links stop deployment.
+
+SSH keeps strict host-key checks. A fresh sibling is transferred and verified
+before promotion; the current target is rechecked under a promotion lock and
+retained as `nixos-config.previous`. There is no automatic backup deletion.
+Promotion is two renames, not an atomic exchange: a failed second rename restores
+the original when possible; a process/machine crash between renames can leave
+only `.previous` in place. Preserve it and recover explicitly. Failed incoming
+directories and stale locks are retained for investigation, not deleted blindly.
+Existing legacy snapshots without the new inventory are refused: preserve and
+move them aside with approval before the first new-format deployment. A retained
+`.previous` must likewise be preserved/rotated deliberately before another run.
+Remote Python 3 and rsync are required. Deployment never activates the system.
 Never feed the entire live Mac config tree to a `path:` flake or archive operation.
 The snapshot is **not** a self-contained runtime backup once live links are used:
 even a generation built there links to `~/.dotfiles`, not to the snapshot.
@@ -445,6 +511,7 @@ remote snapshot operation, not the local configuration update command:
 
 ```sh
 bash nix/deploy.sh
+# For approved untracked additions, repeat: --include nix/path/to/file
 ```
 
 Override `NIXOS_HOST`, `NIXOS_IDENTITY`, or `NIXOS_CONFIG_DIR` only when the
@@ -466,6 +533,38 @@ Keep the source unchanged between build, check, and activation; rebuild and
 recheck after any edit. `check.sh` refuses a `result` from a different evaluated
 system, verifies the live targets and retained packaged dependencies, and reports
 migration collisions. Builds and checks do not activate the running system.
+The built generation contains `~/.config/nixos/live-source.json`, generated from
+its immutable source inputs. Both checking and Home Manager's pre-write activation
+guard compare the nine live sources against it, rejecting extra paths before
+hashing content. Empty untracked directories have no live source content and are
+ignored by live-source comparison (snapshot inventories remain exact).
+Source edits need rebuilding before a later activation; rollback
+to a guarded generation also requires its matching sources. This guard does not
+make live sources immutable or back them up.
+
+New files are invisible to Git flakes until explicitly staged. Without staging,
+create a bounded public-only snapshot, naming each reviewed new file explicitly:
+
+```sh
+work=$(mktemp -d)
+python3 nix/public-source.py snapshot "$PWD" "$work/source" \\
+  --include nix/home/wallpaper.nix # repeat --include for EVERY reviewed new file
+nix --extra-experimental-features 'nix-command flakes' build \\
+  "path:$work/source#nixosConfigurations.nixos.config.system.build.toplevel" \\
+  --out-link "$work/result"
+NIXOS_FLAKE="path:$work/source" NIXOS_RESULT="$work/result" bash nix/check.sh
+```
+
+Never substitute the entire live config tree for that snapshot. A staged/public
+snapshot must include all new modules, helpers, tests and the Monet asset; do not
+activate a partial export. Keep the exact checked snapshot/result for deliberate
+activation and preserve its inventory. No build/check command above activates it.
+
+Checks include disposable-HOME MIME queries, generated background assertions,
+synthetic export/promotion and Pi seed failures, and `pi-config/check.mjs`.
+`nixos-pi-load-check` imports the pinned SDK and verifies enabled extension and
+local npm/Lens/BTW tool registrations in isolation, offline, without creating a
+session or emitting session_start. `pi --help` is not extension-load coverage.
 
 ### tmux version changes
 
@@ -483,8 +582,8 @@ preserve running processes or unsaved buffers.
 
 ### First migration from recursive store links
 
-The existing real directories `nvim` and `pi-config/agent/{agents,prompts,skills}`
-contain recursively deployed store links. The new generation uses one live
+Any existing real directories `nvim`, `zed` and
+`pi-config/agent/{agents,prompts,skills}` may contain recursively deployed store links. The new generation uses one live
 source-directory link for each. Do not remove these directories manually.
 
 1. Save an owner-only backup outside `~/.config` and `~/.dotfiles`, preserving
@@ -502,8 +601,9 @@ source-directory link for each. Do not remove these directories manually.
    open a new shell, and test tmux/Neovim/Pi. Confirm settings/keybindings remain
    writable and unchanged. Keep all backups until recovery is no longer needed.
 
-Do **not** run the full Home Manager activation script as a harmless dry-run:
-existing custom activation actions include direct writes not guarded by `run`.
+Do **not** run the full Home Manager activation script as a harmless test:
+its profile/service actions are not a substitute for isolated fixtures. Pi and
+dock seeds use the pinned dry-run wrapper; this is not an activation permission.
 The file-link transition can instead be exercised in a disposable HOME using
 only the pinned collision/cleanup/link operations, without service/profile hooks.
 
@@ -536,14 +636,14 @@ An old recursive generation can follow a new directory link and write into the
 Git checkout. Before activating **or booting** such a generation:
 
 1. Save any newer source/local changes independently. Confirm that each of the
-   four directory targets is still a symlink resolving to its expected path in
+   five directory targets (including Zed) is still a symlink resolving to its expected path in
    `~/.dotfiles`, and that its preserved directory backup is available.
-2. With explicit approval, detach only those four symlinks themselves (`unlink`,
+2. With explicit approval, detach only those five symlinks themselves (`unlink`,
    never a recursive removal or a path with a trailing slash), then restore the
    corresponding backed-up real directories. Check all paths before changing any.
    Do not move anything out of the source checkout or overwrite newer local data.
 3. Only then activate the previous generation. Home Manager can recreate any
-   old managed leaves removed during the forward migration. The three standalone
+   old managed leaves removed during the forward migration. The four standalone
    file links do not have the directory-traversal hazard.
 
 Once both generations use the same live-link layout, the representation change
@@ -556,16 +656,21 @@ explicitly choose to retire this recovery route.
 Before treating this profile as daily-driver ready:
 
 1. Log into Hyprland/UWSM. Verify the bar, launcher, Ghostty, Dolphin, browser,
-   focus/fullscreen, monitor resolution/refresh, and expected scaling.
+   focus/fullscreen, monitor resolution/refresh, and expected scaling. Test LibreWolf
+   Super-Ctrl-A with no window, multiple windows and a window on the other monitor;
+   verify its actual class, HTTP/HTTPS/HTML defaults, and unchanged Super-B/Helium.
+   Open JPEG/PNG/WebP, PDF/EPUB, MP4/MP3, ZIP and text/Markdown in Dolphin.
 2. Check `hyprctl configerrors`, notifications (`notify-send test`), clipboard,
    screenshot selection/cancellation, volume, Wi-Fi, Bluetooth, and USB mounting.
 3. Lock with Super-Ctrl-L and unlock with the user password; then test explicit
    suspend/resume and confirm the session locks before sleep. Leave the machine
-   idle past the former 10-minute timeout and confirm it does not lock.
+   idle past the former 10-minute timeout and confirm it does not lock. Inspect
+   Monet cropping on both desktops and blur/dim/password readability on both lock
+   surfaces; test failed authentication, successful unlock and monitor reconnect.
 4. Test microphone and portal file selection/screen sharing. Compare Vulkan
    device selection with the RX 9060 XT; the CPU's iGPU also exists.
 5. Log out using the session menu, return to Plasma, and verify there is no
-   leftover Waybar/mako/hypridle/polkit process from Hyprland.
+   leftover Waybar/mako/hypridle/hyprpaper/polkit process from Hyprland.
 
 Build and parse checks are supplementary: real desktop rendering and interactive
 behavior require the user-selected session. They are not implied by a successful

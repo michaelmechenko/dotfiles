@@ -81,7 +81,7 @@ in
       wl-clipboard xdg-utils bc coreutils gnused gawk findutils procps lsof
       python3 lua go gnumake gcc cargo nodejs
       nixd nixfmt lua-language-server terraform-ls marksman clang-tools
-      dockerfile-language-server-nodejs vscode-langservers-extracted
+      dockerfile-language-server vscode-langservers-extracted
       typescript-language-server pyright lemminx yaml-language-server
       bash-language-server prettier shfmt
     ];

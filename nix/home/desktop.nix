@@ -38,7 +38,7 @@ let
   };
 in
 {
-  imports = [ ./dock.nix ];
+  imports = [ ./dock.nix ./wallpaper.nix ];
 
   # Hyprland does not select KDE's platform theme automatically. Without it,
   # Dolphin's item labels retain Qt's black text despite its dark KDE view.
@@ -101,7 +101,7 @@ in
       hl.bind("SUPER + Space", launch("fuzzel"))
       hl.bind("SUPER + E", launch("dolphin"))
       hl.bind("SUPER + B", launch("helium"))
-      for key, app in pairs({ A = "helium", Z = "ghostty", S = "dolphin", X = "obsidian" }) do
+      for key, app in pairs({ A = "librewolf", Z = "ghostty", S = "dolphin", X = "obsidian" }) do
         hl.bind("SUPER + CTRL + " .. key, hl.dsp.exec_cmd("app-focus " .. app))
       end
       hl.bind("SUPER + Q", hl.dsp.window.close())
@@ -163,6 +163,7 @@ in
         hl.exec_cmd("uwsm app -- nwg-dock-hyprland -d -p bottom -a center -i 40 -mb 8 -hd 0 -nolauncher")
         hl.exec_cmd("uwsm app -s b -- mako")
         hl.exec_cmd("uwsm app -s b -- hypridle")
+        hl.exec_cmd("uwsm app -s b -- ${pkgs.hyprpaper}/bin/hyprpaper")
         -- Hyprland gets a Secret Service provider without replacing Plasma's wallet.
         hl.exec_cmd("uwsm app -s b -- ${pkgs.gnome-keyring}/bin/gnome-keyring-daemon --start --components=secrets")
         hl.exec_cmd("uwsm app -s b -- ${pkgs.kdePackages.polkit-kde-agent-1}/libexec/polkit-kde-authentication-agent-1")
@@ -194,12 +195,6 @@ in
   programs.hyprlock = {
     enable = true;
     settings = {
-      background = [
-        {
-          monitor = "";
-          color = "rgb(${hex roles.canvas})";
-        }
-      ];
       input-field = [
         {
           monitor = "";

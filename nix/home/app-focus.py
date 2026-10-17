@@ -8,6 +8,7 @@ import sys
 
 
 APPS = {
+    "librewolf": ("librewolf", "librewolf"),
     "helium": ("helium", "helium"),
     "ghostty": ("com.mitchellh.ghostty", "ghostty"),
     "dolphin": ("dolphin", "dolphin"),
@@ -71,7 +72,7 @@ def focus_or_launch(app, run=subprocess.run, start=subprocess.Popen):
 
 def main():
     if len(sys.argv) != 2 or sys.argv[1] not in APPS:
-        print("usage: app-focus {helium|ghostty|dolphin|obsidian}", file=sys.stderr)
+        print("usage: app-focus {librewolf|helium|ghostty|dolphin|obsidian}", file=sys.stderr)
         return 2
     try:
         focus_or_launch(sys.argv[1])

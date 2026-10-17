@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ config, pkgs, ... }:
 {
   imports = [
     ./terminal.nix
@@ -6,6 +6,7 @@
     ./icons.nix
     ./apps.nix
     ./pi.nix
+    ./source-identity.nix
   ];
 
   home = {
@@ -46,4 +47,18 @@
   };
 
   xdg.enable = true;
+  # Match the existing locations, including Projects; do not move/create data.
+  xdg.userDirs = {
+    enable = true;
+    createDirectories = false;
+    desktop = "${config.home.homeDirectory}/Desktop";
+    documents = "${config.home.homeDirectory}/Documents";
+    download = "${config.home.homeDirectory}/Downloads";
+    music = "${config.home.homeDirectory}/Music";
+    pictures = "${config.home.homeDirectory}/Pictures";
+    projects = "${config.home.homeDirectory}/Projects";
+    publicShare = "${config.home.homeDirectory}/Public";
+    templates = "${config.home.homeDirectory}/Templates";
+    videos = "${config.home.homeDirectory}/Videos";
+  };
 }

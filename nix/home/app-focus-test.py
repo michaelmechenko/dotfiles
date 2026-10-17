@@ -58,6 +58,38 @@ class AppFocusTests(unittest.TestCase):
         self.assertEqual(ipc.commands[-1], ["hyprctl", "dispatch", "hl.dsp.focus({ window = 'address:0xbeef' })"])
         self.assertEqual(ipc.launches, [])
 
+    def test_librewolf_ignores_other_browsers_and_unmapped_windows(self):
+        ipc = IPC([[window("firefox", "0x11", 0), window("helium", "0x12", 0),
+                    window("librewolf-helper", "0x13", 0), window("librewolf", "0x14", 0, False),
+                    window("librewolf", "0x15", 3), window("librewolf", "0x16", 1)]])
+        app_focus.focus_or_launch("librewolf", ipc.run, ipc.start)
+        self.assertIn("address:0x16", ipc.commands[-1][2])
+        self.assertEqual(ipc.launches, [])
+
+    def test_librewolf_cold_launch(self):
+        ipc = IPC([[window("helium"), window("firefox")]])
+        app_focus.focus_or_launch("librewolf", ipc.run, ipc.start)
+        self.assertEqual(ipc.launches[0][0], ["uwsm", "app", "--", "librewolf"])
+
+    def test_librewolf_initial_class_and_already_focused(self):
+        client = window("changed-title-class")
+        client["initialClass"] = "librewolf"
+        ipc = IPC([[client]], active="0xabc")
+        app_focus.focus_or_launch("librewolf", ipc.run, ipc.start)
+        self.assertEqual(len(ipc.commands), 2)
+        self.assertEqual(ipc.launches, [])
+
+    def test_librewolf_query_failure_and_stale_retry(self):
+        ipc = IPC([subprocess.CalledProcessError(1, "hyprctl")])
+        with self.assertRaises(subprocess.CalledProcessError):
+            app_focus.focus_or_launch("librewolf", ipc.run, ipc.start)
+        self.assertEqual(ipc.launches, [])
+        ipc = IPC([[window("librewolf", "0x11")], [window("librewolf", "0x22")]],
+                  outcomes=[(1, "gone"), (0, "ok")])
+        app_focus.focus_or_launch("librewolf", ipc.run, ipc.start)
+        self.assertIn("address:0x22", ipc.commands[-1][2])
+        self.assertEqual(ipc.launches, [])
+
     def test_already_focused_does_nothing(self):
         ipc = IPC([[window("com.mitchellh.ghostty")]], active="0xabc")
         app_focus.focus_or_launch("ghostty", ipc.run, ipc.start)

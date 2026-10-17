@@ -21,7 +21,9 @@ Win shortcuts are released. Exit/reload restores active lavender and inactive
 `divider-subtle`; border width and fullscreen decoration policy are unchanged.
 Waybar/launcher/notifications use
 `surface-chrome`, `surface-highlight`, `text`, and `text-ui`; urgent states use
-`accent-primary`; the lock background uses `canvas`. Ghostty uses the palette's
+`accent-primary`; the lock background uses blurred/dimmed Monet artwork with
+`canvas` as its fallback. The password field keeps palette chrome/text/lavender.
+Ghostty uses the palette's
 `ghostty` and ANSI definitions, and Oh My Posh retains `ohmyposh/base.json` with
 the resolved roles injected as its palette. Linux selects Breeze Dark desktop
 icons; the retained HackerNoonPixel build sources are inactive. Waybar's

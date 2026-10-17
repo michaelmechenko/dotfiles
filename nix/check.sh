@@ -3,22 +3,42 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 [[ $(uname -s) == Linux ]] || { echo 'Run this check on the NixOS PC.' >&2; exit 1; }
-test -x result/bin/switch-to-configuration
+# A reviewed public snapshot includes new files without staging the checkout.
+# Never use path:. on a live runtime tree; create it with public-source.py.
+flake=${NIXOS_FLAKE:-$PWD}
+result=${NIXOS_RESULT:-$PWD/result}
+export NIXOS_FLAKE="$flake"
+export PYTHONDONTWRITEBYTECODE=1
+test -x "$result/bin/switch-to-configuration"
+if [[ $flake == path:* ]]; then
+  python3 nix/public-source.py verify "${flake#path:}"
+fi
 nix_eval() {
-  nix --extra-experimental-features 'nix-command flakes' eval --raw ".#nixosConfigurations.nixos.config.$1"
+  nix --extra-experimental-features 'nix-command flakes' eval --no-write-lock-file --raw "$flake#nixosConfigurations.nixos.config.$1"
 }
 # Do not accidentally validate a different checkout generation from ./result.
 expected_system=$(nix_eval system.build.toplevel)
-[[ $(readlink -e result) == "$expected_system" ]] || {
+[[ $(readlink -e "$result") == "$expected_system" ]] || {
   echo 'STOP: result is stale; rebuild this unchanged checkout before checking.' >&2
   exit 1
 }
 home_package=$(nix_eval home-manager.users.mishka.home.activationPackage)
 home_path=$(nix_eval home-manager.users.mishka.home.path)
 sessions=$(nix_eval services.displayManager.sessionData.desktops)
-export PATH="$home_path/bin:$PWD/result/sw/bin:$PATH"
+export PATH="$home_path/bin:$result/sw/bin:$PATH"
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 files="$home_package/home-files"
+configured_home=$(nix_eval home-manager.users.mishka.home.homeDirectory)
+[[ $HOME == "$configured_home" ]] || { echo 'Run this check as the configured user.' >&2; exit 1; }
+python3 nix/public-source.py verify-live "$HOME/.dotfiles" "$files/.config/nixos/live-source.json"
+python3 nix/public-source-test.py
+python3 nix/home/pi-seed-test.py
+python3 nix/home/desktop-defaults-test.py "$files" "$home_path" "$result" "$PWD"
+node pi-config/check.mjs
+# Isolated env prevents credentials/session/intercom identity inheritance.
+env -i HOME="$HOME" PATH="$home_path/bin:$result/sw/bin:/usr/bin:/bin" \
+  nixos-pi-load-check
+test -x "$home_path/bin/docker-langserver"
 # The selected icon theme must be available before GTK/KDE settings are activated.
 [[ $(nix_eval home-manager.users.mishka.gtk.iconTheme.name) == breeze-dark ]]
 test -f "$home_path/share/icons/breeze-dark/index.theme"
@@ -91,8 +111,6 @@ with (home / "share/lib/legcord/resources/app.asar").open("rb") as archive:
         assert archive.read(entry["size"]) == expected, name
 print("Legcord: correctly sized theme icons and full-resolution window/tray assets passed.")
 PY
-configured_home=$(nix_eval home-manager.users.mishka.home.homeDirectory)
-[[ $HOME == "$configured_home" ]] || { echo 'Run this check as the configured user.' >&2; exit 1; }
 live_paths=(
   zshrc tmux.conf nvim zed pi-config/agent/AGENTS.md
   pi-config/agent/agents pi-config/agent/prompts pi-config/agent/skills
@@ -231,7 +249,7 @@ chmod 700 "$test_home/runtime"
 dock_fixture=$(nix --extra-experimental-features 'nix-command flakes' build \
   --impure --no-link --print-out-paths --expr '
   let
-    p = (builtins.getFlake (toString ./.)).nixosConfigurations.nixos.pkgs;
+    p = (builtins.getFlake (builtins.getEnv "NIXOS_FLAKE")).nixosConfigurations.nixos.pkgs;
     python = p.python3.withPackages (x: [ x.pygobject3 x.pillow ]);
     paths = p.lib.makeSearchPath "lib/girepository-1.0" (map p.lib.getLib [
       p.gtk3 p.gdk-pixbuf p.pango p.at-spi2-core p.gobject-introspection
@@ -256,7 +274,7 @@ ln -s "$files/.config/tmux_scripts" "$test_home/.config/tmux_scripts"
 input_fixture=$(nix --extra-experimental-features 'nix-command flakes' build \
   --impure --no-link --print-out-paths --expr '
   let
-    p = (builtins.getFlake (toString ./.)).nixosConfigurations.nixos.pkgs;
+    p = (builtins.getFlake (builtins.getEnv "NIXOS_FLAKE")).nixosConfigurations.nixos.pkgs;
     python = p.python3.withPackages (x: [ x.pillow ]);
   in p.writeShellScript "winkeytoggle-input-fixture" "
     export WESTON=${p.weston}/bin/weston
@@ -267,7 +285,7 @@ input_fixture=$(nix --extra-experimental-features 'nix-command flakes' build \
 # env -i also removes inherited TMUX/TMUX_PANE and live session variables.
 # A private socket avoids the live server even when this check runs inside tmux.
 socket="$test_home/tmux.sock"
-isolated=(env -i HOME="$test_home" PATH="$home_path/bin:$PWD/result/sw/bin:/usr/bin:/bin"
+isolated=(env -i HOME="$test_home" PATH="$home_path/bin:$result/sw/bin:/usr/bin:/bin"
   XDG_CONFIG_HOME="$test_home/.config" XDG_DATA_HOME="$test_home/data"
   XDG_STATE_HOME="$test_home/state" XDG_CACHE_HOME="$test_home/cache"
   XDG_RUNTIME_DIR="$test_home/runtime" TMPDIR="$test_home/tmp")
@@ -297,7 +315,7 @@ output=$(env -i HOME="$test_home" PATH="$home_path/bin:/usr/bin:/bin" \
 [[ ! -d "$test_home/data/nvim/lazy" ]]
 
 expected_pi=$(nix --extra-experimental-features 'nix-command flakes' eval --raw \
-  .#nixosConfigurations.nixos.config.home-manager.users.mishka.home.packages \
+  "$flake#nixosConfigurations.nixos.config.home-manager.users.mishka.home.packages" \
   --apply 'packages: (builtins.head (builtins.filter (package: (package.pname or "") == "pi-coding-agent") packages)).version')
 [[ $(pi --version) == "$expected_pi" ]]
 for extension in ask-user diff pretty web-tools; do
@@ -307,7 +325,7 @@ test -d "$files/.config/pi-config/agent/extensions/web-tools/node_modules/linked
 test -f "$files/.config/pi-config/agent/themes/active.json"
 
 printf '\nLive-link directory transitions (never remove these directories by hand):\n'
-for relative in nvim pi-config/agent/agents pi-config/agent/prompts pi-config/agent/skills; do
+for relative in nvim zed pi-config/agent/agents pi-config/agent/prompts pi-config/agent/skills; do
   target="$HOME/.config/$relative"
   if [[ -d $target && ! -L $target ]]; then
     printf '%s -> %s.before-home-manager\n' "$target" "$target"

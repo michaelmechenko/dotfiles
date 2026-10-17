@@ -23,6 +23,13 @@ Waybar/launcher/notifications use
 `surface-chrome`, `surface-highlight`, `text`, and `text-ui`; urgent states use
 `accent-primary`; the lock background uses blurred/dimmed Monet artwork with
 `canvas` as its fallback. The password field keeps palette chrome/text/lavender.
+Vicinae's opaque Vague theme uses `surface-chrome` background, `surface-active`
+secondary surfaces, `divider-subtle` borders, `text` foreground, `text-ui` secondary
+and placeholder text, `surface-highlight` hovered/selected rows and text selection,
+and `accent-secondary` focus/accent. Its semantic accent colors reuse the canonical
+accent roles; both light/dark appearance branches select this dark theme. Lilex
+and Breeze Dark icons match the other Linux launcher surfaces. Fuzzel retains its
+existing palette for the session/power menu.
 Ghostty uses the palette's
 `ghostty` and ANSI definitions, and Oh My Posh retains `ohmyposh/base.json` with
 the resolved roles injected as its palette. Linux selects Breeze Dark desktop

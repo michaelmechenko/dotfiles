@@ -38,7 +38,7 @@ let
   };
 in
 {
-  imports = [ ./dock.nix ./wallpaper.nix ];
+  imports = [ ./dock.nix ./wallpaper.nix ./vicinae.nix ];
 
   # Hyprland does not select KDE's platform theme automatically. Without it,
   # Dolphin's item labels retain Qt's black text despite its dark KDE view.
@@ -98,7 +98,7 @@ in
 
       local function launch(command) return hl.dsp.exec_cmd("uwsm app -- " .. command) end
       hl.bind("SUPER + Return", launch("ghostty"))
-      hl.bind("SUPER + Space", launch("fuzzel"))
+      hl.bind("SUPER + Space", hl.dsp.exec_cmd("vicinae toggle"))
       hl.bind("SUPER + E", launch("dolphin"))
       hl.bind("SUPER + B", launch("helium"))
       for key, app in pairs({ A = "librewolf", Z = "ghostty", S = "dolphin", X = "obsidian" }) do
@@ -267,7 +267,7 @@ in
       ];
       "custom/menu" = {
         format = "Apps";
-        on-click = "fuzzel";
+        on-click = "vicinae toggle";
         tooltip = false;
       };
       "hyprland/workspaces" = {

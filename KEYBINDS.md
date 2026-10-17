@@ -11,7 +11,7 @@ The full Mac tmux/sidebar and Neovim plugin configuration is not enabled here.
 | Key | Action |
 | --- | --- |
 | `Super-Enter` | Open Ghostty |
-| `Super-Space` | Search/launch applications with fuzzel |
+| `Super-Space` | Toggle Vicinae: search/launch applications and desktop commands |
 | `Super-e` / `Super-b` | Open Dolphin / Helium |
 | `Super-Ctrl-a/z/s/x` | Focus LibreWolf / Ghostty / Dolphin / Obsidian if open on any workspace; otherwise launch it |
 | `Super-q` | Close focused window |

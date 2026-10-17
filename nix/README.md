@@ -9,7 +9,8 @@ is pinned in `flake.nix`; `flake.lock` also pins Home Manager.
 - `hosts/nixos/configuration.nix` and `hardware-configuration.nix`: captured
   installer configuration. Keep filesystem identifiers and `stateVersion` intact.
 - `modules/desktop.nix`: NixOS Hyprland/UWSM/portal/PAM/hardware integration.
-- `home/desktop.nix`: Hyprland Lua, Waybar, launcher, notifications, lock/idle.
+- `home/desktop.nix`: Hyprland Lua, Waybar, session menu, notifications, lock/idle.
+- `home/vicinae.nix`: Vicinae launcher, Hyprland-scoped service, settings and Vague theme.
 - `home/apps.nix`: applications, LibreWolf browser and explicit file-type defaults.
 - `home/wallpaper.nix`: immutable Monet artwork, Hyprpaper and Hyprlock backgrounds.
 - `home/source-identity.nix`: build-bound live-source inventory and activation guard.
@@ -91,6 +92,45 @@ A separate nwg-dock-hyprland dock provides pinned applications at the bottom edg
 (see below). After activation, check both monitors' groups, focus/hover/urgent and
 empty states, multiple windows of one app, window moves/open/close, and crowded
 layouts; verify icon clicks from inactive workspaces as well as label clicks.
+
+## Application launcher
+
+Super-Space and Waybar's Apps button run `vicinae toggle`: press again to close;
+Escape or loss of focus dismisses it. Each reopening starts at root search.
+Vicinae uses the existing pinned `pkgs.vicinae` (0.23.2) and Home Manager module;
+no new flake input or third-party extensions are added. Applications launch via
+`uwsm app --`. Fuzzel stays installed and palette-configured for the existing
+Session button / Super-Shift-Escape power menu (`fuzzel --dmenu`).
+
+The user service belongs only to `wayland-session@hyprland.desktop.target`
+(`WantedBy`, `After`, `PartOf`, and `Requisite`). It starts with Hyprland, stops
+with that session, and cannot start while the target is inactive in Plasma.
+There is no second server startup in Hyprland Lua. Home Manager's application
+refresh hook sends a deeplink only if both the Hyprland target and service are
+already active, avoiding activation-triggered autostart outside Hyprland.
+
+Settings and the TOML Vague theme are store-managed; change `home/vicinae.nix`
+and rebuild rather than editing them in Vicinae's settings GUI. Both system
+appearance branches select Vague with Breeze Dark icons and Lilex. The launcher
+is opaque, with 8px corners, no blur/shadow, palette chrome/text, subtle borders
+and highlighted selection. Layer-shell uses on-demand keyboard focus so action
+panel mouse interaction works on Hyprland. Global compositor focus/blur settings
+are unchanged.
+
+Telemetry, clipboard history recording and the optional input monitoring/injection
+server start disabled. Copy still works; automatic paste and snippet expansion
+need the input server and are intentionally unavailable. No browser integrations
+are installed. Built-in commands remain available. File search is not mixed into
+root results; Vicinae may still build its file index on first startup.
+
+`nix/check.sh` validates generated settings/theme, service scoping, activation
+refresh guards, bindings, Waybar and the retained Fuzzel menu without launching
+Vicinae. After separately approved activation, test repeated Super-Space toggles,
+Escape/click-away focus restoration, app launching, and empty/results/selection/
+action-panel/long-label rendering on both monitors. Confirm one server survives
+repeated toggles/reloads, logout stops it, a fresh Hyprland login starts it, and
+Plasma does not autostart it. Build checks do not establish these live results.
+Keep the checked source/result and prior generation for rollback.
 
 ## Wallpaper and default applications
 
@@ -195,7 +235,7 @@ Intercom retains upstream automatic incoming-turn/steering and no-send-confirmat
 
 ## Desktop icons and shortcuts
 
-Breeze Dark is selected for GTK 3/4, Dolphin/KDE, Fuzzel, GNOME dconf and the
+Breeze Dark is selected for GTK 3/4, Dolphin/KDE, Vicinae/Fuzzel, GNOME dconf and the
 20px Waybar running-window taskbar. Home Manager changes only the GTK icon keys
 in the existing writable settings files, the KDE `Icons/Theme` key and the dconf
 icon-theme key; other fonts, cursors, colors and widget settings are preserved.
@@ -219,7 +259,7 @@ through UWSM if no window exists. The existing Super-B/E/Return launchers still
 open new windows. The helper does not launch on Hyprland query failure and retries
 a stale window address once. Ctrl-Shift-V remains Ghostty's clipboard paste key.
 
-After approved activation, reopen Dolphin/Fuzzel and restart Waybar to clear icon
+After approved activation, reopen Dolphin/Vicinae/Fuzzel and restart Waybar to clear icon
 caches. Check folder/launcher icons and active, inactive and hovered taskbar icons
 on both monitors; verify live repeat settings and test each shortcut with an open
 window on another workspace and with no matching window.
@@ -281,7 +321,7 @@ the resulting map according to the latest show/hide request. Sidra's own
 close-to-tray setting is unchanged: when unmapped, the shortcut invokes its
 ordinary singleton launcher to reveal it. Closing/exiting or ending the desktop
 session has normal app-owned semantics; this is not logout/reboot recovery.
-External dock/Fuzzel launches remain ordinary until explicitly adopted; reload
+External dock/launcher launches remain ordinary until explicitly adopted; reload
 does not move an already running ordinary window. Launch failure before mapping
 requires correcting the failure and reloading configuration before retrying;
 avoid reload during a pending launch, just as with the terminal.

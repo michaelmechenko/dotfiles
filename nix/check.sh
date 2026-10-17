@@ -42,6 +42,78 @@ test -x "$home_path/bin/docker-langserver"
 # The selected icon theme must be available before GTK/KDE settings are activated.
 [[ $(nix_eval home-manager.users.mishka.gtk.iconTheme.name) == breeze-dark ]]
 test -f "$home_path/share/icons/breeze-dark/index.theme"
+# Vicinae is session-scoped; these checks do not start its server or index files.
+test -x "$home_path/bin/vicinae"
+test -x "$home_path/bin/fuzzel"
+python3 - "$files" "$home_path" "$home_package/activate" "$PWD/theme/palettes/vague.json" <<'PY'
+import configparser
+import json
+from pathlib import Path
+import sys
+import tomllib
+files, home = map(Path, sys.argv[1:3])
+settings = json.loads((files / '.config/vicinae/settings.json').read_text())
+assert settings['telemetry']['system_info'] is False
+assert settings['input_server']['enabled'] is False
+assert settings['providers']['clipboard']['preferences']['monitoring'] is False
+assert settings['providers']['applications']['preferences']['launchPrefix'] == 'uwsm app --'
+assert settings['favorites'] == [] and settings['search_files_in_root'] is False
+assert settings['font']['normal'] == {'family': 'Lilex Nerd Font', 'size': 12}
+for appearance in ('light', 'dark'):
+    assert settings['theme'][appearance] == {'name': 'vague', 'icon_theme': 'breeze-dark'}
+window = settings['launcher_window']
+assert window['opacity'] == 1 and window['material'] == 'none' and window['rounding'] == 8
+assert window['client_side_decorations']['shadow_size'] == 0
+assert window['layer_shell'] == {'enabled': True, 'keyboard_interactivity': 'on_demand'}
+assert settings['escape_key_behavior'] == 'close_window'
+assert settings['close_on_focus_loss'] is True and settings['pop_to_root_on_close'] is True
+assert not (files / '.local/share/vicinae/extensions').exists()
+with (files / '.local/share/vicinae/themes/vague.toml').open('rb') as source:
+    theme = tomllib.load(source)
+palette = json.loads(Path(sys.argv[4]).read_text())
+roles = palette['roles'] | palette.get('overrides', {}).get('roles', {})
+def role(name):
+    value = roles[name]
+    return role(value[1:]) if value.startswith('@') else value
+assert theme['meta']['variant'] == 'dark'
+colors = theme['colors']
+for key, name in {'background': 'surface-chrome', 'foreground': 'text',
+                  'secondary_background': 'surface-active', 'border': 'divider-subtle',
+                  'accent': 'accent-secondary', 'accent_foreground': 'surface-chrome'}.items():
+    assert colors['core'][key] == role(name)
+assert colors['text']['muted'] == colors['text']['placeholder'] == role('text-ui')
+for state in ('hover', 'selection'):
+    row = colors['list']['item'][state]
+    assert row['background'] == role('surface-highlight')
+    assert row['foreground'] == role('text') and row['secondary_foreground'] == role('text-ui')
+# Systemd legitimately repeats X-Restart-Triggers for settings and theme files.
+unit = configparser.ConfigParser(interpolation=None, strict=False)
+unit.read(files / '.config/systemd/user/vicinae.service')
+target = 'wayland-session@hyprland.desktop.target'
+for key in ('After', 'PartOf', 'Requisite'):
+    assert unit['Unit'][key] == target
+assert unit['Install']['WantedBy'] == target
+assert unit['Service']['ExecStart'].endswith('/bin/vicinae server')
+assert unit['Service']['Restart'] == 'always'
+assert (files / f'.config/systemd/user/{target}.wants/vicinae.service').is_symlink()
+activation = Path(sys.argv[3]).read_text()
+# Test only this hook, not unrelated graphical-session activation logic.
+hook = activation.split('_iNote "Activating %s" "vicinae-refresh-apps"', 1)[1].split('_iNote "Activating %s"', 1)[0]
+assert f'is-active --quiet {target}' in hook
+assert 'is-active --quiet vicinae.service; then' in hook
+assert hook.index('is-active --quiet vicinae.service') < hook.index('deeplink vicinae://')
+lua = (files / '.config/hypr/hyprland.lua').read_text()
+assert lua.count('hl.bind("SUPER + Space",') == 1
+assert 'hl.bind("SUPER + Space", hl.dsp.exec_cmd("vicinae toggle"))' in lua
+assert 'hl.bind("SUPER + SHIFT + Space", hl.dsp.window.float({ action = "toggle" }))' in lua
+assert 'vicinae server' not in lua
+assert 'fuzzel --dmenu' in (home / 'bin/desktop-session-menu').read_text()
+bars = json.loads((files / '.config/waybar/config').read_text())
+bar = bars[0] if isinstance(bars, list) else bars
+assert bar['custom/menu']['on-click'] == 'vicinae toggle'
+assert bar['custom/session']['on-click'] == 'desktop-session-menu'
+print('Vicinae: generated settings/theme, session lifecycle, launcher binding and Fuzzel menu passed.')
+PY
 test -x "$home_path/bin/app-focus"
 python3 nix/home/app-focus-test.py
 lua nix/home/workspaces-test.lua

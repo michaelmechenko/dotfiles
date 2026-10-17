@@ -8,10 +8,7 @@
 
   services.displayManager = {
     defaultSession = "hyprland-uwsm";
-    autoLogin = {
-      enable = true;
-      user = "mishka";
-    };
+    autoLogin.enable = false;
   };
 
   hardware.graphics.enable = true;

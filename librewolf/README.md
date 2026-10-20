@@ -15,6 +15,9 @@ its left/bottom corners are square so its surface meets the window edges; the
 top-right corner stays rounded. Native macOS window rounding still clips the
 outer window corners. Existing sidebar/content outlines are 2px in the non-Nova
 revamped layout outside fullscreen; split-view focus outlines remain native.
+When the browser sidebar is closed, normal webpage containers have a square
+top-left corner. Opening the sidebar restores native page-corner behavior;
+split-view panels are excluded. This does not remove any separate content gutter.
 Restart LibreWolf after changing these rules.
 
 Based on [Sidebery's instructions](https://github.com/mbnuqw/sidebery#how-to-hide-native-tabs).
@@ -86,6 +89,9 @@ been automatically applied or independently render-tested.
 - The sidebar meets the window's left/bottom edges without browser gutters;
   its top-right corner remains rounded. Check the 2px outlines for clipping and
   confirm sidebar resizing works. Internal tab padding should remain unchanged.
+- Close the sidebar and check that the normal page's top-left corner is square;
+  reopen it and confirm the previous rounding returns. Split-view panels and
+  fullscreen behavior should remain unchanged.
 - Native tabs stay absent with Sidebery open, closed, and another sidebar selected;
   also check with Sidebery disabled. Sidebery tab selection and resizing work.
 - Test native horizontal and vertical modes, new windows, narrow windows, and

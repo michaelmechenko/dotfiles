@@ -9,6 +9,14 @@
   display: none !important;
 }
 
+/* Without an open sidebar, square the normal page's top-left corner.
+ * Leave sidebar-open and split-view panel rounding unchanged.
+ */
+:root:has(#sidebar-box[hidden])
+  #tabbrowser-tabpanels > :not(.split-view-panel) .browserContainer {
+  border-top-left-radius: 0 !important;
+}
+
 /* Align the sidebar surface with the window's left and bottom edges. */
 #sidebar-box {
   margin-left: 0 !important;

@@ -9,203 +9,336 @@ ACTIVE_COLOR="$THEME_BAR_TEXT"
 INACTIVE_COLOR="$THEME_BAR_TEXT_INACTIVE"
 SEPARATOR="~"
 INTER_WORKSPACE_GAP=8
+MAX_WORKSPACES=7
+MAX_APPS=6
+CACHE_ROOT="${TMPDIR:-/tmp}/sketchybar_frontapps"
+CACHE_STATE="$CACHE_ROOT/state"
+CACHE_ORDER="$CACHE_ROOT/order"
+CACHE_GENERATION="$CACHE_ROOT/generation"
+CACHE_FAILURE="$CACHE_ROOT/failed"
+CACHE_SEP=$(printf '\037')
+GENERATION="${THEME_BAR_TEXT}|${THEME_BAR_TEXT_INACTIVE}|${SEPARATOR}|${INTER_WORKSPACE_GAP}"
+RESET_CACHE=0
+[ "${1:-}" = "--reset-cache" ] && RESET_CACHE=1
 
 # Leading-edge coalescing. A workspace switch fires both aerospace_workspace_change
-# and aerospace_focus_change, which SketchyBar runs concurrently — without this the
-# IPC-heavy rebuild below runs twice and races. Run the first event immediately; fold
-# any event that arrives mid-rebuild into a single extra pass. macOS has no flock(1),
-# so mkdir is the atomic lock; the pid + kill -0 guard clears a stale lock if a run
-# was killed (incl. SketchyBar's FORK_TIMEOUT).
+# and aerospace_focus_change concurrently. A contender records its request outside
+# the ephemeral ownership directory, then makes one handoff acquisition attempt. That
+# closes the teardown race where an owner passed its final dirty check just before a
+# contender marked the old in-lock file. A reset shares ownership so no older publisher
+# can recreate its cleared state.
 LOCK="${TMPDIR:-/tmp}/sketchybar_frontapps.lock"
-DIRTY="$LOCK/dirty"
-if ! mkdir "$LOCK" 2>/dev/null; then
+REQUEST="${LOCK}.request"
+LOCK_HELD=0
+
+acquire_lock() {
+  mkdir "$LOCK" 2>/dev/null || return 1
+  printf '%s\n' "$$" > "$LOCK/pid"
+  LOCK_HELD=1
+}
+
+# Release ownership, then either reclaim a durable request or let the contender that
+# acquired first own it. The requester retries exactly once, so normal events neither
+# busy-wait nor trigger an unbounded render loop.
+handoff_request() {
+  rm -f "$LOCK/pid"
+  rmdir "$LOCK" 2>/dev/null || return 1
+  LOCK_HELD=0
+  if [ -e "$REQUEST" ] && acquire_lock; then
+    return 0
+  fi
+  return 1
+}
+
+while ! acquire_lock; do
   if [ -f "$LOCK/pid" ] && ! kill -0 "$(cat "$LOCK/pid" 2>/dev/null)" 2>/dev/null; then
     rm -rf "$LOCK"
-    mkdir "$LOCK" 2>/dev/null || { : >"$DIRTY" 2>/dev/null; exit 0; }
-  else
-    : > "$DIRTY" 2>/dev/null
-    exit 0
+    continue
   fi
-fi
-echo $$ > "$LOCK/pid"
+  if [ "$RESET_CACHE" -eq 1 ]; then
+    sleep 0.01
+    continue
+  fi
 
-_TMPDIR="$(mktemp -d)"
-trap 'rm -rf "$_TMPDIR" "$LOCK"' EXIT
-
-while :; do
-rm -f "$DIRTY"
-
-# Run both AeroSpace queries in parallel.
-aerospace list-windows --focused --format '%{window-id}' >"$_TMPDIR/focused" 2>/dev/null &
-aerospace list-windows --all --format '%{workspace}%{tab}%{workspace-is-focused}%{tab}%{window-id}%{tab}%{app-name}%{tab}%{window-is-fullscreen}%{tab}%{window-layout}' >"$_TMPDIR/all" 2>/dev/null &
-wait
-FOCUSED_WIN_ID="$(cat "$_TMPDIR/focused" 2>/dev/null || true)"
-WINDOW_DATA="$(cat "$_TMPDIR/all" 2>/dev/null || true)"
-
-# Fullscreen-window lookup (field 5 == "true"); drives both brackets and border tinting.
-# Space-padded id set + `case` membership test instead of `declare -A` (associative arrays are
-# bash 4+; macOS ships bash 3.2, so this keeps the plugin portable without `brew install bash`).
-FS_IDS=" $(printf '%s\n' "$WINDOW_DATA" | awk -F'\t' '$5=="true"{print $3}' | tr '\n' ' ')"
-
-SLOTS_DATA=""
-if [ -n "$WINDOW_DATA" ]; then
-    # Build per-workspace aggregates in one pass, then sort by group
-    # ('*' before '^' before other), numeric workspace prefix.
-    # Output fields:
-    # group, num, ws, is_ws_focused,
-    # [app1_id, app1_name, ..., app6_id, app6_name]
-    SLOTS_DATA="$({
-        printf '%s\n' "$WINDOW_DATA" | awk -F'\t' '
-            NF < 4 { next }
-            {
-                ws = $1
-                is_focused = $2
-                win_id = $3
-                app = tolower($4)
-
-                count[ws]++
-                if (is_focused == "true") focused_ws = ws
-
-                if (app_count[ws] < 6) {
-                    app_count[ws]++
-                    idx = app_count[ws]
-                    app_id[ws, idx] = win_id
-                    app_name[ws, idx] = app
-                }
-            }
-            END {
-                for (ws in count) {
-                    num = ws
-                    sub(/[^0-9].*$/, "", num)
-
-                    suffix = ws
-                    sub(/^[0-9]+/, "", suffix)
-
-                    group = 2
-                    if (suffix == "*") group = 0
-                    else if (suffix == "^") group = 1
-
-                    is_ws_focused = (ws == focused_ws ? 1 : 0)
-
-                    printf "%d\t%d\t%s\t%d", group, num + 0, ws, is_ws_focused
-                    for (i = 1; i <= 6; i++) {
-                        printf "\t%s\t%s", app_id[ws, i], app_name[ws, i]
-                    }
-                    printf "\n"
-                }
-            }
-        '
-    } | sort -t $'\t' -k1,1n -k2,2n | head -7)"
-fi
-
-# Batch all updates into a single SketchyBar call.
-CMD=(sketchybar)
-SLOT=1
-
-if [ -n "$SLOTS_DATA" ]; then
-    while IFS=$'\t' read -r _group _num ws is_ws_focused \
-        app1_id app1_name app2_id app2_name app3_id app3_name \
-        app4_id app4_name app5_id app5_name app6_id app6_name; do
-        [ -z "$ws" ] && continue
-
-        if [ "$is_ws_focused" = "1" ]; then
-            WS_COLOR="$ACTIVE_COLOR"
-        else
-            WS_COLOR="$INACTIVE_COLOR"
-        fi
-
-        if [ "$SLOT" -gt 1 ]; then
-            WS_LEFT_PAD="$INTER_WORKSPACE_GAP"
-        else
-            WS_LEFT_PAD=0
-        fi
-
-        CMD+=(--set "ws_$SLOT" drawing=on "label=$ws" "label.color=$WS_COLOR" "label.padding_left=$WS_LEFT_PAD" "label.padding_right=8")
-
-        APP_IDS=("$app1_id" "$app2_id" "$app3_id" "$app4_id" "$app5_id" "$app6_id")
-        APP_NAMES=("$app1_name" "$app2_name" "$app3_name" "$app4_name" "$app5_name" "$app6_name")
-
-        for ((j = 1; j <= 6; j++)); do
-            idx=$((j - 1))
-            app_item="app_${SLOT}_${j}"
-            app_id="${APP_IDS[$idx]}"
-            app_name="${APP_NAMES[$idx]}"
-
-            if [ -n "$app_name" ]; then
-                APP_COLOR="$INACTIVE_COLOR"
-                if [ -n "$FOCUSED_WIN_ID" ] && [ "$app_id" = "$FOCUSED_WIN_ID" ]; then
-                    APP_COLOR="$ACTIVE_COLOR"
-                fi
-
-                # Bracket the label when the window is (aerospace) fullscreen.
-                # Bracketed labels need a little right padding so the trailing ']' isn't clipped.
-                app_label="$app_name"; APP_RPAD=0
-                case "$FS_IDS" in *" $app_id "*) app_label="[$app_name]"; APP_RPAD=4 ;; esac
-
-                CMD+=(--set "$app_item" drawing=on "label=$app_label" "label.color=$APP_COLOR" "label.padding_left=0" "label.padding_right=$APP_RPAD" "click_script=aerospace focus --window-id $app_id")
-            else
-                CMD+=(--set "$app_item" drawing=off "label=" "click_script=")
-            fi
-        done
-
-        for ((j = 1; j <= 5; j++)); do
-            cur_app="${APP_NAMES[$((j - 1))]}"
-            next_app="${APP_NAMES[$j]}"
-            sep_item="sep_${SLOT}_${j}"
-
-            if [ -n "$cur_app" ] && [ -n "$next_app" ]; then
-                CMD+=(--set "$sep_item" drawing=on "label=$SEPARATOR" "label.color=$INACTIVE_COLOR" "label.padding_left=4" "label.padding_right=4")
-            else
-                CMD+=(--set "$sep_item" drawing=off "label=")
-            fi
-        done
-
-        SLOT=$((SLOT + 1))
-        [ "$SLOT" -gt 7 ] && break
-    done <<< "$SLOTS_DATA"
-fi
-
-for ((i = SLOT; i <= 7; i++)); do
-    if [ "$i" -eq 1 ]; then
-        # Keep ws_1 active as the event subscriber/driver item.
-        CMD+=(--set "ws_1" drawing=on "label=" "label.padding_left=0" "label.padding_right=0")
-    else
-        CMD+=(--set "ws_$i" drawing=off "label=")
-    fi
-
-    for ((j = 1; j <= 6; j++)); do
-        CMD+=(--set "app_${i}_${j}" drawing=off "label=" "click_script=")
-    done
-
-    for ((j = 1; j <= 5; j++)); do
-        CMD+=(--set "sep_${i}_${j}" drawing=off "label=")
-    done
+  # The request must outlive $LOCK: the owner can remove the directory immediately
+  # after its final check. If it already released, this process becomes the owner;
+  # otherwise the releasing owner reclaims REQUEST for one convergence pass.
+  : > "$REQUEST"
+  acquire_lock && break
+  exit 0
 done
 
-"${CMD[@]}"
+_TMPDIR="$(mktemp -d)"
+trap 'rm -rf "$_TMPDIR"; if [ "$LOCK_HELD" -eq 1 ]; then rm -f "$LOCK/pid"; rmdir "$LOCK" 2>/dev/null || true; fi' EXIT
 
-# Per-window border color (focused window only; unfocused dims to inactive). Locked values, see
-# COLORS.md "Window borders" section - keep in lockstep with borders/bordersrc. Fullscreen keeps
-# the same active color — only the SketchyBar name brackets mark fullscreen.
-# JankyBorders apply-to is write-only, so diff "id color" against saved state; only changed
-# windows get a borders call. Unfocused windows retain the dark inactive border.
-BORDERS=/opt/homebrew/bin/borders
-INACT=$THEME_BORDER_INACTIVE
-CUR_COLORS="$(printf '%s\n' "$WINDOW_DATA" | awk -F'\t' -v active="$THEME_BORDER_ACTIVE" '
-  NF>=6 && $3!="" {
-    c=active                                     # all active windows
-    print $3" "c
-  }' | sort)"
-PREV_COLORS="$(sort /tmp/aerospace_border_colors 2>/dev/null || true)"
-if [ ! -e /tmp/borders_disabled ]; then
-  { set +e
-    comm -23 <(printf '%s\n' "$CUR_COLORS") <(printf '%s\n' "$PREV_COLORS") | while read -r id c; do
-      [ -n "$id" ] && "$BORDERS" apply-to=$id active_color=$c inactive_color=$INACT >/dev/null 2>&1
-    done
-    set -e; }
+# The full profile calls this once on startup. It shares the event lock so no older
+# event can publish stale state after the dynamic identities were removed. A normal
+# event that arrived during reset is handed back into the render loop below.
+if [ "$RESET_CACHE" -eq 1 ]; then
+  umask 077
+  rm -rf "$CACHE_ROOT"
+  mkdir -p "$CACHE_ROOT"
+  chmod 700 "$CACHE_ROOT"
+  sketchybar --remove '/^frontapps_ws_.*/' --remove '/^frontapps_app_.*/'
+  RESET_CACHE=0
+  handoff_request || exit 0
 fi
-printf '%s\n' "$CUR_COLORS" > /tmp/aerospace_border_colors
 
-# An event arrived while rebuilding → run one more pass to capture final state.
-[ -e "$DIRTY" ] || break
+# Theme mutations and a possibly partial failed apply both require a complete rebuild.
+# Do not record a new generation until its desired batch succeeds.
+CACHE_INVALID=0
+if [ -f "$CACHE_FAILURE" ] || { [ -f "$CACHE_GENERATION" ] && [ "$(cat "$CACHE_GENERATION")" != "$GENERATION" ]; }; then
+  CACHE_INVALID=1
+fi
+
+item_name() {
+  # SketchyBar item names are stable across workspace moves. Preserve the two
+  # configured suffixes before generic normalization: `1*` and `1^` must not
+  # collapse to the same identity.
+  local value=$1
+  case "$value" in
+    *\*) value="${value%\*}_star" ;;
+    *^) value="${value%^}_caret" ;;
+  esac
+  printf '%s' "$value" | tr -c '[:alnum:]_' '_'
+}
+
+cache_props() {
+  [ "$CACHE_INVALID" -eq 0 ] && [ -f "$CACHE_STATE" ] || return 1
+  awk -v wanted="$1" '
+    index($0, wanted "\t") == 1 { print substr($0, length(wanted) + 2); found = 1; exit }
+    END { if (!found) exit 1 }
+  ' "$CACHE_STATE"
+}
+
+has_desired_item() {
+  awk -F '\t' -v wanted="$1" '$1 == wanted { found = 1; exit } END { exit !found }' "$DESIRED_STATE"
+}
+
+append_desired() {
+  local id=$1
+  shift
+  printf '%s\t' "$id" >> "$DESIRED_STATE"
+  local arg
+  for arg in "$@"; do
+    printf '%s%s' "$arg" "$CACHE_SEP" >> "$DESIRED_STATE"
+  done
+  printf '\n' >> "$DESIRED_STATE"
+  printf '%s\n' "$id" >> "$DESIRED_ORDER"
+}
+
+append_set_if_changed() {
+  local id=$1 props=$2 previous
+  previous="$(cache_props "$id" || true)"
+  [ "$props" = "$previous" ] && return
+
+  local IFS="$CACHE_SEP"
+  local args=()
+  read -r -a args <<< "$props"
+  CMD+=(--set "$id" "${args[@]}")
+}
+
+order_changed_from() {
+  # Removed items disappear before reordering, so compare only surviving cached IDs.
+  local old="$_TMPDIR/old-order" expected="$_TMPDIR/expected-order"
+  : > "$old"
+  if [ "$CACHE_INVALID" -eq 0 ] && [ -f "$CACHE_ORDER" ]; then
+    while IFS= read -r id; do
+      has_desired_item "$id" && printf '%s\n' "$id" >> "$old"
+    done < "$CACHE_ORDER"
+  fi
+
+  cat "$DESIRED_ORDER" > "$expected"
+  local index=0 old_id desired_id
+  while :; do
+    index=$((index + 1))
+    old_id="$(sed -n "${index}p" "$old")"
+    desired_id="$(sed -n "${index}p" "$expected")"
+    if [ -z "$old_id" ] && [ -z "$desired_id" ]; then
+      return 1
+    fi
+    [ "$old_id" = "$desired_id" ] || { printf '%s\n' "$index"; return 0; }
+  done
+}
+
+while :; do
+  # Consume all requests observed before this render. Requests arriving afterwards
+  # either start one more pass here or are handed off during lock teardown.
+  rm -f "$REQUEST"
+
+  # Both reads describe one desired generation. A failed query leaves the last known
+  # bar and cache intact; a later event retries it instead of rendering a false empty
+  # state.
+  aerospace list-windows --focused --format '%{window-id}' >"$_TMPDIR/focused" 2>/dev/null &
+  focused_pid=$!
+  aerospace list-windows --all --format '%{workspace}%{tab}%{workspace-is-focused}%{tab}%{window-id}%{tab}%{app-name}%{tab}%{window-is-fullscreen}%{tab}%{window-layout}' >"$_TMPDIR/all" 2>/dev/null &
+  all_pid=$!
+  set +e
+  wait "$focused_pid"; focused_status=$?
+  wait "$all_pid"; all_status=$?
+  set -e
+  # AeroSpace can report a nonzero focused-window query when no window exists.
+  # The all-windows snapshot remains authoritative for an intentional empty state;
+  # only failure to obtain it preserves the prior bar/cache.
+  if [ "$all_status" -ne 0 ]; then
+    [ -e "$REQUEST" ] && continue
+    handoff_request && continue
+    break
+  fi
+
+  FOCUSED_WIN_ID=""
+  [ "$focused_status" -eq 0 ] && FOCUSED_WIN_ID="$(cat "$_TMPDIR/focused")"
+  WINDOW_DATA="$(cat "$_TMPDIR/all")"
+  SLOTS_DATA=""
+  if [ -n "$WINDOW_DATA" ]; then
+    # Sort '*', then '^', then other workspace suffixes; retain AeroSpace's window
+    # order within a workspace and cap the rendered data at 7 workspaces/6 windows.
+    SLOTS_DATA="$({
+      printf '%s\n' "$WINDOW_DATA" | awk -F '\t' -v max_apps="$MAX_APPS" '
+        NF < 4 { next }
+        {
+          ws = $1
+          is_focused = $2
+          win_id = $3
+          app = tolower($4)
+          count[ws]++
+          if (is_focused == "true") focused_ws = ws
+          if (app_count[ws] < max_apps) {
+            app_count[ws]++
+            idx = app_count[ws]
+            app_id[ws, idx] = win_id
+            app_name[ws, idx] = app
+            app_fullscreen[ws, idx] = $5
+          }
+        }
+        END {
+          for (ws in count) {
+            num = ws
+            sub(/[^0-9].*$/, "", num)
+            suffix = ws
+            sub(/^[0-9]+/, "", suffix)
+            group = 2
+            if (suffix == "*") group = 0
+            else if (suffix == "^") group = 1
+            printf "%d\t%d\t%s\t%d", group, num + 0, ws, (ws == focused_ws ? 1 : 0)
+            for (i = 1; i <= max_apps; i++) {
+              printf "\t%s\t%s\t%s", app_id[ws, i], app_name[ws, i], app_fullscreen[ws, i]
+            }
+            printf "\n"
+          }
+        }
+      '
+    } | sort -t $'\t' -k1,1n -k2,2n | head -"$MAX_WORKSPACES")"
+  fi
+
+  umask 077
+  mkdir -p "$CACHE_ROOT"
+  chmod 700 "$CACHE_ROOT"
+  DESIRED_STATE="$_TMPDIR/desired-state"
+  DESIRED_ORDER="$_TMPDIR/desired-order"
+  : > "$DESIRED_STATE"
+  : > "$DESIRED_ORDER"
+
+  if [ -n "$SLOTS_DATA" ]; then
+    SLOT=0
+    while IFS=$'\t' read -r _group _num ws is_ws_focused \
+      app1_id app1_name app1_fullscreen app2_id app2_name app2_fullscreen \
+      app3_id app3_name app3_fullscreen app4_id app4_name app4_fullscreen \
+      app5_id app5_name app5_fullscreen app6_id app6_name app6_fullscreen; do
+      [ -n "$ws" ] || continue
+      SLOT=$((SLOT + 1))
+      [ "$SLOT" -le "$MAX_WORKSPACES" ] || break
+
+      if [ "$is_ws_focused" = "1" ]; then WS_COLOR="$ACTIVE_COLOR"; else WS_COLOR="$INACTIVE_COLOR"; fi
+      if [ "$SLOT" -eq 1 ]; then WS_LEFT_PAD=0; else WS_LEFT_PAD=$INTER_WORKSPACE_GAP; fi
+      ws_item="frontapps_ws_$(item_name "$ws")"
+      append_desired "$ws_item" \
+        drawing=on icon.drawing=off label.drawing=on "label=$ws" "label.color=$WS_COLOR" \
+        "label.padding_left=$WS_LEFT_PAD" label.padding_right=8
+
+      APP_IDS=("$app1_id" "$app2_id" "$app3_id" "$app4_id" "$app5_id" "$app6_id")
+      APP_NAMES=("$app1_name" "$app2_name" "$app3_name" "$app4_name" "$app5_name" "$app6_name")
+      APP_FULLSCREEN=("$app1_fullscreen" "$app2_fullscreen" "$app3_fullscreen" "$app4_fullscreen" "$app5_fullscreen" "$app6_fullscreen")
+      for ((j = 1; j <= MAX_APPS; j++)); do
+        idx=$((j - 1))
+        app_id="${APP_IDS[$idx]}"
+        app_name="${APP_NAMES[$idx]}"
+        [ -n "$app_name" ] || continue
+
+        APP_COLOR="$INACTIVE_COLOR"
+        [ "$app_id" = "$FOCUSED_WIN_ID" ] && APP_COLOR="$ACTIVE_COLOR"
+        app_label="$app_name"
+        APP_RPAD=0
+        if [ "${APP_FULLSCREEN[$idx]}" = "true" ]; then app_label="[$app_name]"; APP_RPAD=4; fi
+        app_item="frontapps_app_$(item_name "$app_id")"
+
+        if [ "$j" -eq 1 ]; then
+          append_desired "$app_item" \
+            drawing=on icon.drawing=off icon= icon.color="$INACTIVE_COLOR" \
+            icon.padding_left=0 icon.padding_right=0 "label=$app_label" "label.color=$APP_COLOR" \
+            label.padding_left=0 "label.padding_right=$APP_RPAD" "click_script=aerospace focus --window-id $app_id"
+        else
+          # The separator belongs to this app's icon rather than a permanent sibling
+          # item. This preserves its 4+4 geometry without native windows for hidden
+          # separator slots.
+          append_desired "$app_item" \
+            drawing=on icon.drawing=on "icon=$SEPARATOR" "icon.color=$INACTIVE_COLOR" \
+            icon.padding_left=4 icon.padding_right=4 "label=$app_label" "label.color=$APP_COLOR" \
+            label.padding_left=0 "label.padding_right=$APP_RPAD" "click_script=aerospace focus --window-id $app_id"
+        fi
+      done
+    done <<< "$SLOTS_DATA"
+  fi
+
+  CMD=(sketchybar)
+  # A palette generation swap removes all old dynamic identities before recreating
+  # them. Static driver/keyswap items never enter this cache.
+  if [ "$CACHE_INVALID" -eq 1 ]; then
+    CMD+=(--remove '/^frontapps_ws_.*/' --remove '/^frontapps_app_.*/')
+  elif [ -f "$CACHE_STATE" ]; then
+    while IFS=$'\t' read -r old_id _; do
+      has_desired_item "$old_id" || CMD+=(--remove "$old_id")
+    done < "$CACHE_STATE"
+  fi
+
+  while IFS=$'\t' read -r id props; do
+    [ -n "$id" ] || continue
+    cache_props "$id" >/dev/null 2>&1 || CMD+=(--add item "$id" left)
+    append_set_if_changed "$id" "$props"
+  done < "$DESIRED_STATE"
+
+  reorder_from="$(order_changed_from || true)"
+  if [ -n "$reorder_from" ]; then
+    # Inserting every tail item before keyswap in forward order reverses a newly
+    # appended prefix. Place the tail right-to-left, each before its successor;
+    # this converges whether SketchyBar partially applied a prior batch or not.
+    while IFS=$'\t' read -r id anchor; do
+      CMD+=(--move "$id" before "$anchor")
+    done < <(awk -v start="$reorder_from" '
+      { ids[NR] = $0 }
+      END { for (i = NR; i >= start; i--) print ids[i] "\t" (i == NR ? "keyswap" : ids[i + 1]) }
+    ' "$DESIRED_ORDER")
+  fi
+
+  # Do not publish desired state until SketchyBar accepts the whole batch. A failed
+  # apply therefore retries additions/sets/moves on the next event.
+  if [ "${#CMD[@]}" -gt 1 ]; then
+    if "${CMD[@]}"; then
+      mv "$DESIRED_STATE" "$CACHE_STATE"
+      mv "$DESIRED_ORDER" "$CACHE_ORDER"
+      printf '%s\n' "$GENERATION" > "$CACHE_GENERATION"
+      rm -f "$CACHE_FAILURE"
+      CACHE_INVALID=0
+    else
+      # SketchyBar commands can have mutated a prefix before returning failure.
+      # Persist an invalidation marker so the next event removes all dynamic IDs
+      # before rebuilding, rather than attempting duplicate --add operations.
+      : > "$CACHE_FAILURE"
+      CACHE_INVALID=1
+    fi
+  fi
+
+  [ -e "$REQUEST" ] && continue
+  handoff_request && continue
+  break
 done

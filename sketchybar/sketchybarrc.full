@@ -40,35 +40,21 @@ sketchybar --add event aerospace_workspace_change \
            --add event aerospace_keyswap_change
 
 #
-# LEFT BLOCK - All workspaces with windows
+# LEFT BLOCK - Populated workspaces only
 #
 
-# Batch all left-block item creation into ONE sketchybar call (~84 -> 1 IPC roundtrip).
-# SketchyBar redraws after every standalone invocation, so batching is the single biggest
-# startup-cost win here — critical on monitor-attach when the whole bar is recreated.
+# v2.24.1 allocates a native window for every item before checking drawing=off.
+# Keep only this event driver and keyswap static; frontapps.sh adds/removes visible
+# workspace/window items and places them before keyswap. Resetting its private cache
+# starts a fresh profile/theme generation without retaining stale dynamic identities.
+"$PLUGIN_DIR/frontapps.sh" --reset-cache
 CMD=(sketchybar)
-# ws_1 subscribes and drives updates for all left-block items.
-for i in $(seq 1 7); do
-    CMD+=(--add item ws_$i left)
-    if [ "$i" -eq 1 ]; then
-        CMD+=(--subscribe ws_$i aerospace_workspace_change aerospace_focus_change)
-        CMD+=(--set ws_$i width=dynamic icon.drawing=off label.drawing=on script="$PLUGIN_DIR/frontapps.sh")
-    else
-        CMD+=(--set ws_$i width=dynamic icon.drawing=off label.drawing=on)
-    fi
+CMD+=(--add item frontapps_driver left)
+CMD+=(--subscribe frontapps_driver aerospace_workspace_change aerospace_focus_change)
+CMD+=(--set frontapps_driver drawing=off icon.drawing=off label.drawing=off script="$PLUGIN_DIR/frontapps.sh")
 
-    # Up to 6 windows per workspace slot, with 5 separators between them.
-    for j in $(seq 1 6); do
-        CMD+=(--add item app_${i}_${j} left)
-        CMD+=(--set app_${i}_${j} width=dynamic drawing=off icon.drawing=off label.drawing=on)
-        if [ "$j" -lt 6 ]; then
-            CMD+=(--add item sep_${i}_${j} left)
-            CMD+=(--set sep_${i}_${j} width=dynamic drawing=off icon.drawing=off label.drawing=on)
-        fi
-    done
-done
-
-# Swap-mode indicator: hidden unless the cmd / cmd-shift role swap is active.
+# Swap-mode indicator: hidden unless the cmd / cmd-shift role swap is active. Dynamic
+# items are moved immediately before it, preserving the prior left-block order.
 CMD+=(--add item keyswap left)
 CMD+=(--subscribe keyswap aerospace_keyswap_change)
 CMD+=(--set keyswap width=dynamic drawing=off icon.drawing=off label.drawing=on label.padding_left=10 script="$PLUGIN_DIR/keyswap.sh")

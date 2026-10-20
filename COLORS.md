@@ -286,13 +286,8 @@ Buffer colors are shared by the main component and `filetype_spacing` extension:
 
 ## Window borders (JankyBorders)
 
-Border color/width for every window is driven by two files that must stay in lockstep:
-
-- `borders/bordersrc` — daemon defaults: `width`, plus a static `active_color`/`inactive_color`
-  fallback that only renders for a window before `frontapps.sh` has tinted it at least once (e.g.
-  right after the daemon restarts, before the next focus/workspace event).
-- `sketchybar/plugins/frontapps.sh` — per-window color override, applied via `borders apply-to=` on
-  every focus/workspace change. Always wins over `bordersrc`'s static default once it has run.
+`borders/bordersrc` is the sole owner of uniform border color and width. SketchyBar's
+`frontapps.sh` does not issue `borders apply-to=` calls or retain a border-color cache.
 
 The active border uses the muted `text-ui` gray (`#9094A0`) at approximately 70% opacity. The
 inactive color remains the dark `surface-chrome` border, preserving the original perimeter behavior
@@ -300,9 +295,9 @@ while reducing the active border's brightness and visual weight.
 
 | State | Hex | Where set |
 |---|---|---|
-| Inactive (any layout) | `#1c1c24` (`surface-chrome`) | `bordersrc` `inactive_color`; `frontapps.sh` `INACT` |
-| Active (any layout) | `0xB39094A0` (`#9094A0` / `text-ui`, ~70% opacity) | `bordersrc` `active_color`; `frontapps.sh` active branch |
-| Width | `5.0` | `bordersrc` `width` (per-window `apply-to=` calls never set width) |
+| Inactive (any layout) | `0xFF1C1C24` (`surface-chrome`) | `bordersrc` `inactive_color` |
+| Active (any layout) | `0xB39094A0` (`#9094A0` / `text-ui`, ~70% opacity) | `bordersrc` `active_color` |
+| Width | `5.0` | `bordersrc` `width` |
 
 This changes only the active border's color and opacity; JankyBorders still renders a full rounded
 perimeter, not corner-only segments.

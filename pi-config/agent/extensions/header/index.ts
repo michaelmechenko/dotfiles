@@ -19,7 +19,7 @@ import {
 	type ExtensionAPI,
 	type ResolvedResource,
 } from "@earendil-works/pi-coding-agent";
-import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 
 const WORDMARK = "pi";
 
@@ -50,15 +50,14 @@ interface ResourceSummary {
  * `skill-toggle/src/index.ts`), where naively taking the immediate parent
  * directory would wrongly report "src".
  */
-function resourceDisplayName(resource: ResolvedResource, containerName: string): string {
-	if (resource.metadata.origin === "package") return resource.metadata.source;
+export function resourceDisplayName(resource: ResolvedResource, containerName: string): string {
 	const segments = resource.path.split(path.sep);
 	const containerIndex = segments.lastIndexOf(containerName);
 	if (containerIndex !== -1 && containerIndex + 1 < segments.length) {
 		return segments[containerIndex + 1] as string;
 	}
 	const base = path.basename(resource.path, path.extname(resource.path));
-	return base === "index" ? path.basename(path.dirname(resource.path)) : base;
+	return base === "index" || base === "SKILL" ? path.basename(path.dirname(resource.path)) : base;
 }
 
 function summarizeResources(resources: ResolvedResource[], containerName: string): ResourceSummary {
@@ -91,11 +90,25 @@ async function summarizeResourcesForCwd(
 	}
 }
 
-function formatSummaryLine(summary: ResourceSummary, label: string): string {
-	if (summary.disabledNames.length === 0) {
-		return `${summary.totalCount} ${label}`;
+export function formatSummary(summary: ResourceSummary, label: string, width: number): string[] {
+	if (width < 1) return [];
+	const count = summary.disabledNames.length ? `${summary.enabledCount}/${summary.totalCount}` : `${summary.totalCount}`;
+	const lines = [center(`${count} ${label}`, width)];
+	if (!summary.disabledNames.length) return lines;
+	lines.push(center("disabled:", width));
+	const cellWidth = Math.max(...summary.disabledNames.map(visibleWidth));
+	const columns = Math.max(1, Math.min(summary.disabledNames.length, Math.floor((width + 3) / (cellWidth + 3))));
+	const gridWidth = Math.min(width, columns * (cellWidth + 3) - 3);
+	const padding = " ".repeat(Math.max(0, Math.floor((width - gridWidth) / 2)));
+	for (let start = 0; start < summary.disabledNames.length; start += columns) {
+		const row = summary.disabledNames.slice(start, start + columns);
+		if (columns === 1) {
+			for (const line of wrapTextWithAnsi(row[0], width)) lines.push(padding + line);
+		} else {
+			lines.push(padding + row.map((name, index) => index === row.length - 1 ? name : name + " ".repeat(cellWidth - visibleWidth(name) + 3)).join(""));
+		}
 	}
-	return `${summary.enabledCount}/${summary.totalCount} ${label} \u00b7 disabled: ${summary.disabledNames.join(", ")}`;
+	return lines;
 }
 
 export default function header(pi: ExtensionAPI) {
@@ -114,8 +127,10 @@ export default function header(pi: ExtensionAPI) {
 						center(theme.fg("muted", subtitle), width),
 					];
 					if (summary) {
-						lines.push(center(theme.fg("dim", formatSummaryLine(summary.extensions, "extensions")), width));
-						lines.push(center(theme.fg("dim", formatSummaryLine(summary.skills, "skills")), width));
+						lines.push("");
+						lines.push(...formatSummary(summary.extensions, "extensions", width).map((line) => theme.fg("dim", line)));
+						lines.push("");
+						lines.push(...formatSummary(summary.skills, "skills", width).map((line) => theme.fg("dim", line)));
 					}
 					lines.push("");
 					return lines;

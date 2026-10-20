@@ -1,6 +1,7 @@
 {
   "lastChangelogVersion": "0.85.1",
   "theme": "active",
+  "showHardwareCursor": true,
   "defaultProvider": "openai-codex",
   "defaultModel": "gpt-6-astra",
   "enabledModels": [

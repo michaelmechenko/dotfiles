@@ -131,6 +131,11 @@ in this repo instead of tracking an external npm release. To pick up upstream ch
 `npm view @ogulcancelik/pi-goal` / `npm view @ogulcancelik/pi-session-recall` and re-copy by hand —
 there's no `pi update` path for a forked-local extension.
 
+Both `session-recall` tools must retain their explicit `description` strings. Pi's native codemode
+reads them while rebuilding the tool loadout; missing descriptions cause `undefined.trim()` errors
+reported at unrelated `setActiveTools()` callers such as tool-toggle and Lens. The credential-free
+host regression test is `node --test pi-config/agent/extensions/session-recall/__tests__/codemode.test.mjs`.
+
 ### Forked locally from `@petechu/pi-extension-toggle` (no longer npm-managed)
 
 | Extension | What it does |

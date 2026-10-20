@@ -666,6 +666,8 @@ export default function sessionRecallExtension(pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "session_search",
 		label: (params) => `Session Search: ${params.query}`,
+		description:
+			"Search past Pi sessions using literal fixed-string matching. Use one distinctive token or exact phrase, not unrelated keywords. Returns session paths and matching snippets for follow-up with session_query.",
 
 		parameters: Type.Object({
 			query: Type.String({
@@ -765,6 +767,8 @@ export default function sessionRecallExtension(pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "session_query",
 		label: (params) => `Session Query: ${params.question}`,
+		description:
+			"Ask an LLM a focused question about a past Pi session. Pass a session path from session_search or a known session file to retrieve decisions, approaches, or files changed.",
 
 		parameters: Type.Object({
 			sessionPath: Type.String({

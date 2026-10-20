@@ -86,7 +86,7 @@ whole autosuggestion (Ghostty transports it through F13).
 | --- | --- |
 | `cmd-/` | Cycle layout: accordion → horizontal → vertical |
 | `cmd-shift-/` | Cycle layout: tiles → horizontal → vertical |
-| `cmd-shift-s` | Toggle focused window floating ↔ tiling (keeps on-screen frame; Hammerspoon `toggleFloatKeepPos`) |
+| `cmd-shift-s` | Toggle focused window floating ↔ tiling, keeping its frame when floated. If Ghostty and its LibreWolf/Firefox companion are both already floating on the workspace, tile both and restore focus. Prefer LibreWolf; lowest window ID breaks same-app ties. Helium is excluded. Hammerspoon `toggleFloatKeepPos`. |
 | `cmd-shift-v` | Toggle outer monitor gaps 16 ↔ 64 (inner gaps unchanged; `toggle_gaps.sh`) |
 | `cmd-shift-0` | Balance window sizes |
 

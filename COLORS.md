@@ -89,9 +89,9 @@ roles, status rows, and native border/footer colors are unchanged.
 
 | Role | Hex | Where used |
 |---|---|---|
-| `accent-primary` (rose) | `#d8647e` | tmux `@color-accent-primary` — the two three-cell flanks in inactive unlabeled footers, and the inactive bracketed label and its complete three-cell flanks; tmux ephemeral session indicator; Ghostty ANSI 1; ohmyposh path segment; nvim lualine `replace`-mode status/location block; mm-sidebar agents-glance `!P`/`!W` (awaiting-permission / waiting) and Git deleted/conflict rows |
+| `accent-primary` (rose) | `#d8647e` | tmux `@color-accent-primary` — the inactive bracketed label and its complete three-cell flanks; tmux ephemeral session indicator; Ghostty ANSI 1; ohmyposh path segment; nvim lualine `replace`-mode status/location block; mm-sidebar agents-glance `!P`/`!W` (awaiting-permission / waiting) and Git deleted/conflict rows |
 | `accent-secondary` (lavender) | `#aeaed1` | tmux `@color-accent-secondary`; multi-pane active border/centered footer base rule cells (including zoom), and the active pane's horizontal span plus adjacent split-border cells on the second status row; every real adjacent split-border intersection is rendered as `┬`; Ghostty ANSI 6 + ANSI 12 (ANSI 12 override → Claude Code code-block syntax highlighting, since its dark-ansi theme has no syntax token); ohmyposh session segment; nvim lualine `normal`/`command`-mode status/location block; mm-sidebar active-tab chip bg, block labels (`▸ name`), cursor `▶`, directory rows |
-| `accent-tertiary` (dusty pink) | `#bb9dbd` | tmux `@color-accent-tertiary` — active bracketed footer label text and its complete three-cell flanks, and the two three-cell flanks in active unlabeled footers; Ghostty ANSI 2; ohmyposh transient prompt + git segment; nvim lualine `visual`-mode status/location block; mm-sidebar agents-glance `~~` (thinking) and Git added/untracked rows |
+| `accent-tertiary` (dusty pink) | `#bb9dbd` | tmux `@color-accent-tertiary` — active bracketed footer label text and its complete three-cell flanks; Ghostty ANSI 2; ohmyposh transient prompt + git segment; nvim lualine `visual`-mode status/location block; mm-sidebar agents-glance `~~` (thinking) and Git added/untracked rows |
 | `accent-highlight` (pale lavender) | `#bebedb` | tmux `@color-accent-highlight` / `@color-accent-highlight` — current window status; tmux copy-mode current line number (`copy-mode-current-line-number-style`, bold); mm-sidebar row text + stat values |
 | `accent-info` (slate) | `#8ba9c1` | ohmyposh executiontime segment; nvim `FoldColumn` fg (`surface-fold`); Claude theme `planMode` token. **No tmux usage. No longer Ghostty ANSI 12** — that slot was remapped to `accent-secondary` lavender (`#aeaed1`). |
 | `accent-periwinkle` | `#9b9bcc` | nvim render-md inline code (`RenderMarkdownCodeInline` fg, bg cleared — fenced blocks keep their bg) + table borders (`RenderMarkdownTableHead` / `RenderMarkdownTableRow` fg; Head otherwise default-links to `@markup.heading` = blue `c.keyword`). A blue-violet between `accent-info` slate and `accent-secondary` lavender. **nvim-only.** |
@@ -101,22 +101,17 @@ roles, status rows, and native border/footer colors are unchanged.
 ### Tmux pane-footer rendering
 
 The native border stays continuous box drawing (`pane-border-lines = single`).
-Its unlabeled decoration is ` ─── ─────── ─── ` (17 cells), or
-` ─── [label] ─── ` with a label. Both complete three-cell flanks are highlighted:
-`accent-tertiary` when active, `accent-primary` when inactive. The connected
-seven-cell unlabeled center is **not highlighted**; it and the four spaces
-use the state's base foreground. Labeled text shares its flanks' accent.
-The spaces occur outside each flank and between the flank and center/label.
-Restore the base foreground after the motif so the native outer rail is unchanged.
-Zoom underlines the centered motif except its leading and trailing whitespace cells, with no
-background highlight. Actual
-Ghostty rendering on tmux 3.7c verifies underline for these line/bracket motifs.
+Unlabeled footers are gapless, single-color rails: `accent-secondary` for active
+multi-pane windows (including zoom), and `text-muted` for inactive panes and
+genuinely single-pane windows. A sidebar counts as a pane. Zoom underlines a
+centered 15-cell segment in the rail's own color, with no gaps or background block.
 
-A genuinely single-pane window uses `text-muted` for its native rail and base
-motif cells, matching the separator beneath the tabs. Its active unlabeled
-highlights and labeled text remain `accent-tertiary`. A zoomed multi-pane window
-retains `accent-secondary` for its native rail/base cells and the same dusty-pink
-unlabeled highlights. Pane backgrounds are unchanged.
+Labeled footers retain ` ─── [label] ─── `: the label and complete three-cell
+flanks use `accent-tertiary` when active and `accent-primary` when inactive.
+The four separator spaces and outer rail use the native state foreground.
+Zoom underlines only nonblank motif characters, never separator spaces, whitespace
+inside labels, padding, or outer rails. Attached-client cell tests on tmux 3.7b
+verify these boundaries and restoration after unzoom. Pane backgrounds are unchanged.
 
 ### Selection / chrome (Ghostty only)
 

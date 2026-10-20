@@ -287,18 +287,13 @@ class TmuxFooterTests(unittest.TestCase):
         config = (theme.CONFIG_DIR / "tmux.conf").read_text()
         footer = next(line for line in config.splitlines() if line.startswith("setw -g pane-border-format"))
         active_base = "#[fg=#{?#{==:#{window_panes},1},#{@color-text-muted},#{@color-accent-secondary}}]"
-        inactive_base = "#[fg=#{@color-text-muted}]"
-        for highlight, base, reset in (
-            ("#[fg=#{@color-accent-tertiary}]", active_base, "#[nounderscore]"),
-            ("#[fg=#{@color-accent-primary}]", inactive_base, "#{?#{==:#{pane_width},#{window_width}}"),
-        ):
-            leading_start = "#{?#{window_zoomed_flag},#[underscore],}" if base == active_base else ""
-            motif = base + " " + leading_start + highlight + "───" + base + " ─────── " + highlight + "───"
-            trailing_reset = "#[nounderscore]" if base == active_base else ""
-            self.assertIn(motif + base + trailing_reset + " }" + reset, footer)
-            labeled = (" " + leading_start + highlight + "───" + base + " " + highlight + "[#{@pane-label}]" +
-                       base + " " + highlight + "───" + base + trailing_reset + " ")
-            self.assertIn(labeled + ",", footer)
+        self.assertNotIn(" ─────── ", footer)
+        self.assertIn(active_base + "#{?#{window_zoomed_flag},#[underscore],}" + "─" * 15 + "#[nounderscore]", footer)
+        self.assertIn("," + "─" * 15 + "}", footer)
+        self.assertIn("#{s|([ \t]+)|#[nounderscore]", footer)
+        for highlight in ("#[fg=#{@color-accent-tertiary}]", "#[fg=#{@color-accent-primary}]"):
+            self.assertIn(highlight + "───", footer)
+        self.assertIn("───#[nounderscore]" + active_base + " ", footer)
         self.assertIn("#{?#{window_zoomed_flag},#[underscore],}", footer)
         self.assertIn("#[nounderscore]#{?#{==:#{pane_width},#{window_width}}", footer)
         self.assertIn("#{?#{==:#{window_panes},1},#{@color-text-muted},#{@color-accent-secondary}}", footer)

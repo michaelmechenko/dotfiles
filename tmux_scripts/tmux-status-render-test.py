@@ -484,7 +484,7 @@ def verify_footer_centering() -> None:
                 span_start = max(0, left - 1)
                 span_end = min(window - 1, left + width)
                 target_center = (span_start + span_end) / 2
-                for label, needle in (("CENTER", "CENTER"), ("ODD", "ODD"), ("", " ─── ─────── ─── ")):
+                for label, needle in (("CENTER", "CENTER"), ("ODD", "ODD"), ("", "───────────────")):
                     for other in panes:
                         run("set-option", "-pu", "-t", other, "@pane-label")
                     if label:
@@ -507,8 +507,8 @@ def verify_footer_centering() -> None:
                         chars, colors = capture()
                         footer_row = 2 + top + height
                         row = "".join(chars[footer_row])
-                        # Derive unlabeled motif positions from pane geometry,
-                        # including their invisible base-colored whitespace.
+                        # Derive the repeated unlabeled rail segment from geometry,
+                        # rather than matching an arbitrary run of rail glyphs.
                         fraction = (len(needle) - 1) / 2 % 1
                         expected_center = int(target_center - fraction) + fraction
                         index = row.find(needle, span_start, span_end + 1) if label else int(expected_center - (len(needle) - 1) / 2)
@@ -518,7 +518,7 @@ def verify_footer_centering() -> None:
                                 f"{cols}/{layout}/{pane}/{state} footer lacks "
                                 f"{needle!r}: {row!r}"
                             )
-                        expected_marker = label_marker if active else inactive_marker
+                        expected_marker = (label_marker if active else inactive_marker) if label else (active_marker if active else muted_marker)
                         marker_index = index if label else index + 1
                         if colors[footer_row][marker_index] != expected_marker:
                             raise AssertionError(
@@ -529,10 +529,8 @@ def verify_footer_centering() -> None:
                             if not active:
                                 inactive_color_cases += 1
                             base_color = active_marker if active else muted_marker
-                            highlight = label_marker if active else inactive_marker
                             for offset in range(len(needle)):
-                                expected = highlight if offset in (1, 2, 3, 13, 14, 15) else base_color
-                                assert colors[footer_row][index + offset] == expected
+                                assert colors[footer_row][index + offset] == base_color
                         if label:
                             motif_start = index - 6
                             expected_colors = [active_marker if active else muted_marker] * (len(label) + 12)
@@ -755,7 +753,7 @@ class FooterClient:
         start, end = max(0, left - 1), min(window - 1, left + width)
         row = "".join(chars[y])
         rail = self.palette["text-muted" if not active or panes == 1 else "accent-secondary"]
-        motif = f" ─── [{label}] ─── " if label else " ─── ─────── ─── "
+        motif = f" ─── [{label}] ─── " if label else "───────────────"
         fraction = (len(motif) - 1) / 2 % 1
         if width == window:
             expected_center = left + 2 + (width - 2) // 2 - len(motif) // 2 + (len(motif) - 1) / 2
@@ -768,10 +766,6 @@ class FooterClient:
             expected_colors[5:len(label) + 7] = [accent] * (len(label) + 2)
             for offset in (1, 2, 3, len(label) + 8, len(label) + 9, len(label) + 10):
                 expected_colors[offset] = accent
-        else:
-            highlight = self.palette["accent-tertiary" if active else "accent-primary"]
-            for offset in (1, 2, 3, 13, 14, 15):
-                expected_colors[offset] = highlight
         if clipped and not label:
             # Clip from the geometry-derived motif origin, not a repeated-rule
             # substring. Leading native rail cells are outside the status span.
@@ -782,7 +776,7 @@ class FooterClient:
                 assert chars[y][x] == expected_char, (width, x, offset, row)
                 expected = expected_colors[offset] if 0 <= offset < len(motif) else rail
                 assert colors[y][x] == expected, (width, active, x, offset, colors[y][x], expected)
-                assert underlines[y][x] == (zoom and 1 <= offset < len(motif) - 1)
+                assert underlines[y][x] == (zoom and 0 <= offset < len(motif) and not motif[offset].isspace())
                 assert backgrounds[y][x] == self.palette["canvas"]
             for x in range(left, draw_start):
                 assert colors[y][x] == rail, (x, colors[y][x], rail)
@@ -803,7 +797,7 @@ class FooterClient:
         assert colors[y][index:index + len(motif)] == expected_colors, (row, colors[y])
         assert index + (len(motif) - 1) / 2 == expected_center, (row, expected_center)
         expected_underline = [False] * (end - start + 1)
-        expected_underline[index - start + 1:index - start + len(motif) - 1] = [zoom] * (len(motif) - 2)
+        expected_underline[index - start:index - start + len(motif)] = [zoom and not char.isspace() for char in motif]
         assert underlines[y][start:end + 1] == expected_underline, (row, underlines[y])
         assert all(color in (None, self.palette["canvas"]) for color in backgrounds[y][start:end + 1]), backgrounds[y]
         assert backgrounds[y][index:index + len(motif)] == [self.palette["canvas"]] * len(motif)
@@ -888,10 +882,13 @@ def verify_zoom_render() -> None:
         pane = client.first
         other = client.run("split-window", "-h", "-P", "-F", "#{pane_id}", "-t", pane)
         client.run("select-pane", "-t", pane)
-        for label in ("label", "", "EVEN", "ODD"):
+        for label in ("label", "", "EVEN", "ODD", "two  words", " leading trailing "):
             client.label(pane, label)
             client.run("resize-pane", "-Z", "-t", pane)
             client.assert_footer(pane, label, active=True, zoom=True)
+            client.label(pane, "")
+            client.assert_footer(pane, "", active=True, zoom=True)
+            client.label(pane, label)
             client.run("resize-pane", "-Z", "-t", pane)
             client.assert_footer(pane, label, active=True)
             client.run("select-pane", "-t", other)
@@ -1029,8 +1026,8 @@ def main() -> int:
         inactive = tmux("split-window", "-h", "-P", "-F", "#{pane_id}", "-t", pane)
         tmux("select-pane", "-t", pane)
         base_footer = {
-            (pane, ""): " ─── ─────── ─── ",
-            (inactive, ""): " ─── ─────── ─── ",
+            (pane, ""): "───────────────",
+            (inactive, ""): "───────────────",
             (pane, "label"): " ─── [label] ─── ",
             (inactive, "label"): " ─── [label] ─── ",
         }

@@ -22,8 +22,8 @@ cursor-style-blink = false
 # window-theme = auto
 # window-vsync = false
 
-window-padding-x = 10
-window-padding-y = 10, 2
+window-padding-x = 12
+window-padding-y = 10, 0
 
 # Match tmux window-style bg so padding wraps the inactive pane field seamlessly.
 # background/foreground and the ANSI 12/14 remaps now live in the generated active
@@ -66,7 +66,7 @@ font-size = 14
 font-family = "Comic Mono"
 font-variation = wght=380
 adjust-cell-height = 6%
-adjust-cell-width = 4%
+adjust-cell-width = 6%
 
 # papermono config
 # font-family = "Paper Mono"

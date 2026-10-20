@@ -9,13 +9,24 @@
   display: none !important;
 }
 
+#sidebar-box {
+  margin-left: 8px !important;
+}
+
+/* Remove the browser sidebar title, close button, and switcher controls.
+ * This applies to other sidebars too; extension content remains untouched.
+ */
+#sidebar-header,
+#sidebar-panel-header {
+  display: none !important;
+}
+
 /* LibreWolf already has a window-control container in the navigation toolbar.
  * With the tab toolbar hidden, use those controls on macOS. Let the browser
  * retain its normal fullscreen and native-titlebar behavior.
  */
 @media (-moz-platform: macos) {
-  :root[tabsintitlebar]:not([inFullscreen], [chromehidden~="toolbar"])
-    #nav-bar > .titlebar-buttonbox-container {
+  :root[tabsintitlebar]:not([inFullscreen], [chromehidden~="toolbar"]) #nav-bar>.titlebar-buttonbox-container {
     display: flex !important;
   }
 }

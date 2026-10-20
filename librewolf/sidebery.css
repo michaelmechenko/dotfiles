@@ -1,0 +1,54 @@
+/* Paste into Sidebery Settings > Styles editor > Sidebar.
+ * This file is a source copy, not automatically loaded by the extension.
+ */
+#root.root {
+  --general-margin: 2px;
+  --tabs-font: 12px "Comic Mono", monospace;
+  --tabs-title-line-height: 16px;
+  --tabs-padding: 1px;
+  --tabs-margin: 2px;
+  --tabs-pinned-height: 26px;
+  --tabs-pinned-width: 26px;
+  --general-border-radius: 6px;
+  --tabs-border-radius: 6px;
+
+  /* accent-sidebery (COLORS.md): preserve the custom Sidebery pink. */
+  --toolbar-el-overlay-selected-border: #ff87f2ff;
+  --frame-el-overlay-selected-border: #ff87f2ff;
+  --nav-btn-accent: #ff87f2ff;
+}
+
+#root {
+  box-sizing: border-box;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+#root .PinnedTabsBar {
+  border-bottom: none;
+  padding-bottom: 12px;
+  margin-bottom: 6px;
+  justify-content: center;
+}
+
+.Tab .body::after {
+  top: calc(0px - var(--tabs-margin));
+  height: calc(100% + var(--tabs-margin));
+}
+
+.Tab .title {
+  padding-top: 3px !important;
+  padding-bottom: 1px !important;
+}
+
+#root .PinnedTabsBar::after {
+  content: "";
+  display: block !important;
+  position: absolute;
+  bottom: 0;
+  left: 12px;
+  width: calc(100% - 24px);
+  height: 1px;
+  background: var(--frame-fg);
+  opacity: 0.25;
+}

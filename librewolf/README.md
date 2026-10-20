@@ -7,6 +7,12 @@ closed or disabled. The address bar and extension sidebar remain intact. On
 macOS, the navigation toolbar's existing window controls replace those in the
 hidden tab toolbar outside fullscreen.
 
+The browser-provided sidebar header is also hidden, including its title, close
+button, and sidebar switcher. This applies to other browser sidebars too, not
+just Sidebery. Sidebery's own navigation, tabs, indentation, and resizing remain
+unchanged. The browser sidebar also has an 8px outer left inset via
+`#sidebar-box`. Restart LibreWolf after changing these rules.
+
 Based on [Sidebery's instructions](https://github.com/mbnuqw/sidebery#how-to-hide-native-tabs).
 Browser chrome selectors are internal APIs and may need updating after upgrades.
 
@@ -46,8 +52,30 @@ Edit the repository file for future changes, then restart LibreWolf. An absolute
 symlink must be recreated if the checkout moves. No `user.js` or generated
 `prefs.js` edits are required.
 
+## Sidebery styles
+
+[`sidebery.css`](sidebery.css) is the tracked source copy of the extension's
+custom styles. Sidebery does **not** load it automatically from disk. Copy its
+contents into **Sidebery Settings → Styles editor → Sidebar**, replacing the
+previous custom CSS. Changes apply there without a browser restart. Keep future
+edits in this file and manually paste them into Sidebery again; do not link it
+as `userChrome.css` or edit extension storage.
+
+The styles preserve Comic Mono at 12px (install that font locally), compact tabs,
+26px pinned tabs, centered pinned rows, the custom tree guides and title padding,
+6px corners, and the pink `accent-sidebery` documented in `../COLORS.md`.
+The 4px inner left/right padding is separate from the browser's 8px outer left
+inset. Duplicate declarations were consolidated; the effective tab margin stays
+2px. The pinned divider now has equal 12px side insets (previously 12px/10px).
+
+After pasting, check the divider spacing, normal/selected/nested tabs, pinned
+centering, title descenders, and narrow sidebar widths. The saved copy has not
+been automatically applied or independently render-tested.
+
 ## Check after activation
 
+- The browser's “Sidebery” title/header row is absent, with no empty space;
+  Sidebery's own navigation and tab layout remain unchanged.
 - Native tabs stay absent with Sidebery open, closed, and another sidebar selected;
   also check with Sidebery disabled. Sidebery tab selection and resizing work.
 - Test native horizontal and vertical modes, new windows, narrow windows, and
@@ -76,5 +104,6 @@ restart; this disables **all** profile chrome styles, not just this file.
 ## Scope
 
 This is the macOS installation workflow. NixOS/Home Manager deployment can reuse
-the stylesheet but is not configured here. Sidebery settings, themes, default
-browser selection, and Helium/window-manager migration are separate concerns.
+the stylesheets but is not configured here. Sidebery settings beyond the saved
+custom CSS, themes, default browser selection, and Helium/window-manager migration
+are separate concerns.

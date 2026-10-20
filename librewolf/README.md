@@ -10,8 +10,12 @@ hidden tab toolbar outside fullscreen.
 The browser-provided sidebar header is also hidden, including its title, close
 button, and sidebar switcher. This applies to other browser sidebars too, not
 just Sidebery. Sidebery's own navigation, tabs, indentation, and resizing remain
-unchanged. The browser sidebar also has an 8px outer left inset via
-`#sidebar-box`. Restart LibreWolf after changing these rules.
+unchanged. The browser sidebar has no outer left margin or bottom padding, and
+its left/bottom corners are square so its surface meets the window edges; the
+top-right corner stays rounded. Native macOS window rounding still clips the
+outer window corners. Existing sidebar/content outlines are 2px in the non-Nova
+revamped layout outside fullscreen; split-view focus outlines remain native.
+Restart LibreWolf after changing these rules.
 
 Based on [Sidebery's instructions](https://github.com/mbnuqw/sidebery#how-to-hide-native-tabs).
 Browser chrome selectors are internal APIs and may need updating after upgrades.
@@ -67,8 +71,8 @@ The styles preserve Comic Mono at 12px (install that font locally), compact tabs
 highlighted active tabs, neutral text, and lavender accents. These are fixed dark
 colors even when the browser uses a light theme; `theme switch` does not regenerate
 this manually maintained stylesheet.
-The 4px inner left/right padding is separate from the browser's 8px outer left
-inset. Duplicate declarations were consolidated; the effective tab margin stays
+The 4px inner left/right padding remains inside Sidebery, independent of the
+browser's flush outer edges. Duplicate declarations were consolidated; the effective tab margin stays
 2px. The pinned divider now has equal 12px side insets (previously 12px/10px).
 
 After pasting, check the divider spacing, normal/selected/nested tabs, pinned
@@ -79,6 +83,9 @@ been automatically applied or independently render-tested.
 
 - The browser's “Sidebery” title/header row is absent, with no empty space;
   Sidebery's own navigation and tab layout remain unchanged.
+- The sidebar meets the window's left/bottom edges without browser gutters;
+  its top-right corner remains rounded. Check the 2px outlines for clipping and
+  confirm sidebar resizing works. Internal tab padding should remain unchanged.
 - Native tabs stay absent with Sidebery open, closed, and another sidebar selected;
   also check with Sidebery disabled. Sidebery tab selection and resizing work.
 - Test native horizontal and vertical modes, new windows, narrow windows, and

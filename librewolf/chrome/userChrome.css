@@ -9,8 +9,19 @@
   display: none !important;
 }
 
+/* Align the sidebar surface with the window's left and bottom edges. */
 #sidebar-box {
-  margin-left: 8px !important;
+  margin-left: 0 !important;
+  padding-block-end: 0 !important;
+}
+
+/* Keep only the top-right sidebar corner rounded. Native window clipping
+ * remains controlled by macOS.
+ */
+#sidebar-box #sidebar {
+  border-top-left-radius: 0 !important;
+  border-bottom-left-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
 }
 
 /* Remove the browser sidebar title, close button, and switcher controls.
@@ -28,5 +39,17 @@
 @media (-moz-platform: macos) {
   :root[tabsintitlebar]:not([inFullscreen], [chromehidden~="toolbar"]) #nav-bar>.titlebar-buttonbox-container {
     display: flex !important;
+  }
+}
+
+/* Thicken existing rounded sidebar/content outlines without changing layout
+ * or theme colors. Keep fullscreen and split-view focus outlines native.
+ * This targets the current non-Nova sidebar layout only.
+ */
+@media -moz-pref("sidebar.revamp") and (not -moz-pref("browser.nova.enabled")) {
+  :root:not([inFullscreen], [inDOMFullscreen]) #sidebar-box #sidebar,
+  :root:not([inFullscreen], [inDOMFullscreen])
+    #tabbrowser-tabpanels > :not(.split-view-panel) .browserContainer {
+    outline-width: 2px !important;
   }
 }

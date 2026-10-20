@@ -25,6 +25,8 @@ editor: nvim (todo: add plugins)
 
 terminal: ghostty
 
+browser: LibreWolf + Sidebery ([stylesheet setup](librewolf/README.md))
+
 top bar: sketchybar
 
 borders: jankyborders

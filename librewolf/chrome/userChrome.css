@@ -1,0 +1,21 @@
+/* Native tabs stay hidden even when Sidebery is closed or disabled.
+ * Adapted from https://github.com/mbnuqw/sidebery#how-to-hide-native-tabs
+ * Keep #sidebar-box intact: it hosts Sidebery and other extension sidebars.
+ */
+#TabsToolbar,
+#sidebar-main,
+#sidebar-container,
+#sidebar-launcher-splitter {
+  display: none !important;
+}
+
+/* LibreWolf already has a window-control container in the navigation toolbar.
+ * With the tab toolbar hidden, use those controls on macOS. Let the browser
+ * retain its normal fullscreen and native-titlebar behavior.
+ */
+@media (-moz-platform: macos) {
+  :root[tabsintitlebar]:not([inFullscreen], [chromehidden~="toolbar"])
+    #nav-bar > .titlebar-buttonbox-container {
+    display: flex !important;
+  }
+}

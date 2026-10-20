@@ -115,3 +115,5 @@ __pycache__/
 /pi-config/agent/plan-history
 /tmux_scripts/mm-sidebar/mm-sidebar
 /result
+/pi-config/agent/pi-tui-crash.log
+/pi-config/agent/mcp-project-approvals.json

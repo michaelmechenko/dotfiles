@@ -63,7 +63,10 @@ as `userChrome.css` or edit extension storage.
 
 The styles preserve Comic Mono at 12px (install that font locally), compact tabs,
 26px pinned tabs, centered pinned rows, the custom tree guides and title padding,
-6px corners, and the pink `accent-sidebery` documented in `../COLORS.md`.
+6px corners, and Vague colors documented in `../COLORS.md`: dark canvas/chrome,
+highlighted active tabs, neutral text, and lavender accents. These are fixed dark
+colors even when the browser uses a light theme; `theme switch` does not regenerate
+this manually maintained stylesheet.
 The 4px inner left/right padding is separate from the browser's 8px outer left
 inset. Duplicate declarations were consolidated; the effective tab margin stays
 2px. The pinned divider now has equal 12px side insets (previously 12px/10px).

@@ -12,10 +12,42 @@
   --general-border-radius: 6px;
   --tabs-border-radius: 6px;
 
-  /* accent-sidebery (COLORS.md): preserve the custom Sidebery pink. */
-  --toolbar-el-overlay-selected-border: #ff87f2ff;
-  --frame-el-overlay-selected-border: #ff87f2ff;
-  --nav-btn-accent: #ff87f2ff;
+  /* Vague roles from theme/palettes/vague.json; see COLORS.md.
+   * Fixed dark colors in both light/dark browser modes. Geometry stays intact.
+   */
+  --vague-canvas: #100E11;
+  --vague-chrome: #1C1C24;
+  --vague-highlight: #2A2A35;
+  --vague-divider: #383848;
+  --vague-text: #BEBEBE;
+  --vague-muted: #656a80;
+  --vague-accent: #aeaed1;
+
+  --frame-bg: var(--vague-canvas);
+  --frame-fg: var(--vague-text);
+  --toolbar-bg: var(--vague-chrome);
+  --toolbar-fg: var(--vague-text);
+  --active-el-bg: var(--vague-highlight);
+  --active-el-fg: var(--vague-text);
+  --active-el-shadow: none;
+  --popup-bg: var(--vague-chrome);
+  --popup-fg: var(--vague-text);
+  --border: var(--vague-divider);
+  --accent: var(--vague-accent);
+
+  --frame-el-overlay-hover-bg: var(--vague-highlight);
+  --frame-el-overlay-clicked-bg: var(--vague-highlight);
+  --frame-el-overlay-selected-bg: var(--vague-highlight);
+  --toolbar-el-overlay-hover-bg: var(--vague-highlight);
+  --toolbar-el-overlay-clicked-bg: var(--vague-highlight);
+  --toolbar-el-overlay-active-bg: var(--vague-highlight);
+  --toolbar-el-overlay-selected-bg: var(--vague-highlight);
+  --toolbar-el-overlay-selected-border: var(--vague-accent);
+  --frame-el-overlay-selected-border: var(--vague-accent);
+  --nav-btn-accent: var(--vague-accent);
+  --frame-scrollbar-color: var(--vague-muted);
+  --toolbar-scrollbar-color: var(--vague-muted);
+  --popup-scrollbar-color: var(--vague-muted);
 }
 
 #root {

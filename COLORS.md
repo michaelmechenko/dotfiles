@@ -98,11 +98,16 @@ roles, status rows, and native border/footer colors are unchanged.
 | `accent-warn` (warm sand) | `#f5cb96` | Ghostty ANSI 11. **ohmyposh uses a near-miss variant** (see below). |
 | `accent-amber` (amber) | `#f3be7c` | Ghostty ANSI 4; nvim `GitSignsChange`; nvim lualine `insert`-mode status/location block; mm-sidebar Git changed/renamed/type rows. Distinct from `accent-warn` (`#f5cb96`, ANSI 11) — `accent-amber` is more orange-ward. |
 
-### Sidebery-specific accent
+### Sidebery
 
-| Role | Hex | Where used |
-|---|---|---|
-| `accent-sidebery` | `#ff87f2ff` | User-selected pink in `librewolf/sidebery.css`: `--toolbar-el-overlay-selected-border`, `--frame-el-overlay-selected-border`, and `--nav-btn-accent`. Scoped to Sidebery; intentionally independent of the shared terminal palette. Applied by manually pasting the stylesheet into Sidebery's Styles editor. |
+`librewolf/sidebery.css` uses fixed Vague colors in both browser light/dark modes:
+`canvas` for the sidebar, `surface-chrome` for navigation/popups,
+`surface-highlight` for active/hovered/selected items, `text` for foregrounds,
+`text-muted` for scrollbars, `divider-subtle` for borders, and `accent-secondary`
+for selected borders and navigation accents. These replace the former custom
+pink (`#ff87f2ff`). The pinned separator remains foreground-derived at 25%
+opacity. Apply manually through Sidebery's Styles editor; this file is not a
+generated theme adapter and does not follow `theme switch` automatically.
 
 ### Tmux pane-footer rendering
 
